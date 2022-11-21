@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-DEVICE = torch.device('cpu')
+DEVICE = torch.device('cuda')
 
 class DuelingNetwork(nn.Module):
 
@@ -65,3 +65,55 @@ class Network(nn.Module):
         x = self.fc3(x)
 
         return x
+
+class Actor(nn.Module):
+    def __init__(self, vector_size, num_actions):
+        super(Actor, self).__init__()
+
+        self.input_size  = vector_size
+        self.num_actions = num_actions
+        self.hidden_size = [128, 64, 32]
+
+        self.h_linear_1 = nn.Linear(in_features=self.input_size, out_features=self.hidden_size[0])
+        self.h_linear_2 = nn.Linear(in_features=self.hidden_size[0], out_features=self.hidden_size[1])
+        self.h_linear_3 = nn.Linear(in_features=self.hidden_size[1], out_features=self.hidden_size[2])
+        self.h_linear_4 = nn.Linear(in_features=self.hidden_size[2], out_features=self.num_actions)
+
+        self.optimizer = optim.Adam(self.parameters(), lr=0.0001)
+        self.loss = nn.MSELoss()
+        self.to(DEVICE)
+
+    def forward(self, state):
+        x = torch.relu(self.h_linear_1(state))
+        x = torch.relu(self.h_linear_2(x))
+        x = torch.relu(self.h_linear_3(x))
+        x = torch.tanh(self.h_linear_4(x))
+        return x  
+
+class Critic(nn.Module):
+    def __init__(self, vector_size, num_actions):
+        super(Critic, self).__init__()
+
+        self.vector_size = vector_size
+        self.num_actions = num_actions
+        self.input_size  = self.vector_size + self.num_actions
+        self.hidden_size = [128, 64, 32]
+
+        self.Q1 = nn.Sequential(
+            nn.Linear(self.input_size, self.hidden_size[0]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[1], self.hidden_size[2]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[2], 1)  # no sure why is always one here
+        )
+
+        self.optimizer = optim.Adam(self.parameters(), lr=0.0001)
+        self.loss = nn.MSELoss()
+        self.to(DEVICE)
+
+    def forward(self,  state, action):
+        x = torch.cat([state, action], dim=1)
+        q1 = self.Q1(x)
+        return q1
