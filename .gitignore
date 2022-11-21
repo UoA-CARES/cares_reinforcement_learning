@@ -1,5 +1,5 @@
 __pycache__/
-
+venv/
 # Default ignored files
 /shelf/
 /workspace.xml

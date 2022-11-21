@@ -1,5 +1,5 @@
 import torch
-from .utils import MemoryBuffer
+from ..util import MemoryBuffer
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -75,6 +75,12 @@ class DDPGAgent:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1).to(DEVICE)
         next_states = next_states.to(DEVICE)
         dones = dones.unsqueeze(0).reshape(batch_size, 1).to(DEVICE)
+
+        # print("States", states.shape)
+        # print("Actions", actions.shape)
+        # print("Rewards", rewards.shape)
+        # print("Next_States", next_states.shape)
+        # print("Dones", dones.shape)
 
         # We do not want the gradients calculated for any of the target networks, we manually update the parameters
         with torch.no_grad():
