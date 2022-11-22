@@ -30,6 +30,7 @@ class DQNAgent(object):
         self.gamma = gamma
         self.action_space = action_space
 
+
     def choose_action(self, state):
         """
         Use epsilon greedy policy to select the next action

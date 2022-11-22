@@ -1,5 +1,9 @@
 import torch
+from gym import Env
+import numpy as np
+
 from ..util import MemoryBuffer
+from ..networks import Actor, Critic
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -14,9 +18,17 @@ class DDPGAgent:
     Reinforcement Learning Agent using DDPG algorithm to learn
     """
 
-    def __init__(self, actor_net: torch.nn.Module, target_actor_net: torch.nn.Module, critic_net: torch.nn.Module,
-                 target_critic_net: torch.nn.Module, memory: MemoryBuffer, gamma: float,
-                 tau: float) -> None:
+    def __init__(self,
+                 env: Env,
+                 memory: MemoryBuffer = MemoryBuffer(10_000),
+                 gamma: float = 0.99,
+                 tau: float = 0.01,
+                 learning_rate: float = 0.001,
+                 actor_net: torch.nn.Module = None,
+                 target_actor_net: torch.nn.Module = None,
+                 critic_net: torch.nn.Module = None,
+                 target_critic_net: torch.nn.Module = None
+                 ) -> None:
         """
         Constructor used to create DDPGAgent
 
@@ -29,15 +41,21 @@ class DDPGAgent:
             `gamma`: discount rate \n
             `tau`: polyak averaging constant, lagging constant \n
         """
-        self.actor = actor_net.to(DEVICE)
-        self.target_actor = target_actor_net.to(DEVICE)
-        self.critic = critic_net.to(DEVICE)
-        self.target_critic = target_critic_net.to(DEVICE)
+        self.env = env
+
+        obs_size = env.observation_space.shape[0]
+        act_size = env.action_space.shape[0]
+
+        self.actor = actor_net or Actor(obs_size, act_size, learning_rate)
+        self.target_actor = target_actor_net or Actor(obs_size, act_size, learning_rate)
+        self.critic = critic_net or Critic(obs_size, act_size, learning_rate)
+        self.target_critic = target_critic_net or Critic(obs_size, act_size, learning_rate)
 
         self.memory = memory
 
         self.gamma = gamma
         self.tau = tau
+        self.learning_rate = learning_rate
 
     def choose_action(self, state):
         """
@@ -53,11 +71,14 @@ class DDPGAgent:
         """
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(DEVICE)
+            state_tensor = state_tensor.unsqueeze(0)
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy()
 
-        return action[0]
+            noise = np.random.normal(0, scale=0.1 * self.env.action_space.high.max(),
+                                     size=self.env.action_space.shape[0])
+
+        return action[0] + noise
 
     def learn(self, batch_size):
         """
@@ -70,17 +91,11 @@ class DDPGAgent:
 
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
 
-        states = states.to(DEVICE)
-        actions = actions.to(DEVICE)
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1).to(DEVICE)
-        next_states = next_states.to(DEVICE)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1).to(DEVICE)
-
-        # print("States", states.shape)
-        # print("Actions", actions.shape)
-        # print("Rewards", rewards.shape)
-        # print("Next_States", next_states.shape)
-        # print("Dones", dones.shape)
+        states = states
+        actions = actions
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        next_states = next_states
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # We do not want the gradients calculated for any of the target networks, we manually update the parameters
         with torch.no_grad():
@@ -88,7 +103,7 @@ class DDPGAgent:
             next_actions = self.target_actor(next_states)
             next_q_values = self.target_critic(next_states, next_actions)
 
-            q_target = rewards + self.gamma * ~dones * next_q_values
+            q_target = rewards + self.gamma * (1 - dones) * next_q_values
 
         q_values = self.critic(states, actions)
 
