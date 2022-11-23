@@ -27,7 +27,7 @@ reinforcement_learning_summer/
 ### Package Dependencies
 Consult the `./requirements.txt` for package dependencies.
 
-Run `pip install -r requirements.txt`
+Run `pip install -r requirements.txt` to install package requirements
 
 ### Usage Notes
 Agents interact with the environment via. the [Open AI Gym API](https://www.gymlibrary.dev/content/environment_creation/)
