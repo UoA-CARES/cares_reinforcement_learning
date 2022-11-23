@@ -57,7 +57,7 @@ def plot_learning(title: str, reward):
     plt.show()
 
 
-def plot_average(title: str, reward):
+def plot_learning_average(title: str, reward):
 
     y = reward
     x = range(1, len(reward) + 1)
@@ -68,11 +68,38 @@ def plot_average(title: str, reward):
     data_dict = {"Episode": x, "Reward": y}
     df = pd.DataFrame(data=data_dict)
 
-    df["Average Reward"] = df["Reward"].rolling(3).mean()
+    df["Average Reward"] = df["Reward"].rolling(40).mean()
 
     sns.set_theme(style="darkgrid")
+    plt.figure().set_figwidth(8)
 
-    sns.lineplot(data=df, x="Episode", y="Reward")
+    sns.lineplot(data=df, x="Episode", y="Reward", alpha=0.4)
     sns.lineplot(data=df, x="Episode", y="Average Reward")
+
+
+    plt.fill_between(df["Episode"], df["Reward"], df["Average Reward"], alpha=0.4)
+    plt.title(title)
+
+    plt.show()
+
+
+def plot_average_std(title: str, reward):
+
+    y = reward
+    x = range(1, len(reward) + 1)
+
+    data_dict = {"Episode": x, "Reward": y}
+    df = pd.DataFrame(data=data_dict)
+
+    df["Average Reward"] = df["Reward"].rolling(40).mean()
+    df["Standard Deviation"] = df["Reward"].rolling(40).std()
+
+    sns.set_theme(style="darkgrid")
+    plt.figure().set_figwidth(8)
+
+    sns.lineplot(data=df, x="Episode", y="Average Reward")
+
+    plt.fill_between(df["Episode"], df["Average Reward"] - df["Standard Deviation"], df["Average Reward"] +
+                     df["Standard Deviation"], alpha=0.4)
     plt.title(title)
     plt.show()
