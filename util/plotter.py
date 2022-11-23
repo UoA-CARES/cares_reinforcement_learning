@@ -1,105 +1,103 @@
 import os
 import csv
-import numpy as np
 
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 
 
-def write_all_to_file(file_name: str, *args):
-    """
-    Write arrays of data to file
-    """
+class Plotter:
 
-    dir_exists = os.path.exists("raw_data")
+    def write_all_to_file(self, column_title : str, file_name: str, *args):
+        """
+        Write arrays of data to file
+        """
 
-    if not dir_exists:
-        os.makedirs("raw_data")
+        dir_exists = os.path.exists("raw_data")
 
-    file_out = open(f"raw_data/{file_name}", "w")
-    csv_out = csv.writer(file_out)
+        if not dir_exists:
+            os.makedirs("raw_data")
 
-    for row in zip(*args):
-        csv_out.writerow(row)
+        file_out = open(f"raw_data/{file_name}", "w")
+        csv_out = csv.writer(file_out)
 
+        csv_out.writerow(column_title)
+        for row in zip(*args):
+            csv_out.writerow(row)
 
-def write_to_file(file_name: str, *args):
-    """
-    Write single instance to file
-    """
-    dir_exists = os.path.exists("raw_data")
+    def write_to_file(self, file_name: str, *args):
+        """
+        Write single instance to file
+        """
+        dir_exists = os.path.exists("raw_data")
 
-    if not dir_exists:
-        os.makedirs("raw_data")
+        if not dir_exists:
+            os.makedirs("raw_data")
 
-    file_out = open(f"raw_data/{file_name}", "a")
-    csv_out = csv.writer(file_out)
+        file_out = open(f"raw_data/{file_name}", "a")
+        csv_out = csv.writer(file_out)
 
-    csv_out.writerow(args)
+        csv_out.writerow(args)
 
+    def plot_learning(self, title: str, reward):
+        y = reward
+        x = range(1, len(reward) + 1)
 
-def plot_learning(title: str, reward):
+        print(reward)
+        print(x)
 
-    y = reward
-    x = range(1, len(reward) + 1)
+        data_dict = {"Episode": x, "Reward": y}
+        df = pd.DataFrame(data=data_dict)
 
-    print(reward)
-    print(x)
+        sns.set_theme(style="darkgrid")
+        plt.figure().set_figwidth(8)
 
-    data_dict = {"Episode": x, "Reward": y}
-    df = pd.DataFrame(data=data_dict)
+        sns.lineplot(data=df, x="Episode", y="Reward")
+        plt.title(title)
+        plt.show()
 
-    sns.set_theme(style="darkgrid")
+    def plot_learning_average(self, title: str, reward):
+        y = reward
+        x = range(1, len(reward) + 1)
 
-    sns.lineplot(data=df, x="Episode", y="Reward")
-    plt.title(title)
-    plt.show()
+        print(reward)
+        print(x)
 
+        data_dict = {"Episode": x, "Reward": y}
+        df = pd.DataFrame(data=data_dict)
 
-def plot_learning_average(title: str, reward):
+        df["Average Reward"] = df["Reward"].rolling(10).mean()
 
-    y = reward
-    x = range(1, len(reward) + 1)
+        sns.set_theme(style="darkgrid")
+        plt.figure().set_figwidth(8)
 
-    print(reward)
-    print(x)
+        sns.lineplot(data=df, x="Episode", y="Reward", alpha=0.4)
+        sns.lineplot(data=df, x="Episode", y="Average Reward")
 
-    data_dict = {"Episode": x, "Reward": y}
-    df = pd.DataFrame(data=data_dict)
+        plt.fill_between(df["Episode"], df["Reward"], df["Average Reward"], alpha=0.4)
+        plt.title(title)
 
-    df["Average Reward"] = df["Reward"].rolling(40).mean()
+        plt.show()
 
-    sns.set_theme(style="darkgrid")
-    plt.figure().set_figwidth(8)
+    def plot_average_std(self, title: str, reward):
+        y = reward
+        x = range(1, len(reward) + 1)
 
-    sns.lineplot(data=df, x="Episode", y="Reward", alpha=0.4)
-    sns.lineplot(data=df, x="Episode", y="Average Reward")
+        data_dict = {"Episode": x, "Reward": y}
+        df = pd.DataFrame(data=data_dict)
 
+        df["Average Reward"] = df["Reward"].rolling(10).mean()
+        df["Standard Deviation"] = df["Reward"].rolling(10).std()
 
-    plt.fill_between(df["Episode"], df["Reward"], df["Average Reward"], alpha=0.4)
-    plt.title(title)
+        sns.set_theme(style="darkgrid")
+        plt.figure().set_figwidth(8)
 
-    plt.show()
+        ax = sns.lineplot(data=df, x="Episode", y="Average Reward", label="Average Reward")
+        ax.set(xlabel="Episode", ylabel="Reward")
+        plt.fill_between(df["Episode"], df["Average Reward"] - df["Standard Deviation"], df["Average Reward"] +
+                         df["Standard Deviation"], alpha=0.4)
 
+        sns.move_legend(ax, "lower right")
 
-def plot_average_std(title: str, reward):
-
-    y = reward
-    x = range(1, len(reward) + 1)
-
-    data_dict = {"Episode": x, "Reward": y}
-    df = pd.DataFrame(data=data_dict)
-
-    df["Average Reward"] = df["Reward"].rolling(40).mean()
-    df["Standard Deviation"] = df["Reward"].rolling(40).std()
-
-    sns.set_theme(style="darkgrid")
-    plt.figure().set_figwidth(8)
-
-    sns.lineplot(data=df, x="Episode", y="Average Reward")
-
-    plt.fill_between(df["Episode"], df["Average Reward"] - df["Standard Deviation"], df["Average Reward"] +
-                     df["Standard Deviation"], alpha=0.4)
-    plt.title(title)
-    plt.show()
+        plt.title(title)
+        plt.show()
