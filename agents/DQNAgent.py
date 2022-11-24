@@ -84,7 +84,7 @@ class DQNAgent(object):
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
         # Compute the target q values based on bellman's equations
-        expected_q_values = rewards + self.gamma * best_next_q_values * (1 - dones)
+        expected_q_values = rewards + self.gamma * (1 - dones) * best_next_q_values
 
         # Update the Network
         loss = self.network.loss(best_q_values, expected_q_values)

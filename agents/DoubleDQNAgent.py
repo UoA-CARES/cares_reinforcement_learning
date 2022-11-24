@@ -109,7 +109,7 @@ class DoubleDQNAgent(object):
         '''
         next_q_values_of_actions_taken = next_q_values[torch.arange(next_q_values.size(0)), actions_prime]
 
-        q_target = rewards + self.gamma * next_q_values_of_actions_taken * ~dones
+        q_target = rewards + self.gamma * (1 - dones) * next_q_values_of_actions_taken
 
         loss = self.q_net.loss(q_values_of_actions_taken, q_target)
         self.q_net.optimizer.zero_grad()
