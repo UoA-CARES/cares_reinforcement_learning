@@ -22,7 +22,6 @@ class Network(nn.Module):
 
         self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
         self.loss = nn.MSELoss()
-        self.to(DEVICE)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))

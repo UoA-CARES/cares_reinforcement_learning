@@ -20,12 +20,4 @@ class MemoryBuffer:
         # eg. tuples of states, tuples of actions...
         states, actions, rewards, next_states, dones = zip(*experience_batch)
 
-        # Convert from _ tuples to _ tensors
-        # e.g. states tuple to states tensor
-        states = torch.FloatTensor(np.asarray(states))
-        actions = torch.FloatTensor(np.asarray(actions))
-        rewards = torch.FloatTensor(np.asarray(rewards))
-        next_states = torch.FloatTensor(np.asarray(next_states))
-        dones = torch.FloatTensor(np.asarray(dones))
-
         return states, actions, rewards, next_states, dones
