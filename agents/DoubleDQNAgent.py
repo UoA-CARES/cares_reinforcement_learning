@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from gym import Space
 from typing import Tuple
 from ..util import MemoryBuffer
@@ -78,6 +79,13 @@ class DoubleDQNAgent(object):
 
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
 
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states))
+        actions = torch.LongTensor(np.asarray(actions))
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(np.asarray(next_states))
+        dones = torch.LongTensor(dones)
+
         q_values = self.q_net(states)
         next_q_values_prime = self.q_net_prime(next_states)
 
@@ -101,7 +109,7 @@ class DoubleDQNAgent(object):
         '''
         next_q_values_of_actions_taken = next_q_values[torch.arange(next_q_values.size(0)), actions_prime]
 
-        q_target = rewards + self.gamma * next_q_values_of_actions_taken * ~dones
+        q_target = rewards + self.gamma * (1 - dones) * next_q_values_of_actions_taken
 
         loss = self.q_net.loss(q_values_of_actions_taken, q_target)
         self.q_net.optimizer.zero_grad()
@@ -113,3 +121,4 @@ class DoubleDQNAgent(object):
 
         for target_param, param in zip(self.q_net_prime.parameters(), self.q_net.parameters()):
             target_param.data.copy_(self.tau * param + (1 - self.tau) * target_param)
+

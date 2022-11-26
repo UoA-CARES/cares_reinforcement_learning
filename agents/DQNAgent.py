@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import random
 
@@ -29,7 +30,6 @@ class DQNAgent(object):
 
         self.gamma = gamma
         self.action_space = action_space
-
 
     def choose_action(self, state):
         """
@@ -66,6 +66,13 @@ class DQNAgent(object):
 
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
 
+        # Convert into Tensor
+        states = torch.FloatTensor(np.asarray(states))
+        actions = torch.LongTensor(np.asarray(actions))
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(np.asarray(next_states))
+        dones = torch.LongTensor(dones)
+
         # Generate Q Values given state at time t and t + 1 
         q_values = self.network.forward(states)
         next_q_values = self.network.forward(next_states)
@@ -77,7 +84,7 @@ class DQNAgent(object):
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
         # Compute the target q values based on bellman's equations
-        expected_q_values = rewards + self.gamma * best_next_q_values * ~dones
+        expected_q_values = rewards + self.gamma * (1 - dones) * best_next_q_values
 
         # Update the Network
         loss = self.network.loss(best_q_values, expected_q_values)
@@ -87,3 +94,4 @@ class DQNAgent(object):
 
         self.epsilon *= self.epsilon_decay
         self.epsilon = max(self.epsilon, self.min_epsilon)
+

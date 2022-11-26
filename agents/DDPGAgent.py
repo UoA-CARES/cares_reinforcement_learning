@@ -22,7 +22,7 @@ class DDPGAgent:
                  env: Env,
                  memory: MemoryBuffer = MemoryBuffer(10_000),
                  gamma: float = 0.99,
-                 tau: float = 0.01,
+                 tau: float = 0.005,
                  learning_rate: float = 0.001,
                  actor_net: torch.nn.Module = None,
                  target_actor_net: torch.nn.Module = None,
@@ -46,8 +46,8 @@ class DDPGAgent:
         obs_size = env.observation_space.shape[0]
         act_size = env.action_space.shape[0]
 
-        self.actor = actor_net or Actor(obs_size, act_size, learning_rate)
-        self.target_actor = target_actor_net or Actor(obs_size, act_size, learning_rate)
+        self.actor = actor_net or Actor(env.observation_space, env.action_space, learning_rate)
+        self.target_actor = target_actor_net or Actor(env.observation_space, env.action_space, learning_rate)
         self.critic = critic_net or Critic(obs_size, act_size, learning_rate)
         self.target_critic = target_critic_net or Critic(obs_size, act_size, learning_rate)
 
@@ -91,10 +91,15 @@ class DDPGAgent:
 
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
 
-        states = states
-        actions = actions
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states))
+        actions = torch.FloatTensor(np.asarray(actions))
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(np.asarray(next_states))
+        dones = torch.LongTensor(dones)
+
+        # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        next_states = next_states
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # We do not want the gradients calculated for any of the target networks, we manually update the parameters
@@ -128,3 +133,19 @@ class DDPGAgent:
 
         for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+
+    def fill_buffer(self):
+
+        while len(self.memory.buffer) != self.memory.buffer.maxlen:
+            state, _ = self.env.reset()
+
+            while True:
+                action = self.env.action_space.sample()
+                new_state, reward, terminated, truncated, _ = self.env.step(action)
+
+                self.memory.add(state, action, reward, new_state, terminated)
+
+                state = new_state
+
+                if terminated or truncated:
+                    break
