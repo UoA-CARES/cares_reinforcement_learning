@@ -35,8 +35,22 @@ class Plotter:
         csv_out = csv.writer(file_out)
 
         csv_out.writerow(column_title.split(" "))
+
         for row in zip(*args):
             csv_out.writerow(row)
+
+    def read_file(self, file_path : str):
+        '''
+        Reads a file that contains just rewards on every line
+
+        Parameters:
+            file_path: a string path to the data file
+        '''
+        file = open(file_path, "r")
+        strings = file.readlines()
+        floats = [float(x) for x in strings]
+        return floats
+
 
     def plot_learning(self, title: str, reward, file_name: str = "figure.png"):
         """
