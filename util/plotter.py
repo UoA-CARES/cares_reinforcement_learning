@@ -82,13 +82,10 @@ class Plotter:
         y = reward
         x = range(1, len(reward) + 1)
 
-        print(reward)
-        print(x)
-
         data_dict = {"Episode": x, "Reward": y}
         df = pd.DataFrame(data=data_dict)
 
-        df["Average Reward"] = df["Reward"].rolling(10).mean()
+        df["Average Reward"] = df["Reward"].rolling(100).mean()
 
         sns.set_theme(style="darkgrid")
         plt.figure().set_figwidth(8)
@@ -123,8 +120,8 @@ class Plotter:
         data_dict = {"Episode": x, "Reward": y}
         df = pd.DataFrame(data=data_dict)
 
-        df["Average Reward"] = df["Reward"].rolling(10).mean()
-        df["Standard Deviation"] = df["Reward"].rolling(10).std()
+        df["Average Reward"] = df["Reward"].rolling(500).mean()
+        df["Standard Deviation"] = df["Reward"].rolling(500).std()
 
         sns.set_theme(style="darkgrid")
         plt.figure().set_figwidth(8)
