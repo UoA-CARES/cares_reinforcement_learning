@@ -1,5 +1,5 @@
-# summer_reinforcement_learning
-A reinforcement learning package that contains common RL algorithms. These are general purpose modules, designed to be applied in numerous environments. 
+# Summer Reinforcement Learning Package
+A python package that allows developers to build and train reinforcement learning models quickly and efficiently.
 
 ### Package Structure
 
