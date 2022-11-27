@@ -7,7 +7,9 @@ import pandas as pd
 
 
 class Plotter:
-
+    '''
+    Plotting class holding all plot related methods
+    '''
     def write_to_file(self, column_title: str, file_name: str, *args):
         """
         Write arrays of data to file. Data written to raw_data directory
@@ -39,7 +41,7 @@ class Plotter:
         for row in zip(*args):
             csv_out.writerow(row)
 
-    def read_file(self, file_path : str):
+    def read_file(self, file_path: str):
         '''
         Reads a file that contains just rewards on every line
 
@@ -84,7 +86,7 @@ class Plotter:
         plt.savefig(f"figures/{file_name}")
         plt.show()
 
-    def plot_learning_average(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
+    def plot_learning_vs_average(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
         """
         Plot the rolling average and the actual learning. Saves the figure to figures directory
 
@@ -120,7 +122,7 @@ class Plotter:
 
         plt.show()
 
-    def plot_average_std(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
+    def plot_average_with_std(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
         """
         Plot the rolling average and the standard deviation. Saves the figure to figures directory
 
