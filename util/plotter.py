@@ -70,7 +70,7 @@ class Plotter:
         plt.savefig(f"figures/{file_name}")
         plt.show()
 
-    def plot_learning_average(self, title: str, reward, file_name: str = "figure.png"):
+    def plot_learning_average(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
         """
         Plot the rolling average and the actual learning. Saves the figure to figures directory
 
@@ -78,6 +78,7 @@ class Plotter:
             title: title of the plot
             reward: the array of rewards to be plot
             file_name: the name of the figure when saved to disc
+            window_size: the size of the rolling average window
         """
         y = reward
         x = range(1, len(reward) + 1)
@@ -85,7 +86,7 @@ class Plotter:
         data_dict = {"Episode": x, "Reward": y}
         df = pd.DataFrame(data=data_dict)
 
-        df["Average Reward"] = df["Reward"].rolling(100).mean()
+        df["Average Reward"] = df["Reward"].rolling(window_size).mean()
 
         sns.set_theme(style="darkgrid")
         plt.figure().set_figwidth(8)
@@ -105,7 +106,7 @@ class Plotter:
 
         plt.show()
 
-    def plot_average_std(self, title: str, reward, file_name: str = "figure.png"):
+    def plot_average_std(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
         """
         Plot the rolling average and the standard deviation. Saves the figure to figures directory
 
@@ -113,6 +114,7 @@ class Plotter:
             title: title of the plot
             reward: the array of rewards to be plot
             file_name: the name of the figure when saved to disc
+            window_size: the size of the rolling average window
         """
         y = reward
         x = range(1, len(reward) + 1)
@@ -120,8 +122,8 @@ class Plotter:
         data_dict = {"Episode": x, "Reward": y}
         df = pd.DataFrame(data=data_dict)
 
-        df["Average Reward"] = df["Reward"].rolling(500).mean()
-        df["Standard Deviation"] = df["Reward"].rolling(500).std()
+        df["Average Reward"] = df["Reward"].rolling(window_size).mean()
+        df["Standard Deviation"] = df["Reward"].rolling(window_size).std()
 
         sns.set_theme(style="darkgrid")
         plt.figure().set_figwidth(8)
