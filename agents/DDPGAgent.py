@@ -2,7 +2,7 @@ import torch
 from gym import Env
 import numpy as np
 
-from ..util import MemoryBuffer
+from ..util import MemoryBuffer, OUNoise
 from ..networks import Actor, Critic
 
 if torch.cuda.is_available():
@@ -53,9 +53,13 @@ class DDPGAgent:
 
         self.memory = memory
 
+        self.noise = OUNoise(env.action_space)
+
         self.gamma = gamma
         self.tau = tau
         self.learning_rate = learning_rate
+
+        self.step_counter = 0
 
     def choose_action(self, state):
         """
@@ -75,10 +79,17 @@ class DDPGAgent:
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy()
 
-            noise = np.random.normal(0, scale=0.1 * self.env.action_space.high.max(),
-                                     size=self.env.action_space.shape[0])
+        # action = self.noise.get_action(action[0], self.step_counter)
 
-        return action[0] + noise
+        gau_noise = np.random.normal(0, scale=0.3 * self.env.action_space.high.max(),
+                                 size=self.env.action_space.shape[0])
+        gau_action = np.clip(action[0] + gau_noise, self.env.action_space.low, self.env.action_space.high)
+        # print(f"OUNoise {noise}")
+        # print(f"Gaussian Noise {gau_noise}")
+
+        self.step_counter += 1
+
+        return gau_action
 
     def learn(self, batch_size):
         """
