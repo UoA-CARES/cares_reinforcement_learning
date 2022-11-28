@@ -75,10 +75,11 @@ class DDPGAgent:
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy()
 
-            noise = np.random.normal(0, scale=0.1 * self.env.action_space.high.max(),
-                                     size=self.env.action_space.shape[0])
+        noise = np.random.normal(0, scale=0.1 * self.env.action_space.high.max(),
+                                 size=self.env.action_space.shape[0])
+        action = np.clip(action[0] + noise, self.env.action_space.low, self.env.action_space.high)
 
-        return action[0] + noise
+        return action
 
     def learn(self, batch_size):
         """
