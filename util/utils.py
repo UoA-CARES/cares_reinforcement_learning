@@ -41,7 +41,6 @@ def train(agent, episode_num, batch_size, env):
     writer.flush()
     writer.close()
     # Data collected during run, for plotting
-    episode_data = range(0, episode_num)
     reward_data = historical_reward
 
-    return episode_data, reward_data
+    return reward_data
