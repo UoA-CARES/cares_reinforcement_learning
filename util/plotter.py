@@ -7,7 +7,9 @@ import pandas as pd
 
 
 class Plotter:
-
+    '''
+    Plotting class holding all plot related methods
+    '''
     def write_to_file(self, column_title: str, file_name: str, *args):
         """
         Write arrays of data to file. Data written to raw_data directory
@@ -35,8 +37,22 @@ class Plotter:
         csv_out = csv.writer(file_out)
 
         csv_out.writerow(column_title.split(" "))
+
         for row in zip(*args):
             csv_out.writerow(row)
+
+    def read_file(self, file_path: str):
+        '''
+        Reads a file that contains just rewards on every line
+
+        Parameters:
+            file_path: a string path to the data file
+        '''
+        file = open(file_path, "r")
+        strings = file.readlines()
+        floats = [float(x) for x in strings]
+        return floats
+
 
     def plot_learning(self, title: str, reward, file_name: str = "figure.png"):
         """
@@ -70,7 +86,7 @@ class Plotter:
         plt.savefig(f"figures/{file_name}")
         plt.show()
 
-    def plot_learning_average(self, title: str, reward, file_name: str = "figure.png"):
+    def plot_learning_vs_average(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
         """
         Plot the rolling average and the actual learning. Saves the figure to figures directory
 
@@ -78,17 +94,15 @@ class Plotter:
             title: title of the plot
             reward: the array of rewards to be plot
             file_name: the name of the figure when saved to disc
+            window_size: the size of the rolling average window
         """
         y = reward
         x = range(1, len(reward) + 1)
 
-        print(reward)
-        print(x)
-
         data_dict = {"Episode": x, "Reward": y}
         df = pd.DataFrame(data=data_dict)
 
-        df["Average Reward"] = df["Reward"].rolling(10).mean()
+        df["Average Reward"] = df["Reward"].rolling(window_size).mean()
 
         sns.set_theme(style="darkgrid")
         plt.figure().set_figwidth(8)
@@ -108,7 +122,7 @@ class Plotter:
 
         plt.show()
 
-    def plot_average_std(self, title: str, reward, file_name: str = "figure.png"):
+    def plot_average_with_std(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
         """
         Plot the rolling average and the standard deviation. Saves the figure to figures directory
 
@@ -116,6 +130,7 @@ class Plotter:
             title: title of the plot
             reward: the array of rewards to be plot
             file_name: the name of the figure when saved to disc
+            window_size: the size of the rolling average window
         """
         y = reward
         x = range(1, len(reward) + 1)
@@ -123,8 +138,8 @@ class Plotter:
         data_dict = {"Episode": x, "Reward": y}
         df = pd.DataFrame(data=data_dict)
 
-        df["Average Reward"] = df["Reward"].rolling(10).mean()
-        df["Standard Deviation"] = df["Reward"].rolling(10).std()
+        df["Average Reward"] = df["Reward"].rolling(window_size).mean()
+        df["Standard Deviation"] = df["Reward"].rolling(window_size).std()
 
         sns.set_theme(style="darkgrid")
         plt.figure().set_figwidth(8)
