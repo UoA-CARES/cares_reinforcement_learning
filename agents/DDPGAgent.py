@@ -1,10 +1,9 @@
-import gym
 import torch
-from gym import Space
 import numpy as np
 
+from gym import Space
+
 from ..util import MemoryBuffer
-from ..networks import Actor, Critic
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')

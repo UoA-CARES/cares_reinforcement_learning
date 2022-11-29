@@ -1,5 +1,6 @@
 from torch.utils.tensorboard import SummaryWriter
 
+
 def train(agent, episode_num, batch_size, env):
     # Track the reward over EPISODE_NUM episodes
     historical_reward = []

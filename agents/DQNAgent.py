@@ -1,10 +1,10 @@
-import numpy as np
 import torch
+import numpy as np
 import random
 
-from typing import Tuple
-from ..util import MemoryBuffer
 from gym import Space
+
+from ..util import MemoryBuffer
 
 
 class DQNAgent(object):
@@ -12,8 +12,14 @@ class DQNAgent(object):
     Reinforcement Learning agent using DQN algorithm to learn
     """
 
-    def __init__(self, network: torch.nn.Module, memory: MemoryBuffer, epsilon_info: Tuple[float, float, float],
-                 gamma: float, action_space: Space):
+    def __init__(self,
+                 network: torch.nn.Module,
+                 memory: MemoryBuffer,
+                 epsilon_max: float,
+                 epsilon_min: float,
+                 epsilon_decay: float,
+                 gamma: float,
+                 action_space: Space):
         """
         Parameters
             `network`: neural network used for Q value estimation
@@ -26,7 +32,9 @@ class DQNAgent(object):
         self.memory = memory
         self.network = network
 
-        self.epsilon, self.min_epsilon, self.epsilon_decay = epsilon_info
+        self.epsilon = epsilon_max
+        self.min_epsilon = epsilon_min
+        self.epsilon_decay = epsilon_decay
 
         self.gamma = gamma
         self.action_space = action_space
