@@ -1,3 +1,4 @@
+import gym
 import torch
 from gym import Env
 import numpy as np
