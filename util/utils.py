@@ -1,6 +1,5 @@
 from torch.utils.tensorboard import SummaryWriter
 
-
 def train(agent, episode_num, batch_size, env):
     # Track the reward over EPISODE_NUM episodes
     historical_reward = []
@@ -44,3 +43,21 @@ def train(agent, episode_num, batch_size, env):
     reward_data = historical_reward
 
     return reward_data
+
+
+def fill_buffer(agent, env):
+    memory = agent.memory
+
+    while len(memory.buffer) != memory.buffer.maxlen:
+        state, _ = env.reset()
+
+        while True:
+            action = env.action_space.sample()
+            new_state, reward, terminated, truncated, _ = env.step(action)
+
+            memory.add(state, action, reward, new_state, terminated)
+
+            state = new_state
+
+            if terminated or truncated:
+                break
