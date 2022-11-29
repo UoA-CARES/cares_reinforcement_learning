@@ -1,9 +1,10 @@
 import torch
 import numpy as np
-from gym import Space
-from typing import Tuple
-from ..util import MemoryBuffer
 import random
+
+from gym import Space
+
+from ..util import MemoryBuffer
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -18,8 +19,16 @@ class DoubleDQNAgent(object):
     Reinforcement learning agent using Double DQN to learn
     """
 
-    def __init__(self, main_network: torch.nn.Module, target_network: torch.nn.Module, memory: MemoryBuffer,
-                 epsilon_info: Tuple[float, float, float], gamma: float, tau: float, action_space: Space) -> None:
+    def __init__(self,
+                 main_network: torch.nn.Module,
+                 target_network: torch.nn.Module,
+                 memory: MemoryBuffer,
+                 epsilon_max: float,
+                 epsilon_min: float,
+                 epsilon_decay: float,
+                 gamma: float,
+                 tau: float,
+                 action_space: Space) -> None:
 
         """
         Parameters
@@ -38,7 +47,10 @@ class DoubleDQNAgent(object):
 
         self.action_space = action_space
 
-        self.epsilon, self.min_epsilon, self.epsilon_decay = epsilon_info
+        self.epsilon = epsilon_max
+        self.min_epsilon = epsilon_min
+        self.epsilon_decay = epsilon_decay
+
         self.gamma = gamma
         self.tau = tau
 

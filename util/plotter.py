@@ -10,6 +10,7 @@ class Plotter:
     '''
     Plotting class holding all plot related methods
     '''
+
     def write_to_file(self, column_title: str, file_name: str, *args):
         """
         Write arrays of data to file. Data written to raw_data directory
@@ -52,7 +53,6 @@ class Plotter:
         strings = file.readlines()
         floats = [float(x) for x in strings]
         return floats
-
 
     def plot_learning(self, title: str, reward, file_name: str = "figure.png"):
         """
@@ -122,7 +122,8 @@ class Plotter:
 
         plt.show()
 
-    def plot_average_with_std(self, title: str, reward, file_name: str = "figure.png", window_size: int = 10):
+    def plot_average_with_std(self, reward, title: str = "Cool Graph", file_name: str = "figure.png",
+                              window_size: int = 10):
         """
         Plot the rolling average and the standard deviation. Saves the figure to figures directory
 

@@ -1,10 +1,9 @@
-import gym
 import torch
-from gym import Env
 import numpy as np
 
+from gym import Space
+
 from ..util import MemoryBuffer
-from ..networks import Actor, Critic
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -20,15 +19,14 @@ class DDPGAgent:
     """
 
     def __init__(self,
-                 env: Env,
-                 memory: MemoryBuffer = MemoryBuffer(10_000),
-                 gamma: float = 0.99,
-                 tau: float = 0.005,
-                 learning_rate: float = 0.001,
-                 actor_net: torch.nn.Module = None,
-                 target_actor_net: torch.nn.Module = None,
-                 critic_net: torch.nn.Module = None,
-                 target_critic_net: torch.nn.Module = None
+                 memory: MemoryBuffer,
+                 gamma: float,
+                 tau: float,
+                 actor_net: torch.nn.Module,
+                 target_actor_net: torch.nn.Module,
+                 critic_net: torch.nn.Module,
+                 target_critic_net: torch.nn.Module,
+                 act_space: Space
                  ) -> None:
         """
         Constructor used to create DDPGAgent
@@ -42,21 +40,18 @@ class DDPGAgent:
             `gamma`: discount rate \n
             `tau`: polyak averaging constant, lagging constant \n
         """
-        self.env = env
 
-        obs_size = env.observation_space.shape[0]
-        act_size = env.action_space.shape[0]
-
-        self.actor = actor_net or Actor(env.observation_space, env.action_space, learning_rate)
-        self.target_actor = target_actor_net or Actor(env.observation_space, env.action_space, learning_rate)
-        self.critic = critic_net or Critic(obs_size, act_size, learning_rate)
-        self.target_critic = target_critic_net or Critic(obs_size, act_size, learning_rate)
+        self.actor = actor_net
+        self.target_actor = target_actor_net
+        self.critic = critic_net
+        self.target_critic = target_critic_net
 
         self.memory = memory
 
         self.gamma = gamma
         self.tau = tau
-        self.learning_rate = learning_rate
+
+        self.act_space = act_space
 
     def choose_action(self, state):
         """
@@ -76,9 +71,8 @@ class DDPGAgent:
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy()
 
-        noise = np.random.normal(0, scale=0.1 * self.env.action_space.high.max(),
-                                 size=self.env.action_space.shape[0])
-        action = np.clip(action[0] + noise, self.env.action_space.low, self.env.action_space.high)
+        noise = np.random.normal(0, scale=0.1 * self.act_space.high.max(), size=self.act_space.shape[0])
+        action = np.clip(action[0] + noise, self.act_space.low, self.act_space.high)
 
         return action
 
@@ -135,19 +129,3 @@ class DDPGAgent:
 
         for target_param, param in zip(self.target_critic.parameters(), self.critic.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
-
-    def fill_buffer(self):
-
-        while len(self.memory.buffer) != self.memory.buffer.maxlen:
-            state, _ = self.env.reset()
-
-            while True:
-                action = self.env.action_space.sample()
-                new_state, reward, terminated, truncated, _ = self.env.step(action)
-
-                self.memory.add(state, action, reward, new_state, terminated)
-
-                state = new_state
-
-                if terminated or truncated:
-                    break
