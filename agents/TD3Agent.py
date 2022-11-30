@@ -8,18 +8,18 @@ from gym import Space
 
 class TD3Agent:
 
-    def __int__(self,
-                memory: MemoryBuffer,
-                gamma: float,
-                tau: float,
-                actor_net: torch.nn.Module,
-                actor_net_target: torch.nn.Module,
-                critic_one: torch.nn.Module,
-                critic_one_target: torch.nn.Module,
-                critic_two: torch.nn.Module,
-                critic_two_target: torch.nn.Module,
-                act_space: Space
-                ):
+    def __init__(self,
+                 memory: MemoryBuffer,
+                 gamma: float,
+                 tau: float,
+                 actor_net: torch.nn.Module,
+                 actor_net_target: torch.nn.Module,
+                 critic_one: torch.nn.Module,
+                 critic_one_target: torch.nn.Module,
+                 critic_two: torch.nn.Module,
+                 critic_two_target: torch.nn.Module,
+                 act_space: Space
+                 ):
         """
                 Constructor used to create DDPGAgent
 
@@ -33,7 +33,6 @@ class TD3Agent:
                     `critic_one_target`: Lagging Neural Network used to control over estimation \n
                     `critic_two`: Neural Network approximating the Q function, used to critique the policy \n
                     `critic_two_target`: Lagging Neural Network used to control over estimation \n
-
         """
 
         self.actor = actor_net
@@ -51,6 +50,9 @@ class TD3Agent:
         self.tau = tau
 
         self.act_space = act_space
+
+        self.policy_update_freq = 3
+        self.learn_counter = 0
 
     def choose_action(self, state):
         with torch.no_grad():
@@ -70,6 +72,8 @@ class TD3Agent:
         if len(self.memory.buffer) < batch_size:
             return
 
+        self.learn_counter += 1
+
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
 
         # Convert into tensor
@@ -87,15 +91,17 @@ class TD3Agent:
 
             next_actions = self.actor_target(next_states)
 
-            noise = np.random.normal(0, scale=0.1 * self.act_space.high.max(), size=self.act_space.shape[0])
-            clipped_noise = np.clip(noise, -0.5, 0.5)
+            noise = 0.2 * torch.rand_like(next_actions)
+            clipped_noise = noise.clamp(-0.5, 0.5)
 
-            next_actions = np.clip(next_actions + clipped_noise, self.act_space.low, self.act_space.high)
+            next_actions = torch.clip(next_actions + clipped_noise, torch.FloatTensor(self.act_space.low), torch.FloatTensor(self.act_space.high))
 
             target_q_values_one = self.critic_one_target(next_states, next_actions)
             target_q_values_two = self.critic_two_target(next_states, next_actions)
 
-            q_target = rewards + self.gamma * (1 - dones) * min(target_q_values_one, target_q_values_two)
+            target_q_values = torch.min(target_q_values_one, target_q_values_two)
+
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         q_values_one = self.critic_one(states, actions)
         q_values_two = self.critic_two(states, actions)
@@ -114,24 +120,26 @@ class TD3Agent:
         critic_two_loss.backward()
         self.critic_two.optimizer.step()
 
-        # Update Actor
-        actor_q_one = self.critic_one(states, self.actor(states))
-        actor_q_two = self.critic_two(states, self.actor(states))
+        if self.learn_counter % self.policy_update_freq == 0:
 
-        actor_q_values = min(actor_q_one, actor_q_two)
+            # Update Actor
+            actor_q_one = self.critic_one(states, self.actor(states))
+            actor_q_two = self.critic_two(states, self.actor(states))
 
-        actor_loss = -actor_q_values.mean()
+            actor_q_values = torch.min(actor_q_one, actor_q_two)
 
-        self.actor.optimizer.zero_grad()
-        actor_loss.backward()
-        self.actor.optimizer.step()
+            actor_loss = -actor_q_values.mean()
 
-        # Update target network params
-        for target_param, param in zip(self.critic_one_target.parameters(), self.critic_one.parameters()):
-            target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+            self.actor.optimizer.zero_grad()
+            actor_loss.backward()
+            self.actor.optimizer.step()
 
-        for target_param, param in zip(self.critic_two_target.parameters(), self.critic_two.parameters()):
-            target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+            # Update target network params
+            for target_param, param in zip(self.critic_one_target.parameters(), self.critic_one.parameters()):
+                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-        for target_param, param in zip(self.actor_target.parameters(), self.actor.parameters()):
-            target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+            for target_param, param in zip(self.critic_two_target.parameters(), self.critic_two.parameters()):
+                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+
+            for target_param, param in zip(self.actor_target.parameters(), self.actor.parameters()):
+                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))

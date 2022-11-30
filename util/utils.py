@@ -47,6 +47,8 @@ def train(agent, episode_num, batch_size, env):
 
 
 def fill_buffer(agent, env):
+    print("Filling Buffer Started")
+
     memory = agent.memory
 
     while len(memory.buffer) != memory.buffer.maxlen:
@@ -62,3 +64,10 @@ def fill_buffer(agent, env):
 
             if terminated or truncated:
                 break
+
+    print("Buffer Filling Complete!")
+
+
+def save_models(self):
+    torch.save(self.actor.state_dict(), f'trained_models/Normal-TD3_actor_{self.env_name}.pht')
+    print("models have been saved...")
