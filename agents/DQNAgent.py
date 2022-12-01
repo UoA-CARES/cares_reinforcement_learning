@@ -2,12 +2,13 @@ import torch
 import numpy as np
 import random
 
-from gym import Space
+from gym import Space, Env
 
 from ..util import MemoryBuffer
+from .Agent import Agent
 
 
-class DQNAgent(object):
+class DQNAgent(Agent):
     """
     Reinforcement Learning agent using DQN algorithm to learn
     """
@@ -19,7 +20,8 @@ class DQNAgent(object):
                  epsilon_min: float,
                  epsilon_decay: float,
                  gamma: float,
-                 action_space: Space):
+                 action_space: Space,
+                 env: Env):
         """
         Parameters
             `network`: neural network used for Q value estimation
@@ -29,7 +31,7 @@ class DQNAgent(object):
             `gamma`: discount rate
             `action_space`: the action space of the environment
         """
-        self.memory = memory
+        super().__init__(env, memory)
         self.network = network
 
         self.epsilon = epsilon_max
