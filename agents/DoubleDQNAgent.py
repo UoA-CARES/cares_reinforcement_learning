@@ -2,9 +2,10 @@ import torch
 import numpy as np
 import random
 
-from gym import Space
+from gym import Space, Env
 
 from ..util import MemoryBuffer
+from .Agent import Agent
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -14,7 +15,7 @@ else:
     print("Working with CPU")
 
 
-class DoubleDQNAgent(object):
+class DoubleDQNAgent(Agent):
     """
     Reinforcement learning agent using Double DQN to learn
     """
@@ -28,7 +29,8 @@ class DoubleDQNAgent(object):
                  epsilon_decay: float,
                  gamma: float,
                  tau: float,
-                 action_space: Space) -> None:
+                 action_space: Space,
+                 env: Env) -> None:
 
         """
         Parameters
@@ -41,7 +43,8 @@ class DoubleDQNAgent(object):
             `tau`: polyak averaging constant for parameter copying
             `action_space`: the action space of the environment
         """
-        self.memory = memory
+        super().__init__(env, memory)
+
         self.q_net = main_network
         self.q_net_prime = target_network
 

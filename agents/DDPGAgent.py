@@ -1,9 +1,10 @@
 import torch
 import numpy as np
 
-from gym import Space
+from gym import Env
 
 from ..util import MemoryBuffer
+from .Agent import Agent
 
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
@@ -13,7 +14,7 @@ else:
     print("Working with CPU")
 
 
-class DDPGAgent:
+class DDPGAgent(Agent):
     """
     Reinforcement Learning Agent using DDPG algorithm to learn
     """
@@ -26,7 +27,7 @@ class DDPGAgent:
                  target_actor_net: torch.nn.Module,
                  critic_net: torch.nn.Module,
                  target_critic_net: torch.nn.Module,
-                 act_space: Space
+                 env: Env
                  ) -> None:
         """
         Constructor used to create DDPGAgent
@@ -40,18 +41,16 @@ class DDPGAgent:
             `gamma`: discount rate \n
             `tau`: polyak averaging constant, lagging constant \n
         """
-
+        super().__init__(env, memory)
         self.actor = actor_net
         self.target_actor = target_actor_net
         self.critic = critic_net
         self.target_critic = target_critic_net
 
-        self.memory = memory
-
         self.gamma = gamma
         self.tau = tau
 
-        self.act_space = act_space
+        self.act_space = env.action_space
 
     def choose_action(self, state):
         """

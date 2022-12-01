@@ -3,10 +3,11 @@ from ..util import MemoryBuffer
 import torch
 import numpy as np
 
-from gym import Space
+from gym import Space, Env
+from .Agent import Agent
 
 
-class TD3Agent:
+class TD3Agent(Agent):
 
     def __init__(self,
                  memory: MemoryBuffer,
@@ -18,7 +19,8 @@ class TD3Agent:
                  critic_one_target: torch.nn.Module,
                  critic_two: torch.nn.Module,
                  critic_two_target: torch.nn.Module,
-                 act_space: Space
+                 act_space: Space,
+                 env: Env
                  ):
         """
                 Constructor used to create DDPGAgent
@@ -34,6 +36,7 @@ class TD3Agent:
                     `critic_two`: Neural Network approximating the Q function, used to critique the policy \n
                     `critic_two_target`: Lagging Neural Network used to control over estimation \n
         """
+        super().__init__(env, memory)
 
         self.actor = actor_net
         self.actor_target = actor_net_target
