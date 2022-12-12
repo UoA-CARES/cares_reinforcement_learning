@@ -1,22 +1,17 @@
 import torch
 import numpy as np
+import copy
 
 
 class DoubleDQN:
 
     def __init__(self,
                  main_network,
-                 target_network,
-                 optimiser,
-                 loss,
                  gamma,
                  tau):
 
         self.main_network = main_network
-        self.target_network = target_network
-
-        self.optimiser = optimiser
-        self.loss = loss
+        self.target_network = copy.deepcopy(main_network)
 
         self.gamma = gamma
         self.tau = tau
@@ -59,7 +54,7 @@ class DoubleDQN:
 
         q_target = rewards + self.gamma * (1 - dones) * next_q_values_of_actions_taken
 
-        loss = self.loss(q_values_of_actions_taken, q_target)
+        loss = self.main_network.loss(q_values_of_actions_taken, q_target)
         self.main_network.optimizer.zero_grad()
         loss.backward()
         self.main_network.optimizer.step()

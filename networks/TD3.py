@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import numpy as np
 
@@ -6,27 +8,19 @@ class TD3:
 
     def __init__(self,
                  actor_network,
-                 target_actor_network,
                  critic_one,
-                 target_critic_one,
                  critic_two,
-                 target_critic_two,
-                 optimiser,
-                 loss,
                  gamma,
                  tau):
         # TODO: check whether each critic needs its parameters
         self.actor_net = actor_network
-        self.target_actor_net = target_actor_network
+        self.target_actor_net = copy.deepcopy(actor_network)
 
         self.critic_one_net = critic_one
-        self.target_critic_one_net = target_critic_one
+        self.target_critic_one_net = copy.deepcopy(critic_one)
 
         self.critic_two_net = critic_two
-        self.target_critic_two_net = target_critic_two
-
-        self.optimiser = optimiser
-        self.loss = loss
+        self.target_critic_two_net = copy.deepcopy(critic_two)
 
         self.gamma = gamma
         self.tau = tau
@@ -75,18 +69,18 @@ class TD3:
         q_values_two = self.critic_two_net(states, actions)
 
         # Update the Critic One
-        critic_one_loss = self.loss(q_values_one, q_target)
+        critic_one_loss = self.critic_one_net.loss(q_values_one, q_target)
 
-        self.optimiser.zero_grad()
+        self.critic_one_net.optimiser.zero_grad()
         critic_one_loss.backward()
-        self.optimiser.step()
+        self.critic_one_net.optimiser.step()
 
         # Update Critic Two
-        critic_two_loss = self.loss(q_values_two, q_target)
+        critic_two_loss = self.critic_two_net.loss(q_values_two, q_target)
 
-        self.optimiser.zero_grad()
+        self.critic_two_net.optimiser.zero_grad()
         critic_two_loss.backward()
-        self.optimiser.step()
+        self.critic_two_net.optimiser.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
 
@@ -98,9 +92,9 @@ class TD3:
 
             actor_loss = -actor_q_values.mean()
 
-            self.optimiser.zero_grad()
+            self.actor_net.optimiser.zero_grad()
             actor_loss.backward()
-            self.optimiser.step()
+            self.actor_net.optimiser.step()
 
             # Update target network params
             for target_param, param in zip(self.target_critic_one_net.parameters(), self.critic_one_net.parameters()):

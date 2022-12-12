@@ -3,11 +3,10 @@ from util import MemoryBuffer
 import torch
 import numpy as np
 
-from gym import Space, Env
-from agents.Agent import Agent
+# Note: Not Complete
 
 
-class SACAgent(Agent):
+class SAC:
 
     def __init__(self,
                  memory: MemoryBuffer,

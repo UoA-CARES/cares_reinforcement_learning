@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
-from gym import Env
 import numpy as np
 
 
@@ -10,14 +8,9 @@ class DQN:
     # TODO: determine whether to add typing
     def __init__(self,
                  network: nn.Module,
-                 optimiser,
-                 loss,
                  gamma):
 
         self.network = network
-
-        self.optimiser = optimiser
-        self.loss = loss
 
         self.gamma = gamma
 
@@ -50,7 +43,7 @@ class DQN:
         expected_q_values = rewards + self.gamma * (1 - dones) * best_next_q_values
 
         # Update the Network
-        loss = self.loss(best_q_values, expected_q_values)
-        self.network.optimizer.zero_grad()
+        loss = self.network.loss(best_q_values, expected_q_values)
+        self.network.optimiser.zero_grad()
         loss.backward()
-        self.network.optimizer.step()
+        self.network.optimiser.step()
