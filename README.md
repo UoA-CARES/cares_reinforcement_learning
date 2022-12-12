@@ -1,9 +1,14 @@
 # Summer Reinforcement Learning Package
 A python package that allows developers to build and train reinforcement learning (RL) models quickly and efficiently.
 
-## Package Dependencies
-`cd` into the root folder and run `pip install -r requirements.txt` to install dependencies
 
+## Usage
+Consult the repository [wiki](https://github.com/UoA-CARES/summer_reinforcement_learning/wiki) for a guide on how to use the package
+
+## Installation Instructions
+`git clone` the repository
+
+`cd` into the root folder and run `pip install -r requirements.txt` to install dependencies
 
 ## Package Structure
 
