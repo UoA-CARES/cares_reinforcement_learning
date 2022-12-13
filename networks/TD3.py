@@ -1,6 +1,7 @@
 import copy
 
 import torch
+from torch.distributions.uniform import Uniform
 import numpy as np
 
 
@@ -10,6 +11,8 @@ class TD3:
                  actor_network,
                  critic_one,
                  critic_two,
+                 max_actions,
+                 min_actions,
                  gamma,
                  tau):
         # TODO: check whether each critic needs its parameters
@@ -25,8 +28,11 @@ class TD3:
         self.gamma = gamma
         self.tau = tau
 
+        self.max_actions = torch.FloatTensor(max_actions)
+        self.min_actions = torch.FloatTensor(min_actions)
+
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = 2  # Hard coded
 
     def forward(self, observation):
         return self.actor_net.forward(observation)
@@ -52,11 +58,10 @@ class TD3:
 
             next_actions = self.target_actor_net(next_states)
 
-            noise = 0.2 * torch.rand_like(next_actions)
-            clipped_noise = noise.clamp(-0.5, 0.5)
+            noise = Uniform(-0.5, 0.5).sample(next_actions)
 
-            next_actions = torch.clip(next_actions + clipped_noise, torch.FloatTensor(self.act_space.low),
-                                      torch.FloatTensor(self.act_space.high))
+            next_actions = torch.clip(next_actions + noise, self.min_actions,
+                                      self.max_actions)
 
             target_q_values_one = self.target_critic_one_net(next_states, next_actions)
             target_q_values_two = self.target_critic_two_net(next_states, next_actions)

@@ -68,7 +68,7 @@ class DDPG:
         self.actor_net.optimiser.step()
 
         # Update target old_networks' params
-        for target_param, param in zip(self.targ_critic_net.parameters(), self.actor_net.parameters()):
+        for target_param, param in zip(self.targ_actor_net.parameters(), self.actor_net.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
         for target_param, param in zip(self.targ_critic_net.parameters(), self.critic_net.parameters()):
