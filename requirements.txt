@@ -1,5 +1,5 @@
 matplotlib==3.6.2
-numpy==1.17.4
+numpy==1.21
 pandas==1.4.4
 seaborn==0.12.1
 torch==1.12.0
