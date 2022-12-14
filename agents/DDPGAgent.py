@@ -42,10 +42,10 @@ class DDPGAgent(Agent):
             `tau`: polyak averaging constant, lagging constant \n
         """
         super().__init__(env, memory)
-        self.actor = actor_net
-        self.target_actor = target_actor_net
-        self.critic = critic_net
-        self.target_critic = target_critic_net
+        self.actor = actor_net.to(DEVICE)
+        self.target_actor = target_actor_net.to(DEVICE)
+        self.critic = critic_net.to(DEVICE)
+        self.target_critic = target_critic_net.to(DEVICE)
 
         self.gamma = gamma
         self.tau = tau
@@ -65,7 +65,7 @@ class DDPGAgent(Agent):
         We use the Actor Network to produce an action
         """
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
+            state_tensor = torch.FloatTensor(state).to(DEVICE)
             state_tensor = state_tensor.unsqueeze(0)
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy()
@@ -87,11 +87,11 @@ class DDPGAgent(Agent):
         states, actions, rewards, next_states, dones = self.memory.sample(batch_size)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states))
-        actions = torch.FloatTensor(np.asarray(actions))
-        rewards = torch.FloatTensor(rewards)
-        next_states = torch.FloatTensor(np.asarray(next_states))
-        dones = torch.LongTensor(dones)
+        states = torch.FloatTensor(np.asarray(states)).to(DEVICE)
+        actions = torch.FloatTensor(np.asarray(actions)).to(DEVICE)
+        rewards = torch.FloatTensor(rewards).to(DEVICE)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(DEVICE)
+        dones = torch.LongTensor(dones).to(DEVICE)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
