@@ -8,13 +8,7 @@ Consult the repository [wiki](https://github.com/UoA-CARES/summer_reinforcement_
 ## Installation Instructions
 `git clone` the repository
 
-We recommend creating a `conda` environment to run the package.
-
-To **create** a conda environment with the **necessary dependencies**, run the following in the root of the package:
-
-  ```python3
-  conda create --name <env> --file requirements_conda.txt
-  ```
+Run `pip install -r requirements.txt` in the **root directory** of the package
 
 ## Package Structure
 
