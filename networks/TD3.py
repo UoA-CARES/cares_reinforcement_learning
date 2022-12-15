@@ -14,41 +14,43 @@ class TD3:
                  max_actions,
                  min_actions,
                  gamma,
-                 tau):
+                 tau,
+                 device):
         # TODO: check whether each critic needs its parameters
-        self.actor_net = actor_network
-        self.target_actor_net = copy.deepcopy(actor_network)
+        self.actor_net = actor_network.to(device)
+        self.target_actor_net = copy.deepcopy(actor_network).to(device)
 
-        self.critic_one_net = critic_one
-        self.target_critic_one_net = copy.deepcopy(critic_one)
+        self.critic_one_net = critic_one.to(device)
+        self.target_critic_one_net = copy.deepcopy(critic_one).to(device)
 
-        self.critic_two_net = critic_two
-        self.target_critic_two_net = copy.deepcopy(critic_two)
+        self.critic_two_net = critic_two.to(device)
+        self.target_critic_two_net = copy.deepcopy(critic_two).to(device)
 
         self.gamma = gamma
         self.tau = tau
 
-        self.max_actions = torch.FloatTensor(max_actions)
-        self.min_actions = torch.FloatTensor(min_actions)
+        self.max_actions = torch.FloatTensor(max_actions).to(device)
+        self.min_actions = torch.FloatTensor(min_actions).to(device)
 
         self.learn_counter = 0
         self.policy_update_freq = 2  # Hard coded
+
+        self.device = device
 
     def forward(self, observation):
         return self.actor_net.forward(observation)
 
     def learn(self, experiences):
 
-        batch_size = len(experiences)
-
         states, actions, rewards, next_states, dones = experiences
+        batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states))
-        actions = torch.FloatTensor(np.asarray(actions))
-        rewards = torch.FloatTensor(rewards)
-        next_states = torch.FloatTensor(np.asarray(next_states))
-        dones = torch.LongTensor(dones)
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(rewards).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(dones).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
@@ -56,9 +58,9 @@ class TD3:
 
         with torch.no_grad():
 
-            next_actions = self.target_actor_net(next_states)
+            next_actions = self.target_actor_net(next_states).to(self.device)
 
-            noise = Uniform(-0.5, 0.5).sample(next_actions)
+            noise = Uniform(-0.5, 0.5).sample(next_actions.size()).to(self.device)
 
             next_actions = torch.clip(next_actions + noise, self.min_actions,
                                       self.max_actions)
