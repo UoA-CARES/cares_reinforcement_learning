@@ -19,7 +19,7 @@ class Critic(nn.Module):
             nn.Linear(self.hidden_size[2], 1)
         )
 
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        self.optimiser = optim.Adam(self.parameters(), lr=learning_rate)
         self.loss = nn.MSELoss()
 
     def forward(self, state, action):

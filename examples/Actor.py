@@ -16,11 +16,11 @@ class Actor(nn.Module):
         self.h_linear_3 = nn.Linear(in_features=self.hidden_size[1], out_features=self.hidden_size[2])
         self.h_linear_4 = nn.Linear(in_features=self.hidden_size[2], out_features=num_actions)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
+        self.optimiser = optim.Adam(self.parameters(), lr=learning_rate)
 
     def forward(self, state):
         x = torch.relu(self.h_linear_1(state))
         x = torch.relu(self.h_linear_2(x))
         x = torch.relu(self.h_linear_3(x))
-        x = torch.tanh(self.h_linear_4(x)) * self.max_action
+        x = torch.tanh(self.h_linear_4(x)) * self.max_action[0]
         return x
