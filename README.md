@@ -1,5 +1,5 @@
-# Summer Reinforcement Learning Package
-A python package that allows developers to build and train reinforcement learning (RL) models quickly and efficiently.
+# CARES Reinforcement Learning Package
+The cares reinforcement learning bed used as the foundation for RL related projects.
 
 
 ## Usage
@@ -8,7 +8,13 @@ Consult the repository [wiki](https://github.com/UoA-CARES/summer_reinforcement_
 ## Installation Instructions
 `git clone` the repository
 
-`cd` into the root folder and run `pip install -r requirements.txt` to install dependencies
+We recommend creating a `conda` environment to run the package.
+
+To **create** a conda environment with the **necessary dependencies**, run the following in the root of the package:
+
+  ```python3
+  conda create --name <env> --file requirements_conda.txt
+  ```
 
 ## Package Structure
 
