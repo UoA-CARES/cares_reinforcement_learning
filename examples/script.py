@@ -6,10 +6,10 @@ directory
     -- script.py
     -- summer_reinforcement_learning/
 """
-from summer_reinforcement_learning.networks import TD3
-from summer_reinforcement_learning.util import MemoryBuffer
-from summer_reinforcement_learning.examples.Actor import Actor
-from summer_reinforcement_learning.examples.Critic import Critic
+from cares_reinforcement_learning.networks import TD3
+from cares_reinforcement_learning.util import MemoryBuffer
+from cares_reinforcement_learning.examples.Actor import Actor
+from cares_reinforcement_learning.examples.Critic import Critic
 
 import gym
 import torch
@@ -37,17 +37,19 @@ env = gym.make('Pendulum-v1', g=9.81)
 
 def main():
 
-    observation_space = env.observation_space
-    action_space = env.action_space
-
-    memory = MemoryBuffer(BUFFER_CAPACITY)
-
-    actor = Actor(observation_space.shape[0], action_space.shape[0], ACTOR_LR, env.action_space.high)
-    critic_one = Critic(observation_space.shape[0], action_space.shape[0], CRITIC_LR)
-    critic_two = Critic(observation_space.shape[0], action_space.shape[0], CRITIC_LR)
+    observation_size = env.observation_space.shape[0]
+    action_num = env.action_space.shape[0]
 
     max_actions = env.action_space.high
     min_actions = env.action_space.low
+    
+    memory = MemoryBuffer(BUFFER_CAPACITY)
+
+    actor = Actor(observation_size, observation_size, ACTOR_LR, max_actions)
+    critic_one = Critic(observation_size, observation_size, CRITIC_LR)
+    critic_two = Critic(observation_size, observation_size, CRITIC_LR)
+
+    
 
     td3 = TD3(
         actor_network=actor,

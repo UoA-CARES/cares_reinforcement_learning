@@ -8,6 +8,8 @@ Consult the repository [wiki](https://github.com/UoA-CARES/summer_reinforcement_
 ## Installation Instructions
 `git clone` the repository
 
+If you would like to leverage your machine's GPU, uncomment the optional dependencies in the `requirements.txt` before moving on.
+
 Run `pip install -r requirements.txt` in the **root directory** of the package
 
 ## Package Structure
