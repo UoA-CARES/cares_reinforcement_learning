@@ -80,14 +80,12 @@ def train(td3, memory: MemoryBuffer):
         while True:
 
             # Select an Action
-            td3.actor_net.eval()
             with torch.no_grad():
                 state_tensor = torch.FloatTensor(state)
                 state_tensor = state_tensor.unsqueeze(0)
                 state_tensor = state_tensor.to(DEVICE)
                 action = td3.forward(state_tensor)
                 action = action.cpu().data.numpy()
-            td3.actor_net.train(True)
 
             action = action[0]
 
