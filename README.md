@@ -12,10 +12,12 @@ If you would like to leverage your machine's GPU, uncomment the optional depende
 
 Run `pip install -r requirements.txt` in the **root directory** of the package
 
+To make the module **globally accessible** on your environment run `python3 setup.py install`.
+
 ## Package Structure
 
 ```
-reinforcement_learning_summer/
+cares_reinforcement_learning/
 ├─ networks/
 │  ├─ DQN.py
 │  ├─ DDPG.py
