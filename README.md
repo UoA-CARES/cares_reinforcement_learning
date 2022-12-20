@@ -12,7 +12,7 @@ If you would like to leverage your machine's GPU, uncomment the optional depende
 
 Run `pip install -r requirements.txt` in the **root directory** of the package
 
-To make the module **globally accessible** on your environment run `python3 setup.py install`.
+To make the module **globally accessible** in your environment run `python3 setup.py install` in the **project root**
 
 ## Package Structure
 
@@ -30,4 +30,20 @@ cares_reinforcement_learning/
 `networks/`: contains neural network (NN) wrappers that are responsible for housing and updating the NN according to RL algorithms
 
 `util/`: contains common utility classes
+
+## Supported Algorithms
+| Algorithm      | Action Space | On/Off Policy |
+| ----------- | ----------- |----------- |
+| DQN      | Discrete       | Off Policy       | 
+| DoubleDQN   | Discrete        | Off Policy |
+| DDPG   | Continuous        | Off Policy |
+| TD3   | Continuous        | Off Policy |
+
+### In progress
+| Algorithm      | Action Space |  On/Off Policy |
+| ----------- | ----------- | ----------- |
+| PPO      | Continuous       | On Policy       | 
+| DoubleDQN   | Continuous        | On Policy       | 
+
+
 
