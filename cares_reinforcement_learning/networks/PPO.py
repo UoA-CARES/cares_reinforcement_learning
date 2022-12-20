@@ -57,8 +57,8 @@ class PPO:
         rewards_to_go = torch.FloatTensor(rewards_to_go)
         # Calculate the Advantages using Generalise Advantage Estimation
         advantages = []
-
-        adv_batch = list(zip(states, rewards, next_states, dones))
+        # print(f"{rewards=} {rewards_to_go=}")
+        adv_batch = list(zip(states, rewards_to_go, next_states, dones))
 
         for state, reward, next_state, done in reversed(adv_batch):
             # print(state, reward, next_state, done)
@@ -129,7 +129,6 @@ class PPO:
         # print(f"{rewards_to_go=}")
         critic_loss = self.critic.loss(V, rewards_to_go)
 
-
         self.critic.optimiser.zero_grad()
         critic_loss.backward()
         self.critic.optimiser.step()
@@ -147,7 +146,7 @@ class PPO:
 
         reward_to_gos = []
         ordinary_reward = []
-
+        # print(f"Rewards inside of COMPUTE: {rewards=}")
         for episode_rewards in reversed(rewards):
 
             discounted_reward = 0
@@ -158,4 +157,3 @@ class PPO:
                 ordinary_reward.insert(0, reward)
 
         return reward_to_gos, ordinary_reward
-
