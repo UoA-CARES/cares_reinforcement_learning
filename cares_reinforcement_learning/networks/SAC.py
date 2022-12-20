@@ -1,4 +1,4 @@
-from util import MemoryBuffer
+from cares_reinforcement_learning.util import MemoryBuffer
 
 import torch
 import numpy as np
