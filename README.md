@@ -39,7 +39,7 @@ cares_reinforcement_learning/
 | DDPG   | Continuous        | Off Policy |
 | TD3   | Continuous        | Off Policy |
 
-### In progress
+## In progress
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
 | PPO      | Continuous       | On Policy       | 
