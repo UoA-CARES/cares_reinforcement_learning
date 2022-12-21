@@ -43,7 +43,7 @@ cares_reinforcement_learning/
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
 | PPO      | Continuous       | On Policy       | 
-| DoubleDQN   | Continuous        | On Policy       | 
+| SAC   | Continuous        | On Policy       | 
 
 
 
