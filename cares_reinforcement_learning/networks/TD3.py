@@ -37,8 +37,16 @@ class TD3:
 
         self.device = device
 
-    def forward(self, observation):
-        return self.actor_net.forward(observation)
+    def forward(self, state):
+
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state)
+            state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = state_tensor.to(self.device)
+            action = self.actor_net.forward(state_tensor)
+            action = action.cpu().data.numpy()
+
+        return action[0]
 
     def learn(self, experiences):
 

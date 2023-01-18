@@ -29,10 +29,10 @@ else:
     DEVICE = torch.device('cpu')
     print("Working with CPU")
 
-BUFFER_CAPACITY = 1_000_000
+BUFFER_CAPACITY = 10_000
 
-GAMMA = 0.999
-TAU = 0.001
+GAMMA = 0.995
+TAU = 0.005
 
 ACTOR_LR = 1e-4
 CRITIC_LR = 1e-3
@@ -88,14 +88,7 @@ def train(td3, memory: MemoryBuffer):
         while True:
 
             # Select an Action
-            with torch.no_grad():
-                state_tensor = torch.FloatTensor(state)
-                state_tensor = state_tensor.unsqueeze(0)
-                state_tensor = state_tensor.to(DEVICE)
-                action = td3.forward(state_tensor)
-                action = action.cpu().data.numpy()
-
-            action = action[0]
+            action = td3.forward(state)
 
             next_state, reward, terminated, truncated, _ = env.step(action)
 
