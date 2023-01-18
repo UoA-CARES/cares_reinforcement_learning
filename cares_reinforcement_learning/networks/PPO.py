@@ -23,9 +23,9 @@ class PPO:
     def forward(self, state):
         return self.actor(state)
 
-    def learn(self, states, actions, rewards, next_states, dones, old_log_probs):
-        """
+    def learn(self, states, actions, rewards, next_states, dones, old_log_probs, num_updates):
 
+        """
         Args:
             states: an array of observations
             actions: an array of actions taken
@@ -33,105 +33,44 @@ class PPO:
             next_states: array of observations of the next state
             dones: array of dones
             old_log_probs: an array of log probabilities for the action taken (old)
-
-        Returns:
-
+            num_updates: an integer determining how many times the policy updates
         """
-        # print(f"Batch Size: {len(states)}")
-        batch_size = len(states)
-        states = torch.FloatTensor(np.asarray(states))
-        actions = torch.FloatTensor(np.asarray(actions))
-        rewards = torch.FloatTensor(np.asarray(rewards))
-        next_states = torch.FloatTensor(np.asarray(next_states))
-        dones = torch.LongTensor(np.asarray(dones))
-        # old_log_probs = torch.FloatTensor(old_log_probs)
-        #
-        # print(f"{states=}")
-        # print(f"{actions=}")
-        # print(f"{rewards=}")
-        # print(f"{next_states=}")
-        # print(f"{dones=}")
-        # print(f"{old_log_probs=}")
 
-        rewards_to_go, rewards = self.compute_rewards_to_go(rewards)
-        rewards_to_go = torch.FloatTensor(rewards_to_go)
-        # Calculate the Advantages using Generalise Advantage Estimation
-        advantages = []
-        # print(f"{rewards=} {rewards_to_go=}")
-        adv_batch = list(zip(states, rewards_to_go, next_states, dones))
+        rtg = self.compute_rewards_to_go(rewards)
 
-        for state, reward, next_state, done in reversed(adv_batch):
-            # print(state, reward, next_state, done)
+        advantages = self.compute_advantages(states, rewards, next_states, dones)
 
-            v_t = self.critic(state).squeeze(0)
-            v_t_plus_1 = self.critic(next_state).squeeze(0)
+        for _ in range(0, num_updates):
+            # Calculate Bound
+            clipped_advantages = torch.where(advantages >= 0, advantages * (1 + self.epsilon),
+                                             advantages * (1 - self.epsilon))
 
-            # print(reward, self.gamma, v_t_plus_1, v_t)
-            delta_t = reward + self.gamma * v_t_plus_1 * done - v_t
-            adv_t_plus_1 = advantages[-1] if advantages else 0
+            # Computing the log probabilities of actions taken using current policy
+            mean, log_std = self.actor(states)
 
-            # print(f"{delta_t=}")
-            # print(f"{adv_t_plus_1=}")
-            advantage = delta_t + self.lamda * self.gamma * adv_t_plus_1
-            advantages.append(advantage)
+            std_dev = log_std.exp()
 
-        advantages = list(reversed(advantages))
-        advantages = torch.tensor(advantages)
+            dists = [Normal(mean, std_dev) for mean, std_dev in zip(mean, std_dev)]
 
-        # Calculating the policy targets
-        bound = torch.where(advantages >= 0, advantages * (1 + self.epsilon), advantages * (1 - self.epsilon))
+            new_log_probs = [dist.log_prob(action) for dist, action in zip(dists, actions)]
 
-        mean, log_std = self.actor(states)
-        # print(f"{mean=} {log_std=}")
+            ratio = (new_log_probs - old_log_probs).exp()
 
-        # mean and log_std have grad
+            policy_target = torch.min(ratio * advantages, clipped_advantages)
 
-        std_dev = log_std.exp()
+            actor_loss = -policy_target.mean()
 
-        dists = [Normal(mean, std_dev) for mean, std_dev in zip(mean, std_dev)]
-        # print(f"{dists=}")
-        new_log_probs = [dist.log_prob(action) for dist, action in zip(dists, actions)]
+            self.actor.optimiser.zero_grad()
+            actor_loss.backward()
+            self.actor.optimiser.step()
 
-        # print(np.shape(new_log_probs))
-        # print(f"{new_log_probs=}")
+            v = self.critic(states)
 
-        # New Log Probs has grad
+            critic_loss = self.critic.loss(v, rtg)
 
-        # new_log_probs = torch.tensor(new_log_probs)
-
-        old_log_probs = torch.stack(list(old_log_probs))
-        new_log_probs = torch.stack(new_log_probs)
-        # print(f"{new_log_probs=}")
-        # print(f"{old_log_probs=}")
-        ratio = (new_log_probs - old_log_probs).exp()
-
-        policy_target = torch.min(ratio * advantages, bound)
-
-        # Ratio no grad
-        # Advantage no grad
-        # Bound no grad
-
-        # print(f"{policy_target=}")
-        # print(f"{ratio=}")
-        # print(f"{advantages=}")
-        # print(f"{bound=}")
-        # Calculating Policy Loss
-        actor_loss = -policy_target.mean()
-        # print(f"{actor_loss}")
-
-        self.actor.optimiser.zero_grad()
-        actor_loss.backward()
-        self.actor.optimiser.step()
-
-        # Updating Critic Network
-        V = torch.reshape(self.critic(states), (batch_size,))
-        # print(f"{V=}")
-        # print(f"{rewards_to_go=}")
-        critic_loss = self.critic.loss(V, rewards_to_go)
-
-        self.critic.optimiser.zero_grad()
-        critic_loss.backward()
-        self.critic.optimiser.step()
+            self.critic.optimiser.zero_grad()
+            critic_loss.backward()
+            self.critic.optimiser.step()
 
     def compute_rewards_to_go(self, rewards):
         """
@@ -145,8 +84,7 @@ class PPO:
         """
 
         reward_to_gos = []
-        ordinary_reward = []
-        # print(f"Rewards inside of COMPUTE: {rewards=}")
+
         for episode_rewards in reversed(rewards):
 
             discounted_reward = 0
@@ -154,6 +92,116 @@ class PPO:
             for reward in reversed(episode_rewards):
                 discounted_reward = reward + discounted_reward * self.gamma
                 reward_to_gos.insert(0, discounted_reward)
-                ordinary_reward.insert(0, reward)
 
-        return reward_to_gos, ordinary_reward
+        return reward_to_gos
+
+    def compute_advantages(self, states, reward_to_gos, next_states, dones):
+        """
+        Use Generalised Advantage Estimation to compute advantages
+        """
+
+        advantages = []
+
+        batch = list(zip(states, reward_to_gos, next_states, dones))
+
+        for state, rtg, next_state, done in reversed(batch):
+            v_t = self.critic(state)
+            v_t_plus_one = self.critic(next_state)
+
+            delta_t = rtg + self.gamma * v_t_plus_one * done - v_t
+            adv_t_plus_one = advantages[-1] if advantages else 0
+
+            advantage = delta_t + self.lamda * self.gamma * adv_t_plus_one
+            advantages.insert(0, advantage)
+
+        return advantages
+
+
+if torch.cuda.is_available():
+    DEVICE = torch.device('cuda')
+    print("Working with GPU")
+else:
+    DEVICE = torch.device('cpu')
+    print("Working with CPU")
+
+BUFFER_CAPACITY = 10_000
+
+GAMMA = 0.995
+TAU = 0.005
+LAMDA = 0.001
+
+ACTOR_LR = 1e-4
+CRITIC_LR = 1e-3
+
+EPISODE_NUM = 100
+BATCH_SIZE = 64
+
+env = gym.make('Pendulum-v1', g=9.81)
+
+
+def main():
+
+    observation_size = env.observation_space.shape[0]
+    action_num = env.action_space.shape[0]
+
+    max_actions = env.action_space.high
+    min_actions = env.action_space.low
+
+    memory = MemoryBuffer(BUFFER_CAPACITY)
+
+    actor = Actor(observation_size, action_num, ACTOR_LR, max_actions)
+    critic_one = Critic(observation_size, action_num, CRITIC_LR)
+    critic_two = Critic(observation_size, action_num, CRITIC_LR)
+
+    ppo = PPO(
+        actor=actor,
+        critic=critic_one,
+        gamma=GAMMA,
+        lamda=0.001
+    )
+
+    print(f"Training Beginning")
+    train(td3)
+
+
+def train(td3):
+    historical_reward = []
+
+    for episode in range(0, EPISODE_NUM):
+
+        state, _ = env.reset()
+        episode_reward = 0
+
+        while True:
+
+            # Select an Action
+            with torch.no_grad():
+                state_tensor = torch.FloatTensor(state)
+                state_tensor = state_tensor.unsqueeze(0)
+                state_tensor = state_tensor.to(DEVICE)
+                action = td3.forward(state_tensor)
+                action = action.cpu().data.numpy()
+
+            action = action[0]
+
+            next_state, reward, terminated, truncated, _ = env.step(action)
+
+            memory.add(state, action, reward, next_state, terminated)
+
+            experiences = memory.sample(BATCH_SIZE)
+
+            for _ in range(0, 10):
+                td3.learn(experiences)
+
+            state = next_state
+            episode_reward += reward
+
+            if terminated or truncated:
+                break
+
+        historical_reward.append(episode_reward)
+        print(f"Episode #{episode} Reward {episode_reward}")
+
+
+if __name__ == '__main__':
+    main()
