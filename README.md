@@ -1,6 +1,8 @@
 <img src="https://drive.google.com/uc?export=view&id=1NpXB7lFONA2epIxdZFv5vfCTRRqt8A_9" />
 The CARES reinforcement learning bed used as the foundation for RL related projects.
 
+## Motivation
+**Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
 
 ## Usage
 Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki/%F0%9F%8F%A0-Home) for a guide on how to use the package
