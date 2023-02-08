@@ -14,7 +14,7 @@ If you would like to leverage your machine's GPU, uncomment the optional depende
 
 Run `pip install -r requirements.txt` in the **root directory** of the package
 
-To make the module **globally accessible** in your environment run `python3 setup.py install --user` in the **project root**
+To make the module **globally accessible** in your environment run `python3 setup.py install` in the **project root**
 
 ## Package Structure
 
