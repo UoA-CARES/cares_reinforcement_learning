@@ -16,6 +16,7 @@ Notes:
 """
 from cares_reinforcement_learning.networks import TD3
 from cares_reinforcement_learning.util import MemoryBuffer
+from cares_reinforcement_learning.util import Plot
 
 import gym
 import torch
@@ -37,7 +38,7 @@ TAU = 0.005
 ACTOR_LR = 1e-4
 CRITIC_LR = 1e-3
 
-EPISODE_NUM = 100
+EPISODE_NUM = 10
 BATCH_SIZE = 64
 
 env = gym.make('Pendulum-v1', g=9.81)
@@ -78,7 +79,7 @@ def main():
 
 
 def train(td3, memory: MemoryBuffer):
-    historical_reward = []
+    plot = Plot(plot_freq=2)
 
     for episode in range(0, EPISODE_NUM):
 
@@ -105,8 +106,12 @@ def train(td3, memory: MemoryBuffer):
             if terminated or truncated:
                 break
 
-        historical_reward.append(episode_reward)
+        plot.post(episode_reward)
         print(f"Episode #{episode} Reward {episode_reward}")
+
+    plot.save_plot('New_Plot')
+    plot.save_csv()
+    plot.plot()
 
 
 def fill_buffer(memory):
