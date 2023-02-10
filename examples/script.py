@@ -16,6 +16,7 @@ Notes:
 """
 from cares_reinforcement_learning.networks import TD3
 from cares_reinforcement_learning.util import MemoryBuffer
+from cares_reinforcement_learning.util.Plot import Plot
 
 import gym
 import torch
@@ -78,6 +79,7 @@ def main():
 
 
 def train(td3, memory: MemoryBuffer):
+    plot = Plot()
     historical_reward = []
 
     for episode in range(0, EPISODE_NUM):
@@ -106,7 +108,12 @@ def train(td3, memory: MemoryBuffer):
                 break
 
         historical_reward.append(episode_reward)
+        plot.post(episode_reward)
         print(f"Episode #{episode} Reward {episode_reward}")
+
+    plot.save_plot('New_Plot')
+    plot.save_csv()
+    plot.plot()
 
 
 def fill_buffer(memory):
