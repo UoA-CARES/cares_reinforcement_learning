@@ -16,7 +16,7 @@ Notes:
 """
 from cares_reinforcement_learning.networks import TD3
 from cares_reinforcement_learning.util import MemoryBuffer
-from cares_reinforcement_learning.util.Plot import Plot
+from cares_reinforcement_learning.util import Plot
 
 import gym
 import torch
@@ -38,7 +38,7 @@ TAU = 0.005
 ACTOR_LR = 1e-4
 CRITIC_LR = 1e-3
 
-EPISODE_NUM = 100
+EPISODE_NUM = 10
 BATCH_SIZE = 64
 
 env = gym.make('Pendulum-v1', g=9.81)
