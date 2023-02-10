@@ -7,7 +7,7 @@ import uuid
 
 
 class Plot:
-    def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=None, y_data=None, plot_freq=1):
+    def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=None, y_data=None, plot_freq=1, checkpoint_freq=1):
         if x_data is None:
             x_data = []
         if y_data is None:
@@ -28,6 +28,7 @@ class Plot:
 
         self.plot_num = 0
         self.plot_freq = plot_freq
+        self.checkpoint_freq = checkpoint_freq
 
         sns.set_theme(style="darkgrid")
 
@@ -40,6 +41,9 @@ class Plot:
         if self.plot_num % self.plot_freq == 0:
             self.__create_plot()
             plt.pause(10e-10)
+
+        if self.plot_num % self.checkpoint_freq == 0:
+            self.save_csv('checkpoint.csv')
 
     def plot(self):
         plt.ioff()
