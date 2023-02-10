@@ -79,8 +79,7 @@ def main():
 
 
 def train(td3, memory: MemoryBuffer):
-    plot = Plot()
-    historical_reward = []
+    plot = Plot(plot_freq=2)
 
     for episode in range(0, EPISODE_NUM):
 
@@ -107,7 +106,6 @@ def train(td3, memory: MemoryBuffer):
             if terminated or truncated:
                 break
 
-        historical_reward.append(episode_reward)
         plot.post(episode_reward)
         print(f"Episode #{episode} Reward {episode_reward}")
 
