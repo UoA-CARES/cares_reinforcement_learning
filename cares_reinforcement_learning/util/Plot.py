@@ -1,5 +1,4 @@
 import os
-import csv
 
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -8,7 +7,7 @@ import uuid
 
 
 class Plot:
-    def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=None, y_data=None):
+    def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=None, y_data=None, plot_freq=1):
         if x_data is None:
             x_data = []
         if y_data is None:
@@ -27,18 +26,20 @@ class Plot:
         self.x_data = x_data
         self.y_data = y_data
 
+        self.plot_num = 0
+        self.plot_freq = plot_freq
+
         sns.set_theme(style="darkgrid")
 
     def post(self, reward):
+        self.plot_num += 1
+
         self.x_data.append(len(self.x_data))
         self.y_data.append(reward)
 
-        data_dict = {self.x_label: self.x_data, self.y_label: self.y_data}
-        df = pd.DataFrame(data=data_dict)
-
-        plt.clf()
-        sns.lineplot(data=df, x=self.x_label, y=self.y_label)
-        plt.pause(10e-10)
+        if self.plot_num % self.plot_freq == 0:
+            self.__create_plot()
+            plt.pause(10e-10)
 
     def plot(self):
         plt.ioff()
@@ -62,7 +63,7 @@ class Plot:
 
         plt.savefig(f"figures/{file_name}")
 
-    def save_csv(self, file_name=str(uuid.uuid4().hex), *args):
+    def save_csv(self, file_name=str(uuid.uuid4().hex)):
         dir_exists = os.path.exists("data")
 
         if not dir_exists:
