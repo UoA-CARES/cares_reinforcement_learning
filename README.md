@@ -46,6 +46,7 @@ cares_reinforcement_learning/
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
 | PPO      | Continuous       | On Policy       | 
+| D4PG   | Continuous        | Off Policy       |
  
 
 
