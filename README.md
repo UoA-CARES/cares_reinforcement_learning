@@ -40,12 +40,13 @@ cares_reinforcement_learning/
 | DoubleDQN   | Discrete        | Off Policy |
 | DDPG   | Continuous        | Off Policy |
 | TD3   | Continuous        | Off Policy |
+| SAC   | Continuous        | On Policy       |
 
 ## In progress
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
 | PPO      | Continuous       | On Policy       | 
-| SAC   | Continuous        | On Policy       | 
+ 
 
 
 
