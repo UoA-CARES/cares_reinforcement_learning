@@ -15,6 +15,7 @@ If you would like to leverage your machine's GPU, uncomment the optional depende
 Run `pip install -r requirements.txt` in the **root directory** of the package
 
 To make the module **globally accessible** in your environment run `python3 setup.py install` in the **project root**
+If problems arise, try `python3 setup.py install --user`
 
 ## Package Structure
 
@@ -40,12 +41,14 @@ cares_reinforcement_learning/
 | DoubleDQN   | Discrete        | Off Policy |
 | DDPG   | Continuous        | Off Policy |
 | TD3   | Continuous        | Off Policy |
+| SAC   | Continuous        | On Policy       |
 
 ## In progress
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
 | PPO      | Continuous       | On Policy       | 
-| SAC   | Continuous        | On Policy       | 
+| D4PG   | Continuous        | Off Policy       |
+ 
 
 
 
