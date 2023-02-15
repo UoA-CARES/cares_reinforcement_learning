@@ -78,37 +78,34 @@ class Plot:
 
         df.to_csv(f"data/{file_name}", index=False)
 
+    def plot_average(self, window_size=10, file_name=str(uuid.uuid4().hex)):
 
-# def write_to_file(column_title: str, file_name: str, *args):
-#     """
-#     Write arrays of data to file. Data written to raw_data directory
-#
-#     Parameters:
-#         column_title: a string containing column headers separated by space
-#             e.g. `column_title` = "episode reward"`
-#         file_name: the name of the file to be written into
-#         *args: any number of arrays that you want saved to file. Pass the arrays into the function as arguments
-#
-#     Returns:
-#         Nothing
-#
-#     Example Usage:
-#
-#     write_to_file("Episode Reward", "results.csv", episode_array, reward_array)
-#     """
-#
-#     dir_exists = os.path.exists("raw_data")
-#
-#     if not dir_exists:
-#         os.makedirs("raw_data")
-#
-#     file_out = open(f"raw_data/{file_name}", "w")
-#     csv_out = csv.writer(file_out)
-#
-#     csv_out.writerow(column_title.split(" "))
-#
-#     for row in zip(*args):
-#         csv_out.writerow(row)
+        plt.ioff()
+        
+        data_dict = {"Episode": self.x_data, "Reward": self.y_data}
+        df = pd.DataFrame(data=data_dict)
+
+        df["Average Reward"] = df["Reward"].rolling(window_size).mean()
+        df["Standard Deviation"] = df["Reward"].rolling(window_size).std()
+
+        ax = sns.lineplot(data=df, x="Episode", y="Average Reward", label="Average Reward")
+        ax.set(xlabel="Episode", ylabel="Reward")
+        plt.fill_between(df["Episode"], df["Average Reward"] - df["Standard Deviation"], df["Average Reward"] +
+                        df["Standard Deviation"], alpha=0.4)
+
+        sns.move_legend(ax, "lower right")
+
+        plt.title(self.title)
+
+        dir_exists = os.path.exists("figures")
+
+        if not dir_exists:
+            os.makedirs("figures")
+
+        plt.savefig(f"figures/{file_name}")
+
+        plt.show()
+
 #
 #
 # def read_file(file_path: str):
