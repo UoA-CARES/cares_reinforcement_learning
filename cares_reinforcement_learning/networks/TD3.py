@@ -1,5 +1,5 @@
 import copy
-
+import os
 import torch
 from torch.distributions.uniform import Uniform
 import numpy as np
@@ -49,6 +49,7 @@ class TD3:
         return action[0]
 
     def learn(self, experiences):
+        self.learn_counter +=1
 
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
@@ -88,6 +89,7 @@ class TD3:
 
         self.critic_one_net.optimiser.zero_grad()
         critic_one_loss.backward()
+        torch.nn.utils.clip_grad_value_(self.critic_one_net.parameters(), clip_value=1.0)
         self.critic_one_net.optimiser.step()
 
         # Update Critic Two
@@ -95,6 +97,7 @@ class TD3:
 
         self.critic_two_net.optimiser.zero_grad()
         critic_two_loss.backward()
+        torch.nn.utils.clip_grad_value_(self.critic_two_net.parameters(), clip_value=1.0)
         self.critic_two_net.optimiser.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
@@ -109,6 +112,7 @@ class TD3:
 
             self.actor_net.optimiser.zero_grad()
             actor_loss.backward()
+            torch.nn.utils.clip_grad_value_(self.actor_net.parameters(), clip_value=1.0) # still no sure about this 0.1
             self.actor_net.optimiser.step()
 
             # Update target network params
@@ -120,3 +124,12 @@ class TD3:
 
             for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+    
+    def save_models(self, filename):
+        dir_exists = os.path.exists("models")
+
+        if not dir_exists:
+            os.makedirs("models")
+        torch.save(self.actor_net.state_dict(),  f'models/{filename}_actor.pht')
+        torch.save(self.critic_one_net.state_dict(), f'models/{filename}_critic.pht')
+        torch.save(self.critic_two_net.state_dict(), f'models/{filename}_critic.pht')
