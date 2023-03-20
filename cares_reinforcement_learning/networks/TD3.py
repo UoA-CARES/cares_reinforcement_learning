@@ -41,12 +41,10 @@ class TD3:
 
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0)
             state_tensor = state_tensor.to(self.device)
             action = self.actor_net(state_tensor)
-            action = action.cpu().data.numpy()
 
-        return action[0]
+        return action
 
     def learn(self, experiences):
         self.learn_counter +=1
