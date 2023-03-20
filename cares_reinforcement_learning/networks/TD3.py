@@ -33,7 +33,7 @@ class TD3:
         self.min_actions = torch.FloatTensor(min_actions).to(device)
 
         self.learn_counter = 0
-        self.policy_update_freq = 2  # Hard coded
+        self.policy_update_freq = 2  # Hard coded ok
 
         self.device = device
 
