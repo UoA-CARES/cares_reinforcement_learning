@@ -16,7 +16,7 @@ class TD3:
                  gamma,
                  tau,
                  device):
-        # TODO: check whether each critic needs its parameters
+        # TODO: check whether each critic needs its parameters..
         self.actor_net = actor_network.to(device)
         self.target_actor_net = copy.deepcopy(actor_network).to(device)
 
