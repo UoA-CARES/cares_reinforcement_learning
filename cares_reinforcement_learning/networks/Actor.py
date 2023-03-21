@@ -4,10 +4,8 @@ import torch.optim as optim
 import torch.nn.functional as F
 
 class Actor(nn.Module):
-    def __init__(self, observation_size, num_actions, learning_rate, max_action):
+    def __init__(self, observation_size, num_actions, learning_rate):
         super(Actor, self).__init__()
-
-        self.max_action = max_action
 
         self.hidden_size = [1024, 1024]
 
@@ -21,4 +19,4 @@ class Actor(nn.Module):
         x = F.relu(self.h_linear_1(state))
         x = F.relu(self.h_linear_2(x))
         x = torch.tanh(self.h_linear_3(x))
-        return x * self.max_action
+        return x

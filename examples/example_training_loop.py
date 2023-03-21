@@ -10,13 +10,13 @@ from cares_reinforcement_learning.networks import Critic
 from cares_reinforcement_learning.util import MemoryBuffer
 
 import gym
+import torch
+import random
+import logging
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-import torch
-import random
-import numpy as np
-import logging
 
 logging.basicConfig(level=logging.INFO)
 
@@ -30,8 +30,8 @@ ACTOR_LR   = 1e-4
 CRITIC_LR  = 1e-3
 BATCH_SIZE = 32
 
-max_steps_training    = 50_000
-max_steps_exploration = 5_000
+max_steps_training    = 10_000
+max_steps_exploration = 10_000
 SEED = 571
 
 
@@ -48,7 +48,7 @@ def plot_reward_curve(data_reward):
     plt.show()
 
 
-def train(agent, memory, max_actions, action_num):
+def train(agent, memory, max_action_value, min_action_value):
     episode_timesteps = 0
     episode_reward    = 0
     episode_num       = 0
@@ -66,9 +66,7 @@ def train(agent, memory, max_actions, action_num):
             action = env.action_space.sample()
         else:
             action = agent.select_action_from_policy(state)
-            noise  = np.random.normal(0, scale=0.10 * max_actions, size=action_num)
-            action = action + noise
-            action = np.clip(action, -max_actions, max_actions)
+            action = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value # mapping the env range
 
         next_state, reward, done, truncated, _ = env.step(action)
         memory.add(state, action, reward, next_state, done)
@@ -106,21 +104,20 @@ def main():
     min_actions = env.action_space.low[0]
 
     memory = MemoryBuffer()
-    actor  = Actor(observation_size, action_num, ACTOR_LR, max_actions)
+    actor  = Actor(observation_size, action_num, ACTOR_LR)
     critic = Critic(observation_size, action_num, CRITIC_LR)
 
     agent = TD3(
         actor_network=actor,
         critic_network=critic,
-        max_actions=max_actions,
-        min_actions=min_actions,
         gamma=GAMMA,
         tau=TAU,
-        device=DEVICE
+        action_num=action_num,
+        device=DEVICE,
     )
 
     set_seed()
-    train(agent, memory, max_actions, action_num)
+    train(agent, memory, max_actions, min_actions)
 
 
 if __name__ == '__main__':

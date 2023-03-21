@@ -9,10 +9,9 @@ class TD3:
     def __init__(self,
                  actor_network,
                  critic_network,
-                 max_actions,
-                 min_actions,
                  gamma,
                  tau,
+                 action_num,
                  device):
 
         self.actor_net  = actor_network.to(device)
@@ -24,20 +23,23 @@ class TD3:
         self.gamma = gamma
         self.tau   = tau
 
-        self.max_actions = max_actions
-        self.min_actions = min_actions
-
         self.learn_counter      = 0
         self.policy_update_freq = 2
 
+        self.action_num = action_num
         self.device = device
 
     def select_action_from_policy(self, state):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device) # this line should be here. all the env will need it
+            state_tensor = state_tensor.unsqueeze(0).to(self.device)
             action       = self.actor_net(state_tensor)
-            action       = action.cpu().data.numpy().flatten()  # this line should be here. all the env will need it
+            action       = action.cpu().data.numpy().flatten()
+
+            # this is part the TD3 too, add noise to the action
+            noise  = np.random.normal(0, scale=0.10, size=self.action_num)
+            action = action + noise
+            action = np.clip(action, -1, 1)
         return action
 
     def train_policy(self, experiences):
@@ -62,7 +64,7 @@ class TD3:
             target_noise = 0.2 * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, -0.5, 0.5)
             next_actions = next_actions + target_noise
-            next_actions = torch.clamp(next_actions, min=self.min_actions, max=self.max_actions)
+            next_actions = torch.clamp(next_actions, min=-1, max=1)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(next_states, next_actions)
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)

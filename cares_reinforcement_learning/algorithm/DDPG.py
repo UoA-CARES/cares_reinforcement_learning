@@ -15,44 +15,48 @@ class DDPG:
                  device
                  ):
 
-        self.actor_net: nn.Module = actor_network.to(device)
-        self.targ_actor_net: nn.Module = copy.deepcopy(actor_network)
+        self.actor_net  = actor_network.to(device)
+        self.critic_net = critic_network.to(device)
 
-        self.critic_net: nn.Module = critic_network.to(device)
-        self.targ_critic_net: nn.Module = copy.deepcopy(critic_network)
+        self.target_actor_net  = copy.deepcopy(self.actor_net).to(device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
         self.gamma = gamma
         self.tau = tau
 
         self.device = device
 
-    def forward(self, observation):
-        return self.actor_net.forward(observation)
+    def select_action_from_policy(self, state):
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state)
+            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            action = self.actor_net(state_tensor)
+            action = action.cpu().data.numpy().flatten()
+        return action
 
-    def learn(self, experiences):
+    def train_policy(self, experiences):
 
         states, actions, rewards, next_states, dones = experiences
-
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(rewards).to(self.device)
+        states      = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards     = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(dones).to(self.device)
+        dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        dones   = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # We do not want the gradients calculated for any of the target old_networks, we manually update the parameters
         with torch.no_grad():
 
-            next_actions = self.targ_actor_net(next_states).to(self.device)
-            next_q_values = self.targ_critic_net(next_states, next_actions)
+            next_actions       = self.target_actor_net(next_states)
+            target_q_values, _ = self.target_critic_net(next_states, next_actions)
 
-            q_target = rewards + self.gamma * (1 - dones) * next_q_values
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         q_values = self.critic_net(states, actions)
 
