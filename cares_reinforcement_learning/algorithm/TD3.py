@@ -1,3 +1,4 @@
+import logging
 import os
 import copy
 import numpy as np
@@ -16,13 +17,9 @@ class TD3:
 
         self.actor_net  = actor_network.to(device)
         self.critic_net = critic_network.to(device)
+
         self.target_actor_net  = copy.deepcopy(self.actor_net).to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
-
-        # self.target_actor_net  = actor_network.to(device)
-        # self.target_critic_net = critic_network.to(device)
-        # self.target_critic_net.load_state_dict(self.critic_net.state_dict())
-        # self.target_actor_net.load_state_dict(self.actor_net.state_dict())
 
         self.gamma = gamma
         self.tau   = tau
@@ -108,9 +105,9 @@ class TD3:
             os.makedirs("models")
         torch.save(self.actor_net.state_dict(),  f'models/{filename}_actor.pht')
         torch.save(self.critic_net.state_dict(), f'models/{filename}_critic.pht')
-        print("models has been loaded...")  # TODO change the print for logging.info
+        logging.info("models has been loaded...")
 
     def load_models(self, filename):
         self.actor_net.load_state_dict(torch.load(f'models/{filename}_actor.pht'))
         self.critic_net.load_state_dict(torch.load(f'models/{filename}_critic.pht'))
-        print("models has been loaded...")  # TODO change the print for logging.info
+        logging.info("models has been loaded...")
