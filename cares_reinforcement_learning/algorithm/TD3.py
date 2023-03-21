@@ -4,22 +4,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-
-def compare_models(model_1, model_2):
-    models_differ = 0
-    for key_item_1, key_item_2 in zip(model_1.state_dict().items(), model_2.state_dict().items()):
-        if torch.equal(key_item_1[1], key_item_2[1]):
-            pass
-        else:
-            models_differ += 1
-            if key_item_1[0] == key_item_2[0]:
-                print('Mismatch found at', key_item_1[0])
-            else:
-                raise Exception
-    if models_differ == 0:
-        print('Models match perfectly! :)')
-
-
 class TD3:
     def __init__(self,
                  actor_network,
@@ -32,16 +16,13 @@ class TD3:
 
         self.actor_net  = actor_network.to(device)
         self.critic_net = critic_network.to(device)
-
-        # self.target_actor_net  = actor_network.to(device)
-        # self.target_critic_net = critic_network.to(device
-        # self.target_critic_net.load_state_dict(self.critic_net.state_dict())
-        # self.target_actor_net.load_state_dict(self.actor_net.state_dict())
-
         self.target_actor_net  = copy.deepcopy(self.actor_net).to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
-        compare_models( self.actor_net, self.target_actor_net)
+        # self.target_actor_net  = actor_network.to(device)
+        # self.target_critic_net = critic_network.to(device)
+        # self.target_critic_net.load_state_dict(self.critic_net.state_dict())
+        # self.target_actor_net.load_state_dict(self.actor_net.state_dict())
 
         self.gamma = gamma
         self.tau   = tau

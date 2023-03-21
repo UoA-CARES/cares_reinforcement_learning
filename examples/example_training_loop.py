@@ -1,9 +1,7 @@
-
 """
 Description:
-            This is a basic example to the training loop for the algorithms,
-            We should move this later for each repo/env or keep this in this repo
-
+            This is a basic example of the training loop for the algorithms,
+            We may move this later for each repo/env or keep this in this repo
 """
 
 from cares_reinforcement_learning.algorithm import TD3
@@ -12,7 +10,6 @@ from cares_reinforcement_learning.networks import Critic
 from cares_reinforcement_learning.util import MemoryBuffer
 
 import gym
-
 import pandas as pd
 import matplotlib.pyplot as plt
 
@@ -22,7 +19,6 @@ import numpy as np
 import logging
 
 logging.basicConfig(level=logging.INFO)
-
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 env    = gym.make('Pendulum-v1')
@@ -34,7 +30,7 @@ ACTOR_LR   = 1e-4
 CRITIC_LR  = 1e-3
 BATCH_SIZE = 32
 
-max_steps_training    = 10_000
+max_steps_training    = 50_000
 max_steps_exploration = 5_000
 SEED = 571
 
@@ -48,7 +44,7 @@ def set_seed():
 
 def plot_reward_curve(data_reward):
     data = pd.DataFrame.from_dict(data_reward)
-    data.plot(x='episode', y='reward', title="Reward Curve")
+    data.plot(x='step', y='reward', title="Reward Curve")
     plt.show()
 
 
@@ -99,8 +95,7 @@ def train(agent, memory, max_actions, action_num):
             episode_timesteps = 0
             episode_num += 1
 
-    #agent.save_models(file_name)
-    plot_reward_curve(historical_reward)
+    plot_reward_curve(historical_reward_step)
 
 
 def main():
