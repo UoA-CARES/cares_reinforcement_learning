@@ -1,9 +1,9 @@
 
 """
 Description:
-            This is a basic example to test the algorithms,
-            We should move this later
-            Add description of this
+            This is a basic example to the training loop for the algorithms,
+            We should move this later for each repo/env or keep this in this repo
+
 """
 
 from cares_reinforcement_learning.algorithm import TD3
@@ -12,6 +12,10 @@ from cares_reinforcement_learning.networks import Critic
 from cares_reinforcement_learning.util import MemoryBuffer
 
 import gym
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
 import torch
 import random
 import numpy as np
@@ -36,11 +40,16 @@ SEED = 571
 
 
 def set_seed():
-    env.action_space.seed(SEED)
     torch.manual_seed(SEED)
     np.random.seed(SEED)
     random.seed(SEED)
-    env.seed(SEED)
+    env.action_space.seed(SEED)
+
+
+def plot_reward_curve(data_reward):
+    data = pd.DataFrame.from_dict(data_reward)
+    data.plot(x='episode', y='reward', title="Reward Curve")
+    plt.show()
 
 
 def train(agent, memory, max_actions, action_num):
@@ -48,11 +57,10 @@ def train(agent, memory, max_actions, action_num):
     episode_reward    = 0
     episode_num       = 0
 
-    state = env.reset()
-    done  = False
+    state, _ = env.reset(seed=SEED)
 
     historical_reward      = {"episode": [], "episode_reward": []}
-    #historical_reward_step = {"step": [], "reward": []}
+    historical_reward_step = {"step": [], "reward": []}
 
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
@@ -66,7 +74,7 @@ def train(agent, memory, max_actions, action_num):
             action = action + noise
             action = np.clip(action, -max_actions, max_actions)
 
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, truncated, _ = env.step(action)
         memory.add(state, action, reward, next_state, done)
 
         state = next_state
@@ -77,20 +85,23 @@ def train(agent, memory, max_actions, action_num):
                 experiences = memory.sample(BATCH_SIZE)
                 agent.train_policy(experiences)
 
-        #historical_reward_step["step"].append(total_step_counter)
-        #historical_reward_step["reward"].append(reward)
+        historical_reward_step["step"].append(total_step_counter)
+        historical_reward_step["reward"].append(reward)
 
-        if done:
-            logging.info(f"Total T:{total_step_counter} Episode {episode_num} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+        if done or truncated:
+            logging.info(f"Total T:{total_step_counter+1} Episode {episode_num+1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
             historical_reward["episode"].append(episode_num)
             historical_reward["episode_reward"].append(episode_reward)
 
             # Reset environment
-            state = env.reset()
-            done = False
+            state, _ = env.reset()
             episode_reward    = 0
             episode_timesteps = 0
             episode_num += 1
+
+    #agent.save_models(file_name)
+    plot_reward_curve(historical_reward)
+
 
 def main():
     observation_size = env.observation_space.shape[0]

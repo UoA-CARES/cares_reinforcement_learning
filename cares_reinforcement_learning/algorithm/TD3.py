@@ -1,9 +1,8 @@
 import os
+import copy
 import numpy as np
 import torch
 import torch.nn.functional as F
-
-
 
 
 def compare_models(model_1, model_2):
@@ -34,12 +33,15 @@ class TD3:
         self.actor_net  = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
-        self.target_actor_net  = actor_network.to(device)
-        self.target_critic_net = critic_network.to(device)
+        # self.target_actor_net  = actor_network.to(device)
+        # self.target_critic_net = critic_network.to(device
+        # self.target_critic_net.load_state_dict(self.critic_net.state_dict())
+        # self.target_actor_net.load_state_dict(self.actor_net.state_dict())
 
-        # ----------------- copy weights and bias from main to target networks ----------#
-        self.target_critic_net.load_state_dict(self.critic_net.state_dict())
-        self.target_actor_net.load_state_dict(self.actor_net.state_dict())
+        self.target_actor_net  = copy.deepcopy(self.actor_net).to(device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+
+        compare_models( self.actor_net, self.target_actor_net)
 
         self.gamma = gamma
         self.tau   = tau
@@ -57,7 +59,7 @@ class TD3:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device) # this line should be here. all the env will need it
             action       = self.actor_net(state_tensor)
-            action       = action.cpu().data.numpy().flatten() # this line should be here. all the env will need it
+            action       = action.cpu().data.numpy().flatten()  # this line should be here. all the env will need it
         return action
 
     def train_policy(self, experiences):
@@ -118,7 +120,6 @@ class TD3:
             for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-
     def save_models(self, filename):
         dir_exists = os.path.exists("models")
 
@@ -127,7 +128,6 @@ class TD3:
         torch.save(self.actor_net.state_dict(),  f'models/{filename}_actor.pht')
         torch.save(self.critic_net.state_dict(), f'models/{filename}_critic.pht')
         print("models has been loaded...")  # TODO change the print for logging.info
-
 
     def load_models(self, filename):
         self.actor_net.load_state_dict(torch.load(f'models/{filename}_actor.pht'))
