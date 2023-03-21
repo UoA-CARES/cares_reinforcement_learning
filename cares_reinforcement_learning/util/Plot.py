@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import uuid
 
+# TODO make this more easy and simple, plot and store checkpoints
 
 class Plot:
     def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=None, y_data=None, plot_freq=1, checkpoint_freq=1):

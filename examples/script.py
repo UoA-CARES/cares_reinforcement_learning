@@ -14,9 +14,9 @@ Notes:
     This script contains both the Actor and Critic Networks (Ideally, these should be in their own files), but to keep
     the script self-sustaining, we include them here for ease of use.
 """
-from cares_reinforcement_learning.networks import TD3
+from cares_reinforcement_learning.algorithm import TD3
 from cares_reinforcement_learning.util import MemoryBuffer
-from cares_reinforcement_learning.util import Plot
+#from cares_reinforcement_learning.util import Plot
 
 import gym
 import torch
