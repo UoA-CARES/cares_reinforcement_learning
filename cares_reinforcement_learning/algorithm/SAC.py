@@ -1,6 +1,8 @@
 """
 Original Paper: https://arxiv.org/abs/1812.05905
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py
+Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+
+This code runs automatic entropy tuning
 """
 
 import os
@@ -20,8 +22,8 @@ class SAC:
                  action_num,
                  device):
 
-        self.actor_net  = actor_network.to(device)  # this may be call self.policy_net in other implementations
-        self.critic_net = critic_network.to(device) # this may be call self.soft_q_net in other implementations
+        self.actor_net  = actor_network.to(device)  # this may be called policy_net in other implementations
+        self.critic_net = critic_network.to(device) # this may be called soft_q_net in other implementations
 
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
@@ -29,13 +31,11 @@ class SAC:
         self.tau = tau
 
         self.learn_counter      = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = 1
 
         self.device = device
 
-        # todo decide which one use
         self.target_entropy = -action_num
-        # self.target_entropy = -np.prod(action_num)
         # self.target_entropy = -torch.prod(torch.Tensor([action_num]).to(self.device)).item()
 
         init_temperature = 0.01
@@ -43,12 +43,15 @@ class SAC:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
 
-    def select_action_from_policy(self, state):
-        # todo note that when evaluating this algorithm we need to select mu so action = mu ---> so _, _, action
+    def select_action_from_policy(self, state, evaluate=False):
+        # note that when evaluating this algorithm we need to select mu as action so _, _, action = self.actor_net.sample(state_tensor)
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            action, _, _, = self.actor_net.sample(state_tensor)
+            if evaluate is False:
+                action, _, _, = self.actor_net.sample(state_tensor)
+            else:
+                _, _, action, = self.actor_net.sample(state_tensor)
             action = action.cpu().data.numpy().flatten()
         return action
 
@@ -97,10 +100,12 @@ class SAC:
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
+        # Update the Actor
         self.actor_net.optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net.optimiser.step()
 
+        # update the temperature
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
