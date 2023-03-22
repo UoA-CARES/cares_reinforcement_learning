@@ -5,8 +5,13 @@ Description:
 """
 
 from cares_reinforcement_learning.algorithm import TD3
-from cares_reinforcement_learning.networks import Actor
-from cares_reinforcement_learning.networks import Critic
+#from cares_reinforcement_learning.networks.TD3 import Actor
+#from cares_reinforcement_learning.networks.TD3 import Critic
+
+from cares_reinforcement_learning.algorithm import DDPG
+from cares_reinforcement_learning.networks.DDPG import Actor
+from cares_reinforcement_learning.networks.DDPG import Critic
+
 from cares_reinforcement_learning.util import MemoryBuffer
 
 import gym
@@ -30,7 +35,7 @@ ACTOR_LR   = 1e-4
 CRITIC_LR  = 1e-3
 BATCH_SIZE = 32
 
-max_steps_training    = 10_000
+max_steps_training    = 20_000
 max_steps_exploration = 10_000
 SEED = 571
 
@@ -107,7 +112,16 @@ def main():
     actor  = Actor(observation_size, action_num, ACTOR_LR)
     critic = Critic(observation_size, action_num, CRITIC_LR)
 
-    agent = TD3(
+    # agent = TD3(
+    #     actor_network=actor,
+    #     critic_network=critic,
+    #     gamma=GAMMA,
+    #     tau=TAU,
+    #     action_num=action_num,
+    #     device=DEVICE,
+    # )
+
+    agent = DDPG(
         actor_network=actor,
         critic_network=critic,
         gamma=GAMMA,
