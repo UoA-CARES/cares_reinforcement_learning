@@ -1,3 +1,6 @@
+"""
+Original Paper: https://arxiv.org/abs/1802.09477v3
+"""
 
 import os
 import copy
@@ -5,6 +8,7 @@ import logging
 import numpy as np
 import torch
 import torch.nn.functional as F
+
 
 class TD3:
     def __init__(self,
@@ -50,15 +54,15 @@ class TD3:
         batch_size = len(states)
 
         # Convert into tensor
-        states      = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards     = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones   = dones.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
@@ -88,7 +92,7 @@ class TD3:
             actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
 
             actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-            actor_loss     = -actor_q_values.mean()
+            actor_loss = -actor_q_values.mean()
 
             self.actor_net.optimiser.zero_grad()
             actor_loss.backward()

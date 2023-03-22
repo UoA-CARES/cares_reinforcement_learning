@@ -8,9 +8,10 @@ Description:
 # from cares_reinforcement_learning.networks.TD3 import Actor
 # from cares_reinforcement_learning.networks.TD3 import Critic
 
-from cares_reinforcement_learning.algorithm import DDPG
-from cares_reinforcement_learning.networks.DDPG import Actor
-from cares_reinforcement_learning.networks.DDPG import Critic
+from cares_reinforcement_learning.algorithm import SAC
+from cares_reinforcement_learning.networks.SAC import Actor
+from cares_reinforcement_learning.networks.SAC import Critic
+
 
 from cares_reinforcement_learning.util import MemoryBuffer
 
@@ -26,7 +27,7 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-env    = gym.make('BipedalWalker-v3') # Pendulum-v1
+env    = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
 
 G          = 10
 GAMMA      = 0.99
@@ -122,7 +123,16 @@ def main():
     #     device=DEVICE,
     # )
 
-    agent = DDPG(
+    # agent = DDPG(
+    #     actor_network=actor,
+    #     critic_network=critic,
+    #     gamma=GAMMA,
+    #     tau=TAU,
+    #     action_num=action_num,
+    #     device=DEVICE,
+    # )
+
+    agent = SAC(
         actor_network=actor,
         critic_network=critic,
         gamma=GAMMA,
