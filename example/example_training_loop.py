@@ -4,9 +4,9 @@ Description:
             We may move this later for each repo/env or keep this in this repo
 """
 
-from cares_reinforcement_learning.algorithm import TD3
-#from cares_reinforcement_learning.networks.TD3 import Actor
-#from cares_reinforcement_learning.networks.TD3 import Critic
+# from cares_reinforcement_learning.algorithm import TD3
+# from cares_reinforcement_learning.networks.TD3 import Actor
+# from cares_reinforcement_learning.networks.TD3 import Critic
 
 from cares_reinforcement_learning.algorithm import DDPG
 from cares_reinforcement_learning.networks.DDPG import Actor
@@ -24,9 +24,9 @@ import matplotlib.pyplot as plt
 
 
 logging.basicConfig(level=logging.INFO)
-
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-env    = gym.make('Pendulum-v1')
+
+env    = gym.make('BipedalWalker-v3') # Pendulum-v1
 
 G          = 10
 GAMMA      = 0.99
@@ -35,8 +35,9 @@ ACTOR_LR   = 1e-4
 CRITIC_LR  = 1e-3
 BATCH_SIZE = 32
 
-max_steps_training    = 20_000
 max_steps_exploration = 10_000
+max_steps_training    = 100_000
+
 SEED = 571
 
 
@@ -49,7 +50,7 @@ def set_seed():
 
 def plot_reward_curve(data_reward):
     data = pd.DataFrame.from_dict(data_reward)
-    data.plot(x='step', y='reward', title="Reward Curve")
+    data.plot(x='episode', y='episode_reward', title="Reward Curve")
     plt.show()
 
 
@@ -98,7 +99,7 @@ def train(agent, memory, max_action_value, min_action_value):
             episode_timesteps = 0
             episode_num += 1
 
-    plot_reward_curve(historical_reward_step)
+    plot_reward_curve(historical_reward)
 
 
 def main():

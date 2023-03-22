@@ -1,121 +1,123 @@
 
+import os
 import copy
-
-import torch
+import logging
 import numpy as np
-
+import torch
+import torch.nn.functional as F
 
 class SAC:
-
     def __init__(self,
                  actor_network,
-                 critic_one,
-                 critic_two,
-                 max_actions,
-                 min_actions,
+                 critic_network,
                  gamma,
                  tau,
-                 alpha,
+                 action_num,
                  device):
 
-        self.actor_net = actor_network.to(device)
+        self.actor_net  = actor_network.to(device)
+        self.critic_net = critic_network.to(device)
 
-        self.critic_one_net = critic_one.to(device)
-        self.target_critic_one_net = copy.deepcopy(critic_one).to(device)
-
-        self.critic_two_net = critic_two.to(device)
-        self.target_critic_two_net = copy.deepcopy(critic_two).to(device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
 
-        self.max_actions = torch.FloatTensor(max_actions).to(device)
-        self.min_actions = torch.FloatTensor(min_actions).to(device)
-
-        self.learn_counter = 0
-        self.policy_update_freq = 2  # Hard coded
+        self.learn_counter      = 0
+        self.policy_update_freq = 2
 
         self.device = device
 
-    def forward(self, observation):
-        pi_action, logp_pi = self.actor_net.forward(observation)
-        return pi_action, logp_pi
+        self.target_entropy = -np.prod(action_num)
 
-    def learn(self, experiences):
+        init_temperature = 0.01
+        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+        self.log_alpha.requires_grad = True
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3, betas=(0.9, 0.999))
+
+    def select_action_from_policy(self, state):
+        with torch.no_grad():
+            state_tensor = torch.FloatTensor(state)
+            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            mu, _, _, _ = self.actor_net(state_tensor, compute_pi=False, compute_log_pi=False)
+            mu = mu.cpu().data.numpy().flatten()
+        return mu
+
+    def train_policy(self, experiences):
+        self.learn_counter += 1
+
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(rewards).to(self.device)
+        states      = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards     = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(dones).to(self.device)
+        dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        dones   = dones.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
-            """
-            Unlike in TD3, the next-state actions used in the target come from the current policy instead of a target policy.
-            next_actions = self.target_actor_net(next_states).to(self.device) #### retrieve ā~π(.|s') from actor network
-            """
-            next_actions, logp_pi_batch = self.actor_net(next_states)
+            _, policy_action, log_pi, _ = self.actor_net(next_states)
 
-            next_actions = next_actions.to(self.device)
-            logp_pi_batch = logp_pi_batch.to(self.device).unsqueeze(1)
+            target_q_values_one, target_q_values_two = self.target_critic_net(next_states, actions)
+            target_q_values = torch.minimum(target_q_values_one, target_q_values_two) - self.alpha.detach() * log_pi
 
-            target_q_values_one = self.target_critic_one_net(next_states, next_actions)
-            target_q_values_two = self.target_critic_two_net(next_states, next_actions)
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-            target_q_values = torch.min(target_q_values_one, target_q_values_two)
+        q_values_one, q_values_two = self.critic_net(states, actions)
+        critic_loss_1 = F.mse_loss(q_values_one, q_target)
+        critic_loss_2 = F.mse_loss(q_values_two, q_target)
+        critic_loss_total = critic_loss_1 + critic_loss_2
 
-            q_target = rewards + self.gamma * (1 - dones) * (target_q_values - self.alpha * logp_pi_batch)
+        # Update the Critic
+        self.critic_net.optimiser.zero_grad()
+        critic_loss_total.backward()
+        self.critic_net.optimiser.step()
 
-        q_values_one = self.critic_one_net(states, actions)
-        q_values_two = self.critic_two_net(states, actions)
-
-        # Update the Critic One
-        critic_one_loss = self.critic_one_net.loss(q_values_one, q_target)
-
-        self.critic_one_net.optimiser.zero_grad()
-        critic_one_loss.backward()
-        self.critic_one_net.optimiser.step()
-
-        # Update Critic Two
-        critic_two_loss = self.critic_two_net.loss(q_values_two, q_target)
-
-        self.critic_two_net.optimiser.zero_grad()
-        critic_two_loss.backward()
-        self.critic_two_net.optimiser.step()
-
-        # updating the target network and the actor network
         if self.learn_counter % self.policy_update_freq == 0:
+            _, pi, log_pi, log_std = self.actor_net(states)
+            actor_q_one, actor_q_two = self.critic_net(states, pi)
+            actor_q_values = torch.minimum(actor_q_one, actor_q_two)
 
-            # Update Actor
-            pi_action, logp_pi_batch = self.actor_net(states)
-            logp_pi_batch = logp_pi_batch.to(self.device).unsqueeze(1)
+            actor_loss = (self.alpha.detach() * log_pi - actor_q_values).mean()
 
-            actor_q_one = self.critic_one_net(states, pi_action)
-            actor_q_two = self.critic_two_net(states, pi_action)
-
-            actor_q_values = torch.min(actor_q_one, actor_q_two)
-
-            actor_loss = -(actor_q_values - self.alpha * logp_pi_batch).mean()
-
-            # Update Actor network parameters
             self.actor_net.optimiser.zero_grad()
             actor_loss.backward()
             self.actor_net.optimiser.step()
 
-            # Update target network params with an exponential filter
-            for target_param, param in zip(self.target_critic_one_net.parameters(), self.critic_one_net.parameters()):
+            self.log_alpha_optimizer.zero_grad()
+            alpha_loss = (self.alpha * (-log_pi - self.target_entropy).detach()).mean()
+            alpha_loss.backward()
+            self.log_alpha_optimizer.step()
+
+            for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-            for target_param, param in zip(self.target_critic_two_net.parameters(), self.critic_two_net.parameters()):
-                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+
+    @property
+    def alpha(self):
+        return self.log_alpha.exp()
+
+    def save_models(self, filename):
+        dir_exists = os.path.exists("models")
+
+        if not dir_exists:
+            os.makedirs("models")
+        torch.save(self.actor_net.state_dict(),  f'models/{filename}_actor.pht')
+        torch.save(self.critic_net.state_dict(), f'models/{filename}_critic.pht')
+        logging.info("models has been loaded...")
+
+    def load_models(self, filename):
+        self.actor_net.load_state_dict(torch.load(f'models/{filename}_actor.pht'))
+        self.critic_net.load_state_dict(torch.load(f'models/{filename}_critic.pht'))
+        logging.info("models has been loaded...")
+
+
+
 
 
 
