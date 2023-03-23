@@ -1,12 +1,16 @@
 """
 Description:
-            This is a basic example of the training loop for the algorithms,
+            This is a basic example of the training loop for Off Policy Algorithms,
             We may move this later for each repo/env or keep this in this repo
 """
 
 # from cares_reinforcement_learning.algorithm import TD3
 # from cares_reinforcement_learning.networks.TD3 import Actor
 # from cares_reinforcement_learning.networks.TD3 import Critic
+
+# from cares_reinforcement_learning.algorithm import DDPG
+# from cares_reinforcement_learning.networks.DDPG import Actor
+# from cares_reinforcement_learning.networks.DDPG import Critic
 
 from cares_reinforcement_learning.algorithm import SAC
 from cares_reinforcement_learning.networks.SAC import Actor
@@ -27,7 +31,7 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-env    = gym.make('BipedalWalker-v3')  # Pendulum-v1, BipedalWalker-v3
+env    = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
 
 G          = 10
 GAMMA      = 0.99

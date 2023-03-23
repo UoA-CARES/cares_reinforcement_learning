@@ -18,3 +18,4 @@ def compare_models(model_1, model_2):
                 raise Exception
     if models_differ == 0:
         print('Models match perfectly! :)')
+
