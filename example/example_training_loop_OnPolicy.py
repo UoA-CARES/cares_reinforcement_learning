@@ -35,41 +35,71 @@ max_steps_training    = 100_000
 
 SEED = 571
 
-max_steps_per_batch = 20
+max_steps_per_batch = 400
+
 
 def train(agent, memory, max_action_value, min_action_value):
     episode_timesteps = 0
     episode_reward    = 0
     episode_num       = 0
+    t = 0
 
     state, _ = env.reset(seed=SEED)
 
-    for total_step_counter in range(int(max_steps_training)):
-        episode_timesteps += 1
+    batch_obs  = []
+    batch_acts = []
 
-        action = env.action_space.sample()
-        #action = agent.select_action_from_policy(state)
-        #action = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value # mapping the env range
+
+
+
+
+
+
+
+
+
+
+
+
+
+    for total_step_counter in range(max_steps_training):
+        episode_timesteps += 1
+        t += 1
+
+        if total_step_counter < max_steps_exploration:
+            action = env.action_space.sample()
+        else:
+            action = env.action_space.sample()  # todo change this and add map
 
         next_state, reward, done, truncated, _ = env.step(action)
-        state = next_state
-
         episode_reward += reward
 
-        # if total_step_counter >= max_steps_exploration:
-        #     for _ in range(G):
-        #         experiences = memory.sample(BATCH_SIZE)
-        #         agent.train_policy(experiences)
+        if t < max_steps_per_batch:
+            batch_obs.append(state)
+            batch_acts.append(action)
+            # batch the log prob here
+
+        else:
+            # all the ppo code here from sample
+            logging.info(" completed ")
+            t = 0
+
+        state = next_state
 
 
         if done or truncated:
-            logging.info(f"Total T:{total_step_counter+1} Episode {episode_num+1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+            logging.info(f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
 
             # Reset environment
             state, _ = env.reset()
-            episode_reward    = 0
+            episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
+
+
+
+
+
 
 
 
