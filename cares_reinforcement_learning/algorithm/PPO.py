@@ -69,13 +69,10 @@ class PPO:
         rtgs = []
 
         discounted_reward = 0
-        for reward in reversed(batch_rewards):
-            discounted_reward = reward + self.gamma * discounted_reward
+        for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
+            discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
             rtgs.insert(0, discounted_reward)
 
-        # for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
-        #     discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
-        #     rtgs.insert(0, discounted_reward)
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)
         return batch_rtgs
 
@@ -90,9 +87,9 @@ class PPO:
         dones       = torch.LongTensor(np.asarray(memory.dones)).to(self.device)
 
         # Reshape to batch_size x whatever
-        batch_size = len(states)
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        #batch_size = len(states)
+        #rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        #dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         logging.info(f"States {states.shape}")
         logging.info(f"actions {actions.shape}")

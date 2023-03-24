@@ -86,9 +86,9 @@ def train(agent, memory, max_action_value, min_action_value):
         state = next_state
         episode_reward += reward
 
-        time_step += 1 # I need this otherwise the next if is true at the first interaction
+        time_step += 1  # I need this otherwise the next if is true at the first interaction
         if time_step % max_steps_per_batch == 0:
-            agent.train_policy(memory) # pass the memory is the best decision here?
+            agent.train_policy(memory)  # pass the memory is the best decision here?
 
         if done or truncated:
             logging.info(f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
