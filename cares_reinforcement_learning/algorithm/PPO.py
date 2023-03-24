@@ -42,34 +42,40 @@ class PPO:
     def select_action_from_policy(self, state):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0) # todo no sure about this check also fo the other algorithms, me quede aqui
+            state_tensor = state_tensor.unsqueeze(0)  # todo no sure about this check also fo the other algorithms, me quede aqui
 
             mean = self.actor_net(state_tensor)
-
-
             dist = MultivariateNormal(mean, self.cov_mat)
+
             # Sample an action from the distribution and get its log prob
             action   = dist.sample()
+
             log_prob = dist.log_prob(action)
 
             action   = action.cpu().data.numpy().flatten()
-            log_prob = log_prob.cpu().data.numpy().flatten() # just to have this as numpy array
+            log_prob = log_prob.cpu().data.numpy()#.flatten()  # just to have this as numpy array
 
         return action, log_prob
 
     def evaluate_policy(self, state, action):
-        v        = self.critic_net(state)
+        v        = self.critic_net(state).squeeze()
         mean     = self.actor_net(state)
         dist     = MultivariateNormal(mean, self.cov_mat)
         log_prob = dist.log_prob(action)
         return v, log_prob
 
+
     def calculate_rewards_to_go(self, batch_rewards, batch_dones):
         rtgs = []
+
         discounted_reward = 0
-        for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
-            discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
+        for reward in reversed(batch_rewards):
+            discounted_reward = reward + self.gamma * discounted_reward
             rtgs.insert(0, discounted_reward)
+
+        # for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
+        #     discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
+        #     rtgs.insert(0, discounted_reward)
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)
         return batch_rtgs
 
@@ -88,35 +94,47 @@ class PPO:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # logging.info(f"States {states.shape}")
-        # logging.info(f"actions {actions.shape}")
-        # logging.info(f"log_probs {log_probs.shape}")
-        # logging.info(f"rewards {rewards.shape}")
-        # logging.info(f"next_states {next_states.shape}")
-        # logging.info(f"dones {dones.shape}")
+        logging.info(f"States {states.shape}")
+        logging.info(f"actions {actions.shape}")
+        logging.info(f"log_probs {log_probs.shape}")
+        logging.info(f"rewards {rewards.shape}")
+        logging.info(f"next_states {next_states.shape}")
+        logging.info(f"dones {dones.shape}")
 
 
         # compute reward to go:
         rtgs = self.calculate_rewards_to_go(rewards, dones)
         #rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7) # Normalizing the rewards, do I need this?
+        logging.info(f"rtgs {rtgs.shape}")
 
         # calculate advantages
-        v = self.critic_net(states).squeeze()
+        v, _ = self.evaluate_policy(states, actions)
+        logging.info(f"V {v.shape}")
 
-        advantages = rtgs.detach() - v.detach()
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10) # Normalize advantages,  do I need this?
+        #advantages = rtgs.detach() - v.detach()
+        advantages = rtgs - v.detach()
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)  # Normalize advantages,  do I need this?
+        logging.info(f"advantages {advantages.shape}")
 
 
         for _ in range(self.k):
             v, curr_log_probs = self.evaluate_policy(states, actions)
-            v = v.squeeze()
+
+            logging.info(f"new v {v.shape}")
+            logging.info(f"new log probe v {curr_log_probs.shape}")
 
             # Calculate ratios
-            ratios = torch.exp(curr_log_probs - log_probs.detach())
+            #ratios = torch.exp(curr_log_probs - log_probs.detach())
+            ratios = torch.exp(curr_log_probs - log_probs.squeeze())
+            logging.info(f"ratios  {ratios.shape}")
 
             # Finding Surrogate Loss
             surr1 = ratios * advantages
             surr2 = torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
+
+            logging.info(f"surr1  {surr1.shape}")
+            logging.info(f"surr2  {surr2.shape}")
+
 
             # final loss of clipped objective PPO
             actor_loss  = (-torch.minimum(surr1, surr2)).mean()

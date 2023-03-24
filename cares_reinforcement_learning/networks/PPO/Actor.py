@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+
 class Actor(nn.Module):
     def __init__(self, observation_size, num_actions, learning_rate):
         super(Actor, self).__init__()
