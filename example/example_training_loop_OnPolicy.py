@@ -74,8 +74,8 @@ def train(agent, memory, max_action_value, min_action_value):
         episode_timesteps += 1
 
         action, log_prob = agent.select_action_from_policy(state)
-        #action = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value  # mapping the env range
-        next_state, reward, done, truncated, _ = env.step(action)
+        action_mapped = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value  # mapping the env range
+        next_state, reward, done, truncated, _ = env.step(action_mapped)
 
 
         # save rollouts in memory, this could be moved in a better place in a better way
