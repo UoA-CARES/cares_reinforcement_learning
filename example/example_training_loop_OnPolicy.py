@@ -26,11 +26,12 @@ env    = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
 SEED = 571
 
 GAMMA      = 0.99
-ACTOR_LR   = 3e-4 # 1e-4
-CRITIC_LR  = 3e-4 # 1e-3
+ACTOR_LR   = 3e-4  # 1e-4
+CRITIC_LR  = 3e-4  # 1e-3
 
 max_steps_training  = 1_000_000
-max_steps_per_batch = 400
+max_steps_per_batch = 4000
+
 
 def set_seed():
     torch.manual_seed(SEED)
@@ -40,6 +41,8 @@ def set_seed():
 
 # "============================================================================================"
 # todo move this class to a better place
+
+
 class RolloutBuffer:
     def __init__(self):
         self.states       = []
