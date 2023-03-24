@@ -19,6 +19,5 @@ class Actor(nn.Module):
     def forward(self, state):
         x = F.relu(self.h_linear_1(state))
         x = F.relu(self.h_linear_2(x))
-        #x = self.h_linear_3(x)
         x = torch.tanh(self.h_linear_3(x))
         return x

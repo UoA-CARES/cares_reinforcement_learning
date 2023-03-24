@@ -26,11 +26,11 @@ env    = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
 SEED = 571
 
 GAMMA      = 0.99
-ACTOR_LR   = 3e-4  # 1e-4
-CRITIC_LR  = 3e-4  # 1e-3
+ACTOR_LR   = 1e-4  # 3e-4
+CRITIC_LR  = 1e-3
 
 max_steps_training  = 1_000_000
-max_steps_per_batch = 4000
+max_steps_per_batch = 5000
 
 
 def set_seed():
@@ -39,10 +39,10 @@ def set_seed():
     random.seed(SEED)
     env.action_space.seed(SEED)
 
+
+
 # "============================================================================================"
 # todo move this class to a better place
-
-
 class RolloutBuffer:
     def __init__(self):
         self.states       = []
@@ -61,7 +61,6 @@ class RolloutBuffer:
         del self.dones[:]
 # "==========================================================================================="
 
-
 def train(agent, memory, max_action_value, min_action_value):
     episode_timesteps = 0
     episode_num       = 0
@@ -74,9 +73,9 @@ def train(agent, memory, max_action_value, min_action_value):
         episode_timesteps += 1
 
         action, log_prob = agent.select_action_from_policy(state)
-        action_mapped = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value  # mapping the env range
-        next_state, reward, done, truncated, _ = env.step(action_mapped)
+        action_mapped    = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value  # mapping the env range
 
+        next_state, reward, done, truncated, _ = env.step(action_mapped)
 
         # save rollouts in memory, this could be moved in a better place in a better way
         memory.states.append(state)
