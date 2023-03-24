@@ -76,12 +76,14 @@ def train(agent, memory, max_action_value, min_action_value):
             logging.info(f"Running Exploration Steps {total_step_counter}/{max_steps_exploration}")
             action = env.action_space.sample()
             action_mapped = action
+
         else:
             action = agent.select_action_from_policy(state)
-            action_mapped = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value # mapping the env range
-            # todo this could be a problem try to move the mapping latet since I an storing a mapping value but the rest is -1 and 1
+            action_mapped = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value  # mapping the env range
+            # todo I am using this name to avoid storing in the buffer a mapping action since the inside each algorithm,
+            #  everything is -1 to =1 but if I store an action -2 to 2(for pendulum, for example) could be a problem
 
-        next_state, reward, done, truncated, _ = env.step(action_mapped) #
+        next_state, reward, done, truncated, _ = env.step(action_mapped)
         memory.add(state, action, reward, next_state, done)
 
         state = next_state

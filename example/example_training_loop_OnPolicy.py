@@ -39,6 +39,10 @@ def set_seed():
     random.seed(SEED)
     env.action_space.seed(SEED)
 
+def plot_reward_curve(data_reward):
+    data = pd.DataFrame.from_dict(data_reward)
+    data.plot(x='step', y='episode_reward', title="Reward Curve")
+    plt.show()
 
 
 # "============================================================================================"
@@ -64,10 +68,11 @@ class RolloutBuffer:
 def train(agent, memory, max_action_value, min_action_value):
     episode_timesteps = 0
     episode_num       = 0
+    episode_reward    = 0
+    time_step         = 0
 
     state, _ = env.reset(seed=SEED)
-    episode_reward = 0
-    time_step      = 0
+    historical_reward = {"step": [], "episode_reward": []}
 
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
@@ -77,7 +82,7 @@ def train(agent, memory, max_action_value, min_action_value):
 
         next_state, reward, done, truncated, _ = env.step(action_mapped)
 
-        # save rollouts in memory, this could be moved in a better place in a better way
+        # save rollouts in memory, TODO this could be moved in a better place in a better way
         memory.states.append(state)
         memory.next_states.append(next_state)
         memory.actions.append(action)
@@ -90,15 +95,21 @@ def train(agent, memory, max_action_value, min_action_value):
 
         time_step += 1  # I need this otherwise the next if is true at the first interaction
         if time_step % max_steps_per_batch == 0:
-            agent.train_policy(memory)  # pass the memory is the best decision here?
+            agent.train_policy(memory)
 
         if done or truncated:
             logging.info(f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+
+            historical_reward["step"].append(total_step_counter+1)
+            historical_reward["episode_reward"].append(episode_reward)
+
             # Reset environment
             state, _ = env.reset()
             episode_reward    = 0
             episode_timesteps = 0
             episode_num       += 1
+
+    plot_reward_curve(historical_reward)
 
 def main():
     observation_size = env.observation_space.shape[0]
