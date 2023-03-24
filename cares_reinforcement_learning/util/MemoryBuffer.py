@@ -20,7 +20,4 @@ class MemoryBuffer:
         return states, actions, rewards, next_states, dones
 
 
-    # this is for ppo
-    def episode_memory(self):
-        pass
 

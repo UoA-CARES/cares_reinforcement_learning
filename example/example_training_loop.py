@@ -4,17 +4,17 @@ Description:
             We may move this later for each repo/env or keep this in this repo
 """
 
-# from cares_reinforcement_learning.algorithm import TD3
-# from cares_reinforcement_learning.networks.TD3 import Actor
-# from cares_reinforcement_learning.networks.TD3 import Critic
+from cares_reinforcement_learning.algorithm import TD3
+from cares_reinforcement_learning.networks.TD3 import Actor
+from cares_reinforcement_learning.networks.TD3 import Critic
 
 # from cares_reinforcement_learning.algorithm import DDPG
 # from cares_reinforcement_learning.networks.DDPG import Actor
 # from cares_reinforcement_learning.networks.DDPG import Critic
 
-from cares_reinforcement_learning.algorithm import SAC
-from cares_reinforcement_learning.networks.SAC import Actor
-from cares_reinforcement_learning.networks.SAC import Critic
+# from cares_reinforcement_learning.algorithm import SAC
+# from cares_reinforcement_learning.networks.SAC import Actor
+# from cares_reinforcement_learning.networks.SAC import Critic
 
 
 from cares_reinforcement_learning.util import MemoryBuffer
@@ -75,11 +75,13 @@ def train(agent, memory, max_action_value, min_action_value):
         if total_step_counter < max_steps_exploration:
             logging.info(f"Running Exploration Steps {total_step_counter}/{max_steps_exploration}")
             action = env.action_space.sample()
+            action_mapped = action
         else:
             action = agent.select_action_from_policy(state)
-            action = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value # mapping the env range
+            action_mapped = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value # mapping the env range
+            # todo this could be a problem try to move the mapping latet since I an storing a mapping value but the rest is -1 and 1
 
-        next_state, reward, done, truncated, _ = env.step(action)
+        next_state, reward, done, truncated, _ = env.step(action_mapped) #
         memory.add(state, action, reward, next_state, done)
 
         state = next_state
@@ -118,14 +120,14 @@ def main():
     actor  = Actor(observation_size, action_num, ACTOR_LR)
     critic = Critic(observation_size, action_num, CRITIC_LR)
 
-    # agent = TD3(
-    #     actor_network=actor,
-    #     critic_network=critic,
-    #     gamma=GAMMA,
-    #     tau=TAU,
-    #     action_num=action_num,
-    #     device=DEVICE,
-    # )
+    agent = TD3(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=GAMMA,
+        tau=TAU,
+        action_num=action_num,
+        device=DEVICE,
+    )
 
     # agent = DDPG(
     #     actor_network=actor,
@@ -136,14 +138,14 @@ def main():
     #     device=DEVICE,
     # )
 
-    agent = SAC(
-        actor_network=actor,
-        critic_network=critic,
-        gamma=GAMMA,
-        tau=TAU,
-        action_num=action_num,
-        device=DEVICE,
-    )
+    # agent = SAC(
+    #     actor_network=actor,
+    #     critic_network=critic,
+    #     gamma=GAMMA,
+    #     tau=TAU,
+    #     action_num=action_num,
+    #     device=DEVICE,
+    # )
 
     set_seed()
     train(agent, memory, max_actions, min_actions)
