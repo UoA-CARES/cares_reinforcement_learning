@@ -53,7 +53,7 @@ class PPO:
             log_prob = dist.log_prob(action)
 
             action   = action.cpu().data.numpy().flatten()
-            log_prob = log_prob.cpu().data.numpy()#.flatten()  # just to have this as numpy array
+            log_prob = log_prob.cpu().data.numpy().flatten()  # just to have this as numpy array
 
         return action, log_prob
 
