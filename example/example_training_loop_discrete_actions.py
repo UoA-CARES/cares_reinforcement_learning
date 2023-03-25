@@ -31,7 +31,7 @@ env    = gym.make('CartPole-v1')
 G     = 1
 GAMMA = 0.99
 TAU   = 0.005
-LR    = 1e-4
+LR    = 1e-3
 BATCH_SIZE = 32
 
 EXPLORATION_MIN   = 0.001
