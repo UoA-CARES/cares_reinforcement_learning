@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-env    = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
+env    = gym.make('BipedalWalker-v3')  # Pendulum-v1, BipedalWalker-v3
 
 SEED = 571
 

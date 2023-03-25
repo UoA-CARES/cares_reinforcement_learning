@@ -42,8 +42,7 @@ BATCH_SIZE = 32
 
 max_steps_exploration = 10_000
 max_steps_training    = 100_000
-
-SEED = 571
+SEED                  = 571
 
 
 def set_seed():
