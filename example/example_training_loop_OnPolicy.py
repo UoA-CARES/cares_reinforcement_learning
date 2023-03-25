@@ -1,10 +1,8 @@
 """
 Description:
-            This is a basic example of the training loop for ON Policy Algorithms,
-            We may move this later for each repo/env or keep this in this repo
+            This is a basic example of the training loop for ON Policy Algorithms, PPO
+
 """
-
-
 from cares_reinforcement_learning.algorithm import PPO
 from cares_reinforcement_learning.networks.PPO import Actor
 from cares_reinforcement_learning.networks.PPO import Critic
@@ -23,8 +21,7 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 env    = gym.make('BipedalWalker-v3')  # Pendulum-v1, BipedalWalker-v3
 
-SEED = 571
-
+SEED       = 571
 GAMMA      = 0.99
 ACTOR_LR   = 1e-4  # 3e-4
 CRITIC_LR  = 1e-3
@@ -82,6 +79,7 @@ def train(agent, memory, max_action_value, min_action_value):
 
         next_state, reward, done, truncated, _ = env.step(action_mapped)
 
+        # ------------------------------------------------------------------------------------------------
         # save rollouts in memory, TODO this could be moved in a better place in a better way
         memory.states.append(state)
         memory.next_states.append(next_state)
@@ -89,6 +87,7 @@ def train(agent, memory, max_action_value, min_action_value):
         memory.log_probs.append(log_prob)
         memory.rewards.append(reward)
         memory.dones.append(done)
+        # ------------------------------------------------------------------------------------------------
 
         state = next_state
         episode_reward += reward
@@ -111,6 +110,7 @@ def train(agent, memory, max_action_value, min_action_value):
 
     plot_reward_curve(historical_reward)
 
+
 def main():
     observation_size = env.observation_space.shape[0]
     action_num       = env.action_space.shape[0]
@@ -132,7 +132,6 @@ def main():
 
     set_seed()
     train(agent, memory, max_actions, min_actions)
-
 
 
 if __name__ == '__main__':

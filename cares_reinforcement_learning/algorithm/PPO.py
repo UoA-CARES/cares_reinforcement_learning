@@ -10,11 +10,9 @@ Code based on:
 """
 
 import os
-import copy
 import logging
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
@@ -53,7 +51,6 @@ class PPO:
 
             action   = action.cpu().data.numpy().flatten()
             log_prob = log_prob.cpu().data.numpy().flatten()  # just to have this as numpy array
-
         return action, log_prob
 
 
@@ -85,13 +82,6 @@ class PPO:
 
         log_probs   = log_probs.squeeze()  # torch.Size([5000])
 
-        # logging.info(f"States {states.shape}")             # torch.Size([5000, 3])
-        # logging.info(f"actions {actions.shape}")           # torch.Size([5000, 1])
-        # logging.info(f"log_probs {log_probs.shape}")       # torch.Size([5000, 1])
-        # logging.info(f"rewards {rewards.shape}")           # torch.Size([5000])
-        # logging.info(f"next_states {next_states.shape}")   # torch.Size([5000, 3])
-        # logging.info(f"dones {dones.shape}")               # torch.Size([5000])
-
         # compute reward to go:
         rtgs = self.calculate_rewards_to_go(rewards, dones)  # torch.Size([5000])
         #rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
@@ -100,7 +90,6 @@ class PPO:
         v, _ = self.evaluate_policy(states, actions)  # torch.Size([5000])
 
         advantages = rtgs.detach() - v.detach()  # torch.Size([5000])
-        #advantages = rtgs - v.detach()
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)  # Normalize advantages
 
         for _ in range(self.k):
@@ -126,3 +115,18 @@ class PPO:
             self.critic_net.optimiser.step()
 
         memory.clear()
+
+    def save_models(self, filename):
+        dir_exists = os.path.exists("models")
+
+        if not dir_exists:
+            os.makedirs("models")
+        torch.save(self.actor_net.state_dict(),  f'models/{filename}_actor.pht')
+        torch.save(self.critic_net.state_dict(), f'models/{filename}_critic.pht')
+        logging.info("models has been loaded...")
+
+    def load_models(self, filename):
+        self.actor_net.load_state_dict(torch.load(f'models/{filename}_actor.pht'))
+        self.critic_net.load_state_dict(torch.load(f'models/{filename}_critic.pht'))
+        logging.info("models has been loaded...")
+

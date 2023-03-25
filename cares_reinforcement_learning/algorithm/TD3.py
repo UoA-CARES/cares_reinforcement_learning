@@ -37,7 +37,7 @@ class TD3:
     def select_action_from_policy(self, state):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0) # todo check if really need this line
+            state_tensor = state_tensor.unsqueeze(0)  # todo check if really need this line
             action       = self.actor_net(state_tensor)
             action       = action.cpu().data.numpy().flatten()
 
@@ -60,7 +60,7 @@ class TD3:
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
-        # Reshape to batch_size x whatever
+        # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 

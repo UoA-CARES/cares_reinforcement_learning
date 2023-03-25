@@ -4,6 +4,7 @@ Description:
             We may move this later for each repo/env or keep this in this repo
 """
 
+
 from cares_reinforcement_learning.algorithm import TD3
 from cares_reinforcement_learning.networks.TD3 import Actor
 from cares_reinforcement_learning.networks.TD3 import Critic
@@ -54,7 +55,7 @@ def set_seed():
 
 def plot_reward_curve(data_reward):
     data = pd.DataFrame.from_dict(data_reward)
-    data.plot(x='episode', y='episode_reward', title="Reward Curve")
+    data.plot(x='step', y='episode_reward', title="Reward Curve")
     plt.show()
 
 
@@ -65,8 +66,7 @@ def train(agent, memory, max_action_value, min_action_value):
 
     state, _ = env.reset(seed=SEED)
 
-    historical_reward      = {"episode": [], "episode_reward": []}
-    historical_reward_step = {"step": [], "reward": []}
+    historical_reward = {"step": [], "episode_reward": []}
 
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
@@ -93,12 +93,10 @@ def train(agent, memory, max_action_value, min_action_value):
                 experiences = memory.sample(BATCH_SIZE)
                 agent.train_policy(experiences)
 
-        historical_reward_step["step"].append(total_step_counter)
-        historical_reward_step["reward"].append(reward)
-
         if done or truncated:
             logging.info(f"Total T:{total_step_counter+1} Episode {episode_num+1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
-            historical_reward["episode"].append(episode_num)
+
+            historical_reward["step"].append(total_step_counter)
             historical_reward["episode_reward"].append(episode_reward)
 
             # Reset environment
@@ -120,6 +118,7 @@ def main():
     memory = MemoryBuffer()
     actor  = Actor(observation_size, action_num, ACTOR_LR)
     critic = Critic(observation_size, action_num, CRITIC_LR)
+
 
     agent = TD3(
         actor_network=actor,
