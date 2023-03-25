@@ -1,7 +1,7 @@
-import logging
 
+import os
 import torch
-import torch.nn as nn
+import logging
 import numpy as np
 import torch.nn.functional as F
 
@@ -27,9 +27,7 @@ class DQN:
 
 
     def train_policy(self, experiences):
-
         states, actions, rewards, next_states, dones = experiences
-        batch_size = len(states)
 
         # Convert into tensor
         states      = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -37,7 +35,6 @@ class DQN:
         rewards     = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
-
 
         # Generate Q Values given state at time t and t + 1
         q_values      = self.network(states)
@@ -53,3 +50,12 @@ class DQN:
         self.network.optimiser.zero_grad()
         loss.backward()
         self.network.optimiser.step()
+
+
+    def save_models(self, filename):
+        dir_exists = os.path.exists("models")
+
+        if not dir_exists:
+            os.makedirs("models")
+        torch.save(self.network.state_dict(),  f'models/{filename}_network.pht')
+        logging.info("models has been loaded...")

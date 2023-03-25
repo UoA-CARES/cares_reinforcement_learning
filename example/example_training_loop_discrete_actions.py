@@ -4,9 +4,14 @@ Description:
             We may move this later for each repo/env or keep this in this repo
 """
 
-from cares_reinforcement_learning.algorithm import DQN
-from cares_reinforcement_learning.networks.DQN import Network
+# from cares_reinforcement_learning.algorithm import DQN
+# from cares_reinforcement_learning.networks.DQN import Network
+
+from cares_reinforcement_learning.algorithm import DoubleDQN
+from cares_reinforcement_learning.networks.DoubleDQN import Network
+
 from cares_reinforcement_learning.util import MemoryBuffer
+
 
 import gym
 import torch
@@ -20,12 +25,13 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-env    = gym.make('CartPole-v1')  # Pendulum-v1, BipedalWalker-v3
+env    = gym.make('CartPole-v1')
 
 
-G = 1
+G     = 1
 GAMMA = 0.99
-LR   = 1e-4
+TAU   = 0.005
+LR    = 1e-4
 BATCH_SIZE = 32
 
 EXPLORATION_MIN   = 0.001
@@ -48,7 +54,7 @@ def plot_reward_curve(data_reward):
     plt.show()
 
 
-def train(agent, memory, max_action_value, min_action_value):
+def train(agent, memory):
     episode_timesteps = 0
     episode_reward    = 0
     episode_num       = 0
@@ -98,23 +104,24 @@ def main():
     observation_size = env.observation_space.shape[0]
     action_num       = env.action_space.n
 
-    # max_actions = env.action_space.high[0]
-    # min_actions = env.action_space.low[0]
-
-    max_actions = 2
-    min_actions = -2
-
     memory  = MemoryBuffer()
     network = Network(observation_size, action_num, LR)
 
-    agent = DQN(
+    # agent = DQN(
+    #     network=network,
+    #     gamma=GAMMA,
+    #     device=DEVICE
+    # )
+
+    agent = DoubleDQN(
         network=network,
         gamma=GAMMA,
+        tau=TAU,
         device=DEVICE
     )
 
     set_seed()
-    train(agent, memory, max_actions, min_actions)
+    train(agent, memory)
 
 
 if __name__ == '__main__':
