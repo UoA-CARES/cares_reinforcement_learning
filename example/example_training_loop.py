@@ -59,6 +59,25 @@ def plot_reward_curve(data_reward):
     plt.show()
 
 
+def normalize(action, max_action_value, min_action_value):
+    # return action in env range [max_action_value, min_action_value]
+    max_range_value = max_action_value
+    min_range_value = min_action_value
+    max_value_in    = 1
+    min_value_in    = -1
+    action = (action - min_value_in) * (max_range_value - min_range_value) / (max_value_in - min_value_in) + min_range_value
+    return action
+
+def denormalize(action, max_action_value, min_action_value):
+    # return action in algorithm range [-1, +1]
+    max_range_value = 1
+    min_range_value = -1
+    max_value_in = max_action_value
+    min_value_in = min_action_value
+    action = (action - min_value_in) * (max_range_value - min_range_value) / (max_value_in - min_value_in) + min_range_value
+    return action
+
+
 def train(agent, memory, max_action_value, min_action_value):
     episode_timesteps = 0
     episode_reward    = 0
@@ -73,16 +92,13 @@ def train(agent, memory, max_action_value, min_action_value):
 
         if total_step_counter < max_steps_exploration:
             logging.info(f"Running Exploration Steps {total_step_counter}/{max_steps_exploration}")
-            action = env.action_space.sample()
-            action_mapped = action
-
+            action_env = env.action_space.sample() # action range the env uses [e.g. -2 , 2 for pendulum]
+            action = denormalize(action_env, max_action_value, min_action_value)  # algorithm range [-1, 1]
         else:
-            action = agent.select_action_from_policy(state)
-            action_mapped = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value  # mapping the env range
-            # todo I am using this name to avoid storing in the buffer a mapping action since the inside each algorithm,
-            #  everything is -1 to =1 but if I store an action -2 to 2(for pendulum, for example) could be a problem
+            action = agent.select_action_from_policy(state) # algorithm range [-1, 1]
+            action_env = normalize(action, max_action_value, min_action_value)  # mapping the env range [e.g. -2 , 2 for pendulum]
 
-        next_state, reward, done, truncated, _ = env.step(action_mapped)
+        next_state, reward, done, truncated, _ = env.step(action_env)
         memory.add(state, action, reward, next_state, done)
 
         state = next_state

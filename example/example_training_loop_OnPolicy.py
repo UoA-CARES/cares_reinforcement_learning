@@ -42,6 +42,14 @@ def plot_reward_curve(data_reward):
     plt.show()
 
 
+def normalize(action, max_action_value, min_action_value):
+    # return action in env range [max_action_value, min_action_value]
+    max_range_value = max_action_value
+    min_range_value = min_action_value
+    max_value_in    = 1
+    min_value_in    = -1
+    action = (action - min_value_in) * (max_range_value - min_range_value) / (max_value_in - min_value_in) + min_range_value
+    return action
 # "============================================================================================"
 # todo move this class to a better place
 class RolloutBuffer:
@@ -75,9 +83,9 @@ def train(agent, memory, max_action_value, min_action_value):
         episode_timesteps += 1
 
         action, log_prob = agent.select_action_from_policy(state)
-        action_mapped    = (action + 1) * (max_action_value - min_action_value) / 2 + min_action_value  # mapping the env range
+        action_env = normalize(action, max_action_value, min_action_value)  # mapping the env range [e.g. -2 , 2 for pendulum]
 
-        next_state, reward, done, truncated, _ = env.step(action_mapped)
+        next_state, reward, done, truncated, _ = env.step(action_env)
 
         # ------------------------------------------------------------------------------------------------
         # save rollouts in memory, TODO this could be moved in a better place in a better way
