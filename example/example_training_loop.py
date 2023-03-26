@@ -32,7 +32,7 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-env    = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
+env    = gym.make('BipedalWalker-v3')  # Pendulum-v1, BipedalWalker-v3
 
 G          = 10
 GAMMA      = 0.99
@@ -96,7 +96,7 @@ def train(agent, memory, max_action_value, min_action_value):
             action = denormalize(action_env, max_action_value, min_action_value)  # algorithm range [-1, 1]
         else:
             action = agent.select_action_from_policy(state) # algorithm range [-1, 1]
-            action_env = normalize(action, max_action_value, min_action_value)  # mapping the env range [e.g. -2 , 2 for pendulum]
+            action_env = normalize(action, max_action_value, min_action_value)  # mapping to env range [e.g. -2 , 2 for pendulum]
 
         next_state, reward, done, truncated, _ = env.step(action_env)
         memory.add(state, action, reward, next_state, done)
@@ -128,8 +128,8 @@ def main():
     observation_size = env.observation_space.shape[0]
     action_num       = env.action_space.shape[0]
 
-    max_actions = env.action_space.high[0]
-    min_actions = env.action_space.low[0]
+    max_action_value = env.action_space.high[0]
+    min_action_value = env.action_space.low[0]
 
     memory = MemoryBuffer()
     actor  = Actor(observation_size, action_num, ACTOR_LR)
@@ -164,7 +164,7 @@ def main():
     # )
 
     set_seed()
-    train(agent, memory, max_actions, min_actions)
+    train(agent, memory, max_action_value, min_action_value)
 
 
 if __name__ == '__main__':

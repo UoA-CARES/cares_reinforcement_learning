@@ -50,6 +50,7 @@ def normalize(action, max_action_value, min_action_value):
     min_value_in    = -1
     action = (action - min_value_in) * (max_range_value - min_range_value) / (max_value_in - min_value_in) + min_range_value
     return action
+
 # "============================================================================================"
 # todo move this class to a better place
 class RolloutBuffer:
@@ -123,8 +124,8 @@ def main():
     observation_size = env.observation_space.shape[0]
     action_num       = env.action_space.shape[0]
 
-    max_actions = env.action_space.high[0]
-    min_actions = env.action_space.low[0]
+    max_action_value = env.action_space.high[0]
+    min_action_value = env.action_space.low[0]
 
     memory = RolloutBuffer()
     actor  = Actor(observation_size, action_num, ACTOR_LR)
@@ -139,7 +140,7 @@ def main():
     )
 
     set_seed()
-    train(agent, memory, max_actions, min_actions)
+    train(agent, memory, max_action_value, min_action_value)
 
 
 if __name__ == '__main__':
