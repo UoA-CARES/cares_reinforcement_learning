@@ -4,14 +4,13 @@ Description:
             We may move this later for each repo/env or keep this in this repo
 """
 
-# from cares_reinforcement_learning.algorithm import DQN
-# from cares_reinforcement_learning.networks.DQN import Network
+from cares_reinforcement_learning.algorithm import DQN
+from cares_reinforcement_learning.networks.DQN import Network
 
-from cares_reinforcement_learning.algorithm import DoubleDQN
-from cares_reinforcement_learning.networks.DoubleDQN import Network
+# from cares_reinforcement_learning.algorithm import DoubleDQN
+# from cares_reinforcement_learning.networks.DoubleDQN import Network
 
 from cares_reinforcement_learning.util import MemoryBuffer
-
 
 import gym
 import torch
@@ -27,11 +26,10 @@ DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 env    = gym.make('CartPole-v1')
 
-
 G     = 1
 GAMMA = 0.99
 TAU   = 0.005
-LR    = 1e-3
+LR    = 1e-4
 BATCH_SIZE = 32
 
 EXPLORATION_MIN   = 0.001
@@ -107,18 +105,18 @@ def main():
     memory  = MemoryBuffer()
     network = Network(observation_size, action_num, LR)
 
-    # agent = DQN(
-    #     network=network,
-    #     gamma=GAMMA,
-    #     device=DEVICE
-    # )
-
-    agent = DoubleDQN(
+    agent = DQN(
         network=network,
         gamma=GAMMA,
-        tau=TAU,
         device=DEVICE
     )
+
+    # agent = DoubleDQN(
+    #     network=network,
+    #     gamma=GAMMA,
+    #     tau=TAU,
+    #     device=DEVICE
+    # )
 
     set_seed()
     train(agent, memory)
