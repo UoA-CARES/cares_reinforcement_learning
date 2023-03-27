@@ -21,6 +21,10 @@ If problems arise, try `python3 setup.py install --user`
 
 ```
 cares_reinforcement_learning/
+├─ algorithm/
+│  ├─ DQN.py
+│  ├─ DDPG.py
+│  ├─ ...
 ├─ networks/
 │  ├─ DQN.py
 │  ├─ DDPG.py
@@ -30,7 +34,9 @@ cares_reinforcement_learning/
    ├─ PlotingUtil.py
    ├─ ...
 ```
-`networks/`: contains neural network (NN) wrappers that are responsible for housing and updating the NN according to RL algorithms
+`Algorithms/`: contains the code that is responsible for housing and updating the NN according to RL algorithms
+
+`Networks/`: contains....
 
 `util/`: contains common utility classes
 
