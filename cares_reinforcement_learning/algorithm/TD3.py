@@ -37,7 +37,7 @@ class TD3:
     def select_action_from_policy(self, state):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)  # todo check if really need this line
+            state_tensor = state_tensor.unsqueeze(0)
             action       = self.actor_net(state_tensor)
             action       = action.cpu().data.numpy().flatten()
 
