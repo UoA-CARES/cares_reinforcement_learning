@@ -34,17 +34,17 @@ class TD3:
         self.action_num = action_num
         self.device = device
 
-    def select_action_from_policy(self, state):
+    def select_action_from_policy(self, state, evaluation=False):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)  # todo check if really need this line
+            state_tensor = state_tensor.unsqueeze(0)
             action       = self.actor_net(state_tensor)
             action       = action.cpu().data.numpy().flatten()
-
-            # this is part the TD3 too, add noise to the action
-            noise  = np.random.normal(0, scale=0.10, size=self.action_num)
-            action = action + noise
-            action = np.clip(action, -1, 1)
+            if not evaluation:
+                # this is part the TD3 too, add noise to the action
+                noise  = np.random.normal(0, scale=0.10, size=self.action_num)
+                action = action + noise
+                action = np.clip(action, -1, 1)
         return action
 
     def train_policy(self, experiences):
