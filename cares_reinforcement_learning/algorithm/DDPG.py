@@ -29,7 +29,7 @@ class DDPG:
 
         self.device = device
 
-    def select_action_from_policy(self, state):
+    def select_action_from_policy(self, state, evaluation=None):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)

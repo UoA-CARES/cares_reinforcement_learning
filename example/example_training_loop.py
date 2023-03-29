@@ -193,8 +193,9 @@ def main():
     # )
 
     set_seed()
-    #train(agent, memory, max_action_value, min_action_value)
+    train(agent, memory, max_action_value, min_action_value)
     evaluate_policy(agent, max_action_value, min_action_value)
+
 
 
 if __name__ == '__main__':
