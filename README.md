@@ -53,7 +53,6 @@ cares_reinforcement_learning/
 ## In progress
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
-
 | D4PG   | Continuous        | Off Policy       |
  
 
