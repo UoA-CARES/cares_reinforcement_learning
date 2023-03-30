@@ -20,6 +20,7 @@ from cares_reinforcement_learning.networks.TD3 import Critic
 
 from cares_reinforcement_learning.util import MemoryBuffer
 
+
 import gym
 import torch
 import random
@@ -32,7 +33,9 @@ import matplotlib.pyplot as plt
 logging.basicConfig(level=logging.INFO)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-env    = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
+env = gym.make('Pendulum-v1')  # Pendulum-v1, BipedalWalker-v3
+# env = gym.make('Pendulum-v1', render_mode="human")  # Pendulum-v1, BipedalWalker-v3  ---> Render activation
+
 
 G          = 10
 GAMMA      = 0.99
@@ -42,9 +45,11 @@ CRITIC_LR  = 1e-3
 BATCH_SIZE = 32
 
 max_steps_exploration = 10_000
-max_steps_training    = 100_000
-SEED                  = 571
+max_steps_training    = 20_000
+max_steps_evaluation  = 2_000
 
+SEED                  = 571
+EVALUATION_SEED       = 152
 
 def set_seed():
     torch.manual_seed(SEED)
@@ -77,6 +82,29 @@ def normalize(action, max_action_value, min_action_value):
     action_norm = (action - min_value_in) * (max_range_value - min_range_value) / (max_value_in - min_value_in) + min_range_value
     return action_norm
 
+
+def evaluate_policy(agent, max_action_value, min_action_value):
+    episode_timesteps = 0
+    episode_reward    = 0
+    episode_num       = 0
+
+    state, _ = env.reset(seed=EVALUATION_SEED)
+
+    for total_step_counter in range(int(max_steps_evaluation)):
+        episode_timesteps += 1
+        action = agent.select_action_from_policy(state, evaluation=True)
+        action_env = denormalize(action, max_action_value, min_action_value)
+
+        state, reward, done, truncated, _ = env.step(action_env)
+        episode_reward += reward
+
+        if done or truncated:
+            logging.info(f" Evaluation Episode {episode_num+1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+            # Reset environment
+            state, _ = env.reset()
+            episode_reward    = 0
+            episode_timesteps = 0
+            episode_num += 1
 
 def train(agent, memory, max_action_value, min_action_value):
     episode_timesteps = 0
@@ -166,6 +194,8 @@ def main():
 
     set_seed()
     train(agent, memory, max_action_value, min_action_value)
+    evaluate_policy(agent, max_action_value, min_action_value)
+
 
 
 if __name__ == '__main__':
