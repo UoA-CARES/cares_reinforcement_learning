@@ -1,6 +1,30 @@
-
 import torch
 
+import pandas as pd
+import matplotlib.pyplot as plt
+
+def plot_reward_curve(data_reward):
+    data = pd.DataFrame.from_dict(data_reward)
+    data.plot(x='step', y='episode_reward', title="Reward Curve")
+    plt.show()
+
+def denormalize(action, max_action_value, min_action_value):
+    # return action in env range [max_action_value, min_action_value]
+    max_range_value = max_action_value
+    min_range_value = min_action_value
+    max_value_in    = 1
+    min_value_in    = -1
+    action_denorm = (action - min_value_in) * (max_range_value - min_range_value) / (max_value_in - min_value_in) + min_range_value
+    return action_denorm
+
+def normalize(action, max_action_value, min_action_value):
+    # return action in algorithm range [-1, +1]
+    max_range_value = 1
+    min_range_value = -1
+    max_value_in = max_action_value
+    min_value_in = min_action_value
+    action_norm = (action - min_value_in) * (max_range_value - min_range_value) / (max_value_in - min_value_in) + min_range_value
+    return action_norm
 
 def compare_models(model_1, model_2):
     """

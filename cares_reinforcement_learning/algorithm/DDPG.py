@@ -18,6 +18,7 @@ class DDPG:
                  device
                  ):
 
+        self.type = "policy"
         self.actor_net  = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
@@ -90,7 +91,7 @@ class DDPG:
             os.makedirs("models")
         torch.save(self.actor_net.state_dict(),  f'models/{filename}_actor.pht')
         torch.save(self.critic_net.state_dict(), f'models/{filename}_critic.pht')
-        logging.info("models has been loaded...")
+        logging.info("models has been saved...")
 
     def load_models(self, filename):
         self.actor_net.load_state_dict(torch.load(f'models/{filename}_actor.pht'))

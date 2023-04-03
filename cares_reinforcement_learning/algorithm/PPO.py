@@ -25,6 +25,7 @@ class PPO:
                  action_num,
                  device):
 
+        self.type = "policy"
         self.actor_net  = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
@@ -71,7 +72,6 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-
     def train_policy(self, memory):
         states      = torch.FloatTensor(np.asarray(memory.states)).to(self.device)
         actions     = torch.FloatTensor(np.asarray(memory.actions)).to(self.device)
@@ -114,7 +114,7 @@ class PPO:
             critic_loss.backward()
             self.critic_net.optimiser.step()
 
-        memory.clear()
+        memory.clear()# TODO should this be here or outside of this method?
 
     def save_models(self, filename):
         dir_exists = os.path.exists("models")
@@ -123,7 +123,7 @@ class PPO:
             os.makedirs("models")
         torch.save(self.actor_net.state_dict(),  f'models/{filename}_actor.pht')
         torch.save(self.critic_net.state_dict(), f'models/{filename}_critic.pht')
-        logging.info("models has been loaded...")
+        logging.info("models has been saved...")
 
     def load_models(self, filename):
         self.actor_net.load_state_dict(torch.load(f'models/{filename}_actor.pht'))

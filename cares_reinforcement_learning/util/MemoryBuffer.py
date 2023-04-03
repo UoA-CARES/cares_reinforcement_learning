@@ -1,14 +1,18 @@
-import logging
 from collections import deque
 import random
 
-
 class MemoryBuffer:
     def __init__(self, max_capacity=int(1e6)):
-        self.buffer = deque([], maxlen=max_capacity)
+        self.max_capacity = max_capacity
+        self.buffer = deque([], maxlen=self.max_capacity)
 
-    def add(self, *experience):
-        self.buffer.append(experience)
+    def add(self, **experience):
+        state      = experience["state"]
+        action     = experience["action"]
+        reward     = experience["reward"]
+        next_state = experience["next_state"]
+        done       = experience["done"]
+        self.buffer.append([state, action, reward, next_state, done])
 
     def sample(self, batch_size):
         # Randomly sample experiences from buffer of size batch_size
@@ -19,6 +23,6 @@ class MemoryBuffer:
         states, actions, rewards, next_states, dones = zip(*experience_batch)
 
         return states, actions, rewards, next_states, dones
-
-
-
+    
+    def clear(self):
+        self.buffer = deque([], maxlen=self.max_capacity)
