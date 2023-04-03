@@ -114,7 +114,7 @@ class PPO:
             critic_loss.backward()
             self.critic_net.optimiser.step()
 
-        memory.clear()
+        memory.clear()# TODO should this be here or outside of this method?
 
     def save_models(self, filename):
         dir_exists = os.path.exists("models")

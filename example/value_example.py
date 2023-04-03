@@ -74,7 +74,7 @@ def value_based_train(env, agent, args):
             action = agent.select_action_from_policy(state)
 
         next_state, reward, done, truncated, _ = env.step(action)
-        memory.add(state, action, reward, next_state, done)
+        memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done)
         state = next_state
         episode_reward += reward
 

@@ -82,7 +82,7 @@ def main():
     
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":# PPO has a different approach using a rollout can merge into value based once Rollout is refactored
-        ppe.evaluate_ppo_network(env, agent, args)
+        ppe.ppo_train(env, agent, args)
     elif agent.type == "policy":
         pbe.policy_based_train(env, agent, args)
     elif agent.type == "value":

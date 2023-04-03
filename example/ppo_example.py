@@ -21,7 +21,7 @@ def evaluate_ppo_network(env, agent, args):
 
     for total_step_counter in range(int(max_steps_evaluation)):
         episode_timesteps += 1
-        action = agent.select_action_from_policy(state, evaluation=True)
+        action, log_prob = agent.select_action_from_policy(state)
         action_env = hlp.denormalize(action, max_action_value, min_action_value)
 
         state, reward, done, truncated, _ = env.step(action_env)
@@ -63,12 +63,7 @@ def ppo_train(env, agent, args):
 
         # ------------------------------------------------------------------------------------------------
         # save rollouts in memory, TODO generic rollout buffer to match a general buffer
-        memory.states.append(state)
-        memory.next_states.append(next_state)
-        memory.actions.append(action)
-        memory.log_probs.append(log_prob)
-        memory.rewards.append(reward)
-        memory.dones.append(done)
+        memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done, log_prob=log_prob)
         # ------------------------------------------------------------------------------------------------
 
         state = next_state
@@ -77,6 +72,7 @@ def ppo_train(env, agent, args):
         time_step += 1  # I need this otherwise the next if is true at the first interaction
         if time_step % max_steps_per_batch == 0:
             agent.train_policy(memory)
+            # TODO clear memory here?
 
         if done or truncated:
             logging.info(f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")

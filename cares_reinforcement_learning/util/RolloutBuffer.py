@@ -1,20 +1,27 @@
-import logging
-from collections import deque
-import random
+
+
 
 class RolloutBuffer:
     def __init__(self):
-        self.states       = []
-        self.actions      = []
-        self.log_probs    = []
-        self.next_states  = []
-        self.rewards      = []
-        self.dones        = []
+      self.states       = []
+      self.actions      = []
+      self.next_states  = []
+      self.rewards      = []
+      self.dones        = []
+      self.log_probs    = []
+
+    def add(self, **experience):
+      self.states.append(experience["state"])
+      self.actions.append(experience["action"])
+      self.rewards.append(experience["reward"])
+      self.next_states.append(experience["next_state"])
+      self.dones.append(experience["done"])
+      self.log_probs.append(experience["log_prob"])
 
     def clear(self):
-        del self.states[:]
-        del self.actions[:]
-        del self.log_probs[:]
-        del self.next_states[:]
-        del self.rewards[:]
-        del self.dones[:]
+      self.states       = []
+      self.actions      = []
+      self.next_states  = []
+      self.rewards      = []
+      self.dones        = []
+      self.log_probs    = []

@@ -66,7 +66,7 @@ def policy_based_train(env, agent, args):
             action_env = hlp.denormalize(action, max_action_value, min_action_value)  # mapping to env range [e.g. -2 , 2 for pendulum]
 
         next_state, reward, done, truncated, info = env.step(action_env)
-        memory.add(state, action, reward, next_state, done)
+        memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done)
 
         state = next_state
         episode_reward += reward
