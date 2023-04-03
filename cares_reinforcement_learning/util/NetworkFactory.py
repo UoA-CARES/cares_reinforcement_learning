@@ -98,17 +98,17 @@ def create_TD3(args):
     return agent
 
 class NetworkFactory:
-  def create_network(self, network_name, args):
-    if network_name == "DQN":
+  def create_network(self, algorithm, args):
+    if algorithm == "DQN":
       return create_DQN(args)
-    elif network_name == "DDQN":
+    elif algorithm == "DDQN":
       return create_DDQN(args)
-    elif network_name == "PPO}":
+    elif algorithm == "PPO":
       return create_PPO(args)
-    elif network_name == "DDPG":
+    elif algorithm == "DDPG":
       return create_DDPG(args)
-    elif network_name == "SAC":
+    elif algorithm == "SAC":
       return create_DDPG(args)
-    elif network_name == "TD3":
+    elif algorithm == "TD3":
       return create_TD3(args)
-    raise ValueError(f"Unkown algorithm: {network_name}")
+    raise ValueError(f"Unkown algorithm: {algorithm}")

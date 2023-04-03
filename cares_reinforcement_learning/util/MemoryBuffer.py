@@ -2,7 +2,6 @@ import logging
 from collections import deque
 import random
 
-
 class MemoryBuffer:
     def __init__(self, max_capacity=int(1e6)):
         self.buffer = deque([], maxlen=max_capacity)
