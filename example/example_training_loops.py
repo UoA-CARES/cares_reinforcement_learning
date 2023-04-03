@@ -59,11 +59,11 @@ def parse_args():
 
 def main():
     args = parse_args()
+    args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     
     logging.info(f"Training on {args['task']}")
     env = gym.make(args["task"])
     
-    args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f"Device: {args['device']}")
 
     args["observation_size"] = env.observation_space.shape[0]

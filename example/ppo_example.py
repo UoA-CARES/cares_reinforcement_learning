@@ -46,9 +46,9 @@ def ppo_train(env, agent, args):
     episode_timesteps = 0
     episode_num       = 0
     episode_reward    = 0
-    time_step         = 0
+    time_step         = 1
 
-    memory = RolloutBuffer()# TODO genericify the memory buffer
+    memory = RolloutBuffer()
 
     state, _ = env.reset(seed=seed)
     historical_reward = {"step": [], "episode_reward": []}
@@ -57,22 +57,19 @@ def ppo_train(env, agent, args):
         episode_timesteps += 1
 
         action, log_prob = agent.select_action_from_policy(state)
-        action_env = hlp.normalize(action, max_action_value, min_action_value)  # mapping the env range [e.g. -2 , 2 for pendulum]
+        action_env = hlp.normalize(action, max_action_value, min_action_value)
 
         next_state, reward, done, truncated, _ = env.step(action_env)
-
-        # ------------------------------------------------------------------------------------------------
-        # save rollouts in memory, TODO generic rollout buffer to match a general buffer
         memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done, log_prob=log_prob)
-        # ------------------------------------------------------------------------------------------------
 
         state = next_state
         episode_reward += reward
-
-        time_step += 1  # I need this otherwise the next if is true at the first interaction
+        
         if time_step % max_steps_per_batch == 0:
             agent.train_policy(memory)
             # TODO clear memory here?
+
+        time_step += 1
 
         if done or truncated:
             logging.info(f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")

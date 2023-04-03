@@ -27,7 +27,7 @@ def evaluate_value_network(env, agent, args):
         else:
             action = agent.select_action_from_policy(state)
 
-        next_state, reward, done, truncated, _ = env.step(action)
+        state, reward, done, truncated, _ = env.step(action)
         episode_reward += reward
 
         if done or truncated:
