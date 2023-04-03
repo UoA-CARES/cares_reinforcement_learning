@@ -13,6 +13,7 @@ class DQN:
                  gamma,
                  device):
 
+        self.type = "value"
         self.network = network.to(device)
         self.device  = device
         self.gamma   = gamma

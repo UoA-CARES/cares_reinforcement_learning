@@ -22,6 +22,7 @@ class SAC:
                  action_num,
                  device):
 
+        self.type = "policy"
         self.actor_net  = actor_network.to(device)  # this may be called policy_net in other implementations
         self.critic_net = critic_network.to(device) # this may be called soft_q_net in other implementations
 

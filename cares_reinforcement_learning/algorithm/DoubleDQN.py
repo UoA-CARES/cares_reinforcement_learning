@@ -18,6 +18,7 @@ class DoubleDQN:
                  tau,
                  device):
 
+        self.type = "value"
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)
 

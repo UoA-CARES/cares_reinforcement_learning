@@ -119,7 +119,6 @@ def train(agent, memory, max_action_value, min_action_value):
 
     plot_reward_curve(historical_reward)
 
-
 def main():
     observation_size = env.observation_space.shape[0]
     action_num       = env.action_space.shape[0]

@@ -25,6 +25,7 @@ class PPO:
                  action_num,
                  device):
 
+        self.type = "policy"
         self.actor_net  = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
