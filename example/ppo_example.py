@@ -57,7 +57,7 @@ def ppo_train(env, agent, args):
         episode_timesteps += 1
 
         action, log_prob = agent.select_action_from_policy(state)
-        action_env = hlp.normalize(action, max_action_value, min_action_value)
+        action_env = hlp.denormalize(action, max_action_value, min_action_value)
 
         next_state, reward, done, truncated, _ = env.step(action_env)
         memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done, log_prob=log_prob)
