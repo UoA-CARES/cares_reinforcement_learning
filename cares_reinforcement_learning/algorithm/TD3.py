@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 
 
-class TD3:
+class TD3(object):
     def __init__(self,
                  actor_network,
                  critic_network,
@@ -35,7 +35,8 @@ class TD3:
         self.action_num = action_num
         self.device = device
 
-    def select_action_from_policy(self, state, evaluation=False):
+    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -43,9 +44,10 @@ class TD3:
             action       = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
-                noise  = np.random.normal(0, scale=0.10, size=self.action_num)
+                noise  = np.random.normal(0, scale=noise_scale, size=self.action_num)
                 action = action + noise
                 action = np.clip(action, -1, 1)
+        self.actor_net.train()
         return action
 
     def train_policy(self, experiences):
@@ -64,6 +66,7 @@ class TD3:
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
