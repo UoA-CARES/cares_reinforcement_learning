@@ -16,26 +16,42 @@ Run `pip3 install -r requirements.txt` in the **root directory** of the package
 
 To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
 
+## Running an Example
+This repository includes a script that allows you to run any OpenAI environment – provided you comply with all the dependencies for that environment. These examples make use of the package, and can provide an example on how one might use the package in their own environments.
+
+`example_training_loops.py` takes in hyperparameters that allow you to customise the training run – OpenAI Environment, training steps, gamma... Use `python3 example_training_loops.py -h` for help on what hyperparameters are available for customisation.
+
+An example is found below:
+```
+python3 example_training_loops.py --task 'Pendulum-v1' --algorithm PPO --max_steps_training 1000000 --seed 571 --gamma 0.99 --actor_lr 0.0001 --critic_lr 0.001
+```
+
+
 ## Package Structure
 
 ```
 cares_reinforcement_learning/
 ├─ algorithm/
 │  ├─ DQN.py
-│  ├─ DDPG.py
+│  ├─ TD3.py
+│  ├─ PPO.py
 │  ├─ ...
 ├─ networks/
-│  ├─ DQN.py
-│  ├─ DDPG.py
-│  ├─ ...
+│  ├─ DQN/
+│  │  ├─ Network.py
+│  ├─ TD3.py/
+│  │  ├─ Actor.py
+│  │  ├─ Critic.py
+│  │  ├─ ...
 ├─ util/
-   ├─ MemoryBuffer.py
-   ├─ PlotingUtil.py
-   ├─ ...
-```
-`Algorithms/`: contains the code that is responsible for housing and updating the NN according to RL algorithms
+│  ├─ MemoryBuffer.py
+│  ├─ Plot.py
+│  ├─ ...
 
-`Networks/`: contains....
+```
+`algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
+
+`networks`: contains standard neural networks that can be used with each algortihm
 
 `util/`: contains common utility classes
 
