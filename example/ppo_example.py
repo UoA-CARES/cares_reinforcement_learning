@@ -66,8 +66,9 @@ def ppo_train(env, agent, args):
         episode_reward += reward
         
         if time_step % max_steps_per_batch == 0:
-            agent.train_policy(memory)
-            # TODO clear memory here?
+            experience = memory.flush()
+            agent.train_policy(experience)
+
 
         time_step += 1
 

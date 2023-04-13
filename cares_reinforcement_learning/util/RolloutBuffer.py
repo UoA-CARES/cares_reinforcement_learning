@@ -18,6 +18,11 @@ class RolloutBuffer:
       self.dones.append(experience["done"])
       self.log_probs.append(experience["log_prob"])
 
+    def flush(self):
+      experience = self.states, self.actions, self.rewards, self.next_states,  self.dones, self.log_probs
+      self.clear()
+      return experience
+    
     def clear(self):
       self.states       = []
       self.actions      = []

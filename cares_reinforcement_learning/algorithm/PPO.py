@@ -72,13 +72,15 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-    def train_policy(self, memory):
-        states      = torch.FloatTensor(np.asarray(memory.states)).to(self.device)
-        actions     = torch.FloatTensor(np.asarray(memory.actions)).to(self.device)
-        log_probs   = torch.FloatTensor(np.asarray(memory.log_probs)).to(self.device)
-        rewards     = torch.FloatTensor(np.asarray(memory.rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(memory.next_states)).to(self.device)
-        dones       = torch.LongTensor(np.asarray(memory.dones)).to(self.device)
+    def train_policy(self, experience):
+        states, actions, rewards, next_states, dones, log_probs = experience
+        
+        states      = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards     = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
+        log_probs   = torch.FloatTensor(np.asarray(log_probs)).to(self.device)
 
         log_probs   = log_probs.squeeze()  # torch.Size([5000])
 
@@ -113,8 +115,6 @@ class PPO:
             self.critic_net.optimiser.zero_grad()
             critic_loss.backward()
             self.critic_net.optimiser.step()
-
-        memory.clear()# TODO should this be here or outside of this method?
 
     def save_models(self, filename):
         dir_exists = os.path.exists("models")
