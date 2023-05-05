@@ -60,6 +60,7 @@ cares_reinforcement_learning/
 | ----------- | ----------- |----------- |
 | DQN      | Discrete       | Off Policy       | 
 | DoubleDQN   | Discrete        | Off Policy |
+| DuelingDQN   | Discrete        | Off Policy |
 | DDPG   | Continuous        | Off Policy |
 | TD3   | Continuous        | Off Policy |
 | SAC   | Continuous        | Off Policy       |

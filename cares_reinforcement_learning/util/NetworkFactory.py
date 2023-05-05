@@ -12,6 +12,19 @@ def create_DQN(args):
   )
   return agent
 
+def create_DuelingDQN(args):
+  from cares_reinforcement_learning.algorithm import DQN
+  from cares_reinforcement_learning.networks.DuelingDQN import DuelingNetwork
+  
+  network = DuelingNetwork(args["observation_size"], args["action_num"], args["lr"])
+
+  agent = DQN(
+      network=network,
+      gamma=args["gamma"],
+      device=args["device"]
+  )
+  return agent
+
 def create_DDQN(args):
   from cares_reinforcement_learning.algorithm import DoubleDQN
   from cares_reinforcement_learning.networks.DoubleDQN import Network
@@ -103,6 +116,8 @@ class NetworkFactory:
       return create_DQN(args)
     elif algorithm == "DDQN":
       return create_DDQN(args)
+    elif algorithm == "DuelingDQN":
+      return create_DuelingDQN(args)
     elif algorithm == "PPO":
       return create_PPO(args)
     elif algorithm == "DDPG":
