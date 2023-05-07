@@ -122,6 +122,7 @@ class TD3(object):
 
     def load_models(self, filepath, filename):
         path = f"{filepath}/models" if filepath is not 'models' else filepath
+        
         self.actor_net.load_state_dict(torch.load(f'{path}/{filename}_actor.pht'))
         self.critic_net.load_state_dict(torch.load(f'{path}/{filename}_critic.pht'))
         logging.info("models has been loaded...")
