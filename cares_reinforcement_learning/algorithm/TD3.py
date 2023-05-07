@@ -109,16 +109,19 @@ class TD3(object):
             for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-    def save_models(self, filepath, filename):
-        dir_exists = os.path.exists(f"{filepath}/models")
+    def save_models(self,filename, filepath='models'):
+        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        dir_exists = os.path.exists(path)
 
         if not dir_exists:
-            os.makedirs(f"{filepath}/models")
-        torch.save(self.actor_net.state_dict(),  f'{filepath}/models/{filename}_actor.pht')
-        torch.save(self.critic_net.state_dict(), f'{filepath}/models/{filename}_critic.pht')
+            os.makedirs(path)
+        
+        torch.save(self.actor_net.state_dict(),  f'{path}/{filename}_actor.pht')
+        torch.save(self.critic_net.state_dict(), f'{path}/{filename}_critic.pht')
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
-        self.actor_net.load_state_dict(torch.load(f'{filepath}/models/{filename}_actor.pht'))
-        self.critic_net.load_state_dict(torch.load(f'{filepath}/models/{filename}_critic.pht'))
+        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        self.actor_net.load_state_dict(torch.load(f'{path}/{filename}_actor.pht'))
+        self.critic_net.load_state_dict(torch.load(f'{path}/{filename}_critic.pht'))
         logging.info("models has been loaded...")
