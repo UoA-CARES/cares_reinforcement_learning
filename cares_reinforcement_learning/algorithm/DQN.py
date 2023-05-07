@@ -52,14 +52,18 @@ class DQN:
         loss.backward()
         self.network.optimiser.step()
 
-    def save_models(self, filename):
-        dir_exists = os.path.exists("models")
+    def save_models(self,filename, filepath='models'):
+        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        dir_exists = os.path.exists(path)
 
         if not dir_exists:
-            os.makedirs("models")
-        torch.save(self.network.state_dict(),  f'models/{filename}_network.pht')
+            os.makedirs(path)
+
+        torch.save(self.network.state_dict(),  f'{path}/{filename}_network.pht')
         logging.info("models has been saved...")
 
-    def load_models(self, filename):
-        self.network.load_state_dict(torch.load(f'models/{filename}_network.pht'))
+    def load_models(self, filepath, filename):
+        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        
+        self.network.load_state_dict(torch.load(f'{path}/{filename}_network.pht'))
         logging.info("models has been loaded...")
