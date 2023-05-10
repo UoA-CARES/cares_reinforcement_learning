@@ -10,7 +10,7 @@ import torch
 import torch.nn.functional as F
 
 
-class TD3_PER(object):
+class PER_TD3(object):
     def __init__(self,
                  actor_network,
                  critic_network,
