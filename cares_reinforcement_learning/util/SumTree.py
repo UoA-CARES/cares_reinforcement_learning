@@ -1,7 +1,7 @@
 import numpy as np
 
 class SumTree(object):
-    def __init__(self, max_size):
+    def __init__(self, max_size=int(1e6)):
         self.levels = [np.zeros(1)]
         # Tree construction
         # Double the number of nodes at each level

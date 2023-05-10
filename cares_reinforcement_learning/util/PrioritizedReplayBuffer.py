@@ -1,13 +1,13 @@
 import numpy as np
+import torch
 from cares_reinforcement_learning.util import SumTree
-
 
 class PrioritizedReplayBuffer():
     def __init__(self, state_dim, action_dim, max_capacity=int(1e6)):
-        self.max_size = max_capacity
+        self.max_capacity = max_capacity
         self.ptr = 0
         self.size = 0
-        self.device = DEVICE
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.state = np.zeros((max_capacity, state_dim))
         self.action = np.zeros((max_capacity, action_dim))
