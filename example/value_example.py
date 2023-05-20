@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.util import MemoryBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util import helpers as hlp
 
 import gym
@@ -78,9 +78,9 @@ def value_based_train(env, agent, args):
         state = next_state
         episode_reward += reward
 
-        if len(memory.buffer) > batch_size:
+        if len(memory) > batch_size:
             for _ in range(G):
-                experiences = memory.sample(batch_size)
+                experiences = memory.sample(batch_size).values()
                 agent.train_policy(experiences)
 
         if done or truncated:

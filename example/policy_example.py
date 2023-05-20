@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.util import MemoryBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util import helpers as hlp
 
 import gym
@@ -73,7 +73,7 @@ def policy_based_train(env, agent, args):
 
         if total_step_counter >= max_steps_exploration:
             for _ in range(G):
-                experiences = memory.sample(batch_size)
+                experiences = memory.sample(batch_size).values()
                 agent.train_policy(experiences)
 
         if done or truncated:

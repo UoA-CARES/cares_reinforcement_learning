@@ -103,3 +103,14 @@ class MemoryBuffer:
         """
         for buffer in self.buffers.values():
             buffer.clear()
+
+    def __len__(self):
+        """
+        Returns the number of experiences in the buffer.
+
+        Returns
+        -------
+        int
+            The number of experiences in any buffer. Assumes all buffers have the same length.
+        """
+        return len(next(iter(self.buffers.values())))
