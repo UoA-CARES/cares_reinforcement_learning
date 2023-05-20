@@ -20,7 +20,6 @@ class RolloutBuffer(MemoryBuffer):
             The maximum capacity of the buffer (default is 1,000,000).
         """
         super().__init__(max_capacity)
-        self.buffers["log_probs"] = []
 
     def flush(self):
         """

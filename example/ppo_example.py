@@ -70,7 +70,14 @@ def ppo_train(env, agent, args):
 
         if time_step % max_steps_per_batch == 0:
             experience = memory.flush()
-            agent.train_policy(experience.values())
+            agent.train_policy((
+                experience['state'],
+                experience['action'],
+                experience['reward'],
+                experience['next_state'],
+                experience['done'],
+                experience['log_prob']
+            ))
 
         time_step += 1
 

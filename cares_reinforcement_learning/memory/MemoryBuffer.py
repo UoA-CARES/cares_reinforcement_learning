@@ -1,4 +1,4 @@
-from collections import deque
+from collections import deque, defaultdict
 import numpy as np
 
 
@@ -29,7 +29,7 @@ class MemoryBuffer:
             The maximum capacity of the buffer (default is 1,000,000).
         """
         self.max_capacity = max_capacity
-        self.buffers = {}
+        self.buffers = defaultdict(default_factory=deque(maxlen=self.max_capacity))
 
     def add(self, **experience):
         """
@@ -42,8 +42,6 @@ class MemoryBuffer:
             and values are the experiences.
         """
         for key, value in experience.items():
-            if key not in self.buffers:
-                self.buffers[key] = deque(maxlen=self.max_capacity)
             self._add_experience(key, value)
 
     def _add_experience(self, key, value):
