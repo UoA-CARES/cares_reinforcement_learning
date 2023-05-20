@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.memory import RolloutBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util import helpers as hlp
 
 import gym
@@ -51,7 +51,7 @@ def ppo_train(env, agent, args):
     episode_reward = 0
     time_step = 1
 
-    memory = RolloutBuffer()
+    memory = MemoryBuffer(max_capacity=None)
 
     state, _ = env.reset(seed=seed)
     historical_reward = {"step": [], "episode_reward": []}

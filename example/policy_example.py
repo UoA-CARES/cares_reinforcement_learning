@@ -73,8 +73,14 @@ def policy_based_train(env, agent, args):
 
         if total_step_counter >= max_steps_exploration:
             for _ in range(G):
-                experiences = memory.sample(batch_size).values()
-                agent.train_policy(experiences)
+                experience = memory.sample(batch_size)
+                agent.train_policy((
+                    experience['state'],
+                    experience['action'],
+                    experience['reward'],
+                    experience['next_state'],
+                    experience['done']
+                ))
 
         if done or truncated:
             logging.info(f"Total T:{total_step_counter+1} Episode {episode_num+1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")

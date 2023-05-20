@@ -91,4 +91,4 @@ def main():
         raise ValueError(f"Agent type is unkown: {agent.type}")
 
 if __name__ == '__main__':
-    main()
+        main()

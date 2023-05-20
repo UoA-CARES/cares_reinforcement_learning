@@ -1,4 +1,4 @@
-from collections import deque, defaultdict
+from collections import deque
 import numpy as np
 
 
@@ -19,7 +19,7 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity=int(1e6)):
+    def __init__(self, max_capacity: int | None = int(1e6)):
         """
         The constructor for MemoryBuffer class.
 
@@ -29,7 +29,7 @@ class MemoryBuffer:
             The maximum capacity of the buffer (default is 1,000,000).
         """
         self.max_capacity = max_capacity
-        self.buffers = defaultdict(default_factory=deque(maxlen=self.max_capacity))
+        self.buffers = {}
 
     def add(self, **experience):
         """
@@ -42,6 +42,8 @@ class MemoryBuffer:
             and values are the experiences.
         """
         for key, value in experience.items():
+            if key not in self.buffers:
+                self.buffers[key] = deque(maxlen=self.max_capacity)
             self._add_experience(key, value)
 
     def _add_experience(self, key, value):
@@ -119,6 +121,20 @@ class MemoryBuffer:
         """
         for buffer in self.buffers.values():
             buffer.clear()
+
+    def flush(self):
+        """
+        Flushes all the buffers and returns all experiences.
+
+        Returns
+        -------
+        dict
+            A dictionary of all experiences. Keys are the names of the buffers,
+            and values are the lists of experiences.
+        """
+        experiences = {key: list(buffer) for key, buffer in self.buffers.items()}
+        self.clear()
+        return experiences
 
     def __len__(self):
         """
