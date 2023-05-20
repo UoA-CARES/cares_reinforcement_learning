@@ -50,24 +50,21 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
         max_priority = max(self.priorities) if self.priorities else 1.0
         self.priorities.append(max_priority)
 
-    def _sample_experience(self, key, batch_size):
+    def _sample_indices(self, batch_size):
         """
-        Samples a batch of experiences from a specific buffer based on their priorities.
+        Samples a batch of indices for experiences.
 
         Parameters
         ----------
-        key : str
-            The name of the buffer.
         batch_size : int
             The size of the batch to sample.
 
         Returns
         -------
         list
-            A list of experiences from a specific buffer.
+            A list of indices.
         """
         priorities = np.array(self.priorities, dtype=np.float32)
         probabilities = priorities ** self.alpha
         probabilities /= probabilities.sum()
-        indices = np.random.choice(len(self.buffers[key]), batch_size, p=probabilities)
-        return [self.buffers[key][i] for i in indices]
+        return np.random.choice(len(self), batch_size, p=probabilities)

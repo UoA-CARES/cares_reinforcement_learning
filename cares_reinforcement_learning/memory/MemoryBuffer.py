@@ -1,5 +1,5 @@
 from collections import deque
-import random
+import numpy as np
 
 
 class MemoryBuffer:
@@ -75,27 +75,45 @@ class MemoryBuffer:
             and values are the lists of experiences.
         """
         sampled_experiences = {}
+        indices = self._sample_indices(batch_size)
         for key in self.buffers:
-            sampled_experiences[key] = self._sample_experience(key, batch_size)
+            sampled_experiences[key] = self._sample_experience(key, indices)
         return sampled_experiences
 
-    def _sample_experience(self, key, batch_size):
+    def _sample_indices(self, batch_size):
         """
-        Samples a batch of experiences from a specific buffer.
+        Samples a batch of indices for experiences.
 
         Parameters
         ----------
-        key : str
-            The name of the buffer.
         batch_size : int
             The size of the batch to sample.
 
         Returns
         -------
         list
+            A list of indices.
+        """
+        buffer_length = len(next(iter(self.buffers.values())))
+        return np.random.choice(buffer_length, size=batch_size, replace=False)
+
+    def _sample_experience(self, key, indices):
+        """
+        Samples a batch of experiences from a specific buffer using given indices.
+
+        Parameters
+        ----------
+        key : str
+            The name of the buffer.
+        indices : list
+            The indices to use for sampling.
+
+        Returns
+        -------
+        list
             A list of experiences from a specific buffer.
         """
-        return random.sample(self.buffers[key], batch_size)
+        return [self.buffers[key][i] for i in indices]
 
     def clear(self):
         """
