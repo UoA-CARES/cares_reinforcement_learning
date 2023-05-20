@@ -74,8 +74,8 @@ class MemoryBuffer:
             A dictionary of batched experiences. Keys are the names of the buffers,
             and values are the lists of experiences.
         """
-        sampled_experiences = {}
         indices = self._sample_indices(batch_size)
+        sampled_experiences = {'indices': indices}
         for key in self.buffers:
             sampled_experiences[key] = self._sample_experience(key, indices)
         return sampled_experiences
