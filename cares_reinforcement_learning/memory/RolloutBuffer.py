@@ -1,4 +1,4 @@
-import MemoryBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class RolloutBuffer(MemoryBuffer):

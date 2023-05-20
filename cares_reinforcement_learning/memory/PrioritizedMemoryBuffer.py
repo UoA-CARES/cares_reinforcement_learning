@@ -1,6 +1,6 @@
 import numpy as np
 from collections import deque
-import MemoryBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class PrioritizedMemoryBuffer(MemoryBuffer):
