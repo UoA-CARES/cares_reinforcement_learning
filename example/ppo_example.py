@@ -51,7 +51,7 @@ def ppo_train(env, agent, args):
     episode_reward = 0
     time_step = 1
 
-    memory = PrioritizedMemoryBuffer(max_capacity=None) if args["memory"] == "PER" else MemoryBuffer(max_capacity=None)
+    memory = MemoryBuffer(max_capacity=None)
 
     state, _ = env.reset(seed=seed)
     historical_reward = {"step": [], "episode_reward": []}
@@ -70,7 +70,7 @@ def ppo_train(env, agent, args):
 
         if time_step % max_steps_per_batch == 0:
             experience = memory.flush()
-            td = agent.train_policy((
+            agent.train_policy((
                 experience['state'],
                 experience['action'],
                 experience['reward'],
@@ -78,8 +78,6 @@ def ppo_train(env, agent, args):
                 experience['done'],
                 experience['log_prob']
             ))
-            if args["memory"] == "PER":
-                memory.update_priorities(experience['indices'], td)
 
         time_step += 1
 
