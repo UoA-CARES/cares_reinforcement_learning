@@ -22,23 +22,26 @@ import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
+
 def set_seed(env, seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
     env.action_space.seed(seed)
 
+
 def parse_args():
-    parser = argparse.ArgumentParser()# Add an argument
+    parser = argparse.ArgumentParser()  # Add an argument
 
     parser.add_argument('--task', type=str, required=True)
     parser.add_argument('--algorithm', type=str, required=True)
+    parser.add_argument('--memory', type=str, default="MemoryBuffer")
 
     parser.add_argument('--G', type=int, default=10)
     parser.add_argument('--gamma', type=float, default=0.99)
     parser.add_argument('--tau', type=float, default=0.005)
     parser.add_argument('--batch_size', type=int, default=32)
-    
+
     parser.add_argument('--max_steps_exploration', type=int, default=10000)
     parser.add_argument('--max_steps_training', type=int, default=50000)
     parser.add_argument('--max_steps_evaluation', type=int, default=5000)
@@ -54,16 +57,17 @@ def parse_args():
     parser.add_argument('--exploration_decay', type=float, default=0.9999)
 
     parser.add_argument('--max_steps_per_batch', type=float, default=5000)
-    
-    return vars(parser.parse_args())# converts into a dictionary
+
+    return vars(parser.parse_args())  # converts into a dictionary
+
 
 def main():
     args = parse_args()
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    
+
     logging.info(f"Training on {args['task']}")
     env = gym.make(args["task"])
-    
+
     logging.info(f"Device: {args['device']}")
 
     args["observation_size"] = env.observation_space.shape[0]
@@ -73,15 +77,15 @@ def main():
         args["action_num"] = env.action_space.n
     else:
         raise ValueError(f"Unhandled action space type: {type(env.action_space)}")
-    
+
     set_seed(env, args["seed"])
 
     # Create the network we are using
     factory = NetworkFactory()
-    agent   = factory.create_network(args["algorithm"], args)    
-    
+    agent = factory.create_network(args["algorithm"], args)
+
     # Train the policy or value based approach
-    if args["algorithm"] == "PPO":# PPO has a different approach using a rollout can merge into value based once Rollout is refactored
+    if args["algorithm"] == "PPO":
         ppe.ppo_train(env, agent, args)
     elif agent.type == "policy":
         pbe.policy_based_train(env, agent, args)
@@ -89,6 +93,7 @@ def main():
         vbe.value_based_train(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
+
 
 if __name__ == '__main__':
     main()

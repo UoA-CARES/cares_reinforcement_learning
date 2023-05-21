@@ -1,9 +1,10 @@
-from cares_reinforcement_learning.util import RolloutBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util import helpers as hlp
 
 import gym
 import logging
 import random
+
 
 def evaluate_ppo_network(env, agent, args):
     evaluation_seed = args["evaluation_seed"]
@@ -13,8 +14,8 @@ def evaluate_ppo_network(env, agent, args):
     max_action_value = env.action_space.high[0]
 
     episode_timesteps = 0
-    episode_reward    = 0
-    episode_num       = 0
+    episode_reward = 0
+    episode_num = 0
 
     env = gym.make(env.spec.id, render_mode="human")
     state, _ = env.reset(seed=evaluation_seed)
@@ -28,12 +29,14 @@ def evaluate_ppo_network(env, agent, args):
         episode_reward += reward
 
         if done or truncated:
-            logging.info(f" Evaluation Episode {episode_num+1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+            logging.info(
+                f" Evaluation Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
             # Reset environment
             state, _ = env.reset()
-            episode_reward    = 0
+            episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
+
 
 def ppo_train(env, agent, args):
     seed = args["seed"]
@@ -44,11 +47,11 @@ def ppo_train(env, agent, args):
     max_action_value = env.action_space.high[0]
 
     episode_timesteps = 0
-    episode_num       = 0
-    episode_reward    = 0
-    time_step         = 1
+    episode_num = 0
+    episode_reward = 0
+    time_step = 1
 
-    memory = RolloutBuffer()
+    memory = MemoryBuffer(max_capacity=None)
 
     state, _ = env.reset(seed=seed)
     historical_reward = {"step": [], "episode_reward": []}
@@ -64,25 +67,32 @@ def ppo_train(env, agent, args):
 
         state = next_state
         episode_reward += reward
-        
+
         if time_step % max_steps_per_batch == 0:
             experience = memory.flush()
-            agent.train_policy(experience)
-
+            agent.train_policy((
+                experience['state'],
+                experience['action'],
+                experience['reward'],
+                experience['next_state'],
+                experience['done'],
+                experience['log_prob']
+            ))
 
         time_step += 1
 
         if done or truncated:
-            logging.info(f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+            logging.info(
+                f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
 
-            historical_reward["step"].append(total_step_counter+1)
+            historical_reward["step"].append(total_step_counter + 1)
             historical_reward["episode_reward"].append(episode_reward)
 
             # Reset environment
             state, _ = env.reset()
-            episode_reward    = 0
+            episode_reward = 0
             episode_timesteps = 0
-            episode_num       += 1
+            episode_num += 1
 
     hlp.plot_reward_curve(historical_reward)
 
