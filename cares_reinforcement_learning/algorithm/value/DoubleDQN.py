@@ -38,11 +38,11 @@ class DoubleDQN:
         states, actions, rewards, next_states, dones = experiences
 
         # Convert into tensor
-        states      = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions     = torch.LongTensor(np.asarray(actions)).to(self.device)
-        rewards     = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.LongTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         q_values = self.network(states)
         next_q_values = self.network(next_states)
@@ -53,15 +53,18 @@ class DoubleDQN:
 
         expected_q_value = rewards + self.gamma * (1 - dones) * next_q_value
 
+        td_errors = torch.abs(q_value.detach() - expected_q_value.detach())
+        td_errors = td_errors.data.cpu().numpy()
+
         loss = F.mse_loss(q_value, expected_q_value)
         self.network.optimiser.zero_grad()
         loss.backward()
         self.network.optimiser.step()
 
-
         for target_param, param in zip(self.target_network.parameters(), self.network.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
+        return td_errors
 
     def save_models(self,filename, filepath='models'):
         path = f"{filepath}/models" if filepath is not 'models' else filepath

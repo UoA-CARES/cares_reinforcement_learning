@@ -23,15 +23,15 @@ class SAC:
                  device):
 
         self.type = "policy"
-        self.actor_net  = actor_network.to(device)  # this may be called policy_net in other implementations
-        self.critic_net = critic_network.to(device) # this may be called soft_q_net in other implementations
+        self.actor_net = actor_network.to(device)  # this may be called policy_net in other implementations
+        self.critic_net = critic_network.to(device)  # this may be called soft_q_net in other implementations
 
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
         self.gamma = gamma
         self.tau = tau
 
-        self.learn_counter      = 0
+        self.learn_counter = 0
         self.policy_update_freq = 1
 
         self.device = device
@@ -67,15 +67,15 @@ class SAC:
         batch_size = len(states)
 
         # Convert into tensor
-        states      = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards     = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones   = dones.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
@@ -90,14 +90,17 @@ class SAC:
         critic_loss_2 = F.mse_loss(q_values_two, q_target)
         critic_loss_total = critic_loss_1 + critic_loss_2
 
+        td_errors = torch.abs(q_values_one.detach() - q_target.detach())
+        td_errors = td_errors.data.cpu().numpy()
+
         # Update the Critic
         self.critic_net.optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net.optimiser.step()
 
-        pi, log_pi, _  = self.actor_net.sample(states)
+        pi, log_pi, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
-        min_qf_pi      = torch.minimum(qf1_pi, qf2_pi)
+        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
@@ -116,21 +119,22 @@ class SAC:
             for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
+        return td_errors
 
-    def save_models(self,filename, filepath='models'):
+    def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath is not 'models' else filepath
         dir_exists = os.path.exists(path)
 
         if not dir_exists:
             os.makedirs(path)
-        
-        torch.save(self.actor_net.state_dict(),  f'{path}/{filename}_actor.pht')
+
+        torch.save(self.actor_net.state_dict(), f'{path}/{filename}_actor.pht')
         torch.save(self.critic_net.state_dict(), f'{path}/{filename}_critic.pht')
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
         path = f"{filepath}/models" if filepath is not 'models' else filepath
-        
+
         self.actor_net.load_state_dict(torch.load(f'{path}/{filename}_actor.pht'))
         self.critic_net.load_state_dict(torch.load(f'{path}/{filename}_critic.pht'))
         logging.info("models has been loaded...")
