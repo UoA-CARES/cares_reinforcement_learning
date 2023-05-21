@@ -54,6 +54,7 @@ def policy_based_train(env, agent, args):
     episode_num = 0
 
     state, _ = env.reset(seed=seed)
+    env.render()
 
     historical_reward = {"step": [], "episode_reward": []}
 
