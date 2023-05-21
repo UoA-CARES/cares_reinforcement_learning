@@ -63,7 +63,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
         list
             A list of indices.
         """
-        priorities = np.array(self.priorities, dtype=np.float32)
+        priorities = np.array(self.priorities, dtype=np.float32).flatten()
         probabilities = priorities ** self.alpha
         probabilities /= probabilities.sum()
         return np.random.choice(len(self), batch_size, p=probabilities)

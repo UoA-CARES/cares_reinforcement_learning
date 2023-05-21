@@ -67,7 +67,6 @@ class TD3(object):
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = 0.2 * torch.randn_like(next_actions)
@@ -81,6 +80,10 @@ class TD3(object):
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         q_values_one, q_values_two = self.critic_net(states, actions)
+        q_values = torch.minimum(q_values_one, q_values_two)
+
+        # Compute TD errors for the prioritized replay buffer
+        td_errors = torch.abs(q_target - q_values).detach().cpu().numpy()
 
         critic_loss_1 = F.mse_loss(q_values_one, q_target)
         critic_loss_2 = F.mse_loss(q_values_two, q_target)
@@ -109,7 +112,9 @@ class TD3(object):
             for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-    def save_models(self,filename, filepath='models'):
+        return td_errors
+
+    def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath is not 'models' else filepath
         dir_exists = os.path.exists(path)
 
