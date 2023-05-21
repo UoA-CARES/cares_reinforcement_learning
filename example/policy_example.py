@@ -79,23 +79,15 @@ def policy_based_train(env, agent, args):
         if total_step_counter >= max_steps_exploration:
             for _ in range(G):
                 experience = memory.sample(batch_size)
-                if args["memory"] == "PER" and args["algorithm"] == "TD3":  # only impl for TD3 so far need to do more
-                    td = agent.train_policy((
-                        experience['state'],
-                        experience['action'],
-                        experience['reward'],
-                        experience['next_state'],
-                        experience['done']
-                    ))
+                td = agent.train_policy((
+                    experience['state'],
+                    experience['action'],
+                    experience['reward'],
+                    experience['next_state'],
+                    experience['done']
+                ))
+                if args["memory"] == "PER":
                     memory.update_priorities(experience['indices'], td)
-                else:
-                    agent.train_policy((
-                        experience['state'],
-                        experience['action'],
-                        experience['reward'],
-                        experience['next_state'],
-                        experience['done']
-                    ))
 
         if done or truncated:
             logging.info(

@@ -17,7 +17,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
         A factor that determines how much prioritization is used.
     """
 
-    def __init__(self, max_capacity=int(1e6), eps=1e-6, alpha=0.6):
+    def __init__(self, max_capacity: int | None = int(1e6), eps=1e-6, alpha=0.6):
         """
         The constructor for PrioritizedMemoryBuffer class.
 

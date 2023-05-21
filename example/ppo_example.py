@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory import *
 from cares_reinforcement_learning.util import helpers as hlp
 
 import gym
@@ -51,7 +51,7 @@ def ppo_train(env, agent, args):
     episode_reward = 0
     time_step = 1
 
-    memory = MemoryBuffer(max_capacity=None)
+    memory = PrioritizedMemoryBuffer(max_capacity=None) if args["memory"] == "PER" else MemoryBuffer(max_capacity=None)
 
     state, _ = env.reset(seed=seed)
     historical_reward = {"step": [], "episode_reward": []}
@@ -70,14 +70,15 @@ def ppo_train(env, agent, args):
 
         if time_step % max_steps_per_batch == 0:
             experience = memory.flush()
-            agent.train_policy((
+            td = agent.train_policy((
                 experience['state'],
                 experience['action'],
                 experience['reward'],
                 experience['next_state'],
-                experience['done'],
-                experience['log_prob']
+                experience['done']
             ))
+            if args["memory"] == "PER":
+                memory.update_priorities(experience['indices'], td)
 
         time_step += 1
 
