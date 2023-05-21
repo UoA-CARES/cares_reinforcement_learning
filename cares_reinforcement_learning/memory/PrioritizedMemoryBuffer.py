@@ -33,7 +33,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
         super().__init__(max_capacity)
         self.eps = eps
         self.alpha = alpha
-        self.priorities = deque(maxlen=max_capacity)
+        self.buffers['priorities'] = deque(maxlen=max_capacity)
 
     def add(self, **experience):
         """
@@ -46,8 +46,8 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
             and values are the experiences.
         """
         super().add(**experience)
-        max_priority = max(self.priorities) if self.priorities else 1.0
-        self.priorities.append(max_priority)
+        max_priority = max(self.buffers['priorities']) if self.buffers['priorities'] else 1.0
+        self.buffers['priorities'].append(max_priority)
 
     def _sample_indices(self, batch_size):
         """
@@ -63,7 +63,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
         list
             A list of indices.
         """
-        priorities = np.array(self.priorities, dtype=np.float32).flatten()
+        priorities = np.array(self.buffers['priorities'], dtype=np.float32).flatten()
         probabilities = priorities ** self.alpha
         probabilities /= probabilities.sum()
         return np.random.choice(len(self), batch_size, p=probabilities)
@@ -83,4 +83,4 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
 
         """
         for idx, error in zip(indices, errors):
-            self.priorities[idx] = abs(error) + self.eps + offset
+            self.buffers['priorities'][idx] = abs(error) + self.eps + offset

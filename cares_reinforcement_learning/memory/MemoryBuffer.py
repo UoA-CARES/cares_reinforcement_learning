@@ -132,7 +132,7 @@ class MemoryBuffer:
             A dictionary of all experiences. Keys are the names of the buffers,
             and values are the lists of experiences.
         """
-        experiences = {key: list(buffer) for key, buffer in self.buffers.items()}
+        experiences = self.sample(len(self))
         self.clear()
         return experiences
 

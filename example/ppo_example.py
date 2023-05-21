@@ -75,7 +75,8 @@ def ppo_train(env, agent, args):
                 experience['action'],
                 experience['reward'],
                 experience['next_state'],
-                experience['done']
+                experience['done'],
+                experience['log_prob']
             ))
             if args["memory"] == "PER":
                 memory.update_priorities(experience['indices'], td)
