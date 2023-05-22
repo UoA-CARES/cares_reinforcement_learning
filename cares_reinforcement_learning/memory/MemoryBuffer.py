@@ -19,7 +19,7 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int = int(1e6)):
+    def __init__(self, max_capacity: int = int(1e6), dtype=np.float32):
         """
         The constructor for MemoryBuffer class.
 
@@ -27,9 +27,12 @@ class MemoryBuffer:
         ----------
         max_capacity : int
             The maximum capacity of the buffer (default is 1,000,000).
+        dtype : np value type
+            Sets the value type data is stored as
         """
         self.max_capacity = max_capacity
         self.head = 0
+        self.dtype = dtype
         self.full = False
         self.buffers = {}
 
@@ -42,6 +45,7 @@ class MemoryBuffer:
 
         Parameters
         ----------
+
         **experience : dict
             A dictionary where the key is the name of the experience and the value is the experience data.
             The data can be of any shape and will be converted to a numpy array if not already one. The
@@ -56,7 +60,7 @@ class MemoryBuffer:
             if key not in self.buffers:
                 value = np.array(value, ndmin=1)  # Ensure value is at least 1D
                 value_shape = np.shape(value)
-                self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=np.float32)
+                self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=self.dtype)
 
             # Ensure value is at least 1D
             value = np.array(value, ndmin=1)
