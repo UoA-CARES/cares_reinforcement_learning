@@ -64,10 +64,10 @@ class MemoryBuffer:
                     value = np.array(value, ndmin=1)
                     value_shape = np.shape(value)
                     self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=dtype)
-
-                value = np.array(value, ndmin=1)
-                value_shape = np.shape(value)
-                self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=self.dtype)
+                else:
+                    value = np.array(value, ndmin=1)
+                    value_shape = np.shape(value)
+                    self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=self.dtype)
 
             # Ensure value is at least 1D
             value = np.array(value, ndmin=1)
