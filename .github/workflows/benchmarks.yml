@@ -28,6 +28,7 @@ jobs:
           cache: 'pip'
 
       - run: pip install -r requirements.txt
+      - run: pip install --editable .
       - run: ./benchmark.sh
 
       - run: echo "🍏 This job's status is ${{ job.status }}."
