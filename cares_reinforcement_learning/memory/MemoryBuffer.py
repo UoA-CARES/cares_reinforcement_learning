@@ -19,7 +19,7 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int = int(1e6), dtype=np.float32):
+    def __init__(self, max_capacity: int = int(1e6), default_dtype=np.float32):
         """
         The constructor for MemoryBuffer class.
 
@@ -32,7 +32,7 @@ class MemoryBuffer:
         """
         self.max_capacity = max_capacity
         self.head = 0
-        self.dtype = dtype
+        self.default_dtype = default_dtype
         self.full = False
         self.buffers = {}
 
@@ -53,21 +53,19 @@ class MemoryBuffer:
 
         Examples
         --------
-        >>> memory.add(state=[1,2,3], action=1, reward=10, next_state=[2,3,4], done=False)
+        >>> memory.add(state=([1,2,3], np.uint8), action=[1.5, 2.1], reward=-0.32, next_state=([2,3,4], np.uint8), done=False)
         """
-
         for key, value in experience.items():
             if key not in self.buffers:
+                dtype = self.default_dtype
+
                 if type(value) is tuple:
                     dtype = value[1]
                     value = value[0]
-                    value = np.array(value, ndmin=1)
-                    value_shape = np.shape(value)
-                    self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=dtype)
-                else:
-                    value = np.array(value, ndmin=1)
-                    value_shape = np.shape(value)
-                    self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=self.dtype)
+
+                value = np.array(value, ndmin=1)
+                value_shape = np.shape(value)
+                self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=dtype)
 
             # Ensure value is at least 1D
             value = np.array(value, ndmin=1)
