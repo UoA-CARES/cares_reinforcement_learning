@@ -58,7 +58,14 @@ class MemoryBuffer:
 
         for key, value in experience.items():
             if key not in self.buffers:
-                value = np.array(value, ndmin=1)  # Ensure value is at least 1D
+                if type(value) is tuple:
+                    dtype = value[1]
+                    value = value[0]
+                    value = np.array(value, ndmin=1)
+                    value_shape = np.shape(value)
+                    self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=dtype)
+
+                value = np.array(value, ndmin=1)
                 value_shape = np.shape(value)
                 self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=self.dtype)
 
