@@ -34,6 +34,7 @@ def parse_args():
     parser = argparse.ArgumentParser()  # Add an argument
 
     parser.add_argument('--task', type=str, required=True)
+    parser.add_argument('--render', type=str, default="None")
     parser.add_argument('--algorithm', type=str, required=True)
     parser.add_argument('--memory', type=str, default="MemoryBuffer")
 
@@ -66,7 +67,7 @@ def main():
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     logging.info(f"Training on {args['task']}")
-    env = gym.make(args["task"])
+    env = gym.make(args["task"], render_mode=(None if args['render'] == "None" else args['render']))
 
     logging.info(f"Device: {args['device']}")
 

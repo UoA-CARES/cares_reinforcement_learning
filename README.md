@@ -32,20 +32,23 @@ python3 example_training_loops.py --task 'Pendulum-v1' --algorithm PPO --max_ste
 ```
 cares_reinforcement_learning/
 ├─ algorithm/
-│  ├─ DQN.py
-│  ├─ TD3.py
-│  ├─ PPO.py
-│  ├─ ...
+│  ├─ policy/
+│  │  ├─ TD3.py
+│  │  ├─ ...
+│  ├─ value/
+│  │  ├─ DQN.py
+│  │  ├─ ...
 ├─ networks/
 │  ├─ DQN/
 │  │  ├─ Network.py
 │  ├─ TD3.py/
 │  │  ├─ Actor.py
 │  │  ├─ Critic.py
-│  │  ├─ ...
-├─ util/
+│  ├─ ...
+├─ memory/
 │  ├─ MemoryBuffer.py
-│  ├─ Plot.py
+├─ util/
+│  ├─ NetworkFactory.py
 │  ├─ ...
 
 ```

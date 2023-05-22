@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory import *
 from cares_reinforcement_learning.util import helpers as hlp
 
 import gym
