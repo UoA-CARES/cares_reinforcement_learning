@@ -103,6 +103,7 @@ def value_based_train(env, agent, args):
             episode_timesteps = 0
             episode_num += 1
 
-    hlp.plot_reward_curve(historical_reward)
+    if args['display']:
+        hlp.plot_reward_curve(historical_reward)
 
     evaluate_value_network(env, agent, args)

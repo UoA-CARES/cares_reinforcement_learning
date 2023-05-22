@@ -58,6 +58,8 @@ def parse_args():
 
     parser.add_argument('--max_steps_per_batch', type=float, default=5000)
 
+    parser.add_argument('--display', type=str, default=True)
+
     return vars(parser.parse_args())  # converts into a dictionary
 
 
