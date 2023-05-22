@@ -8,6 +8,8 @@ import random
 def evaluate_value_network(env, agent, args):
     evaluation_seed = args["evaluation_seed"]
     max_steps_evaluation = args["max_steps_evaluation"]
+    if max_steps_evaluation == 0:
+        return
 
     episode_timesteps = 0
     episode_reward    = 0

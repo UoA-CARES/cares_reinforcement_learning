@@ -35,7 +35,7 @@ def parse_args():
 
     parser.add_argument('--task', type=str, required=True)
     parser.add_argument('--algorithm', type=str, required=True)
-    parser.add_argument('--memory', type=str, default="MemoryBuffer")
+    parser.add_argument('--memory', type=str, default="simple")
 
     parser.add_argument('--G', type=int, default=10)
     parser.add_argument('--gamma', type=float, default=0.99)
@@ -71,17 +71,22 @@ def main():
     logging.info(f"Device: {args['device']}")
 
     args["observation_size"] = env.observation_space.shape[0]
+    logging.info(f"Observation Size: {args['observation_size']}")
+
     if type(env.action_space) == spaces.Box:
         args["action_num"] = env.action_space.shape[0]
     elif type(env.action_space) == spaces.Discrete:
         args["action_num"] = env.action_space.n
     else:
         raise ValueError(f"Unhandled action space type: {type(env.action_space)}")
+    logging.info(f"Action Num: {args['action_num']}")
 
+    logging.info(f"Seed: {args['seed']}")
     set_seed(env, args["seed"])
 
     # Create the network we are using
     factory = NetworkFactory()
+    logging.info(f"Algorithm: {args['algorithm']}")
     agent = factory.create_network(args["algorithm"], args)
 
     # Train the policy or value based approach
@@ -93,7 +98,6 @@ def main():
         vbe.value_based_train(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
-
 
 if __name__ == '__main__':
     main()
