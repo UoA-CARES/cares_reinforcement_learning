@@ -47,7 +47,14 @@ def policy_based_train(env, agent, args):
     min_action_value = env.action_space.low[0]
     max_action_value = env.action_space.high[0]
 
-    memory = PrioritizedMemoryBuffer() if args["memory"] == "PER" else MemoryBuffer()
+    if args["memory"] == "PER":
+        memory = PrioritizedMemoryBuffer() 
+    elif args["memory"] == "simple":
+        memory = MemoryBuffer()
+    else:
+        memory = args["memory"]
+        logging.error(f"Unkown memory type {memory}")
+        exit(1)
 
     episode_timesteps = 0
     episode_reward = 0
