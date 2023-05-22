@@ -52,6 +52,7 @@ class TD3(object):
 
     def train_policy(self, experiences):
         self.learn_counter += 1
+        info = {}
 
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
@@ -77,15 +78,12 @@ class TD3(object):
             target_q_values_one, target_q_values_two = self.target_critic_net(next_states, next_actions)
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            info["q_target"] = rewards + self.gamma * (1 - dones) * target_q_values
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
-        q_values = torch.minimum(q_values_one, q_values_two)
+        info["q_values_one"], info["q_values_two"] = self.critic_net(states, actions)
 
-        td_errors = torch.abs(q_target - q_values).detach().cpu().numpy()
-
-        critic_loss_1 = F.mse_loss(q_values_one, q_target)
-        critic_loss_2 = F.mse_loss(q_values_two, q_target)
+        critic_loss_1 = F.mse_loss(info["q_values_one"], info["q_target"])
+        critic_loss_2 = F.mse_loss(info["q_values_two"], info["q_target"])
         critic_loss_total = critic_loss_1 + critic_loss_2
 
         # Update the Critic
@@ -111,7 +109,7 @@ class TD3(object):
             for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-        return td_errors
+        return info
 
     def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath is not 'models' else filepath

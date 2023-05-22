@@ -1,38 +1,54 @@
-from cares_reinforcement_learning.memory import MemoryBuffer
+from __future__ import annotations
 from collections import deque
+from cares_reinforcement_learning.memory import MemoryBuffer
 import numpy as np
+from collections.abc import Callable
+from cares_reinforcement_learning.memory.per_augments import td_error
 
 
 class PrioritizedMemoryBuffer(MemoryBuffer):
     """
     This class represents a prioritized memory buffer used in Reinforcement Learning (RL).
-    It overrides the _add_experience and _sample_experience methods of MemoryBuffer to add
-    and sample experiences based on their priorities.
+    The buffer is an extension of the base MemoryBuffer class and is used to store experiences
+    of the interactions of an agent with its environment.
+
+    The buffer assigns priorities to experiences based on their errors, and the sampling of
+    experiences for training is biased towards higher-priority experiences.
 
     Attributes
     ----------
-    eps : float
-        A small value to avoid zero priority.
-    alpha : float
-        A factor that determines how much prioritization is used.
+    max_capacity : int
+        The maximum capacity of the buffer.
+    eps : float, optional
+        A small constant added to the priorities to ensure non-zero probabilities during sampling.
+    alpha : float, optional
+        The exponent used to transform priorities into probabilities during sampling.
+    augment : Callable[[dict], list], optional
+        A function used to augment errors before updating priorities.
+    buffers : dict
+        A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int | None = int(1e6), eps=1e-6, alpha=0.6):
+    def __init__(self, max_capacity: int | None = int(1e6),
+                 eps=1e-6, alpha=0.6, augment: Callable[[dict], list] = td_error):
         """
         The constructor for PrioritizedMemoryBuffer class.
 
         Parameters
         ----------
-        max_capacity : int
+        max_capacity : int, optional
             The maximum capacity of the buffer (default is 1,000,000).
-        eps : float
-            A small value to avoid zero priority (default is 1e-6).
-        alpha : float
-            A factor that determines how much prioritization is used (default is 0.6).
+        eps : float, optional
+            A small constant added to the priorities to ensure non-zero probabilities during sampling.
+        alpha : float, optional
+            The exponent used to transform priorities into probabilities during sampling.
+        augment : Callable[[list], list], optional
+            A function used to augment errors before updating priorities.
         """
         super().__init__(max_capacity)
         self.eps = eps
         self.alpha = alpha
+        self.augment = augment
         self.buffers['priorities'] = deque(maxlen=max_capacity)
 
     def add(self, **experience):
@@ -70,17 +86,17 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
 
     def update_priorities(self, indices, errors, offset=0.1):
         """
-        Updates the priorities of the experiences based on the TD errors from learning update.
+        Updates the priorities of experiences at given indices.
 
         Parameters
         ----------
         indices : list
-            The indices of the experiences.
-        errors : list
-            The list of errors (TD errors).
-        offset : float
-            A small positive constant to avoid zero priority.
-
+            The indices of experiences to update.
+        errors : dict
+            The errors corresponding to the experiences.
+        offset : float, optional
+            A small constant added to the absolute errors for updating priorities (default is 0.1).
         """
+        errors = self.augment(errors)
         for idx, error in zip(indices, errors):
             self.buffers['priorities'][idx] = abs(error) + self.eps + offset

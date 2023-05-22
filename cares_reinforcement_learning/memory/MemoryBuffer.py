@@ -19,7 +19,7 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int | None = int(1e6)):
+    def __init__(self, max_capacity: int = int(1e6)):
         """
         The constructor for MemoryBuffer class.
 
@@ -29,35 +29,23 @@ class MemoryBuffer:
             The maximum capacity of the buffer (default is 1,000,000).
         """
         self.max_capacity = max_capacity
+        self.head = 0
+        self.full = False
         self.buffers = {}
 
     def add(self, **experience):
-        """
-        Adds an experience to the buffer.
-
-        Parameters
-        ----------
-        experience : dict
-            The dictionary of experiences. Keys are the names of the buffers,
-            and values are the experiences.
-        """
         for key, value in experience.items():
             if key not in self.buffers:
-                self.buffers[key] = deque(maxlen=self.max_capacity)
-            self._add_experience(key, value)
+                value = np.array(value, ndmin=1)  # Ensure value is at least 1D
+                value_shape = np.shape(value)
+                self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=np.float32)
 
-    def _add_experience(self, key, value):
-        """
-        Adds an experience to a specific buffer.
+            # Ensure value is at least 1D
+            value = np.array(value, ndmin=1)
+            np.copyto(self.buffers[key][self.head], value)
 
-        Parameters
-        ----------
-        key : str
-            The name of the buffer.
-        value : object
-            The experience to add.
-        """
-        self.buffers[key].append(value)
+        self.head = (self.head + 1) % self.max_capacity
+        self.full = self.full or self.head == 0
 
     def sample(self, batch_size):
         """
@@ -94,8 +82,7 @@ class MemoryBuffer:
         list
             A list of indices.
         """
-        buffer_length = len(next(iter(self.buffers.values())))
-        return np.random.choice(buffer_length, size=batch_size, replace=False)
+        return np.random.choice(len(self), size=batch_size, replace=False)
 
     def _sample_experience(self, key, indices):
         """
@@ -119,8 +106,9 @@ class MemoryBuffer:
         """
         Clears all the buffers.
         """
-        for buffer in self.buffers.values():
-            buffer.clear()
+        self.head = 0
+        self.full = False
+        self.buffers.clear()
 
     def flush(self):
         """
@@ -145,4 +133,4 @@ class MemoryBuffer:
         int
             The number of experiences in any buffer. Assumes all buffers have the same length.
         """
-        return len(next(iter(self.buffers.values())))
+        return self.max_capacity if self.full else self.head
