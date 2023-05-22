@@ -34,6 +34,24 @@ class MemoryBuffer:
         self.buffers = {}
 
     def add(self, **experience):
+        """
+        Adds an experience to the memory buffer. Each key-value pair in the experience dictionary is added
+        to a corresponding buffer. If a buffer for a given key does not exist, it is created.
+
+        If the memory buffer is full, this function will overwrite the oldest experience with the new one.
+
+        Parameters
+        ----------
+        **experience : dict
+            A dictionary where the key is the name of the experience and the value is the experience data.
+            The data can be of any shape and will be converted to a numpy array if not already one. The
+            experience data is expected to be numerical (i.e., integers or floats).
+
+        Examples
+        --------
+        >>> memory.add(state=[1,2,3], action=1, reward=10, next_state=[2,3,4], done=False)
+        """
+
         for key, value in experience.items():
             if key not in self.buffers:
                 value = np.array(value, ndmin=1)  # Ensure value is at least 1D
