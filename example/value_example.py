@@ -1,6 +1,7 @@
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util import helpers as hlp
 
+import time
 import gym
 import logging
 import random
@@ -45,6 +46,8 @@ def evaluate_value_network(env, agent, args):
             episode_num += 1
 
 def value_based_train(env, agent, args):
+    start_time = time.time()
+
     max_steps_training = args["max_steps_training"]
     exploration_min    = args["exploration_min"]
     exploration_decay  = args["exploration_decay"]
@@ -103,7 +106,9 @@ def value_based_train(env, agent, args):
             episode_timesteps = 0
             episode_num += 1
 
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+
     if args['display']:
         hlp.plot_reward_curve(historical_reward)
-
-    evaluate_value_network(env, agent, args)

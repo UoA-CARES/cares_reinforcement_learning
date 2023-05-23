@@ -1,5 +1,5 @@
-name: CARES Reinforcement Learning Benchmarks
-run-name: ${{ github.actor }} is benchmarking changes
+name: CARES Reinforcement Learning Testing
+run-name: ${{ github.actor }} is testing changes
 
 on:
   pull_request:
@@ -29,6 +29,7 @@ jobs:
 
       - run: pip install -r requirements.txt
       - run: pip install --editable .
-      - run: ./benchmark.sh
+      
+      - run: echo "Call API and Unit tests here - need to be added!"
 
       - run: echo "🍏 This job's status is ${{ job.status }}."

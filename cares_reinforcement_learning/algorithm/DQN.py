@@ -26,7 +26,6 @@ class DQN:
             action   = torch.argmax(q_values).item()
         return action
 
-
     def train_policy(self, experiences):
         states, actions, rewards, next_states, dones = experiences
 

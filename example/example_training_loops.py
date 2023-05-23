@@ -4,6 +4,7 @@ Description:
             We may move this later for each repo/env or keep this in this repo
 """
 
+import time
 import argparse
 
 from cares_reinforcement_learning.util import NetworkFactory
@@ -62,7 +63,6 @@ def parse_args():
 
     return vars(parser.parse_args())  # converts into a dictionary
 
-
 def main():
     args = parse_args()
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -94,12 +94,15 @@ def main():
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":
         ppe.ppo_train(env, agent, args)
+        ppe.evaluate_ppo_network(env, agent, args)
     elif agent.type == "policy":
         pbe.policy_based_train(env, agent, args)
+        pbe.evaluate_policy_network(env, agent, args)
     elif agent.type == "value":
         vbe.value_based_train(env, agent, args)
+        vbe.evaluate_value_network(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
-
+    
 if __name__ == '__main__':
     main()
