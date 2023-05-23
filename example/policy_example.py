@@ -38,7 +38,8 @@ def evaluate_policy_network(env, agent, args):
             episode_timesteps = 0
             episode_num += 1
 
-def policy_based_train(env, agent, args):
+
+def policy_based_train(env, agent, memory, args):
     start_time = time.time()
 
     max_steps_training = args["max_steps_training"]
@@ -64,6 +65,7 @@ def policy_based_train(env, agent, args):
     episode_num = 0
 
     state, _ = env.reset(seed=seed)
+    env.render()
 
     historical_reward = {"step": [], "episode_reward": []}
 
@@ -88,23 +90,15 @@ def policy_based_train(env, agent, args):
         if total_step_counter >= max_steps_exploration:
             for _ in range(G):
                 experience = memory.sample(batch_size)
-                if args["memory"] == "PER" and args["algorithm"] == "TD3":  # only impl for TD3 so far need to do more
-                    td = agent.train_policy((
-                        experience['state'],
-                        experience['action'],
-                        experience['reward'],
-                        experience['next_state'],
-                        experience['done']
-                    ))
+                td = agent.train_policy((
+                    experience['state'],
+                    experience['action'],
+                    experience['reward'],
+                    experience['next_state'],
+                    experience['done']
+                ))
+                if args["memory"] == "PER":
                     memory.update_priorities(experience['indices'], td)
-                else:
-                    agent.train_policy((
-                        experience['state'],
-                        experience['action'],
-                        experience['reward'],
-                        experience['next_state'],
-                        experience['done']
-                    ))
 
         if done or truncated:
             logging.info(
@@ -123,5 +117,4 @@ def policy_based_train(env, agent, args):
     elapsed_time = end_time - start_time
     print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
 
-    if args['display']:
-        hlp.plot_reward_curve(historical_reward)
+    hlp.plot_reward_curve(historical_reward)

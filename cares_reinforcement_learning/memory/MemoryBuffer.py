@@ -2,7 +2,6 @@ from __future__ import annotations
 from collections import deque
 import numpy as np
 
-
 class MemoryBuffer:
     """
     This class represents a base memory buffer used in Reinforcement Learning (RL).
@@ -133,7 +132,7 @@ class MemoryBuffer:
             A dictionary of all experiences. Keys are the names of the buffers,
             and values are the lists of experiences.
         """
-        experiences = {key: list(buffer) for key, buffer in self.buffers.items()}
+        experiences = self.sample(len(self))
         self.clear()
         return experiences
 

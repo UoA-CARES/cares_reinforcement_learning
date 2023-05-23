@@ -8,6 +8,7 @@ import time
 import argparse
 
 from cares_reinforcement_learning.util import NetworkFactory
+from cares_reinforcement_learning.memory import *
 
 import example.policy_example as pbe
 import example.value_example as vbe
@@ -35,6 +36,7 @@ def parse_args():
     parser = argparse.ArgumentParser()  # Add an argument
 
     parser.add_argument('--task', type=str, required=True)
+    parser.add_argument('--render', type=str, default="None")
     parser.add_argument('--algorithm', type=str, required=True)
     parser.add_argument('--memory', type=str, default="simple")
 
@@ -68,7 +70,7 @@ def main():
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     logging.info(f"Training on {args['task']}")
-    env = gym.make(args["task"])
+    env = gym.make(args["task"], render_mode=(None if args['render'] == "None" else args['render']))
 
     logging.info(f"Device: {args['device']}")
 
@@ -90,19 +92,33 @@ def main():
     factory = NetworkFactory()
     logging.info(f"Algorithm: {args['algorithm']}")
     agent = factory.create_network(args["algorithm"], args)
+    logging.info(f"Algorithm: {args['algorithm']}")
+
+    # TODO move to memory factory as we add new PER
+    if args["memory"] == "MemoryBuffer":
+        memory = MemoryBuffer()
+    elif args["memory"] == "PER":
+        memory = PrioritizedMemoryBuffer() 
+    else:
+        error_message = f"Unkown memory type: {args['memory']}"
+        logging.error(error_message)
+        raise ValueError(error_message)
+    
+    logging.info(f"Memory: {args['memory']}")
 
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":
         ppe.ppo_train(env, agent, args)
         ppe.evaluate_ppo_network(env, agent, args)
     elif agent.type == "policy":
-        pbe.policy_based_train(env, agent, args)
+        pbe.policy_based_train(env, agent, memory, args)
         pbe.evaluate_policy_network(env, agent, args)
     elif agent.type == "value":
-        vbe.value_based_train(env, agent, args)
+        vbe.value_based_train(env, agent, memory, args)
         vbe.evaluate_value_network(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
-    
+
 if __name__ == '__main__':
     main()
+

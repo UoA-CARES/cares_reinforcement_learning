@@ -82,7 +82,6 @@ class TD3(object):
         q_values_one, q_values_two = self.critic_net(states, actions)
         q_values = torch.minimum(q_values_one, q_values_two)
 
-        # Compute TD errors for the prioritized replay buffer
         td_errors = torch.abs(q_target - q_values).detach().cpu().numpy()
 
         critic_loss_1 = F.mse_loss(q_values_one, q_target)

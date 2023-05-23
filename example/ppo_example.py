@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory import *
 from cares_reinforcement_learning.util import helpers as hlp
 
 import time
@@ -102,6 +102,10 @@ def ppo_train(env, agent, args):
     elapsed_time = end_time - start_time
     print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
 
+<<<<<<< HEAD
     if args['display']:
         hlp.plot_reward_curve(historical_reward)
+=======
+    hlp.plot_reward_curve(historical_reward)
+>>>>>>> main
 
