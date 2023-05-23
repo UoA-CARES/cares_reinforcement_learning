@@ -38,7 +38,7 @@ def parse_args():
     parser.add_argument('--task', type=str, required=True)
     parser.add_argument('--render', type=str, default="None")
     parser.add_argument('--algorithm', type=str, required=True)
-    parser.add_argument('--memory', type=str, default="simple")
+    parser.add_argument('--memory', type=str, default="MemoryBuffer")
 
     parser.add_argument('--G', type=int, default=10)
     parser.add_argument('--gamma', type=float, default=0.99)
