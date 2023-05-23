@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from cares_reinforcement_learning.memory import MemoryBuffer
 from collections import deque
 import numpy as np
