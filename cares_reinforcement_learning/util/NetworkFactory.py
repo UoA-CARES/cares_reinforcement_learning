@@ -129,7 +129,7 @@ class NetworkFactory:
         elif algorithm == "DDPG":
             return create_DDPG(args)
         elif algorithm == "SAC":
-            return create_DDPG(args)
+            return create_SAC(args)
         elif algorithm == "TD3":
             return create_TD3(args)
         raise ValueError(f"Unkown algorithm: {algorithm}")
