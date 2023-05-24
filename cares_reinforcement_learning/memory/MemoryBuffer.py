@@ -19,7 +19,7 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int | None = int(1e6)):
+    def __init__(self, max_capacity: int = int(1e6), default_dtype=np.float32):
         """
         The constructor for MemoryBuffer class.
 
@@ -27,37 +27,42 @@ class MemoryBuffer:
         ----------
         max_capacity : int
             The maximum capacity of the buffer (default is 1,000,000).
+        dtype : np value type
+            Sets the value type data is stored as
         """
         self.max_capacity = max_capacity
+        self.head = 0
+        self.default_dtype = default_dtype
+        self.full = False
         self.buffers = {}
 
     def add(self, **experience):
         """
-        Adds an experience to the buffer.
+        Adds an experience to the memory buffer. Each key-value pair in the experience dictionary is added
+        to a corresponding buffer. If a buffer for a given key does not exist, it is created.
+
+        If the memory buffer is full, this function will overwrite the oldest experience with the new one.
 
         Parameters
         ----------
-        experience : dict
-            The dictionary of experiences. Keys are the names of the buffers,
-            and values are the experiences.
+
+        **experience : dict
+            A dictionary where the key is the name of the experience and the value is the experience data.
+            The data can be of any type.
+
+        Examples
+        --------
+        >>> memory.add([1,2,3], [2,3,4], action=[1.5, 2.1],
+        >>>            reward=-0.32, done=False)
         """
         for key, value in experience.items():
             if key not in self.buffers:
-                self.buffers[key] = deque(maxlen=self.max_capacity)
-            self._add_experience(key, value)
+                self.buffers[key] = [None] * self.max_capacity
 
-    def _add_experience(self, key, value):
-        """
-        Adds an experience to a specific buffer.
+            self.buffers[key][self.head] = value
 
-        Parameters
-        ----------
-        key : str
-            The name of the buffer.
-        value : object
-            The experience to add.
-        """
-        self.buffers[key].append(value)
+        self.head = (self.head + 1) % self.max_capacity
+        self.full = self.full or self.head == 0
 
     def sample(self, batch_size):
         """
@@ -77,7 +82,7 @@ class MemoryBuffer:
         indices = self._sample_indices(batch_size)
         sampled_experiences = {'indices': indices}
         for key in self.buffers:
-            sampled_experiences[key] = self._sample_experience(key, indices)
+            sampled_experiences[key] = [self.buffers[key][i] for i in indices]
         return sampled_experiences
 
     def _sample_indices(self, batch_size):
@@ -94,8 +99,7 @@ class MemoryBuffer:
         list
             A list of indices.
         """
-        buffer_length = len(next(iter(self.buffers.values())))
-        return np.random.choice(buffer_length, size=batch_size, replace=False)
+        return np.random.choice(len(self), size=batch_size, replace=False)
 
     def _sample_experience(self, key, indices):
         """
@@ -119,8 +123,9 @@ class MemoryBuffer:
         """
         Clears all the buffers.
         """
-        for buffer in self.buffers.values():
-            buffer.clear()
+        self.head = 0
+        self.full = False
+        self.buffers.clear()
 
     def flush(self):
         """
@@ -145,4 +150,4 @@ class MemoryBuffer:
         int
             The number of experiences in any buffer. Assumes all buffers have the same length.
         """
-        return len(next(iter(self.buffers.values())))
+        return self.max_capacity if self.full else self.head

@@ -26,6 +26,7 @@ class DQN:
 
     def train_policy(self, experiences):
         states, actions, rewards, next_states, dones = experiences
+        info = {}
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -38,21 +39,18 @@ class DQN:
         q_values = self.network(states)
         next_q_values = self.network(next_states)
 
-        best_q_values = q_values[torch.arange(q_values.size(0)), actions]
+        info['q_target'] = q_values[torch.arange(q_values.size(0)), actions]
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
-        expected_q_values = rewards + self.gamma * (1 - dones) * best_next_q_values
-
-        td_errors = torch.abs(best_q_values.detach() - expected_q_values.detach())
-        td_errors = td_errors.data.cpu().numpy()
+        info['q_values_min'] = rewards + self.gamma * (1 - dones) * best_next_q_values
 
         # Update the Network
-        loss = F.mse_loss(best_q_values, expected_q_values)
+        loss = F.mse_loss(info['q_target'], info['q_values_min'])
         self.network.optimiser.zero_grad()
         loss.backward()
         self.network.optimiser.step()
 
-        return td_errors
+        return info
 
     def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath is not 'models' else filepath

@@ -55,7 +55,7 @@ def ppo_train(env, agent, args):
     episode_reward = 0
     time_step = 1
 
-    memory = MemoryBuffer(max_capacity=None)
+    memory = MemoryBuffer()
 
     state, _ = env.reset(seed=seed)
     historical_reward = {"step": [], "episode_reward": []}
