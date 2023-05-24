@@ -46,10 +46,10 @@ def test_flush_buffer():
 
 def test_sample_more_than_capacity():
     buffer = MemoryBuffer(max_capacity=10)
-    for i in range(5):  # add less experiences than max_capacity
-        buffer.add(state=[i,i+1,i+2])
-    samples = buffer.sample(10)  # try to sample more experiences than are in the buffer
-    assert len(samples['state']) == 5  # it should return all experiences available in the buffer
+    for i in range(5):
+        buffer.add(state=[i, i + 1, i + 2])
+    samples = buffer.sample(10)
+    assert len(samples['state']) == 5
 
 
 def test_flush_order():
@@ -66,23 +66,23 @@ def test_flush_order():
 def test_add_empty_experience():
     buffer = MemoryBuffer(max_capacity=10)
     try:
-        buffer.add(**{})  # attempt to add an empty experience
+        buffer.add(**{})
     except Exception:
         pytest.fail("Adding an empty experience raised an exception.")
 
 
 def test_add_existing_key():
     buffer = MemoryBuffer(max_capacity=10)
-    buffer.add(state=[1,2,3])  # add an experience with key 'state'
-    buffer.add(state=[4,5,6])  # add another experience with the same key
-    assert buffer.buffers['state'][1] == [4,5,6]  # it should overwrite the previous experience
+    buffer.add(state=[1, 2, 3])
+    buffer.add(state=[4, 5, 6])
+    assert buffer.buffers['state'][1] == [4, 5, 6]
 
 
 def test_add_when_full():
     buffer = MemoryBuffer(max_capacity=2)
-    buffer.add(state=[1,2,3])
-    buffer.add(state=[4,5,6])
+    buffer.add(state=[1, 2, 3])
+    buffer.add(state=[4, 5, 6])
     assert len(buffer) == 2
-    buffer.add(state=[7,8,9])  # add an experience when the buffer is full
-    assert len(buffer) == 2  # it should maintain the max_capacity
-    assert buffer.buffers['state'][0] == [7,8,9]  # it should overwrite the oldest experience
+    buffer.add(state=[7, 8, 9])
+    assert len(buffer) == 2
+    assert buffer.buffers['state'][0] == [7, 8, 9]
