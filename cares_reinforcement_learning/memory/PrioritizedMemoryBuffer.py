@@ -30,7 +30,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
     """
 
     def __init__(self, max_capacity: int | None = int(1e6),
-                 eps=1e-6, alpha=0.6, augment: Callable[[dict], list] = td_error):
+                 eps=1e-6, alpha=0.6, augment=td_error):
         """
         The constructor for PrioritizedMemoryBuffer class.
 
@@ -42,7 +42,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
             A small constant added to the priorities to ensure non-zero probabilities during sampling.
         alpha : float, optional
             The exponent used to transform priorities into probabilities during sampling.
-        augment : Callable[[list], list], optional
+        augment
             A function used to augment errors before updating priorities.
         """
         super().__init__(max_capacity)
@@ -84,7 +84,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
         probabilities /= probabilities.sum()
         return np.random.choice(len(self), batch_size, p=probabilities)
 
-    def update_priorities(self, indices, errors, offset=0.1):
+    def update_priorities(self, indices, info, offset=0.1):
         """
         Updates the priorities of experiences at given indices.
 
@@ -92,11 +92,11 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
         ----------
         indices : list
             The indices of experiences to update.
-        errors : dict
-            The errors corresponding to the experiences.
+        info : dict
+            Info dict returned from model training.
         offset : float, optional
             A small constant added to the absolute errors for updating priorities (default is 0.1).
         """
-        errors = self.augment(errors)
+        errors = self.augment(info)
         for idx, error in zip(indices, errors):
             self.buffers['priorities'][idx] = abs(error) + self.eps + offset

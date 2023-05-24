@@ -6,6 +6,7 @@ This code runs automatic entropy tuning
 """
 
 import os
+from collections import defaultdict
 import copy
 import logging
 import numpy as np
@@ -62,6 +63,7 @@ class SAC:
 
     def train_policy(self, experiences):
         self.learn_counter += 1
+        info = {}
 
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
@@ -82,16 +84,14 @@ class SAC:
             target_q_values_one, target_q_values_two = self.target_critic_net(next_states, next_actions)
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two) - self.alpha * next_log_pi
 
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            info["q_target"] = rewards + self.gamma * (1 - dones) * target_q_values
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+        info["q_values_one"], info["q_values_two"] = self.critic_net(states, actions)
+        info["q_values_min"] = torch.minimum(info["q_values_"], info["q_values_two"])
 
-        critic_loss_1 = F.mse_loss(q_values_one, q_target)
-        critic_loss_2 = F.mse_loss(q_values_two, q_target)
+        critic_loss_1 = F.mse_loss(info["q_values_one"], info["q_target"])
+        critic_loss_2 = F.mse_loss(info["q_values_two"], info["q_target"])
         critic_loss_total = critic_loss_1 + critic_loss_2
-
-        td_errors = torch.abs(q_values_one.detach() - q_target.detach())
-        td_errors = td_errors.data.cpu().numpy()
 
         # Update the Critic
         self.critic_net.optimiser.zero_grad()
@@ -119,7 +119,7 @@ class SAC:
             for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-        return td_errors
+        return info
 
     def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath is not 'models' else filepath

@@ -48,28 +48,18 @@ class MemoryBuffer:
 
         **experience : dict
             A dictionary where the key is the name of the experience and the value is the experience data.
-            The data can be of any shape and will be converted to a numpy array if not already one. The
-            experience data is expected to be numerical (i.e., integers or floats).
+            The data can be of any type.
 
         Examples
         --------
-        >>> memory.add(state=([1,2,3], np.uint8), action=[1.5, 2.1], reward=-0.32, next_state=([2,3,4], np.uint8), done=False)
+        >>> memory.add([1,2,3], [2,3,4], action=[1.5, 2.1],
+        >>>            reward=-0.32, done=False)
         """
         for key, value in experience.items():
             if key not in self.buffers:
-                dtype = self.default_dtype
+                self.buffers[key] = [None] * self.max_capacity
 
-                if type(value) is tuple:
-                    dtype = value[1]
-                    value = value[0]
-
-                value = np.array(value, ndmin=1)
-                value_shape = np.shape(value)
-                self.buffers[key] = np.empty((self.max_capacity, *value_shape), dtype=dtype)
-
-            # Ensure value is at least 1D
-            value = np.array(value, ndmin=1)
-            np.copyto(self.buffers[key][self.head], value)
+            self.buffers[key][self.head] = value
 
         self.head = (self.head + 1) % self.max_capacity
         self.full = self.full or self.head == 0
@@ -92,7 +82,7 @@ class MemoryBuffer:
         indices = self._sample_indices(batch_size)
         sampled_experiences = {'indices': indices}
         for key in self.buffers:
-            sampled_experiences[key] = self._sample_experience(key, indices)
+            sampled_experiences[key] = [self.buffers[key][i] for i in indices]
         return sampled_experiences
 
     def _sample_indices(self, batch_size):

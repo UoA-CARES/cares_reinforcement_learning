@@ -40,6 +40,7 @@ class DDPG:
     def train_policy(self, experiences):
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
+        info = {}
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -56,15 +57,13 @@ class DDPG:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_q_values = self.target_critic_net(next_states, next_actions)
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            info["q_target"] = rewards + self.gamma * (1 - dones) * target_q_values
 
-        q_values = self.critic_net(states, actions)
-
-        td_errors = torch.abs(q_values.detach() - q_target.detach())
-        td_errors = td_errors.data.cpu().numpy()
+        info["q_values"] = self.critic_net(states, actions)
+        info["q_values_min"] = info["q_values"]
 
         # Update the Critic Network
-        critic_loss = F.mse_loss(q_values, q_target)
+        critic_loss = F.mse_loss(info["q_values"], info["q_target"])
 
         self.critic_net.optimiser.zero_grad()
         critic_loss.backward()
@@ -84,7 +83,7 @@ class DDPG:
         for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
-        return td_errors
+        return info
 
     def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath is not 'models' else filepath
