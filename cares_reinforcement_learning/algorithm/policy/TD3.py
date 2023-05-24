@@ -81,7 +81,7 @@ class TD3(object):
             info["q_target"] = rewards + self.gamma * (1 - dones) * target_q_values
 
         info["q_values_one"], info["q_values_two"] = self.critic_net(states, actions)
-        info["q_values_min"] = torch.minimum(info["q_values_"], info["q_values_two"])
+        info["q_values_min"] = torch.minimum(info["q_values_one"], info["q_values_two"])
 
         info["critic_loss_1"] = F.mse_loss(info["q_values_one"], info["q_target"])
         info["critic_loss_2"] = F.mse_loss(info["q_values_two"], info["q_target"])
