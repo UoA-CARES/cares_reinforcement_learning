@@ -1,6 +1,7 @@
 from cares_reinforcement_learning.memory import *
 from cares_reinforcement_learning.util import helpers as hlp
 
+import time
 import gym
 import logging
 import random
@@ -39,6 +40,8 @@ def evaluate_ppo_network(env, agent, args):
 
 
 def ppo_train(env, agent, args):
+    start_time = time.time()
+
     seed = args["seed"]
     max_steps_training = args["max_steps_training"]
     max_steps_per_batch = args["max_steps_per_batch"]
@@ -94,6 +97,9 @@ def ppo_train(env, agent, args):
             episode_timesteps = 0
             episode_num += 1
 
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+
     hlp.plot_reward_curve(historical_reward)
 
-    evaluate_ppo_network(env, agent, args)

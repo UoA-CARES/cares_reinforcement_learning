@@ -1,6 +1,6 @@
 from __future__ import annotations
-from collections import deque
 from cares_reinforcement_learning.memory import MemoryBuffer
+from collections import deque
 import numpy as np
 from collections.abc import Callable
 from cares_reinforcement_learning.memory.per_augments import td_error
