@@ -79,6 +79,7 @@ class MemoryBuffer:
             A dictionary of batched experiences. Keys are the names of the buffers,
             and values are the lists of experiences.
         """
+        batch_size = batch_size if len(self) > batch_size else len(self)
         indices = self._sample_indices(batch_size)
         sampled_experiences = {'indices': indices}
         for key in self.buffers:
@@ -137,7 +138,10 @@ class MemoryBuffer:
             A dictionary of all experiences. Keys are the names of the buffers,
             and values are the lists of experiences.
         """
-        experiences = self.sample(len(self))
+        experiences = {'indices': range(len(self))}
+        for key in self.buffers:
+            experiences[key] = [self.buffers[key][i] for i in experiences['indices']]
+
         self.clear()
         return experiences
 
