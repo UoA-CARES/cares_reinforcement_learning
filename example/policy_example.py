@@ -5,10 +5,11 @@ import time
 import gym
 import logging
 
-
 def evaluate_policy_network(env, agent, args):
     evaluation_seed = args["evaluation_seed"]
     max_steps_evaluation = args["max_steps_evaluation"]
+    if max_steps_evaluation == 0:
+        return
 
     min_action_value = env.action_space.low[0]
     max_action_value = env.action_space.high[0]
@@ -50,7 +51,14 @@ def policy_based_train(env, agent, memory, args):
     min_action_value = env.action_space.low[0]
     max_action_value = env.action_space.high[0]
 
-    memory = PrioritizedMemoryBuffer() if args["memory"] == "PER" else MemoryBuffer()
+    if args["memory"] == "PER":
+        memory = PrioritizedMemoryBuffer() 
+    elif args["memory"] == "simple":
+        memory = MemoryBuffer()
+    else:
+        memory = args["memory"]
+        logging.error(f"Unkown memory type {memory}")
+        exit(1)
 
     episode_timesteps = 0
     episode_reward = 0

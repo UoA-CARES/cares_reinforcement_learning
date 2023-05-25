@@ -1,9 +1,9 @@
 from __future__ import annotations
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory import *
+from cares_reinforcement_learning.memory.augments import *
 from collections import deque
 import numpy as np
 from collections.abc import Callable
-from cares_reinforcement_learning.memory.per_augments import td_error
 
 
 class PrioritizedMemoryBuffer(MemoryBuffer):
@@ -30,7 +30,7 @@ class PrioritizedMemoryBuffer(MemoryBuffer):
     """
 
     def __init__(self, max_capacity: int | None = int(1e6),
-                 eps=1e-6, alpha=0.6, augment=td_error):
+                 eps=1e-6, alpha=0.6, augment=std):
         """
         The constructor for PrioritizedMemoryBuffer class.
 

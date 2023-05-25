@@ -4,6 +4,7 @@ Description:
             We may move this later for each repo/env or keep this in this repo
 """
 
+import time
 import argparse
 
 from cares_reinforcement_learning.util import NetworkFactory
@@ -60,8 +61,9 @@ def parse_args():
 
     parser.add_argument('--max_steps_per_batch', type=float, default=5000)
 
-    return vars(parser.parse_args())  # converts into a dictionary
+    parser.add_argument('--display', type=str, default=True)
 
+    return vars(parser.parse_args())  # converts into a dictionary
 
 def main():
     args = parse_args()
@@ -73,18 +75,22 @@ def main():
     logging.info(f"Device: {args['device']}")
 
     args["observation_size"] = env.observation_space.shape[0]
+    logging.info(f"Observation Size: {args['observation_size']}")
+
     if type(env.action_space) == spaces.Box:
         args["action_num"] = env.action_space.shape[0]
     elif type(env.action_space) == spaces.Discrete:
         args["action_num"] = env.action_space.n
     else:
         raise ValueError(f"Unhandled action space type: {type(env.action_space)}")
+    logging.info(f"Action Num: {args['action_num']}")
 
     logging.info(f"Seed: {args['seed']}")
     set_seed(env, args["seed"])
 
     # Create the network we are using
     factory = NetworkFactory()
+    logging.info(f"Algorithm: {args['algorithm']}")
     agent = factory.create_network(args["algorithm"], args)
     logging.info(f"Algorithm: {args['algorithm']}")
 
