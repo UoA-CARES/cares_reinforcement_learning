@@ -65,7 +65,7 @@ class DoubleDQN:
         return info
 
     def save_models(self,filename, filepath='models'):
-        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        path = f"{filepath}/models" if filepath != 'models' else filepath
         dir_exists = os.path.exists(path)
 
         if not dir_exists:
@@ -75,7 +75,7 @@ class DoubleDQN:
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        path = f"{filepath}/models" if filepath != 'models' else filepath
         
         self.network.load_state_dict(torch.load(f'{path}/{filename}_network.pht'))
         logging.info("models has been loaded...")
