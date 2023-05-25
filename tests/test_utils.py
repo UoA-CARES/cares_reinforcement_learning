@@ -2,6 +2,7 @@ import pytest
 from cares_reinforcement_learning.algorithm.policy import *
 from cares_reinforcement_learning.algorithm.value import *
 from cares_reinforcement_learning.util.NetworkFactory import *
+from cares_reinforcement_learning.util.helpers import *
 
 
 def test_create_agents():
@@ -74,3 +75,19 @@ def test_create_network():
 
     with pytest.raises(ValueError):
         factory.create_network("Unknown", args)
+
+
+def test_denormalize():
+    action = 0.5
+    max_action_value = 5
+    min_action_value = -5
+    result = denormalize(action, max_action_value, min_action_value)
+    assert result == 2.5, "Result does not match expected denormalized value"
+
+
+def test_normalize():
+    action = 2.5
+    max_action_value = 5
+    min_action_value = -5
+    result = normalize(action, max_action_value, min_action_value)
+    assert result == 0.5, "Result does not match expected normalized value"
