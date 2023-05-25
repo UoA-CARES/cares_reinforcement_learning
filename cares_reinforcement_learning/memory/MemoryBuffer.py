@@ -1,6 +1,8 @@
 from __future__ import annotations
 from collections import deque
+from cares_reinforcement_learning.memory.augments import *
 import numpy as np
+
 
 class MemoryBuffer:
     """
@@ -19,7 +21,8 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int = int(1e6), default_dtype=np.float32):
+    def __init__(self, max_capacity: int = int(1e6), default_dtype=np.float32,
+                 eps=1e-6, alpha=0.6, augment=std):
         """
         The constructor for MemoryBuffer class.
 
@@ -35,6 +38,10 @@ class MemoryBuffer:
         self.default_dtype = default_dtype
         self.full = False
         self.buffers = {}
+        self.eps = eps
+        self.alpha = alpha
+        self.augment = augment
+        self.buffers['priorities'] = deque(maxlen=max_capacity)
 
     def add(self, **experience):
         """
@@ -60,6 +67,9 @@ class MemoryBuffer:
                 self.buffers[key] = [None] * self.max_capacity
 
             self.buffers[key][self.head] = value
+
+        max_priority = max(self.buffers['priorities']) if self.buffers['priorities'] else 1.0
+        self.buffers['priorities'].append(max_priority)
 
         self.head = (self.head + 1) % self.max_capacity
         self.full = self.full or self.head == 0
@@ -100,7 +110,10 @@ class MemoryBuffer:
         list
             A list of indices.
         """
-        return np.random.choice(len(self), size=batch_size, replace=False)
+        priorities = np.array(self.buffers['priorities'], dtype=np.float32).flatten()
+        probabilities = priorities ** self.alpha
+        probabilities /= probabilities.sum()
+        return np.random.choice(len(self), size=batch_size, p=probabilities, replace=False)
 
     def _sample_experience(self, key, indices):
         """
@@ -119,6 +132,23 @@ class MemoryBuffer:
             A list of experiences from a specific buffer.
         """
         return [self.buffers[key][i] for i in indices]
+
+    def update_priorities(self, indices, info, offset=0.1):
+        """
+        Updates the priorities of experiences at given indices.
+
+        Parameters
+        ----------
+        indices : list
+            The indices of experiences to update.
+        info : dict
+            Info dict returned from model training.
+        offset : float, optional
+            A small constant added to the absolute errors for updating priorities (default is 0.1).
+        """
+        errors = self.augment(info)
+        for idx, error in zip(indices, errors):
+            self.buffers['priorities'][idx] = abs(error) + self.eps + offset
 
     def clear(self):
         """
