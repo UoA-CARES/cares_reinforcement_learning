@@ -119,7 +119,7 @@ class PPO:
         return td_errors
 
     def save_models(self, filename, filepath='models'):
-        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        path = f"{filepath}/models" if filepath != 'models' else filepath
         dir_exists = os.path.exists(path)
 
         if not dir_exists:
@@ -130,7 +130,7 @@ class PPO:
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath is not 'models' else filepath
+        path = f"{filepath}/models" if filepath != 'models' else filepath
 
         self.actor_net.load_state_dict(torch.load(f'{path}/{filename}_actor.pht'))
         self.critic_net.load_state_dict(torch.load(f'{path}/{filename}_critic.pht'))

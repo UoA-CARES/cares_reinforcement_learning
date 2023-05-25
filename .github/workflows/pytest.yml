@@ -1,0 +1,30 @@
+name: CARES Reinforcement Learning Testing
+run-name: ${{ github.actor }} is testing changes
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - uses: actions/setup-python@v3
+        with:
+          python-version: '3.10'
+          cache: 'pip'
+
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install --editable .
+      
+      - name: Run tests
+        run: pytest tests
