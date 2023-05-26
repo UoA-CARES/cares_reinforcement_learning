@@ -1,6 +1,7 @@
 import pytest
 import numpy as np
 from cares_reinforcement_learning.memory import MemoryBuffer
+from collections import deque
 
 
 def test_add_experience():
@@ -86,3 +87,32 @@ def test_add_when_full():
     buffer.add(state=[7, 8, 9])
     assert len(buffer) == 2
     assert buffer.buffers['state'][0] == [7, 8, 9]
+
+
+class TestMemoryBuffer:
+    def setup_method(self):
+        self.buffer = MemoryBuffer(max_capacity=100, eps=0.01, alpha=0.6)
+        self.buffer.add(test_data1=1, test_data2=2, test_data3=3)
+        self.buffer.add(test_data1=1, test_data2=2, test_data3=3)
+        self.buffer.add(test_data1=1, test_data2=2, test_data3=3)
+
+    def test_update_priorities(self):
+        indices = [0, 1, 2]
+        info = {"test_info": 0.5}
+
+        def mock_augment(indices, info, params):
+            return np.array([1.0, 2.0, 3.0])
+
+        self.buffer.augment = mock_augment
+        self.buffer.update_priorities(indices, info)
+
+    def test_update_priorities_with_nonexistent_index(self):
+        indices = [0, 1, 10]  # 10 is nonexistent
+        info = {"test_info": 0.5}
+
+        def mock_augment(indices, info, params):
+            return np.array([1.0, 2.0, 3.0])
+
+        self.buffer.augment = mock_augment
+        with pytest.raises(IndexError):
+            self.buffer.update_priorities(indices, info)
