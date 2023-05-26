@@ -94,8 +94,7 @@ def value_based_train(env, agent, memory, args):
                     experience['next_state'],
                     experience['done']
                 ))
-                if args["memory"] == "PER":
-                    memory.update_priorities(experience['indices'], td)
+                memory.update_priorities(experience['indices'], td)
 
         if done or truncated:
             logging.info(

@@ -1,4 +1,5 @@
-from cares_reinforcement_learning.memory import *
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.augments import *
 from cares_reinforcement_learning.util import helpers as hlp
 
 import time
@@ -51,15 +52,6 @@ def policy_based_train(env, agent, memory, args):
     min_action_value = env.action_space.low[0]
     max_action_value = env.action_space.high[0]
 
-    if args["memory"] == "PER":
-        memory = PrioritizedMemoryBuffer() 
-    elif args["memory"] == "simple":
-        memory = MemoryBuffer()
-    else:
-        memory = args["memory"]
-        logging.error(f"Unkown memory type {memory}")
-        exit(1)
-
     episode_timesteps = 0
     episode_reward = 0
     episode_num = 0
@@ -90,15 +82,14 @@ def policy_based_train(env, agent, memory, args):
         if total_step_counter >= max_steps_exploration:
             for _ in range(G):
                 experience = memory.sample(batch_size)
-                td = agent.train_policy((
+                info = agent.train_policy((
                     experience['state'],
                     experience['action'],
                     experience['reward'],
                     experience['next_state'],
                     experience['done']
                 ))
-                if args["memory"] == "PER":
-                    memory.update_priorities(experience['indices'], td)
+                memory.update_priorities(experience['indices'], info)
 
         if done or truncated:
             logging.info(

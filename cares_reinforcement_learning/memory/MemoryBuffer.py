@@ -21,8 +21,8 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int = int(1e6), default_dtype=np.float32,
-                 eps=1e-6, alpha=0.6, augment=std):
+    def __init__(self, max_capacity: int = int(1e6),
+                 eps=1e-6, alpha=0.6, augment=std, **params):
         """
         The constructor for MemoryBuffer class.
 
@@ -35,13 +35,14 @@ class MemoryBuffer:
         """
         self.max_capacity = max_capacity
         self.head = 0
-        self.default_dtype = default_dtype
         self.full = False
-        self.buffers = {}
-        self.eps = eps
-        self.alpha = alpha
+
+        self.buffers = {'priorities': deque(maxlen=max_capacity)}
+
         self.augment = augment
-        self.buffers['priorities'] = deque(maxlen=max_capacity)
+        self.params = {"eps": eps, "alpha": alpha}
+        for key, value in params.items():
+            self.params[key] = value
 
     def add(self, **experience):
         """
@@ -68,6 +69,8 @@ class MemoryBuffer:
 
             self.buffers[key][self.head] = value
 
+        if self.buffers.get("priorities") is None:
+            self.buffers["priorities"] = deque(maxlen=self.max_capacity)
         max_priority = max(self.buffers['priorities']) if self.buffers['priorities'] else 1.0
         self.buffers['priorities'].append(max_priority)
 
@@ -111,7 +114,7 @@ class MemoryBuffer:
             A list of indices.
         """
         priorities = np.array(self.buffers['priorities'], dtype=np.float32).flatten()
-        probabilities = priorities ** self.alpha
+        probabilities = priorities ** self.params["alpha"]
         probabilities /= probabilities.sum()
         return np.random.choice(len(self), size=batch_size, p=probabilities, replace=False)
 
@@ -133,7 +136,7 @@ class MemoryBuffer:
         """
         return [self.buffers[key][i] for i in indices]
 
-    def update_priorities(self, indices, info, offset=0.1):
+    def update_priorities(self, indices, info):
         """
         Updates the priorities of experiences at given indices.
 
@@ -146,9 +149,9 @@ class MemoryBuffer:
         offset : float, optional
             A small constant added to the absolute errors for updating priorities (default is 0.1).
         """
-        errors = self.augment(info)
+        errors = self.augment(indices, info, self.params)
         for idx, error in zip(indices, errors):
-            self.buffers['priorities'][idx] = abs(error) + self.eps + offset
+            self.buffers['priorities'][idx] = abs(error) + self.params["eps"]
 
     def clear(self):
         """
