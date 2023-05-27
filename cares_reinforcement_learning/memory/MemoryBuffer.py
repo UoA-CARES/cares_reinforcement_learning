@@ -149,9 +149,9 @@ class MemoryBuffer:
         offset : float, optional
             A small constant added to the absolute errors for updating priorities (default is 0.1).
         """
-        errors = self.augment(indices, info, self.params)
-        for idx, error in zip(indices, errors):
-            self.buffers['priorities'][idx] = abs(error) + self.params["eps"]
+        new_prios = self.augment(indices, info, self.params)
+        for idx, new_prio in zip(indices, new_prios):
+            self.buffers['priorities'][idx] = abs(new_prio) + self.params["eps"]
 
     def clear(self):
         """

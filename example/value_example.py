@@ -87,14 +87,14 @@ def value_based_train(env, agent, memory, args):
         if len(memory) > batch_size:
             for _ in range(G):
                 experience = memory.sample(batch_size)
-                td = agent.train_policy((
+                info = agent.train_policy((
                     experience['state'],
                     experience['action'],
                     experience['reward'],
                     experience['next_state'],
                     experience['done']
                 ))
-                memory.update_priorities(experience['indices'], td)
+                memory.update_priorities(experience['indices'], info)
 
         if done or truncated:
             logging.info(
