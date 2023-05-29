@@ -8,7 +8,8 @@ import time
 import argparse
 
 from cares_reinforcement_learning.util import NetworkFactory
-from cares_reinforcement_learning.memory import *
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.augments import *
 
 import example.policy_example as pbe
 import example.value_example as vbe
@@ -98,7 +99,7 @@ def main():
     if args["memory"] == "MemoryBuffer":
         memory = MemoryBuffer()
     elif args["memory"] == "PER":
-        memory = PrioritizedMemoryBuffer() 
+        memory = MemoryBuffer(augment=td_error)
     else:
         error_message = f"Unkown memory type: {args['memory']}"
         logging.error(error_message)
