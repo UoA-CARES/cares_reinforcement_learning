@@ -62,6 +62,8 @@ class DoubleDQN:
         for target_param, param in zip(self.target_network.parameters(), self.network.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
+        info['network_loss'] = loss
+        
         return info
 
     def save_models(self,filename, filepath='models'):

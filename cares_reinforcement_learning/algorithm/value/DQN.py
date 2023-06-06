@@ -50,6 +50,8 @@ class DQN:
         loss.backward()
         self.network.optimiser.step()
 
+        info['network_loss'] = loss
+        
         return info
 
     def save_models(self, filename, filepath='models'):
