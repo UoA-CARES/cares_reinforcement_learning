@@ -119,6 +119,11 @@ class SAC:
             for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
+        info['actor_loss'] = actor_loss
+        info['critic_loss_1'] = critic_loss_1
+        info['critic_loss_2'] = critic_loss_2
+        info['critic_loss'] = critic_loss_total
+        
         return info
 
     def save_models(self, filename, filepath='models'):
