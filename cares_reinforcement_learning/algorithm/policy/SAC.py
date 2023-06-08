@@ -84,14 +84,13 @@ class SAC:
             target_q_values_one, target_q_values_two = self.target_critic_net(next_states, next_actions)
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two) - self.alpha * next_log_pi
 
-            info["q_target"] = rewards + self.gamma * (1 - dones) * target_q_values
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        info["q_values_one"], info["q_values_two"] = self.critic_net(states, actions)
-        info["q_values_min"] = torch.minimum(info["q_values_"], info["q_values_two"])
+        q_values_one, q_values_two = self.critic_net(states, actions)
 
-        critic_loss_1 = F.mse_loss(info["q_values_one"], info["q_target"])
-        critic_loss_2 = F.mse_loss(info["q_values_two"], info["q_target"])
-        critic_loss_total = critic_loss_1 + critic_loss_2
+        critic_loss_one = F.mse_loss(q_values_one, q_target)
+        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
         self.critic_net.optimiser.zero_grad()
@@ -119,10 +118,14 @@ class SAC:
             for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
+        info['q_target'] = q_target
+        info['q_values_one'] = q_values_one
+        info['q_values_two'] = q_values_two
+        info['q_values_min'] = torch.minimum(q_values_one, q_values_two)
+        info['critic_loss_total'] = critic_loss_total
+        info['critic_loss_one'] = critic_loss_one
+        info['critic_loss_two'] = critic_loss_two
         info['actor_loss'] = actor_loss
-        info['critic_loss_1'] = critic_loss_1
-        info['critic_loss_2'] = critic_loss_2
-        info['critic_loss'] = critic_loss_total
         
         return info
 

@@ -82,9 +82,9 @@ class TD3(object):
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        critic_loss_1 = F.mse_loss(q_values_one, q_target)
-        critic_loss_2 = F.mse_loss(q_values_two, q_target)
-        critic_loss_total = critic_loss_1 + critic_loss_2
+        critic_loss_one = F.mse_loss(q_values_one, q_target)
+        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        critic_loss_total = critic_loss_one + critic_loss_two
         
         # Update the Critic
         self.critic_net.optimiser.zero_grad()
@@ -115,8 +115,8 @@ class TD3(object):
         info['q_values_two'] = q_values_two
         info['q_values_min'] = torch.minimum(q_values_one, q_values_two)
         info['critic_loss_total'] = critic_loss_total
-        info['critic_loss_one'] = critic_loss_1
-        info['critic_loss_two'] = critic_loss_2
+        info['critic_loss_one'] = critic_loss_one
+        info['critic_loss_two'] = critic_loss_two
         info['actor_loss'] = actor_loss
         
         return info
