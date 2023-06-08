@@ -83,6 +83,9 @@ class DDPG:
         for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
+        info['actor_loss'] = actor_loss
+        info['critic_loss'] = critic_loss
+        
         return info
 
     def save_models(self, filename, filepath='models'):

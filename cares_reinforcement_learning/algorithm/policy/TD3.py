@@ -86,7 +86,7 @@ class TD3(object):
         info["critic_loss_1"] = F.mse_loss(info["q_values_one"], info["q_target"])
         info["critic_loss_2"] = F.mse_loss(info["q_values_two"], info["q_target"])
         critic_loss_total = info["critic_loss_1"] + info["critic_loss_2"]
-
+        info['critic_loss'] = critic_loss_total
         # Update the Critic
         self.critic_net.optimiser.zero_grad()
         critic_loss_total.backward()

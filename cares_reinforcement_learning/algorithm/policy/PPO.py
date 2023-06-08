@@ -70,6 +70,8 @@ class PPO:
         return batch_rtgs
 
     def train_policy(self, experience):
+        info = {}
+        
         states, actions, rewards, next_states, dones, log_probs = experience
 
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -116,7 +118,11 @@ class PPO:
             critic_loss.backward()
             self.critic_net.optimiser.step()
 
-        return td_errors
+        info['td_error'] = td_errors
+        info['actor_loss'] = actor_loss
+        info['critic_loss'] = critic_loss
+        
+        return info 
 
     def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath != 'models' else filepath
