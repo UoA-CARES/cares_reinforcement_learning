@@ -57,14 +57,12 @@ class DDPG:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_q_values = self.target_critic_net(next_states, next_actions)
-            info["q_target"] = rewards + self.gamma * (1 - dones) * target_q_values
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        info["q_values"] = self.critic_net(states, actions)
-        info["q_values_min"] = info["q_values"]
+        q_values = self.critic_net(states, actions)
 
         # Update the Critic Network
-        critic_loss = F.mse_loss(info["q_values"], info["q_target"])
-
+        critic_loss = F.mse_loss(q_values, q_target)
         self.critic_net.optimiser.zero_grad()
         critic_loss.backward()
         self.critic_net.optimiser.step()
@@ -85,7 +83,9 @@ class DDPG:
 
         info['actor_loss'] = actor_loss
         info['critic_loss'] = critic_loss
-        
+        info['q_values_min'] = q_values
+        info['q_values'] = q_values
+         
         return info
 
     def save_models(self, filename, filepath='models'):
