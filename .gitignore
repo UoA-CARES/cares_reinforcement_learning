@@ -12,3 +12,4 @@ build/
 cares_reinforcement_learning.egg-info/
 dist/
 .idea/
+.DS_Store
