@@ -39,18 +39,19 @@ class DQN:
         q_values = self.network(states)
         next_q_values = self.network(next_states)
 
-        info['q_target'] = q_values[torch.arange(q_values.size(0)), actions]
+        best_q_values = q_values[torch.arange(q_values.size(0)), actions]
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
-        info['q_values_min'] = rewards + self.gamma * (1 - dones) * best_next_q_values
+        q_target = rewards + self.gamma * (1 - dones) * best_next_q_values
 
         # Update the Network
-        loss = F.mse_loss(info['q_target'], info['q_values_min'])
+        loss = F.mse_loss(best_q_values, q_target)
         self.network.optimiser.zero_grad()
         loss.backward()
         self.network.optimiser.step()
 
         info['network_loss'] = loss
+        info['q_values_min'] = best_q_values
         
         return info
 
