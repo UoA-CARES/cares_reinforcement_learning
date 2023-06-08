@@ -50,8 +50,9 @@ class DQN:
         loss.backward()
         self.network.optimiser.step()
 
-        info['network_loss'] = loss
+        info['q_target'] = q_target
         info['q_values_min'] = best_q_values
+        info['network_loss'] = loss
         
         return info
 
