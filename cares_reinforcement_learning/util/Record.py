@@ -4,7 +4,8 @@ import os
 import logging
 import torch
 import yaml
-from cares_reinforcement_learning.util.Plot import Plot
+from cares_reinforcement_learning.util.Plot import plot_average
+import math
 
 # Python has no max int
 MAX_INT = 9999999
@@ -45,7 +46,7 @@ class Record:
         if self.checkpoint_freq and self.log_count % self.checkpoint_freq == 0:
             self.save(f'_checkpoint')
     
-        self.data = pd.concat([self.data, pd.DataFrame([logs])])
+        self.data = pd.concat([self.data, pd.DataFrame([logs])], ignore_index=True)
         
         str = [f'{key}: {val}' for key, val in logs.items()]
         str = ' | '.join(str)
@@ -59,7 +60,17 @@ class Record:
         
         self.data.to_csv(f'{self.dir}/data/data{sfx}.csv')
         
-        
+        for name, data in self.data.items():
+            # print(data)
+            plot_average(
+                x=range(len(data.dropna())), 
+                y=data.dropna(), 
+                x_label='x', 
+                y_label=name, 
+                title=f'Average {name}', 
+                window_size=math.floor(len(data)/20), 
+                file_path=f'{self.dir}/figures/{name}_avg{sfx}.png'
+                )
         
         if self.networks:
             for name, network in self.networks.items():
@@ -76,4 +87,7 @@ class Record:
             os.mkdir(f'{self.dir}/data')
             
         if not os.path.exists(f'{self.dir}/models'):
-            os.mkdir(f'{self.dir}/models') 
+            os.mkdir(f'{self.dir}/models')
+            
+        if not os.path.exists(f'{self.dir}/figures'):
+            os.mkdir(f'{self.dir}/figures') 

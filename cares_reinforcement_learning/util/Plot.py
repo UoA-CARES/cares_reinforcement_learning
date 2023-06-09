@@ -7,6 +7,28 @@ import uuid
 
 # TODO make this more easy and simple, plot and store checkpoints
 
+def plot_average(x, y, x_label='x_value',y_label='y_value', title='Title', window_size=10, file_path='figures/figure.png', display=False):
+    plt.ioff()
+    plt.cla()
+    plt.clf()
+    
+    data_dict = {x_label: x, y_label: y}
+    df = pd.DataFrame(data=data_dict)
+
+    df["Average"] = df[y_label].rolling(window_size).mean()
+    df["Standard Deviation"] = df[y_label].rolling(window_size).std()
+
+    ax = sns.lineplot(data=df, x=x_label, y=y_label, label='Average')
+    ax.set(xlabel=x_label, ylabel=y_label)
+    plt.fill_between(df[x_label], df["Average"] - df["Standard Deviation"], df["Average"] +
+                    df["Standard Deviation"], alpha=0.4)
+
+    sns.move_legend(ax, "lower right")
+
+    plt.title(title) 
+    
+    plt.savefig(file_path)
+    
 class Plot:
     def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=None, y_data=None, plot_freq=1, checkpoint_freq=1):
         if x_data is None:
@@ -68,16 +90,7 @@ class Plot:
 
         plt.savefig(f"figures/{file_name}")
 
-    def save_csv(self, file_name=str(uuid.uuid4().hex)):
-        dir_exists = os.path.exists("data")
 
-        if not dir_exists:
-            os.makedirs("data")
-
-        data_dict = {self.x_label: self.x_data, self.y_label: self.y_data}
-        df = pd.DataFrame(data=data_dict)
-
-        df.to_csv(f"data/{file_name}", index=False)
 
     def plot_average(self, window_size=10, file_name=str(uuid.uuid4().hex)):
 

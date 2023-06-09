@@ -1,5 +1,6 @@
 from cares_reinforcement_learning.util import Record 
 from cares_reinforcement_learning. networks.TD3 import Actor
+import numpy as np
 
 actor = Actor(3, 2, 0.02)
 
@@ -10,10 +11,10 @@ networks = {'actor': actor}
 record = Record(networks=networks, checkpoint_freq=5, config={'hello': 'person'})
 
 # Simulating the Steps
-for _ in range(10):
+for _ in range(100000):
     record.log(
         S=1000,
-        R=100.0,
+        R=np.random.randint(20),
         AL=-23
     )
 
