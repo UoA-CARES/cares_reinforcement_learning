@@ -37,7 +37,7 @@ class Logger:
             self.initial_log_keys = self.initial_log_keys.union(logs.keys())
         
         if self.checkpoint_freq and self.log_count % self.checkpoint_freq == 0:
-            self.save(f'_{len(self.data)}')
+            self.save(f'_checkpoint')
     
         self.data = pd.concat([self.data, pd.DataFrame([logs])])
         
