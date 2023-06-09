@@ -1,3 +1,3 @@
 from .NetworkFactory import NetworkFactory
-from .Logger import Logger
+from .Record import Record
 

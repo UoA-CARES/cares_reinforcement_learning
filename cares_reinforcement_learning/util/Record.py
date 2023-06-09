@@ -4,11 +4,12 @@ import os
 import logging
 import torch
 import yaml
+from cares_reinforcement_learning.util.Plot import Plot
 
 # Python has no max int
 MAX_INT = 9999999
 
-class Logger:
+class Record:
     
     def __init__(self, glob_log_dir=None, log_dir=None, networks={}, checkpoint_freq=None, config=None) -> None:
         
@@ -57,6 +58,8 @@ class Logger:
             logging.warning('Trying to save an Empty Dataframe')
         
         self.data.to_csv(f'{self.dir}/data/data{sfx}.csv')
+        
+        
         
         if self.networks:
             for name, network in self.networks.items():
