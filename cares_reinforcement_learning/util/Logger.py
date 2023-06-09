@@ -3,13 +3,14 @@ from datetime import datetime
 import os
 import logging
 import torch
+import yaml
 
 # Python has no max int
 MAX_INT = 9999999
 
 class Logger:
     
-    def __init__(self, glob_log_dir=None, log_dir=None, networks={}, checkpoint_freq=None) -> None:
+    def __init__(self, glob_log_dir=None, log_dir=None, networks={}, checkpoint_freq=None, config=None) -> None:
         
         self.glob_log_dir = glob_log_dir or 'rl_logs'
         self.log_dir = log_dir or datetime.now().strftime("%y_%m_%d_%H:%M:%S")
@@ -24,6 +25,10 @@ class Logger:
         
         self.initial_log_keys = set()
         self.__initialise_directories()
+        
+        if config:
+            with open(f'{self.dir}/config.yml', 'w') as outfile:
+                yaml.dump(config, outfile, default_flow_style=False)
     
     def log(self, **logs):
         self.log_count += 1
