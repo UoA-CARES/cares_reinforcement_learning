@@ -12,6 +12,11 @@ def plot_average(x, y, x_label='x_value',y_label='y_value', title='Title', windo
     plt.cla()
     plt.clf()
     
+    figure = plt.figure()
+    figure.set_figwidth(8)
+     
+    sns.set_theme(style="darkgrid")
+    
     data_dict = {x_label: x, y_label: y}
     df = pd.DataFrame(data=data_dict)
 

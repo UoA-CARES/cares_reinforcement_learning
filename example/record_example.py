@@ -8,13 +8,13 @@ actor = Actor(3, 2, 0.02)
 networks = {'actor': actor}
 
 # Create an instance of Logger: This will create the necessary directories for logging
-record = Record(networks=networks, checkpoint_freq=5, config={'hello': 'person'})
+record = Record(networks=networks, config={'hello': 'person'})
 
 # Simulating the Steps
-for _ in range(100000):
+for _ in range(200):
     record.log(
         S=1000,
-        R=np.random.randint(20),
+        R=np.random.randint(100),
         AL=-23
     )
 
