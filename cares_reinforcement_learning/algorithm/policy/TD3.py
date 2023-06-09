@@ -108,6 +108,8 @@ class TD3(object):
 
             for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+            
+            info['actor_loss'] = actor_loss
 
         # Building Dictionary
         info['q_target'] = q_target
@@ -117,7 +119,6 @@ class TD3(object):
         info['critic_loss_total'] = critic_loss_total
         info['critic_loss_one'] = critic_loss_one
         info['critic_loss_two'] = critic_loss_two
-        info['actor_loss'] = actor_loss
         
         return info
 
