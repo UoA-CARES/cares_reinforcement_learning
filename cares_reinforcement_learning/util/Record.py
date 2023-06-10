@@ -48,11 +48,11 @@ class Record:
     
         self.data = pd.concat([self.data, pd.DataFrame([logs])], ignore_index=True)
         
-        str = [f'{key}: {val}' for key, val in logs.items()]
-        str = ' | '.join(str)
-        str = '| ' + str + ' |'
+        string = [f'{key}: {str(val):10s}' for key, val in logs.items()]
+        string = ' | '.join(string)
+        string = '| ' + string + ' |'
 
-        print(str)
+        print(string)
         
     def save(self, sfx='_final'):
         if self.data.empty:
@@ -61,7 +61,6 @@ class Record:
         self.data.to_csv(f'{self.dir}/data/data{sfx}.csv')
         
         for name, data in self.data.items():
-            # print(data)
             plot_average(
                 x=range(len(data.dropna())), 
                 y=data.dropna(), 
