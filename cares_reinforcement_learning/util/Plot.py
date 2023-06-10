@@ -20,13 +20,13 @@ def plot_average(x, y, x_label='x_value',y_label='y_value', title='Title', windo
     data_dict = {x_label: x, y_label: y}
     df = pd.DataFrame(data=data_dict)
 
-    df["Average"] = df[y_label].rolling(window_size).mean()
-    df["Standard Deviation"] = df[y_label].rolling(window_size).std()
-
-    ax = sns.lineplot(data=df, x=x_label, y=y_label, label='Average')
+    df["avg"] = df[y_label].rolling(window_size, min_periods=1).mean()
+    df["std_dev"] = df[y_label].rolling(window_size, min_periods=1).std()
+    
+    ax = sns.lineplot(data=df, x=x_label, y="avg", label='Average')
     ax.set(xlabel=x_label, ylabel=y_label)
-    plt.fill_between(df[x_label], df["Average"] - df["Standard Deviation"], df["Average"] +
-                    df["Standard Deviation"], alpha=0.4)
+    plt.fill_between(df[x_label], df["avg"] - df["std_dev"], df["avg"] +
+                    df["std_dev"], alpha=0.4)
 
     sns.move_legend(ax, "lower right")
 
@@ -109,7 +109,7 @@ class Plot:
 
         ax = sns.lineplot(data=df, x="Episode", y="Average Reward", label="Average Reward")
         ax.set(xlabel="Episode", ylabel="Reward")
-        plt.fill_between(df["Episode"], df["Average Reward"] - df["Standard Deviation"], df["Average Reward"] +
+        plt.fill_between(df["Reward"], df["Average Reward"] - df["Standard Deviation"], df["Average Reward"] +
                         df["Standard Deviation"], alpha=0.4)
 
         sns.move_legend(ax, "lower right")
