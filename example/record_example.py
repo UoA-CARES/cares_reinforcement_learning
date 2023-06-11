@@ -11,11 +11,11 @@ networks = {'actor': actor}
 record = Record(networks=networks, config={'hello': 'person'})
 
 # Simulating the Steps
-for _ in range(200):
+for i in range(200):
     record.log(
-        S=1000,
+        S=i,
         R=np.random.randint(100),
-        AL=-23
+        AL=np.random.randint(-20, 0),
     )
 
 # Simulating end of Episode Logging
