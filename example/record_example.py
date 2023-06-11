@@ -8,7 +8,8 @@ actor = Actor(3, 2, 0.02)
 networks = {'actor': actor}
 
 # Create an instance of Logger: This will create the necessary directories for logging
-record = Record(networks=networks, config={'hello': 'person'})
+# Not setting checkpoint_freq means there will be no checkpoint
+record = Record(networks=networks, checkpoint_freq=112, config={'hello': 'person'})
 
 # Simulating the Steps
 for i in range(200):
