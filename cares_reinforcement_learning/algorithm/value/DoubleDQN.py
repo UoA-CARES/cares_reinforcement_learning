@@ -49,12 +49,12 @@ class DoubleDQN:
         next_q_values = self.network(next_states)
         next_q_state_values = self.target_network(next_states)
 
-        info["q_values_min"] = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+        q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
         next_q_value = next_q_state_values.gather(1, torch.max(next_q_values, 1)[1].unsqueeze(1)).squeeze(1)
 
-        info["q_target"] = rewards + self.gamma * (1 - dones) * next_q_value
+        q_target = rewards + self.gamma * (1 - dones) * next_q_value
 
-        loss = F.mse_loss(info["q_values_min"], info["q_target"])
+        loss = F.mse_loss(q_value, q_target)
         self.network.optimiser.zero_grad()
         loss.backward()
         self.network.optimiser.step()
@@ -62,6 +62,8 @@ class DoubleDQN:
         for target_param, param in zip(self.target_network.parameters(), self.network.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
+        info['q_target'] = q_target
+        info['q_values_min'] = q_value
         info['network_loss'] = loss
         
         return info
