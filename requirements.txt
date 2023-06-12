@@ -26,6 +26,7 @@ torchaudio==0.13.1
 torchvision==0.14.1
 typing_extensions==4.4.0
 urllib3==1.26.13
+PyYAML==6.0
 # Optional Dependencies if you want to leverage the GPU
 # nvidia-cublas-cu11==11.10.3.66
 # nvidia-cuda-nvrtc-cu11==11.7.99
