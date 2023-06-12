@@ -1,5 +1,5 @@
 from cares_reinforcement_learning.memory import *
-from cares_reinforcement_learning.util import helpers as hlp
+from cares_reinforcement_learning.util import helpers as hlp, Record, Plot as plt
 
 import time
 import gym
@@ -7,7 +7,7 @@ import logging
 import random
 
 
-def evaluate_value_network(env, agent, args):
+def evaluate_value_network(env, agent, record, args):
     evaluation_seed = args["evaluation_seed"]
     max_steps_evaluation = args["max_steps_evaluation"]
     if max_steps_evaluation == 0:
@@ -19,9 +19,9 @@ def evaluate_value_network(env, agent, args):
 
     env = gym.make(env.spec.id, render_mode="human")
     state, _ = env.reset(seed=evaluation_seed)
-
-    historical_reward = {"step": [], "episode_reward": []}
     exploration_rate = args["exploration_min"]
+
+    plot = plt.Plot()
 
     for total_step_counter in range(int(max_steps_evaluation)):
         episode_timesteps += 1
@@ -35,11 +35,14 @@ def evaluate_value_network(env, agent, args):
         episode_reward += reward
 
         if done or truncated:
-            logging.info(
-                f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}.")
+            record.log(
+                Eval_steps = total_step_counter + 1,
+                Eval_episode= episode_num + 1, 
+                Eval_timesteps=episode_timesteps,
+                Eval_reward= episode_reward
+            )
 
-            historical_reward["step"].append(total_step_counter)
-            historical_reward["episode_reward"].append(episode_reward)
+            plot.post(episode_reward)
 
             # Reset environment
             state, _ = env.reset()
@@ -48,7 +51,7 @@ def evaluate_value_network(env, agent, args):
             episode_num += 1
 
 
-def value_based_train(env, agent, memory, args):
+def value_based_train(env, agent, memory, record, args):
     start_time = time.time()
 
     max_steps_training = args["max_steps_training"]
@@ -64,9 +67,9 @@ def value_based_train(env, agent, memory, args):
     episode_num = 0
 
     state, _ = env.reset(seed=seed)
-
-    historical_reward = {"step": [], "episode_reward": []}
     exploration_rate = 1
+
+    plot = plt.Plot()
 
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
@@ -97,11 +100,14 @@ def value_based_train(env, agent, memory, args):
                 memory.update_priorities(experience['indices'], info)
 
         if done or truncated:
-            logging.info(
-                f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}. Exploration Rate: {exploration_rate}")
+            record.log(
+                Train_steps = total_step_counter + 1,
+                Train_episode= episode_num + 1, 
+                Train_timesteps=episode_timesteps,
+                Train_reward= episode_reward
+            )
 
-            historical_reward["step"].append(total_step_counter)
-            historical_reward["episode_reward"].append(episode_reward)
+            plot.post(episode_reward)
 
             # Reset environment
             state, _ = env.reset()
@@ -111,6 +117,4 @@ def value_based_train(env, agent, memory, args):
 
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
-
-    hlp.plot_reward_curve(historical_reward)
+    print('Training time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))

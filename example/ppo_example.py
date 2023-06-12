@@ -8,7 +8,7 @@ import logging
 import random
 
 
-def evaluate_ppo_network(env, agent, args):
+def evaluate_ppo_network(env, agent, record, args):
     evaluation_seed = args["evaluation_seed"]
     max_steps_evaluation = args["max_steps_evaluation"]
     if max_steps_evaluation == 0:
@@ -33,15 +33,19 @@ def evaluate_ppo_network(env, agent, args):
         episode_reward += reward
 
         if done or truncated:
-            logging.info(
-                f" Evaluation Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+            record.log(
+                Eval_episode= episode_num + 1, 
+                Eval_timesteps=episode_timesteps,
+                Eval_reward= episode_reward
+            )
+            
             # Reset environment
             state, _ = env.reset()
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
 
-def ppo_train(env, agent, args):
+def ppo_train(env, agent, record, args):
     start_time = time.time()
 
     seed = args["seed"]
@@ -59,9 +63,7 @@ def ppo_train(env, agent, args):
     memory = MemoryBuffer()
 
     state, _ = env.reset(seed=seed)
-    historical_reward = {"step": [], "episode_reward": []}
 
-    record = Record(networks={'agent':agent}, config={})
     plot = plt.Plot()
 
     for total_step_counter in range(int(max_steps_training)):
@@ -91,13 +93,13 @@ def ppo_train(env, agent, args):
 
         if done or truncated:
             record.log(
-                steps = total_step_counter + 1,
-                episode= episode_num + 1, 
-                epi_timesteps=episode_timesteps,
-                reward= episode_reward
+                Train_steps = total_step_counter + 1,
+                Train_episode= episode_num + 1, 
+                Train_timesteps=episode_timesteps,
+                Train_reward= episode_reward
             )
 
-            plot.post(episode_reward)
+            plot.post(episode_reward) #dynamic plotting
 
             # Reset environment
             state, _ = env.reset()
@@ -105,10 +107,6 @@ def ppo_train(env, agent, args):
             episode_timesteps = 0
             episode_num += 1
 
-    record.save()
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
-
-    plot.plot()
-    plot.save_plot()
+    print('Training time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
