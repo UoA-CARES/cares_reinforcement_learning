@@ -108,23 +108,25 @@ def main():
     
     logging.info(f"Memory: {args['memory']}")
 
-    #create the record class
-    record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, config={})
-
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":
+        #create the record class
+        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, config={})
         ppe.ppo_train(env, agent, record, args)
         ppe.evaluate_ppo_network(env, agent, record, args)
+        record.save()
     elif agent.type == "policy":
+        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, config={})
         pbe.policy_based_train(env, agent, memory, record, args)
         pbe.evaluate_policy_network(env, agent, record, args)
+        record.save()
     elif agent.type == "value":
+        record = Record(networks={'network':agent.network}, config={})
         vbe.value_based_train(env, agent, memory, record, args)
         vbe.evaluate_value_network(env, agent, record, args)
+        record.save()
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
-
-    record.save()
 
 if __name__ == '__main__':
     main()
