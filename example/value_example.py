@@ -102,6 +102,7 @@ def value_based_train(env, agent, memory, record, args):
         if done or truncated:
             record.log(
                 Train_steps = total_step_counter + 1,
+                Train_exploration_rate = exploration_rate,
                 Train_episode= episode_num + 1, 
                 Train_timesteps=episode_timesteps,
                 Train_reward= episode_reward
