@@ -109,7 +109,7 @@ def main():
     logging.info(f"Memory: {args['memory']}")
 
     #create the record class
-    record = Record(networks={'agent':agent}, config={})
+    record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, config={})
 
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":

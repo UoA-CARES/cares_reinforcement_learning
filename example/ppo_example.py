@@ -110,3 +110,4 @@ def ppo_train(env, agent, record, args):
     end_time = time.time()
     elapsed_time = end_time - start_time
     print('Training time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
+    record.save()
