@@ -71,7 +71,8 @@ class Plot:
             plt.pause(10e-10)
 
         if self.plot_num % self.checkpoint_freq == 0:
-            self.save_csv(f'{self.title}.csv')
+            pass
+            #self.save_csv(f'{self.title}.csv')
 
     def plot(self):
         plt.ioff()

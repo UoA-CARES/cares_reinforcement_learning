@@ -1,5 +1,6 @@
 from cares_reinforcement_learning.memory import *
 from cares_reinforcement_learning.util import helpers as hlp
+from cares_reinforcement_learning.util import Record, Plot as plt
 
 import time
 import gym
@@ -60,6 +61,9 @@ def ppo_train(env, agent, args):
     state, _ = env.reset(seed=seed)
     historical_reward = {"step": [], "episode_reward": []}
 
+    record = Record(networks={'agent':agent}, config={})
+    plot = plt.Plot()
+
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
 
@@ -86,11 +90,14 @@ def ppo_train(env, agent, args):
         time_step += 1
 
         if done or truncated:
-            logging.info(
-                f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+            record.log(
+                steps = total_step_counter + 1,
+                episode= episode_num + 1, 
+                epi_timesteps=episode_timesteps,
+                reward= episode_reward
+            )
 
-            historical_reward["step"].append(total_step_counter + 1)
-            historical_reward["episode_reward"].append(episode_reward)
+            plot.post(episode_reward)
 
             # Reset environment
             state, _ = env.reset()
@@ -98,9 +105,10 @@ def ppo_train(env, agent, args):
             episode_timesteps = 0
             episode_num += 1
 
+    record.save()
     end_time = time.time()
     elapsed_time = end_time - start_time
     print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
 
-    hlp.plot_reward_curve(historical_reward)
-
+    plot.plot()
+    plot.save_plot()
