@@ -1,12 +1,12 @@
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
-from cares_reinforcement_learning.util import helpers as hlp
+from cares_reinforcement_learning.util import helpers as hlp, Record
 
 import time
 import gym
 import logging
 
-def evaluate_policy_network(env, agent, args):
+def evaluate_policy_network(env, agent, record, args):
     evaluation_seed = args["evaluation_seed"]
     max_steps_evaluation = args["max_steps_evaluation"]
     if max_steps_evaluation == 0:
@@ -31,8 +31,12 @@ def evaluate_policy_network(env, agent, args):
         episode_reward += reward
 
         if done or truncated:
-            logging.info(
-                f" Evaluation Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
+            record.log(
+                Eval_episode= episode_num + 1, 
+                Eval_timesteps=episode_timesteps,
+                Eval_reward= episode_reward,
+                out=True
+            )
             # Reset environment
             state, _ = env.reset()
             episode_reward = 0
@@ -40,7 +44,7 @@ def evaluate_policy_network(env, agent, args):
             episode_num += 1
 
 
-def policy_based_train(env, agent, memory, args):
+def policy_based_train(env, agent, memory, record, args):
     start_time = time.time()
 
     max_steps_training = args["max_steps_training"]
@@ -58,8 +62,6 @@ def policy_based_train(env, agent, memory, args):
 
     state, _ = env.reset(seed=seed)
     env.render()
-
-    historical_reward = {"step": [], "episode_reward": []}
 
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
@@ -80,7 +82,9 @@ def policy_based_train(env, agent, memory, args):
         episode_reward += reward
 
         if total_step_counter >= max_steps_exploration:
-            for _ in range(G):
+            actor_loss = 0
+            critic_loss = 0
+            for i in range(G):
                 experience = memory.sample(batch_size)
                 info = agent.train_policy((
                     experience['state'],
@@ -90,13 +94,24 @@ def policy_based_train(env, agent, memory, args):
                     experience['done']
                 ))
                 memory.update_priorities(experience['indices'], info)
+                critic_loss += info['critic_loss_total'].item()
+                if (i+1) % agent.policy_update_freq == 0:
+                    actor_loss += info['actor_loss'].item()
+                
+            # record average losses
+            record.log(
+                Actor_loss = actor_loss/(G/agent.policy_update_freq),
+                Critic_loss = critic_loss/G
+            )
 
         if done or truncated:
-            logging.info(
-                f"Total T:{total_step_counter + 1} Episode {episode_num + 1} was completed with {episode_timesteps} steps taken and a Reward= {episode_reward:.3f}")
-
-            historical_reward["step"].append(total_step_counter)
-            historical_reward["episode_reward"].append(episode_reward)
+            record.log(
+                Train_steps = total_step_counter + 1,
+                Train_episode= episode_num + 1, 
+                Train_timesteps=episode_timesteps,
+                Train_reward= episode_reward,
+                out=True
+            )
 
             # Reset environment
             state, _ = env.reset()
@@ -106,6 +121,4 @@ def policy_based_train(env, agent, memory, args):
 
     end_time = time.time()
     elapsed_time = end_time - start_time
-    print('Triaining time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))
-
-    hlp.plot_reward_curve(historical_reward)
+    print('Training time:', time.strftime("%H:%M:%S", time.gmtime(elapsed_time)))

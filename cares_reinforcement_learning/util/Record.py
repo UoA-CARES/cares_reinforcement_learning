@@ -32,14 +32,14 @@ class Record:
             with open(f'{self.dir}/config.yml', 'w') as outfile:
                 yaml.dump(config, outfile, default_flow_style=False)
     
-    def log(self, **logs):
+    def log(self, out=False, **logs):
         self.log_count += 1
         
         if not self.initial_log_keys:
             logging.info('Setting Log Values')
-            self.initial_log_keys.union(logs.keys())
+            self.initial_log_keys = self.initial_log_keys.union(logs.keys())
         
-        if self.initial_log_keys != logs.keys():
+        if not logs.keys() <= self.initial_log_keys:
             logging.warning('Introducing new columns')
             self.initial_log_keys = self.initial_log_keys.union(logs.keys())
         
@@ -48,11 +48,12 @@ class Record:
     
         self.data = pd.concat([self.data, pd.DataFrame([logs])], ignore_index=True)
         
-        string = [f'{key}: {str(val):10s}' for key, val in logs.items()]
+        string = [f'{key}: {str(val)[0:10]:10s}' for key, val in logs.items()]
         string = ' | '.join(string)
         string = '| ' + string + ' |'
 
-        print(string)
+        if out:
+            print(string)
         
     def save(self, sfx='_final'):
         if self.data.empty:

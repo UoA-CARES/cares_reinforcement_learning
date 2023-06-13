@@ -10,6 +10,7 @@ import argparse
 from cares_reinforcement_learning.util import NetworkFactory
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
+from cares_reinforcement_learning.util import Record
 
 import example.policy_example as pbe
 import example.value_example as vbe
@@ -109,16 +110,22 @@ def main():
 
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":
-        ppe.ppo_train(env, agent, args)
-        ppe.evaluate_ppo_network(env, agent, args)
+        #create the record class
+        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200,config={'args': args})
+        ppe.ppo_train(env, agent, record, args)
+        ppe.evaluate_ppo_network(env, agent, record, args)
     elif agent.type == "policy":
-        pbe.policy_based_train(env, agent, memory, args)
-        pbe.evaluate_policy_network(env, agent, args)
+        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200, config={'args': args})
+        pbe.policy_based_train(env, agent, memory, record, args)
+        pbe.evaluate_policy_network(env, agent, record, args)
     elif agent.type == "value":
-        vbe.value_based_train(env, agent, memory, args)
-        vbe.evaluate_value_network(env, agent, args)
+        record = Record(networks={'network':agent.network}, checkpoint_freq = 200, config={'args': args})
+        vbe.value_based_train(env, agent, memory, record, args)
+        vbe.evaluate_value_network(env, agent, record, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
+
+    record.save()
 
 if __name__ == '__main__':
     main()
