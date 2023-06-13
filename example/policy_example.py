@@ -110,7 +110,8 @@ def policy_based_train(env, agent, memory, record, args):
                 Train_steps = total_step_counter + 1,
                 Train_episode= episode_num + 1, 
                 Train_timesteps=episode_timesteps,
-                Train_reward= episode_reward
+                Train_reward= episode_reward,
+                out=True
             )
 
             plot.post(episode_reward) 

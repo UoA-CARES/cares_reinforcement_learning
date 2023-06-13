@@ -32,7 +32,7 @@ class Record:
             with open(f'{self.dir}/config.yml', 'w') as outfile:
                 yaml.dump(config, outfile, default_flow_style=False)
     
-    def log(self, **logs):
+    def log(self, out=False, **logs):
         self.log_count += 1
         
         if not self.initial_log_keys:
@@ -52,7 +52,8 @@ class Record:
         string = ' | '.join(string)
         string = '| ' + string + ' |'
 
-        print(string)
+        if out:
+            print(string)
         
     def save(self, sfx='_final'):
         if self.data.empty:
