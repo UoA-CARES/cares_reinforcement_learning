@@ -34,7 +34,8 @@ def evaluate_policy_network(env, agent, record, args):
             record.log(
                 Eval_episode= episode_num + 1, 
                 Eval_timesteps=episode_timesteps,
-                Eval_reward= episode_reward
+                Eval_reward= episode_reward,
+                out=True
             )
             # Reset environment
             state, _ = env.reset()
