@@ -36,7 +36,8 @@ def evaluate_ppo_network(env, agent, record, args):
             record.log(
                 Eval_episode= episode_num + 1, 
                 Eval_timesteps=episode_timesteps,
-                Eval_reward= episode_reward
+                Eval_reward= episode_reward,
+                out=True
             )
             
             # Reset environment
@@ -96,7 +97,8 @@ def ppo_train(env, agent, record, args):
                 Train_steps = total_step_counter + 1,
                 Train_episode= episode_num + 1, 
                 Train_timesteps=episode_timesteps,
-                Train_reward= episode_reward
+                Train_reward= episode_reward,
+                out=True
             )
 
             plot.post(episode_reward) #dynamic plotting
