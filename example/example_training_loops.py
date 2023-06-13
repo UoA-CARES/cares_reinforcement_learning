@@ -111,15 +111,15 @@ def main():
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":
         #create the record class
-        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, config={})
+        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200,config={'args': args})
         ppe.ppo_train(env, agent, record, args)
         ppe.evaluate_ppo_network(env, agent, record, args)
     elif agent.type == "policy":
-        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, config={})
+        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200, config={'args': args})
         pbe.policy_based_train(env, agent, memory, record, args)
         pbe.evaluate_policy_network(env, agent, record, args)
     elif agent.type == "value":
-        record = Record(networks={'network':agent.network}, config={})
+        record = Record(networks={'network':agent.network}, checkpoint_freq = 200, config={'args': args})
         vbe.value_based_train(env, agent, memory, record, args)
         vbe.evaluate_value_network(env, agent, record, args)
     else:
