@@ -83,7 +83,9 @@ def policy_based_train(env, agent, memory, record, args):
         episode_reward += reward
 
         if total_step_counter >= max_steps_exploration:
-            for _ in range(G):
+            actor_loss = 0
+            critic_loss = 0
+            for i in range(G):
                 experience = memory.sample(batch_size)
                 info = agent.train_policy((
                     experience['state'],
@@ -93,6 +95,15 @@ def policy_based_train(env, agent, memory, record, args):
                     experience['done']
                 ))
                 memory.update_priorities(experience['indices'], info)
+                critic_loss += info['critic_loss_total'].item()
+                if (i+1) % agent.policy_update_freq == 0:
+                    actor_loss += info['actor_loss'].item()
+                
+            # record average losses
+            record.log(
+                Actor_loss = actor_loss/(G/agent.policy_update_freq),
+                Critic_loss = critic_loss/G
+            )
 
         if done or truncated:
             record.log(

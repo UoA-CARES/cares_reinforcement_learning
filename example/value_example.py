@@ -88,6 +88,7 @@ def value_based_train(env, agent, memory, record, args):
         episode_reward += reward
 
         if len(memory) > batch_size:
+            network_loss = 0
             for _ in range(G):
                 experience = memory.sample(batch_size)
                 info = agent.train_policy((
@@ -98,6 +99,10 @@ def value_based_train(env, agent, memory, record, args):
                     experience['done']
                 ))
                 memory.update_priorities(experience['indices'], info)
+                network_loss += info['network_loss'].item()
+            record.log(
+                Network_loss = network_loss/G
+            )
 
         if done or truncated:
             record.log(
