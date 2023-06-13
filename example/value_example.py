@@ -1,5 +1,5 @@
 from cares_reinforcement_learning.memory import *
-from cares_reinforcement_learning.util import helpers as hlp, Record, Plot as plt
+from cares_reinforcement_learning.util import helpers as hlp, Record
 
 import time
 import gym
@@ -21,8 +21,6 @@ def evaluate_value_network(env, agent, record, args):
     state, _ = env.reset(seed=evaluation_seed)
     exploration_rate = args["exploration_min"]
 
-    plot = plt.Plot()
-
     for total_step_counter in range(int(max_steps_evaluation)):
         episode_timesteps += 1
 
@@ -41,8 +39,6 @@ def evaluate_value_network(env, agent, record, args):
                 Eval_timesteps=episode_timesteps,
                 Eval_reward= episode_reward
             )
-
-            plot.post(episode_reward)
 
             # Reset environment
             state, _ = env.reset()
@@ -68,8 +64,6 @@ def value_based_train(env, agent, memory, record, args):
 
     state, _ = env.reset(seed=seed)
     exploration_rate = 1
-
-    plot = plt.Plot()
 
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
@@ -113,8 +107,6 @@ def value_based_train(env, agent, memory, record, args):
                 Train_reward= episode_reward,
                 out=True
             )
-
-            plot.post(episode_reward)
 
             # Reset environment
             state, _ = env.reset()

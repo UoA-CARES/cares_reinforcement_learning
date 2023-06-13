@@ -1,6 +1,6 @@
 from cares_reinforcement_learning.memory import *
 from cares_reinforcement_learning.util import helpers as hlp
-from cares_reinforcement_learning.util import Record, Plot as plt
+from cares_reinforcement_learning.util import Record
 
 import time
 import gym
@@ -65,8 +65,6 @@ def ppo_train(env, agent, record, args):
 
     state, _ = env.reset(seed=seed)
 
-    plot = plt.Plot()
-
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
 
@@ -100,8 +98,6 @@ def ppo_train(env, agent, record, args):
                 Train_reward= episode_reward,
                 out=True
             )
-
-            plot.post(episode_reward) #dynamic plotting
 
             # Reset environment
             state, _ = env.reset()

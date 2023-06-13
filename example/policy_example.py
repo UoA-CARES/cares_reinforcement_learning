@@ -1,6 +1,6 @@
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
-from cares_reinforcement_learning.util import helpers as hlp, Record, Plot as plt
+from cares_reinforcement_learning.util import helpers as hlp, Record
 
 import time
 import gym
@@ -63,8 +63,6 @@ def policy_based_train(env, agent, memory, record, args):
     state, _ = env.reset(seed=seed)
     env.render()
 
-    plot = plt.Plot()
-
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
 
@@ -114,8 +112,6 @@ def policy_based_train(env, agent, memory, record, args):
                 Train_reward= episode_reward,
                 out=True
             )
-
-            plot.post(episode_reward) 
 
             # Reset environment
             state, _ = env.reset()
