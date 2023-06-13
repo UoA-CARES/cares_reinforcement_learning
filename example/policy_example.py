@@ -95,23 +95,22 @@ def policy_based_train(env, agent, memory, record, args):
                 ))
                 memory.update_priorities(experience['indices'], info)
                 critic_loss += info['critic_loss_total'].item()
-                if (i+1) % agent.policy_update_freq == 0:
-                    actor_loss += info['actor_loss'].item()
                 
+                if 'actor_loss' in info:
+                    actor_loss += info['actor_loss'].item()
+
             # record average losses
             record.log(
+                Train_steps = total_step_counter + 1,
+                Train_episode= episode_num + 1,
+                Train_timesteps=episode_timesteps,
+                Train_reward= episode_reward,
                 Actor_loss = actor_loss/(G/agent.policy_update_freq),
-                Critic_loss = critic_loss/G
+                Critic_loss = critic_loss/G,
+                out=done or truncated
             )
 
         if done or truncated:
-            record.log(
-                Train_steps = total_step_counter + 1,
-                Train_episode= episode_num + 1, 
-                Train_timesteps=episode_timesteps,
-                Train_reward= episode_reward,
-                out=True
-            )
 
             # Reset environment
             state, _ = env.reset()
