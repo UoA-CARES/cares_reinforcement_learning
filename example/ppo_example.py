@@ -79,7 +79,7 @@ def ppo_train(env, agent, record, args):
 
         if time_step % max_steps_per_batch == 0:
             experience = memory.flush()
-            agent.train_policy((
+            info = agent.train_policy((
                 experience['state'],
                 experience['action'],
                 experience['reward'],
@@ -88,16 +88,19 @@ def ppo_train(env, agent, record, args):
                 experience['log_prob']
             ))
 
+            record.log(
+                Train_steps = total_step_counter + 1,
+                Train_episode= episode_num + 1,
+                Train_timesteps=episode_timesteps,
+                Train_reward= episode_reward,
+                Actor_loss = info['actor_loss'].item(),
+                Critic_loss = info['critic_loss'].item(),
+                out=done or truncated
+            )
+
         time_step += 1
 
         if done or truncated:
-            record.log(
-                Train_steps = total_step_counter + 1,
-                Train_episode= episode_num + 1, 
-                Train_timesteps=episode_timesteps,
-                Train_reward= episode_reward,
-                out=True
-            )
 
             # Reset environment
             state, _ = env.reset()

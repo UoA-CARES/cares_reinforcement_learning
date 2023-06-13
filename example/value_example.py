@@ -94,19 +94,17 @@ def value_based_train(env, agent, memory, record, args):
                 ))
                 memory.update_priorities(experience['indices'], info)
                 network_loss += info['network_loss'].item()
+
             record.log(
-                Network_loss = network_loss/G
+                Train_steps = total_step_counter + 1,
+                Train_episode= episode_num + 1,
+                Train_timesteps=episode_timesteps,
+                Train_reward= episode_reward,
+                network_loss = network_loss / G,
+                out=done or truncated
             )
 
         if done or truncated:
-            record.log(
-                Train_steps = total_step_counter + 1,
-                Train_exploration_rate = exploration_rate,
-                Train_episode= episode_num + 1, 
-                Train_timesteps=episode_timesteps,
-                Train_reward= episode_reward,
-                out=True
-            )
 
             # Reset environment
             state, _ = env.reset()
