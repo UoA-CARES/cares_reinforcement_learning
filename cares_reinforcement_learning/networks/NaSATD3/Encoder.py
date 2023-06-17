@@ -1,7 +1,7 @@
+
 import torch
 import torch.nn as nn
-from networks.weight_initialization import weight_init
-
+from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import weight_init
 
 class Encoder(nn.Module):
     def __init__(self, latent_dim, k=9):
