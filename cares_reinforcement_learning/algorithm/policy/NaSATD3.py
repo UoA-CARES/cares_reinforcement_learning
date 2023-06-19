@@ -1,8 +1,9 @@
 
 """
 NaSA-TD3: Novelty and Surprise Autoencoder TD3
+Learning from Images
+Alg for Gym and DM Control Suite
 """
-
 import os
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -11,15 +12,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+import copy
 import numpy as np
 from skimage.metrics import structural_similarity as ssim # This is used to metric the novelty.
-
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM # todo no sure how to import this, the ensemble will be the same? Can I pass this form outside?
 
-
-
 class NASA_TD3:
-
     def __init__(self,
                  encoder_network,
                  decoder_network,
@@ -33,8 +31,8 @@ class NASA_TD3:
 
         self.gamma = gamma
         self.tau   = tau
-        self.latent_size   = latent_size
         self.ensemble_size = 10
+        self.latent_size   = latent_size
 
         self.learn_counter      = 0
         self.policy_update_freq = 2
@@ -110,8 +108,12 @@ class NASA_TD3:
         dones       = torch.LongTensor(np.asarray(dones)).to(self.device)
         # goals       = torch.FloatTensor(np.asarray(goals)).to(self.device)
 
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones   = dones.unsqueeze(0).reshape(batch_size, 1)
+
         with torch.no_grad():
-            next_action  = self.actor_target(next_states)
+            next_actions = self.actor_target(next_states)
             target_noise = 0.2 * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, -0.5, 0.5)
             next_actions = next_actions + target_noise
@@ -276,7 +278,3 @@ class NASA_TD3:
         self.encoder.load_state_dict(torch.load(f'{path}/{filename}_encoder.pht'))
         self.decoder.load_state_dict(torch.load(f'{path}/{filename}_decoder.pht'))
         logging.info("models has been loaded...")
-
-
-
-
