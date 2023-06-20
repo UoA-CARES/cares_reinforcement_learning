@@ -2,8 +2,9 @@
 """
 NaSA-TD3: Novelty and Surprise Autoencoder TD3
 Learning from Images
-Alg for Gym and DM Control Suite
+Algorithm for Gym and DM Control Suite
 """
+
 import os
 import logging
 logging.basicConfig(level=logging.INFO)
@@ -15,6 +16,7 @@ import torch.nn.functional as F
 import copy
 import numpy as np
 from skimage.metrics import structural_similarity as ssim # This is used to metric the novelty.
+
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM # todo no sure how to import this, the ensemble will be the same? Can I pass this form outside?
 
 class NASA_TD3:
@@ -173,7 +175,7 @@ class NASA_TD3:
 
             # Note: the encoders in target networks are the same of main networks, so I wont update them
 
-    def get_intrinsic_value(self, state, action, next_state):
+    def get_intrinsic_values(self, state, action, next_state):
         with torch.no_grad():
             state_tensor      = torch.FloatTensor(state).to(self.device)
             state_tensor      = state_tensor.unsqueeze(0)
@@ -227,16 +229,17 @@ class NASA_TD3:
         with torch.no_grad():
             latent_state      = self.encoder(states, detach=True)
             latent_next_state = self.encoder(next_states, detach=True)
-            for predictive_network, optimizer in zip(self.epm, self.epm_optimizers):
-                predictive_network.train()
-                # Get the deterministic prediction of each model
-                prediction_vector = predictive_network(latent_state, actions)
-                # Calculate Loss of each model
-                loss = F.mse_loss(prediction_vector, latent_next_state)
-                # Update weights and bias
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+
+        for predictive_network, optimizer in zip(self.epm, self.epm_optimizers):
+            predictive_network.train()
+            # Get the deterministic prediction of each model
+            prediction_vector = predictive_network(latent_state, actions)
+            # Calculate Loss of each model
+            loss = F.mse_loss(prediction_vector, latent_next_state)
+            # Update weights and bias
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
     def get_reconstruction_for_evaluation(self, state):
         self.encoder.eval()
