@@ -259,7 +259,7 @@ class NASA_TD3:
         self.encoder.train()
         self.decoder.train()
 
-        return original_img/255, rec_img
+        return original_img, rec_img
 
     def save_models(self, filename, filepath='models'):
         path = f"{filepath}/models" if filepath != 'models' else filepath
