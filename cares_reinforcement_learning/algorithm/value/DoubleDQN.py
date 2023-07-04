@@ -27,11 +27,13 @@ class DoubleDQN:
         self.device = device
 
     def select_action_from_policy(self, state):
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
             action   = torch.argmax(q_values).item()
+        self.actor_net.train()
         return action
 
     def train_policy(self, experiences):

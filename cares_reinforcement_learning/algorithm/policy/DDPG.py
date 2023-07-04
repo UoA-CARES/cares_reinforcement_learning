@@ -30,11 +30,13 @@ class DDPG:
         self.device = device
 
     def select_action_from_policy(self, state, evaluation=None):
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
+        self.actor_net.train()
         return action
 
     def train_policy(self, experiences):
