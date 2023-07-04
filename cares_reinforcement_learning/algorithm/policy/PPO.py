@@ -38,6 +38,7 @@ class PPO:
         self.cov_mat = torch.diag(self.cov_var)
 
     def select_action_from_policy(self, state):
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -51,6 +52,7 @@ class PPO:
 
             action = action.cpu().data.numpy().flatten()
             log_prob = log_prob.cpu().data.numpy().flatten()  # just to have this as numpy array
+        self.actor_net.train()
         return action, log_prob
 
     def evaluate_policy(self, state, action):
