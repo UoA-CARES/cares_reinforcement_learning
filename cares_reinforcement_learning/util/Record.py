@@ -12,7 +12,7 @@ MAX_INT = 9999999
 
 class Record:
     
-    def __init__(self, glob_log_dir=None, log_dir=None, networks={}, checkpoint_freq=None, config=None) -> None:
+    def __init__(self, glob_log_dir=None, log_dir=None, networks={}, checkpoint_freq=None, config=None, keep_checkpoints=False) -> None:
         
         self.glob_log_dir = glob_log_dir or 'rl_logs'
         self.log_dir = log_dir or datetime.now().strftime("%y_%m_%d_%H:%M:%S")
@@ -27,6 +27,8 @@ class Record:
         
         self.initial_log_keys = set()
         self.__initialise_directories()
+        
+        self.keep_checkpoints = keep_checkpoints
         
         if config:
             with open(f'{self.dir}/config.yml', 'w') as outfile:
@@ -74,7 +76,7 @@ class Record:
         
         if self.networks:
             for name, network in self.networks.items():
-                torch.save(network.state_dict(), f'{self.dir}/models/{name}{sfx}.pht')
+                torch.save(network.state_dict(), f'{self.dir}/models/{name}{sfx}{f"-{self.log_count}" if self.keep_checkpoints else ""}.pht')
         
     def __initialise_directories(self):
         if not os.path.exists(self.glob_log_dir):
