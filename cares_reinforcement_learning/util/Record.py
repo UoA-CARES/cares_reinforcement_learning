@@ -19,6 +19,10 @@ class Record:
         self.dir = f'{self.glob_log_dir}/{self.log_dir}'
         
         self.data = pd.DataFrame() 
+        
+        if self.checkpoint_freq < 10:
+            raise Exception('Checkpoint Frequency should be at least 10')
+        
         self.checkpoint_freq = checkpoint_freq
         
         self.networks = networks    
@@ -70,7 +74,7 @@ class Record:
                 x_label='x', 
                 y_label=name, 
                 title=f'Average {name}', 
-                window_size=math.floor(len(data)/20), 
+                window_size=math.floor(len(data)/10), 
                 file_path=f'{self.dir}/figures/{name}_avg{sfx}.png'
                 )
         
