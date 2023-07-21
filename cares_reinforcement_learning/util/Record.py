@@ -20,7 +20,7 @@ class Record:
         
         self.data = pd.DataFrame() 
         
-        if self.checkpoint_freq < 10:
+        if checkpoint_freq < 10:
             raise Exception('Checkpoint Frequency should be at least 10')
         
         self.checkpoint_freq = checkpoint_freq
