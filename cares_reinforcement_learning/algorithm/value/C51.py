@@ -54,12 +54,12 @@ class C51:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # TESTING
-        print(states.shape) # (BATZ, SIZE STATE)
-        print(actions.shape) # (BZ, ACTION SIZE)
-        print(rewards.shape) # (BZ, 1)
-        print(dones.shape) # (BZ, 1)
+        
+        # Add second dim 
+        batch_size = len(states)
+        actions = torch.unsqueeze(actions,0).reshape(batch_size, 1) # (BZ, ACTION SIZE)
+        rewards = torch.unsqueeze(rewards,0).reshape(batch_size, 1) # (BZ, 1)
+        dones = torch.unsqueeze(dones,0).reshape(batch_size, 1) # (BZ, 1)
 
         # Generate Q Values given state at time t and t + 1
         q_values_dist = self.network(states)
