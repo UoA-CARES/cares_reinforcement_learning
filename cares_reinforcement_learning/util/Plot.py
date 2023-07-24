@@ -5,6 +5,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import uuid
 
+figure = plt.figure()
+figure.set_figwidth(8)
+
 # TODO make this more easy and simple, plot and store checkpoints
 
 def plot_average(x, y, x_label='x_value',y_label='y_value', title='Title', window_size=10, file_path='figures/figure.png', display=False):
@@ -12,9 +15,6 @@ def plot_average(x, y, x_label='x_value',y_label='y_value', title='Title', windo
     plt.cla()
     plt.clf()
     
-    figure = plt.figure()
-    figure.set_figwidth(8)
-     
     sns.set_theme(style="darkgrid")
     
     data_dict = {x_label: x, y_label: y}
