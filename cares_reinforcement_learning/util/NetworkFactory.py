@@ -11,6 +11,20 @@ def create_DQN(args):
     )
     return agent
 
+def create_C51(args):
+    from cares_reinforcement_learning.algorithm.value import C51
+    from cares_reinforcement_learning.networks.C51 import Network
+
+    network = Network(args["observation_size"], args["action_num"], args["lr"])
+
+    agent = C51(
+        network=network,
+        gamma=args["gamma"],
+        device=args["device"]
+    )
+    return agent
+
+
 
 def create_DuelingDQN(args):
     from cares_reinforcement_learning.algorithm.value import DQN
@@ -132,4 +146,6 @@ class NetworkFactory:
             return create_SAC(args)
         elif algorithm == "TD3":
             return create_TD3(args)
+        elif algorithm == "C51":
+            return create_C51(args)
         raise ValueError(f"Unkown algorithm: {algorithm}")
