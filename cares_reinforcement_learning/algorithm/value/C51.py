@@ -66,14 +66,13 @@ class C51:
         
         next_q_values_dist = self.network(next_states)
         next_q_values = torch.sum(next_q_values_dist*self.value_range.view(1,1,-1), dim = 2)
-        best_next_q_values = torch.max(next_q_values, dim=1).values
+        best_next_q_values = torch.argmax(next_q_values, axis=1)
 
-        best_next_int = best_next_q_values.long() 
         # Reduce both distributions to (m,n_atoms)
         # Get an array of the observation set and its selected action distribution
         m_size = q_values_dist.size(0)
         m_action = [torch.index_select(q_values_dist[i],0,actions[i]) for i in range(m_size)]
-        next_m_action = [torch.index_select(next_q_values_dist[i],0,best_next_int[i]) for i in range(m_size)]
+        next_m_action = [torch.index_select(next_q_values_dist[i],0,best_next_q_values[i]) for i in range(m_size)]
         # Remove the 2nd dim
         q_values_dist = torch.stack(m_action).squeeze(1)
         next_q_values_dist = torch.stack(next_m_action).squeeze(1)
