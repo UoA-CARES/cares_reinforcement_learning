@@ -71,16 +71,16 @@ class Record:
         
         data = pd.read_csv(path)
         
-        for name, data in self.data.items():
-            plot_average(
-                x=range(len(data.dropna())),
-                y=data.dropna(), 
-                x_label='x', 
-                y_label=name, 
-                title=f'Average {name}', 
-                window_size=math.floor(len(data)/10), 
-                file_path=f'{self.dir}/figures/{name}_avg{sfx}.png'
-                )
+        # for name, data in self.data.items():
+        #     plot_average(
+        #         x=range(len(data.dropna())),
+        #         y=data.dropna(), 
+        #         x_label='x', 
+        #         y_label=name, 
+        #         title=f'Average {name}', 
+        #         window_size=math.floor(len(data)/10), 
+        #         file_path=f'{self.dir}/figures/{name}_avg{sfx}.png'
+        #         )
         
         if self.networks:
             for name, network in self.networks.items():
