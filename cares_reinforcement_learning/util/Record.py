@@ -54,7 +54,7 @@ class Record:
     
         self.data = pd.concat([self.data, pd.DataFrame([logs])], ignore_index=True)
         
-        string = [f'{key}: {str(val)[0:10]:10s}' for key, val in logs.items()]
+        string = [f'{key}: {str(val)[0:10]:6s}' for key, val in logs.items()]
         string = ' | '.join(string)
         string = '| ' + string + ' |'
 
@@ -64,12 +64,16 @@ class Record:
     def save(self, sfx='_final'):
         if self.data.empty:
             logging.warning('Trying to save an Empty Dataframe')
+            
+        path = f'{self.dir}/data/data{sfx}.csv'
+        self.data.to_csv(path, mode='a', header=not os.path.exists(path))
+        self.data.iloc[0:0]
         
-        self.data.to_csv(f'{self.dir}/data/data{sfx}.csv')
+        data = pd.read_csv(path)
         
         for name, data in self.data.items():
             plot_average(
-                x=range(len(data.dropna())), 
+                x=range(len(data.dropna())),
                 y=data.dropna(), 
                 x_label='x', 
                 y_label=name, 
