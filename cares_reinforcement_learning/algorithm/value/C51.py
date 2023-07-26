@@ -33,7 +33,7 @@ class C51:
         
 
     def select_action_from_policy(self, state):
-        self.actor_net.eval()
+        self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -41,7 +41,7 @@ class C51:
             # sum of distribution across n-atoms, omit n-atoms (3rd dim)
             q_values = torch.sum(q_values_dist*self.value_range.view(1,1,-1), dim = 2)
             action = torch.argmax(q_values).item()
-        self.actor_net.train()
+        self.network.train()
         return action
 
     def train_policy(self, experiences):
@@ -68,17 +68,18 @@ class C51:
         next_q_values = torch.sum(next_q_values_dist*self.value_range.view(1,1,-1), dim = 2)
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
+        best_next_int = best_next_q_values.long() 
         # Reduce both distributions to (m,n_atoms)
         # Get an array of the observation set and its selected action distribution
         m_size = q_values_dist.size(0)
         m_action = [torch.index_select(q_values_dist[i],0,actions[i]) for i in range(m_size)]
-        next_m_action = [torch.index_select(next_q_values_dist[i],0,best_next_q_values[i]) for i in range(m_size)]
+        next_m_action = [torch.index_select(next_q_values_dist[i],0,best_next_int[i]) for i in range(m_size)]
         # Remove the 2nd dim
         q_values_dist = torch.stack(m_action).squeeze(1)
-        next_q_values_dist = torch.stack(next_m_action).squeeze(1).data.cpu().numpy() # convert to numpy
+        next_q_values_dist = torch.stack(next_m_action).squeeze(1)
 
         # Projection step 
-        next_v_range = np.expand_dims(rewards,1) + self.gamma*np.expand_dims((1. - dones),1)*np.expand_dims(self.value_range.data.cpu().numpy(),0)
+        next_v_range = rewards + self.gamma*(1. - dones)*np.expand_dims(self.value_range,0)
         next_v_pos = np.zeros_like(next_v_range)
         next_v_range = np.clip(next_v_range, self.vMin, self.vMax)
         
@@ -87,11 +88,11 @@ class C51:
 
         # Distribution step for each (m,num_atoms) pair
         q_target = np.zeros((m_size,self.num_atoms))
-        u = np.ceil(next_v_pos).astype(int)
-        l = np.floor(next_v_pos).astype(int)
+        u = np.ceil(next_v_pos).int()
+        l = np.floor(next_v_pos).int()
 
-        for i in range(m_size):
-            for j in range(self.num_atoms): 
+        for i in range(0, m_size):
+            for j in range(0, self.num_atoms): 
                 q_target[i,u[i,j]] += (next_q_values_dist*(next_v_pos-l))[i,j]
                 q_target[i,l[i,j]] += (next_q_values_dist*(u-next_v_pos))[i,j]
 
