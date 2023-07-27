@@ -59,7 +59,7 @@ def parse_args():
 
     parser.add_argument('--lr', type=float, default=1e-3)
     parser.add_argument('--exploration_min', type=float, default=1e-3)
-    parser.add_argument('--exploration_decay', type=float, default=0.9999)
+    parser.add_argument('--exploration_decay', type=float, default=0.95)
 
     parser.add_argument('--max_steps_per_batch', type=float, default=5000)
 
