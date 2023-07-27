@@ -15,9 +15,8 @@ class C51:
                  network,
                  gamma,
                  device,
-                 vMin = -10,
-                 vMax = 10,
-                 n = 50,
+                 vMin = -20,
+                 vMax = 20,
                  num_atoms = 51):
         self.type = "value"
         self.network = network.to(device)
@@ -28,7 +27,6 @@ class C51:
         self.value_range = torch.linspace(vMin,vMax, num_atoms)
         self.vMin = vMin
         self.vMax = vMax
-        self.n = n 
         self.num_atoms = num_atoms
         
 
@@ -82,7 +80,7 @@ class C51:
         next_v_pos = np.zeros_like(next_v_range)
         next_v_range = np.clip(next_v_range, self.vMin, self.vMax)
         
-        delta_z = (self.vMax - self.vMin)/self.n
+        delta_z = (self.vMax - self.vMin)/(self.num_atoms-1)
         next_v_pos = (next_v_range - self.vMin)/delta_z
 
         # Distribution step for each (m,num_atoms) pair
