@@ -15,8 +15,8 @@ class C51:
                  network,
                  gamma,
                  device,
-                 vMin = -20,
-                 vMax = 20,
+                 vMin = -100,
+                 vMax = 100,
                  num_atoms = 51):
         self.type = "value"
         self.network = network.to(device)
@@ -38,7 +38,7 @@ class C51:
             q_values_dist = self.network(state_tensor)
             # sum of distribution across n-atoms, omit n-atoms (3rd dim)
             q_values = torch.sum(q_values_dist*self.value_range.view(1,1,-1), dim = 2)
-            action = torch.argmax(q_values).item()
+            action = torch.argmax(q_values, dim = 1).item()
         self.network.train()
         return action
 
@@ -55,7 +55,6 @@ class C51:
         
         # Add second dim 
         batch_size = len(states)
-        actions = torch.unsqueeze(actions,0).reshape(batch_size, 1) # (BZ, ACTION SIZE)
         rewards = torch.unsqueeze(rewards,0).reshape(batch_size, 1) # (BZ, 1)
         dones = torch.unsqueeze(dones,0).reshape(batch_size, 1) # (BZ, 1)
 
@@ -64,7 +63,7 @@ class C51:
         
         next_q_values_dist = self.network(next_states)
         next_q_values = torch.sum(next_q_values_dist*self.value_range.view(1,1,-1), dim = 2)
-        best_next_q_values = torch.argmax(next_q_values, axis=1)
+        best_next_q_values = torch.argmax(next_q_values, dim=1)
 
         # Reduce both distributions to (m,n_atoms)
         # Get an array of the observation set and its selected action distribution
@@ -76,7 +75,7 @@ class C51:
         next_q_values_dist = torch.stack(next_m_action).squeeze(1)
 
         # Projection step 
-        next_v_range = rewards + self.gamma*(1. - dones)*np.expand_dims(self.value_range,0)
+        next_v_range = rewards + self.gamma*(1. - dones)*self.value_range
         next_v_pos = np.zeros_like(next_v_range)
         next_v_range = np.clip(next_v_range, self.vMin, self.vMax)
         
@@ -97,7 +96,8 @@ class C51:
 
         # Calculate loss and weights
         # TESTING: test cross-entropy and KL divergence
-        loss = F.kl_div(F.log_softmax(q_values_dist, dim = 1), q_target, reduction="batchmean")
+        # loss = F.kl_div(F.log_softmax(q_values_dist, dim = 1), q_target, reduction="batchmean")
+        loss = q_target* (-torch.log(q_values_dist + 1e-8))
         loss = torch.mean(loss)
 
         # Update the Network
