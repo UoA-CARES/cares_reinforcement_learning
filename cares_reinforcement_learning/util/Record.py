@@ -66,10 +66,10 @@ class Record:
             logging.warning('Trying to save an Empty Dataframe')
             
         path = f'{self.dir}/data/data{sfx}.csv'
-        self.data.to_csv(path, mode='a', header=not os.path.exists(path))
-        self.data.iloc[0:0]
+        self.data.to_csv(path, mode='a', header=not os.path.exists(path), index=False)
+        self.data.drop(self.data.index, inplace=True)
         
-        data = pd.read_csv(path)
+        # data = pd.read_csv(path)
         
         # for name, data in self.data.items():
         #     plot_average(
