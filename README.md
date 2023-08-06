@@ -1,4 +1,4 @@
-<img src="https://drive.google.com/uc?export=view&id=1NpXB7lFONA2epIxdZFv5vfCTRRqt8A_9" />
+![CARES reinforcement learning package logo](./media/logo.png)
 The CARES reinforcement learning bed used as the foundation for RL related projects.
 
 ## Motivation
