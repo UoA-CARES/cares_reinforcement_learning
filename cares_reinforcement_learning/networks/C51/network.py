@@ -1,5 +1,6 @@
 """
-references: https://github.com/Kchu/DeepRL_PyTorch/blob/master/Distributional_RL/1_C51.py 
+Code based on: 
+https://github.com/Kchu/DeepRL_PyTorch/blob/master/Distributional_RL/1_C51.py 
 """
 
 import torch

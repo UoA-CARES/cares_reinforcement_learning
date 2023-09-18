@@ -1,5 +1,6 @@
 """
-references: https://github.com/Kchu/DeepRL_PyTorch/blob/master/Distributional_RL/1_C51.py 
+Code based on: 
+https://github.com/Kchu/DeepRL_PyTorch/blob/master/Distributional_RL/1_C51.py 
 """
 
 import os
@@ -75,7 +76,7 @@ class C51:
         next_q_values_dist = torch.stack(next_m_action).squeeze(1)
 
         # Projection step 
-        next_v_range = rewards + self.gamma*(1. - dones)*self.value_range
+        next_v_range = rewards + self.gamma * (1 - dones) * self.value_range
         next_v_pos = np.zeros_like(next_v_range)
         next_v_range = np.clip(next_v_range, self.vMin, self.vMax)
         
