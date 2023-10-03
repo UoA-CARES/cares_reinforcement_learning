@@ -6,14 +6,11 @@ import gym
 import logging
 import random
 
-def evaluate_value_network(env, agent, record, args, training_step=0, display=True):
+def evaluate_value_network(env, agent, record, args, training_step=0):
 
     number_eval_episodes = int(args["number_eval_episodes"])
-    evaluation_seed = args["evaluation_seed"]
-
-    if display:
-        env = gym.make(env.spec.id, render_mode="human")
-    state, _ = env.reset(seed=evaluation_seed)
+    
+    state, _ = env.reset()
     
     exploration_rate = args["exploration_min"]
 
@@ -112,7 +109,7 @@ def value_based_train(env, agent, memory, record, args):
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
                 args["evaluation_seed"] = seed
-                evaluate_value_network(env, agent, record, args, training_step=total_step_counter, display=False)
+                evaluate_value_network(env, agent, record, args, training_step=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

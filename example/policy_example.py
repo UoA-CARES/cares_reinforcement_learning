@@ -6,17 +6,14 @@ import time
 import gym
 import logging
 
-def evaluate_policy_network(env, agent, record, args, training_step=0, display=True):
+def evaluate_policy_network(env, agent, record, args, training_step=0):
 
     number_eval_episodes = int(args["number_eval_episodes"])
-    evaluation_seed = int(args["evaluation_seed"])
     
     min_action_value = env.action_space.low[0]
     max_action_value = env.action_space.high[0]
 
-    if display:
-        env = gym.make(env.spec.id, render_mode="human")
-    state, _ = env.reset(seed=evaluation_seed)
+    state, _ = env.reset()
 
     for eval_episode_counter in range(number_eval_episodes):
         episode_timesteps = 0
@@ -113,7 +110,7 @@ def policy_based_train(env, agent, memory, record, args):
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
                 args["evaluation_seed"] = seed
-                evaluate_policy_network(env, agent, record, args, training_step=total_step_counter, display=False)
+                evaluate_policy_network(env, agent, record, args, training_step=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

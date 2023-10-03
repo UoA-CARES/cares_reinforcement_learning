@@ -1,11 +1,12 @@
 import os
 
+import argparse
+
+import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 import pandas as pd
 import uuid
-
-
 
 # TODO make this more easy and simple, plot and store checkpoints
 
@@ -118,131 +119,50 @@ class Plot:
 
         plt.show()
 
-#
-#
-# def read_file(file_path: str):
-#     """
-#     Reads a file that contains rewards separated by new line
-#
-#     Parameters:
-#         file_path: a string path to the data file
-#     """
-#     file = open(file_path, "r")
-#     strings = file.readlines()
-#     floats = [float(x) for x in strings]
-#     return floats
-#
-#
-# def plot_learning(title: str, reward, file_name: str = "figure.png"):
-#     """
-#     Plot the learning of the agent. Saves the figure to figures directory
-#
-#     Parameters:
-#         title: title of the plot
-#         reward: the array of rewards to be plot
-#         file_name: the name of the figure when saved to disc
-#     """
-#     y = reward
-#     x = range(1, len(reward) + 1)
-#
-#     print(reward)
-#     print(x)
-#
-#     data_dict = {"Episode": x, "Reward": y}
-#     df = pd.DataFrame(data=data_dict)
-#
-#     sns.set_theme(style="darkgrid")
-#     plt.figure().set_figwidth(8)
-#
-#     sns.lineplot(data=df, x="Episode", y="Reward")
-#     plt.title(title)
-#
-#     dir_exists = os.path.exists("figures")
-#
-#     if not dir_exists:
-#         os.makedirs("figures")
-#
-#     plt.savefig(f"figures/{file_name}")
-#     plt.show()
-#
-#
-# def plot_learning_vs_average(title: str, reward, file_name: str = "figure.png", window_size: int = 10):
-#     """
-#     Plot the rolling average and the actual learning. Saves the figure to figures directory
-#
-#     Parameters:
-#         title: title of the plot
-#         reward: the array of rewards to be plot
-#         file_name: the name of the figure when saved to disc
-#         window_size: the size of the rolling average window
-#     """
-#     y = reward
-#     x = range(1, len(reward) + 1)
-#
-#     data_dict = {"Episode": x, "Reward": y}
-#     df = pd.DataFrame(data=data_dict)
-#
-#     df["Average Reward"] = df["Reward"].rolling(window_size).mean()
-#
-#     sns.set_theme(style="darkgrid")
-#     plt.figure().set_figwidth(8)
-#
-#     sns.lineplot(data=df, x="Episode", y="Reward", alpha=0.4)
-#     sns.lineplot(data=df, x="Episode", y="Average Reward")
-#
-#     plt.fill_between(df["Episode"], df["Reward"], df["Average Reward"], alpha=0.4)
-#     plt.title(title)
-#
-#     dir_exists = os.path.exists("figures")
-#
-#     if not dir_exists:
-#         os.makedirs("figures")
-#
-#     plt.savefig(f"figures/{file_name}")
-#
-#     plt.show()
-#
-#
-# def plot_average_with_std(reward,
-#                           title: str = "Cool Graph",
-#                           file_name: str = "figure.png",
-#                           window_size: int = 10):
-#     """
-#     Plot the rolling average and standard deviation. Saves the figure to figures directory
-#
-#     Parameters:
-#         title: title of the plot
-#         reward: the array of rewards to be plot
-#         file_name: the name of the figure when saved to disc
-#         window_size: the size of the rolling average window
-#     """
-#     y = reward
-#     x = range(1, len(reward) + 1)
-#
-#     data_dict = {"Episode": x, "Reward": y}
-#     df = pd.DataFrame(data=data_dict)
-#
-#     df["Average Reward"] = df["Reward"].rolling(window_size).mean()
-#     df["Standard Deviation"] = df["Reward"].rolling(window_size).std()
-#
-#     sns.set_theme(style="darkgrid")
-#     plt.figure().set_figwidth(8)
-#
-#     ax = sns.lineplot(data=df, x="Episode", y="Average Reward", label="Average Reward")
-#     ax.set(xlabel="Episode", ylabel="Reward")
-#     plt.fill_between(df["Episode"], df["Average Reward"] - df["Standard Deviation"], df["Average Reward"] +
-#                      df["Standard Deviation"], alpha=0.4)
-#
-#     sns.move_legend(ax, "lower right")
-#
-#     plt.title(title)
-#
-#     dir_exists = os.path.exists("figures")
-#
-#     if not dir_exists:
-#         os.makedirs("figures")
-#
-#     plt.savefig(f"figures/{file_name}")
-#
-#     plt.show()
-#
+def parse_eval_data(eval_data):
+    window_size = eval_data['episode'].max()
+    print(f'Window Size: {window_size}')
+
+    x_label = "steps"
+    y_label = "episode_reward"
+    
+    eval_data[x_label] = eval_data["train_step"].rolling(window_size, min_periods=1).mean()
+    eval_data["avg"] = eval_data[y_label].rolling(window_size, min_periods=1).mean()
+    eval_data["std_dev"] = eval_data[y_label].rolling(window_size, min_periods=1).std()
+    
+    ax = sns.lineplot(data=eval_data, x=x_label, y="avg", label='Average')
+    ax.set(xlabel=x_label, ylabel=y_label)
+    
+    Z = 1.960 # 95% confidence interval
+    confidence_interval = Z * eval_data["std_dev"] / np.sqrt(window_size)
+
+    plt.fill_between(eval_data[x_label], eval_data["avg"] - confidence_interval, eval_data["avg"] + confidence_interval, alpha=0.4)
+
+    sns.move_legend(ax, "lower right")
+
+    plt.title("Title") 
+    
+    plt.show()
+
+def parse_args():
+    parser = argparse.ArgumentParser()  # Add an argument
+
+    parser.add_argument('--train', type=str, required=True)
+    parser.add_argument('--eval',  type=str, required=True)
+
+    return vars(parser.parse_args())  # converts into a dictionary
+
+def main():
+    args = parse_args()
+
+    train_data = pd.read_csv(args['train'])
+    eval_data  = pd.read_csv(args['eval'])
+
+    parse_eval_data(eval_data)
+
+    sns.lineplot(data=train_data, x='total_steps', y='reward')
+    plt.show()
+
+
+if __name__ == '__main__':
+    main()
