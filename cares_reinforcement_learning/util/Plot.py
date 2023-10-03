@@ -34,12 +34,7 @@ def plot_average(x, y, x_label='x_value',y_label='y_value', title='Title', windo
     plt.close(figure)
  
 class Plot:
-    def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=None, y_data=None, plot_freq=1, checkpoint_freq=1):
-        if x_data is None:
-            x_data = []
-        if y_data is None:
-            y_data = []
-
+    def __init__(self, title='Training', x_label='Episode', y_label='Reward', x_data=[], y_data=[], plot_freq=1, checkpoint_freq=1):
         plt.ion()
 
         self.title = title
@@ -94,8 +89,6 @@ class Plot:
             os.makedirs("figures")
 
         plt.savefig(f"figures/{file_name}")
-
-
 
     def plot_average(self, window_size=10, file_name=str(uuid.uuid4().hex)):
 

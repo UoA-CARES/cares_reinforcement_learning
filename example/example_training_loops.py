@@ -49,7 +49,9 @@ def parse_args():
 
     parser.add_argument('--max_steps_exploration', type=int, default=10000)
     parser.add_argument('--max_steps_training', type=int, default=50000)
-    parser.add_argument('--max_steps_evaluation', type=int, default=5000)
+
+    parser.add_argument('--number_steps_per_evaluation', type=int, default=1000)
+    parser.add_argument('--number_eval_episodes', type=int, default=10)
 
     parser.add_argument('--seed', type=int, default=571)
     parser.add_argument('--evaluation_seed', type=int, default=152)
@@ -109,23 +111,19 @@ def main():
     logging.info(f"Memory: {args['memory']}")
 
     # Train the policy or value based approach
+    record = Record(network=agent, config={'args': args})
     if args["algorithm"] == "PPO":
         #create the record class
-        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200,config={'args': args}, keep_checkpoints=True)
         ppe.ppo_train(env, agent, record, args)
         ppe.evaluate_ppo_network(env, agent, record, args)
     elif agent.type == "policy":
-        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200, config={'args': args}, keep_checkpoints=True)
         pbe.policy_based_train(env, agent, memory, record, args)
         pbe.evaluate_policy_network(env, agent, record, args)
     elif agent.type == "value":
-        record = Record(networks={'network':agent.network}, checkpoint_freq = 200, config={'args': args}, keep_checkpoints=True)
         vbe.value_based_train(env, agent, memory, record, args)
         vbe.evaluate_value_network(env, agent, record, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
-
-    record.save()
 
 if __name__ == '__main__':
     main()
