@@ -6,7 +6,7 @@ import time
 import gym
 import logging
 
-def evaluate_ppo_network(env, agent, record, args, training_step=0):
+def evaluate_ppo_network(env, agent, args, record=None, total_steps=0):
     
     number_eval_episodes = int(args["number_eval_episodes"])
 
@@ -31,12 +31,13 @@ def evaluate_ppo_network(env, agent, record, args, training_step=0):
             episode_reward += reward
 
             if done or truncated:
-                record.log_eval(
-                        train_step=training_step+1,
-                        episode=eval_episode_counter+1, 
-                        episode_reward=episode_reward,
-                        display=True
-                    )
+                if record is not None:
+                    record.log_eval(
+                            total_steps=training_step+1,
+                            episode=eval_episode_counter+1, 
+                            episode_reward=episode_reward,
+                            display=True
+                        )
                 
                 # Reset environment
                 state, _ = env.reset()
@@ -100,7 +101,7 @@ def ppo_train(env, agent, record, args):
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
                 args["evaluation_seed"] = seed
-                evaluate_ppo_network(env, agent, record, args, training_step=total_step_counter)
+                evaluate_ppo_network(env, agent, args, record=record, training_step=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

@@ -116,15 +116,15 @@ def main():
         #create the record class
         ppe.ppo_train(env, agent, record, args)
         env = gym.make(env.spec.id, render_mode="human")
-        ppe.evaluate_ppo_network(env, agent, record, args)
+        ppe.evaluate_ppo_network(env, agent, args)
     elif agent.type == "policy":
         pbe.policy_based_train(env, agent, memory, record, args)
         env = gym.make(env.spec.id, render_mode="human")
-        pbe.evaluate_policy_network(env, agent, record, args)
+        pbe.evaluate_policy_network(env, agent, args)
     elif agent.type == "value":
         vbe.value_based_train(env, agent, memory, record, args)
         env = gym.make(env.spec.id, render_mode="human")
-        vbe.evaluate_value_network(env, agent, record, args)
+        vbe.evaluate_value_network(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
 
