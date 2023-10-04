@@ -1,9 +1,3 @@
-"""
-Description:
-            This is a basic example of the training loop for Off Policy Algorithms,
-            We may move this later for each repo/env or keep this in this repo
-"""
-
 import time
 import argparse
 
@@ -26,13 +20,11 @@ import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
-
 def set_seed(env, seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
     env.action_space.seed(seed)
-
 
 def parse_args():
     parser = argparse.ArgumentParser()  # Add an argument
@@ -65,6 +57,8 @@ def parse_args():
 
     parser.add_argument('--max_steps_per_batch', type=float, default=5000)
 
+    parser.add_argument('--plot_frequency', type=int, default=10)
+    
     parser.add_argument('--display', type=str, default=True)
 
     return vars(parser.parse_args())  # converts into a dictionary
@@ -127,6 +121,8 @@ def main():
         vbe.evaluate_value_network(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
+    
+    record.save()
 
 if __name__ == '__main__':
     main()

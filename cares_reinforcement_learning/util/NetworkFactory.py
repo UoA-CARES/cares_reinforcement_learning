@@ -1,6 +1,5 @@
 import torch
 
-
 def create_DQN(args):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network

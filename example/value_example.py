@@ -6,6 +6,8 @@ import gym
 import logging
 import random
 
+from timeit import default_timer as timer
+
 def evaluate_value_network(env, agent, args, record=None, total_steps=0):
 
     number_eval_episodes = int(args["number_eval_episodes"])
@@ -69,6 +71,7 @@ def value_based_train(env, agent, memory, record, args):
 
     exploration_rate = 1
 
+    episode_start = time.time()
     for total_step_counter in range(int(max_steps_training)):
         exploration_rate *= exploration_decay
         exploration_rate = max(exploration_min, exploration_rate)
@@ -100,17 +103,19 @@ def value_based_train(env, agent, memory, record, args):
             evaluate = True
 
         if done or truncated:
+            episode_time = time.time() - episode_start
             record.log_train(
                 total_steps = total_step_counter + 1,
                 episode = episode_num + 1,
-                reward = episode_reward,
+                episode_reward = episode_reward,
+                episode_time = episode_time,
                 display = True
             )
 
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
                 args["evaluation_seed"] = seed
-                evaluate_value_network(env, agent, args, record=record, training_step=total_step_counter)
+                evaluate_value_network(env, agent, args, record=record, total_steps=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

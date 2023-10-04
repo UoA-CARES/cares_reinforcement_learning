@@ -1,12 +1,14 @@
-import pandas as pd
+import os
 import logging
 
-import os
+import pandas as pd
+
 import yaml
+
 from pathlib import Path
 from datetime import datetime
 
-from cares_reinforcement_learning.util.Plot import plot_average
+import cares_reinforcement_learning.util.plotter as plt
 
 class Record:
     
@@ -21,28 +23,44 @@ class Record:
         self.network = network
         
         self.log_count = 0
-        
+
+        self.task = config["args"]["task"]
+        self.algoritm = config["args"]["algorithm"]
+
+        self.plot_frequency = config["args"]["plot_frequency"]
+
+        # self.checkpoint_frequency = config["args"]["checkpoint_frequency"]
+
         self.__initialise_directories()
-        
+
         if config:
             with open(f'{self.directory}/config.yml', 'w') as outfile:
                 yaml.dump(config, outfile, default_flow_style=False)
     
-    def log_train(self, display=False, **logs):        
+    def log_info(self, display=False, **logs):
+        pass # TODO implement logger for info from training the network e.g. loss rates etc etc
+
+    def log_train(self, display=False, **logs):
+        self.log_count += 1
+
         self.train_data = pd.concat([self.train_data, pd.DataFrame([logs])], ignore_index=True)
         self.save_data(self.train_data, "train", logs, display=display)
 
-    def log_eval(self, display=False, **logs):        
+        if self.log_count % self.plot_frequency == 0:
+            plt.plot_train(self.train_data, f"Training-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "train", 20)
+
+    def log_eval(self, display=False, **logs):
         self.eval_data = pd.concat([self.eval_data, pd.DataFrame([logs])], ignore_index=True)
         self.save_data(self.eval_data, "eval", logs, display=display)
+
+        plt.plot_eval(self.eval_data, f"Evaluation-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "eval")
          
     def save_data(self, data_frame, filename, logs, display=True):
         if data_frame.empty:
             logging.warning('Trying to save an Empty Dataframe')
             
         path = f'{self.directory}/data/{filename}.csv'
-        data_frame.to_csv(path, mode='a', header=not os.path.exists(path), index=False)
-        data_frame.drop(data_frame.index, inplace=True)
+        data_frame.to_csv(path, index=False)
 
         string = [f'{key}: {str(val)[0:10]:6s}' for key, val in logs.items()]
         string = ' | '.join(string)
@@ -50,7 +68,18 @@ class Record:
 
         if display:
             print(string)
-                
+
+    def save(self):
+        logging.info(f"Saving final outputs")
+        self.save_data(self.train_data, "train", {}, display=False)
+        self.save_data(self.eval_data, "eval", {}, display=False)
+
+        plt.plot_eval(self.eval_data, f"Evaluation-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "eval")
+        plt.plot_train(self.train_data, f"Training-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "train", 20)
+
+        if self.network is not None:
+            self.network.save_models(self.algoritm, self.directory)
+
     def __initialise_directories(self):
         if not os.path.exists(self.glob_log_dir):
             os.mkdir(self.glob_log_dir)

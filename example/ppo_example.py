@@ -6,6 +6,8 @@ import time
 import gym
 import logging
 
+from timeit import default_timer as timer
+
 def evaluate_ppo_network(env, agent, args, record=None, total_steps=0):
     
     number_eval_episodes = int(args["number_eval_episodes"])
@@ -33,7 +35,7 @@ def evaluate_ppo_network(env, agent, args, record=None, total_steps=0):
             if done or truncated:
                 if record is not None:
                     record.log_eval(
-                            total_steps=training_step+1,
+                            total_steps=total_steps+1,
                             episode=eval_episode_counter+1, 
                             episode_reward=episode_reward,
                             display=True
@@ -65,6 +67,7 @@ def ppo_train(env, agent, record, args):
 
     state, _ = env.reset(seed=seed)
 
+    episode_start = time.time()
     for total_step_counter in range(int(max_steps_training)):
         action, log_prob = agent.select_action_from_policy(state)
         action_env = hlp.denormalize(action, max_action_value, min_action_value)
@@ -91,17 +94,19 @@ def ppo_train(env, agent, record, args):
             evaluate = True
 
         if done or truncated:
+            episode_time = time.time() - episode_start
             record.log_train(
                 total_steps = total_step_counter + 1,
-                episode = episode_num,
-                reward = episode_reward,
+                episode = episode_num + 1,
+                episode_reward = episode_reward,
+                episode_time = episode_time,
                 display = True
             )
 
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
                 args["evaluation_seed"] = seed
-                evaluate_ppo_network(env, agent, args, record=record, training_step=total_step_counter)
+                evaluate_ppo_network(env, agent, args, record=record, total_steps=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

@@ -67,11 +67,12 @@ def policy_based_train(env, agent, memory, record, args):
 
     state, _ = env.reset(seed=seed)
 
+    episode_start = time.time()
     for total_step_counter in range(int(max_steps_training)):
         episode_timesteps += 1
 
         if total_step_counter < max_steps_exploration:
-            logging.info(f"Running Exploration Steps {total_step_counter}/{max_steps_exploration}")
+            logging.info(f"Running Exploration Steps {total_step_counter+1}/{max_steps_exploration}")
             action_env = env.action_space.sample()  # action range the env uses [e.g. -2 , 2 for pendulum]
             action = hlp.normalize(action_env, max_action_value, min_action_value)  # algorithm range [-1, 1]
         else:
@@ -101,17 +102,19 @@ def policy_based_train(env, agent, memory, record, args):
             evaluate = True
 
         if done or truncated:
+            episode_time = time.time() - episode_start
             record.log_train(
                 total_steps = total_step_counter + 1,
                 episode = episode_num + 1,
                 episode_reward = episode_reward,
+                episode_time = episode_time,
                 display = True
             )
 
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
                 args["evaluation_seed"] = seed
-                evaluate_policy_network(env, agent, args, record=record, training_step=total_step_counter)
+                evaluate_policy_network(env, agent, args, record=record, total_steps=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 
@@ -120,6 +123,7 @@ def policy_based_train(env, agent, memory, record, args):
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
+            episode_start = time.time()
 
     end_time = time.time()
     elapsed_time = end_time - start_time
