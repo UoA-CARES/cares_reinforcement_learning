@@ -43,13 +43,14 @@ def prepare_eval_plot_frame(eval_data):
 
     plot_frame = pd.DataFrame()
 
-    plot_frame["steps"]   = eval_data[x_data].rolling(window_size, step=window_size, closed='left').mean()
-    plot_frame["avg"]     = eval_data[y_data].rolling(window_size, step=window_size, closed='left').mean()
-    plot_frame["std_dev"] = eval_data[y_data].rolling(window_size, step=window_size, closed='left').std()
+    frame_average = eval_data.groupby([x_data], as_index=False).mean()
+    frame_std = eval_data.groupby([x_data], as_index=False).std()
 
+    plot_frame["steps"]   = frame_average[x_data]
+    plot_frame["avg"]     = frame_average[y_data]
+    plot_frame["std_dev"] = frame_std[y_data]
     plot_frame["window_size"] = window_size
 
-    print(plot_frame)
     return plot_frame
 
 def prepare_train_plot_frame(train_data, window_size):
@@ -61,6 +62,7 @@ def prepare_train_plot_frame(train_data, window_size):
     plot_frame["avg"]  = train_data[y_data].rolling(window_size, step=1, min_periods=1).mean()
     plot_frame["std_dev"] = train_data[y_data].rolling(window_size, step=1, min_periods=1).std()
     plot_frame["window_size"] = window_size
+    
     return plot_frame
 
 def parse_args():
