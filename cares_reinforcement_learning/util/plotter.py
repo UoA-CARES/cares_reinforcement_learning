@@ -2,6 +2,7 @@ import os
 
 import argparse
 
+import yaml
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -85,6 +86,10 @@ def parse_args():
 
     return vars(parser.parse_args())  # converts into a dictionary
 
+class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+    def ignore_unknown(self, node):
+        return None 
+
 def main():
     args = parse_args()
 
@@ -94,7 +99,15 @@ def main():
     train_plot_frames = []
     eval_plot_frames = []
     labels = []
+
+    SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+
     for data_directory in args["data_path"]:
+        with open(f"{data_directory}/config.yml", 'r') as file:
+            config = yaml.load(file, Loader=SafeLoaderIgnoreUnknown)
+    
+        labels.append(config["args"]["algorithm"])
+
         train_data = pd.read_csv(f"{data_directory}/data/train.csv")
         eval_data  = pd.read_csv(f"{data_directory}/data/eval.csv")    
         
@@ -103,8 +116,7 @@ def main():
 
         train_plot_frames.append(train_plot_frame)
         eval_plot_frames.append(eval_plot_frame)
-        labels.append('1')
-
+        
     plot_comparisons(train_plot_frames, "Comparison-Train", labels, "Steps", "Average Reward", directory, "compare-train", True)
     plot_comparisons(eval_plot_frames, "Comparison-Eval", labels, "Steps", "Average Reward", directory, "compare-eval", True)
     
