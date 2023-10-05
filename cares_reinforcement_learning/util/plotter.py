@@ -79,22 +79,34 @@ def plot_train(train_data, title, label, directory, filename, window_size, displ
 def parse_args():
     parser = argparse.ArgumentParser()  # Add an argument
 
-    parser.add_argument('-d','--data_path', type=str, required=True)
+    parser.add_argument('-s','--save_directory', type=str, required=True)
+    parser.add_argument('-d','--data_path', type=str, nargs='+', help='List of Directories', required=True)
+    parser.add_argument('-w','--window_size', type=int, required=True)
 
     return vars(parser.parse_args())  # converts into a dictionary
 
 def main():
     args = parse_args()
 
-    directory = args["data_path"]
-    train_data = pd.read_csv(f"{args['data_path']}/data/train.csv")
-    eval_data  = pd.read_csv(f"{args['data_path']}/data/eval.csv")
+    directory = args["save_directory"]
+    window_size = args["window_size"]
 
-    train_plot_frame = prepare_train_plot_frame(train_data, window_size=1)
-    rolling_train_plot_frame = prepare_train_plot_frame(train_data, window_size=2)
-    eval_plot_frame = prepare_eval_plot_frame(eval_data)
+    train_plot_frames = []
+    eval_plot_frames = []
+    labels = []
+    for data_directory in args["data_path"]:
+        train_data = pd.read_csv(f"{data_directory}/data/train.csv")
+        eval_data  = pd.read_csv(f"{data_directory}/data/eval.csv")    
+        
+        train_plot_frame = prepare_train_plot_frame(train_data, window_size=window_size)
+        eval_plot_frame = prepare_eval_plot_frame(eval_data)
 
-    plot_comparisons([train_plot_frame, rolling_train_plot_frame, eval_plot_frame], "Comparison", ['train', 'train-rolling', 'eval'], "Steps", "Average Reward", directory, "compare", True)
+        train_plot_frames.append(train_plot_frame)
+        eval_plot_frames.append(eval_plot_frame)
+        labels.append('1')
+
+    plot_comparisons(train_plot_frames, "Comparison-Train", labels, "Steps", "Average Reward", directory, "compare-train", True)
+    plot_comparisons(eval_plot_frames, "Comparison-Eval", labels, "Steps", "Average Reward", directory, "compare-eval", True)
     
 if __name__ == '__main__':
     main()

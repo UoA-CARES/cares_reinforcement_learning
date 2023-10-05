@@ -106,6 +106,7 @@ def policy_based_train(env, agent, memory, record, args):
             record.log_train(
                 total_steps = total_step_counter + 1,
                 episode = episode_num + 1,
+                episode_steps=episode_timesteps,
                 episode_reward = episode_reward,
                 episode_time = episode_time,
                 display = True
@@ -120,8 +121,8 @@ def policy_based_train(env, agent, memory, record, args):
 
             # Reset environment
             state, _ = env.reset()
-            episode_reward = 0
             episode_timesteps = 0
+            episode_reward = 0
             episode_num += 1
             episode_start = time.time()
 

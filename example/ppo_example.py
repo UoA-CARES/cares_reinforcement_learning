@@ -58,7 +58,8 @@ def ppo_train(env, agent, record, args):
     min_action_value = env.action_space.low[0]
     max_action_value = env.action_space.high[0]
 
-    episode_num = 1
+    episode_timesteps = 0
+    episode_num = 0
     episode_reward = 0
 
     memory = MemoryBuffer()
@@ -69,6 +70,8 @@ def ppo_train(env, agent, record, args):
 
     episode_start = time.time()
     for total_step_counter in range(int(max_steps_training)):
+        episode_timesteps += 1
+
         action, log_prob = agent.select_action_from_policy(state)
         action_env = hlp.denormalize(action, max_action_value, min_action_value)
 
@@ -98,6 +101,7 @@ def ppo_train(env, agent, record, args):
             record.log_train(
                 total_steps = total_step_counter + 1,
                 episode = episode_num + 1,
+                episode_steps=episode_timesteps,
                 episode_reward = episode_reward,
                 episode_time = episode_time,
                 display = True
@@ -112,8 +116,10 @@ def ppo_train(env, agent, record, args):
 
             # Reset environment
             state, _ = env.reset()
+            episode_timesteps = 0
             episode_reward = 0
             episode_num += 1
+            episode_start = time.time()
 
     end_time = time.time()
     elapsed_time = end_time - start_time
