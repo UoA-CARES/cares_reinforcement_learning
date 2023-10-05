@@ -9,18 +9,21 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import uuid
 
+# TODO make the plots look how people want them too. This is just a basic example
 def plot_data(plot_frame, title, label, x_label, y_label, directory, filename, display=True, close_figure=True):
     window_size = plot_frame["window_size"]
 
+    plt.xlabel(x_label, fontsize=10)
+    plt.ylabel(y_label, fontsize=10)
+    plt.title(title, fontsize=10) 
+
     ax = sns.lineplot(data=plot_frame, x=plot_frame["steps"], y="avg", label=label)
-    ax.set(xlabel=x_label, ylabel=y_label)
+    # ax.set(xlabel=x_label, ylabel=y_label)
     
     Z = 1.960 # 95% confidence interval
     confidence_interval = Z * plot_frame["std_dev"] / np.sqrt(window_size)
 
     plt.fill_between(plot_frame["steps"], plot_frame["avg"] - confidence_interval, plot_frame["avg"] + confidence_interval, alpha=0.4)
-
-    plt.title(title) 
 
     plt.savefig(f"{directory}/figures/{filename}.png")
 
@@ -99,17 +102,19 @@ def main():
     train_plot_frames = []
     eval_plot_frames = []
     labels = []
+    title = "Undefined Task"
 
     SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
 
     for data_directory in args["data_path"]:
         with open(f"{data_directory}/config.yml", 'r') as file:
             config = yaml.load(file, Loader=SafeLoaderIgnoreUnknown)
-    
+
         labels.append(config["args"]["algorithm"])
+        title = config["args"]["task"]
 
         train_data = pd.read_csv(f"{data_directory}/data/train.csv")
-        eval_data  = pd.read_csv(f"{data_directory}/data/eval.csv")    
+        eval_data  = pd.read_csv(f"{data_directory}/data/eval.csv")
         
         train_plot_frame = prepare_train_plot_frame(train_data, window_size=window_size)
         eval_plot_frame = prepare_eval_plot_frame(eval_data)
@@ -117,8 +122,8 @@ def main():
         train_plot_frames.append(train_plot_frame)
         eval_plot_frames.append(eval_plot_frame)
         
-    plot_comparisons(train_plot_frames, "Comparison-Train", labels, "Steps", "Average Reward", directory, "compare-train", True)
-    plot_comparisons(eval_plot_frames, "Comparison-Eval", labels, "Steps", "Average Reward", directory, "compare-eval", True)
+    plot_comparisons(train_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, "compare-train", True)
+    plot_comparisons(eval_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, "compare-eval", True)
     
 if __name__ == '__main__':
     main()
