@@ -100,7 +100,7 @@ def value_based_train(env, agent, memory, record, args):
                     experience['done']
                 ))
                 memory.update_priorities(experience['indices'], info)
-                # TODO add saving info information from train_policy as seperate recording
+                # record.log_info(info, display=False)
             
         if (total_step_counter+1) % number_steps_per_evaluation == 0:
             evaluate = True

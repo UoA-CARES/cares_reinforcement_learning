@@ -105,10 +105,10 @@ def main():
     
     logging.info(f"Memory: {args['memory']}")
 
-    # Train the policy or value based approach
+    #create the record class - standardised results tracking
     record = Record(network=agent, config={'args': args})
+    # Train the policy or value based approach
     if args["algorithm"] == "PPO":
-        #create the record class
         ppe.ppo_train(env, agent, record, args)
         env = gym.make(env.spec.id, render_mode="human")
         ppe.evaluate_ppo_network(env, agent, args)

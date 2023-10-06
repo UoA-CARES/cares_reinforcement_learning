@@ -24,6 +24,7 @@ class Record:
         
         self.train_data = pd.DataFrame()
         self.eval_data = pd.DataFrame()
+        self.info_data = pd.DataFrame()
         
         self.network = network
         
@@ -35,8 +36,9 @@ class Record:
             with open(f'{self.directory}/config.yml', 'w') as outfile:
                 yaml.dump(config, outfile, default_flow_style=False)
     
-    def log_info(self, display=False, **logs):
-        pass # TODO implement logger for info from training the network e.g. loss rates etc etc
+    def log_info(self, info, display=False):
+        self.info_data = pd.concat([self.info_data, pd.DataFrame([info])], ignore_index=True)
+        self.save_data(self.info_data, "info", info, display=display)
 
     def log_train(self, display=False, **logs):
         self.log_count += 1

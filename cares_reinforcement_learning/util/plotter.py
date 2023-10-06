@@ -13,12 +13,12 @@ import uuid
 def plot_data(plot_frame, title, label, x_label, y_label, directory, filename, display=True, close_figure=True):
     window_size = plot_frame["window_size"]
 
+    # TODO make font size a parameter
     plt.xlabel(x_label, fontsize=10)
     plt.ylabel(y_label, fontsize=10)
     plt.title(title, fontsize=10) 
 
     ax = sns.lineplot(data=plot_frame, x=plot_frame["steps"], y="avg", label=label)
-    # ax.set(xlabel=x_label, ylabel=y_label)
     
     Z = 1.960 # 95% confidence interval
     confidence_interval = Z * plot_frame["std_dev"] / np.sqrt(window_size)
@@ -122,8 +122,8 @@ def main():
         train_plot_frames.append(train_plot_frame)
         eval_plot_frames.append(eval_plot_frame)
         
-    plot_comparisons(train_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, "compare-train", True)
-    plot_comparisons(eval_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, "compare-eval", True)
+    plot_comparisons(train_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, f"{title}-compare-train", True)
+    plot_comparisons(eval_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, f"{title}-compare-eval", True)
     
 if __name__ == '__main__':
     main()
