@@ -1,103 +1,100 @@
-import pandas as pd
-from datetime import datetime
 import os
 import logging
-import torch
-import yaml
-from cares_reinforcement_learning.util.Plot import plot_average
-import math
 
-# Python has no max int
-MAX_INT = 9999999
+import pandas as pd
+
+import yaml
+
+from pathlib import Path
+from datetime import datetime
+
+import cares_reinforcement_learning.util.plotter as plt
 
 class Record:
     
-    def __init__(self, glob_log_dir=None, log_dir=None, networks={}, checkpoint_freq=None, config=None, keep_checkpoints=False) -> None:
+    def __init__(self, glob_log_dir=None, log_dir=None, network=None, config=None) -> None:
+        self.task = config["args"]["task"]
+        self.algoritm = config["args"]["algorithm"]
+        self.plot_frequency = config["args"]["plot_frequency"]
+        self.checkpoint_frequency = config["args"]["checkpoint_frequency"]
         
-        self.glob_log_dir = glob_log_dir or 'rl_logs'
-        self.log_dir = log_dir or datetime.now().strftime("%y_%m_%d_%H:%M:%S")
-        self.dir = f'{self.glob_log_dir}/{self.log_dir}'
+        self.glob_log_dir = glob_log_dir or f'{Path.home()}/cares_rl_logs'
+        self.log_dir = log_dir or f"{self.algoritm}-{self.task}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
+        self.directory = f'{self.glob_log_dir}/{self.log_dir}'
         
-        self.data = pd.DataFrame() 
+        self.train_data = pd.DataFrame()
+        self.eval_data = pd.DataFrame()
+        self.info_data = pd.DataFrame()
         
-        if checkpoint_freq < 10:
-            raise Exception('Checkpoint Frequency should be at least 10')
-        
-        self.checkpoint_freq = checkpoint_freq
-        
-        self.networks = networks    
+        self.network = network
         
         self.log_count = 0
-        
-        self.initial_log_keys = set()
+
         self.__initialise_directories()
-        
-        self.keep_checkpoints = keep_checkpoints
-        
+
         if config:
-            with open(f'{self.dir}/config.yml', 'w') as outfile:
+            with open(f'{self.directory}/config.yml', 'w') as outfile:
                 yaml.dump(config, outfile, default_flow_style=False)
     
-    def log(self, out=False, **logs):
+    def log_info(self, info, display=False):
+        self.info_data = pd.concat([self.info_data, pd.DataFrame([info])], ignore_index=True)
+        self.save_data(self.info_data, "info", info, display=display)
+
+    def log_train(self, display=False, **logs):
         self.log_count += 1
-        
-        if not self.initial_log_keys:
-            logging.info('Setting Log Values')
-            self.initial_log_keys = self.initial_log_keys.union(logs.keys())
-        
-        if not logs.keys() <= self.initial_log_keys:
-            logging.warning('Introducing new columns')
-            self.initial_log_keys = self.initial_log_keys.union(logs.keys())
-        
-        if self.checkpoint_freq and self.log_count % self.checkpoint_freq == 0:
-            self.save(f'_checkpoint')
-    
-        self.data = pd.concat([self.data, pd.DataFrame([logs])], ignore_index=True)
-        
+
+        self.train_data = pd.concat([self.train_data, pd.DataFrame([logs])], ignore_index=True)
+        self.save_data(self.train_data, "train", logs, display=display)
+
+        if self.log_count % self.plot_frequency == 0:
+            plt.plot_train(self.train_data, f"Training-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "train", 20)
+
+        if self.network is not None and self.log_count % self.checkpoint_frequency == 0:
+            self.network.save_models(f"{self.algoritm}-checkpoint-{self.log_count}", self.directory)
+
+    def log_eval(self, display=False, **logs):
+        self.eval_data = pd.concat([self.eval_data, pd.DataFrame([logs])], ignore_index=True)
+        self.save_data(self.eval_data, "eval", logs, display=display)
+
+        plt.plot_eval(self.eval_data, f"Evaluation-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "eval")
+         
+    def save_data(self, data_frame, filename, logs, display=True):
+        if data_frame.empty:
+            logging.warning('Trying to save an Empty Dataframe')
+            
+        path = f'{self.directory}/data/{filename}.csv'
+        data_frame.to_csv(path, index=False)
+
         string = [f'{key}: {str(val)[0:10]:6s}' for key, val in logs.items()]
         string = ' | '.join(string)
         string = '| ' + string + ' |'
 
-        if out:
+        if display:
             print(string)
-        
-    def save(self, sfx='_final'):
-        if self.data.empty:
-            logging.warning('Trying to save an Empty Dataframe')
-            
-        path = f'{self.dir}/data/data{sfx}.csv'
-        self.data.to_csv(path, mode='a', header=not os.path.exists(path), index=False)
-        self.data.drop(self.data.index, inplace=True)
-        
-        # data = pd.read_csv(path)
-        
-        # for name, data in self.data.items():
-        #     plot_average(
-        #         x=range(len(data.dropna())),
-        #         y=data.dropna(), 
-        #         x_label='x', 
-        #         y_label=name, 
-        #         title=f'Average {name}', 
-        #         window_size=math.floor(len(data)/10), 
-        #         file_path=f'{self.dir}/figures/{name}_avg{sfx}.png'
-        #         )
-        
-        if self.networks:
-            for name, network in self.networks.items():
-                torch.save(network.state_dict(), f'{self.dir}/models/{name}{sfx}{f"-{self.log_count}" if self.keep_checkpoints else ""}.pht')
-        
+
+    def save(self):
+        logging.info(f"Saving final outputs")
+        self.save_data(self.train_data, "train", {}, display=False)
+        self.save_data(self.eval_data, "eval", {}, display=False)
+
+        plt.plot_eval(self.eval_data, f"Evaluation-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "eval")
+        plt.plot_train(self.train_data, f"Training-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "train", 20)
+
+        if self.network is not None:
+            self.network.save_models(self.algoritm, self.directory)
+
     def __initialise_directories(self):
         if not os.path.exists(self.glob_log_dir):
             os.mkdir(self.glob_log_dir)
             
-        if not os.path.exists(self.dir):
-            os.mkdir(self.dir)
+        if not os.path.exists(self.directory):
+            os.mkdir(self.directory)
         
-        if not os.path.exists(f'{self.dir}/data'):
-            os.mkdir(f'{self.dir}/data')
+        if not os.path.exists(f'{self.directory}/data'):
+            os.mkdir(f'{self.directory}/data')
             
-        if not os.path.exists(f'{self.dir}/models'):
-            os.mkdir(f'{self.dir}/models')
+        if not os.path.exists(f'{self.directory}/models'):
+            os.mkdir(f'{self.directory}/models')
             
-        if not os.path.exists(f'{self.dir}/figures'):
-            os.mkdir(f'{self.dir}/figures') 
+        if not os.path.exists(f'{self.directory}/figures'):
+            os.mkdir(f'{self.directory}/figures') 

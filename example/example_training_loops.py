@@ -1,9 +1,3 @@
-"""
-Description:
-            This is a basic example of the training loop for Off Policy Algorithms,
-            We may move this later for each repo/env or keep this in this repo
-"""
-
 import time
 import argparse
 
@@ -26,13 +20,11 @@ import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
-
 def set_seed(env, seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
     env.action_space.seed(seed)
-
 
 def parse_args():
     parser = argparse.ArgumentParser()  # Add an argument
@@ -49,7 +41,9 @@ def parse_args():
 
     parser.add_argument('--max_steps_exploration', type=int, default=10000)
     parser.add_argument('--max_steps_training', type=int, default=50000)
-    parser.add_argument('--max_steps_evaluation', type=int, default=5000)
+
+    parser.add_argument('--number_steps_per_evaluation', type=int, default=1000)
+    parser.add_argument('--number_eval_episodes', type=int, default=10)
 
     parser.add_argument('--seed', type=int, default=571)
     parser.add_argument('--evaluation_seed', type=int, default=152)
@@ -62,6 +56,9 @@ def parse_args():
     parser.add_argument('--exploration_decay', type=float, default=0.95)
 
     parser.add_argument('--max_steps_per_batch', type=float, default=5000)
+
+    parser.add_argument('--plot_frequency', type=int, default=100)
+    parser.add_argument('--checkpoint_frequency', type=int, default=100)
 
     parser.add_argument('--display', type=str, default=True)
 
@@ -108,23 +105,24 @@ def main():
     
     logging.info(f"Memory: {args['memory']}")
 
+    #create the record class - standardised results tracking
+    record = Record(network=agent, config={'args': args})
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":
-        #create the record class
-        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200,config={'args': args}, keep_checkpoints=True)
         ppe.ppo_train(env, agent, record, args)
-        ppe.evaluate_ppo_network(env, agent, record, args)
+        env = gym.make(env.spec.id, render_mode="human")
+        ppe.evaluate_ppo_network(env, agent, args)
     elif agent.type == "policy":
-        record = Record(networks={'actor':agent.actor_net, 'critic': agent.critic_net}, checkpoint_freq = 200, config={'args': args}, keep_checkpoints=True)
         pbe.policy_based_train(env, agent, memory, record, args)
-        pbe.evaluate_policy_network(env, agent, record, args)
+        env = gym.make(env.spec.id, render_mode="human")
+        pbe.evaluate_policy_network(env, agent, args)
     elif agent.type == "value":
-        record = Record(networks={'network':agent.network}, checkpoint_freq = 200, config={'args': args}, keep_checkpoints=True)
         vbe.value_based_train(env, agent, memory, record, args)
-        vbe.evaluate_value_network(env, agent, record, args)
+        env = gym.make(env.spec.id, render_mode="human")
+        vbe.evaluate_value_network(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
-
+    
     record.save()
 
 if __name__ == '__main__':
