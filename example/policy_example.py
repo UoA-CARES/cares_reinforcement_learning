@@ -2,12 +2,17 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
 from cares_reinforcement_learning.util import helpers as hlp, Record
 
+import cv2
 import time
 import gym
 import logging
 import numpy as np
 
 def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
+
+    if record is not None:
+        frame = env.grab_frame()
+        record.start_video(total_steps+1, frame)
 
     number_eval_episodes = int(args["number_eval_episodes"])
     
@@ -28,6 +33,10 @@ def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
             state, reward, done, truncated = env.step(action_env)
             episode_reward += reward
 
+            if eval_episode_counter == 0 and record is not None:
+                frame = env.grab_frame()
+                record.log_video(frame)
+
             if done or truncated:
                 if record is not None:
                     record.log_eval(
@@ -42,6 +51,8 @@ def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
                 episode_reward = 0
                 episode_timesteps = 0
                 episode_num += 1
+    
+    record.stop_video()
 
 def policy_based_train(env, agent, memory, record, args):
     start_time = time.time()

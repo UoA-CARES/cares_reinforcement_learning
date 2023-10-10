@@ -31,7 +31,6 @@ def parse_args():
     parser.add_argument('--gym_environment', type=str, required=True)
     parser.add_argument('--domain', type=str)
     parser.add_argument('--task', type=str, required=True)
-    parser.add_argument('--render', type=str, default="None")
     parser.add_argument('--algorithm', type=str, required=True)
     parser.add_argument('--memory', type=str, default="MemoryBuffer")
     parser.add_argument('--image_observation', type=bool, default=False)
@@ -61,8 +60,6 @@ def parse_args():
 
     parser.add_argument('--plot_frequency', type=int, default=100)
     parser.add_argument('--checkpoint_frequency', type=int, default=100)
-
-    parser.add_argument('--display', type=str, default=True)
 
     return vars(parser.parse_args())  # converts into a dictionary
 
@@ -108,16 +105,10 @@ def main():
     # Train the policy or value based approach
     if args["algorithm"] == "PPO":
         ppe.ppo_train(env, agent, record, args)
-        # env = gym.make(env.spec.id, render_mode="human")
-        # ppe.evaluate_ppo_network(env, agent, args)
     elif agent.type == "policy":
         pbe.policy_based_train(env, agent, memory, record, args)
-        # env = gym.make(env.spec.id, render_mode="human")
-        # pbe.evaluate_policy_network(env, agent, args)
     elif agent.type == "value":
         vbe.value_based_train(env, agent, memory, record, args)
-        # env = gym.make(env.spec.id, render_mode="human")
-        # vbe.evaluate_value_network(env, agent, args)
     else:
         raise ValueError(f"Agent type is unkown: {agent.type}")
     

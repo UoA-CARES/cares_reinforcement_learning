@@ -1,5 +1,6 @@
 import os
 import logging
+import cv2
 
 import pandas as pd
 
@@ -35,6 +36,18 @@ class Record:
         if config:
             with open(f'{self.directory}/config.yml', 'w') as outfile:
                 yaml.dump(config, outfile, default_flow_style=False)
+    
+    def start_video(self, file_name, frame):
+        fps        = 30
+        video_name = f"{self.directory}/videos/{file_name}.mp4"
+        height, width, channels = frame.shape
+        self.video = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*'mp4v'), fps, (width, height))
+
+    def stop_video(self):
+        self.video.release()
+
+    def log_video(self, frame):
+        self.video.write(frame)
     
     def log_info(self, info, display=False):
         self.info_data = pd.concat([self.info_data, pd.DataFrame([info])], ignore_index=True)
@@ -97,4 +110,7 @@ class Record:
             os.mkdir(f'{self.directory}/models')
             
         if not os.path.exists(f'{self.directory}/figures'):
-            os.mkdir(f'{self.directory}/figures') 
+            os.mkdir(f'{self.directory}/figures')
+
+        if not os.path.exists(f'{self.directory}/videos'):
+            os.mkdir(f'{self.directory}/videos')

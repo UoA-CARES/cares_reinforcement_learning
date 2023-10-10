@@ -1,5 +1,7 @@
 import logging
 
+import cv2
+
 import gym
 from gym import spaces
 
@@ -28,7 +30,7 @@ class EnvironmentFactory:
 class OpenAIGym:
     def __init__(self, args) -> None:
         logging.info(f"Training task {args['task']}")
-        self.env = gym.make(args["task"], render_mode=(None if args['render'] == "None" else args['render']))
+        self.env = gym.make(args["task"], render_mode="rgb_array")
         self.env.action_space.seed(args['seed'])
         
     @cached_property
@@ -60,6 +62,11 @@ class OpenAIGym:
     def step(self, action):
         state, reward, done, truncated, _ = self.env.step(action)
         return state, reward, done, truncated
+    
+    def grab_frame(self):
+        frame = self.env.render()
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert to BGR for use with OpenCV
+        return frame
         
 class DMCS:
     def __init__(self, args) -> None:
@@ -95,6 +102,11 @@ class DMCS:
         time_step = self.env.step(action)
         state, reward, done = np.hstack(list(time_step.observation.values())), time_step.reward, time_step.last()
         return state, reward, done, False # for consistency with open ai gym just add false for truncated
+    
+    def grab_frame(self):
+        frame = self.env.physics.render(camera_id=0, height=240, width=300)
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert to BGR for use with OpenCV
+        return frame
 
 # TODO paramatise the observation size 3x84x84
 class DMCSImageEnvironment(DMCS):
