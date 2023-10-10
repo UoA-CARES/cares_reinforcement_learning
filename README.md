@@ -8,24 +8,56 @@ The CARES reinforcement learning bed used as the foundation for RL related proje
 Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki) for a guide on how to use the package
 
 ## Installation Instructions
-`git clone` the repository
+If you want to utilise the GPU with Pytorch install CUDA first - https://developer.nvidia.com/cuda-toolkit
 
-If you would like to leverage your machine's GPU, uncomment the optional dependencies in the `requirements.txt` before moving on.
+Install Pytorch following the instructions here - https://pytorch.org/get-started/locally/
+
+`git clone` the repository into your desired directory on your local machine
 
 Run `pip3 install -r requirements.txt` in the **root directory** of the package
 
 To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
 
 ## Running an Example
-This repository includes a script that allows you to run any OpenAI environment – provided you comply with all the dependencies for that environment. These examples make use of the package, and can provide an example on how one might use the package in their own environments.
+This repository includes a script that allows you to run any OpenAI Gymnasium (https://github.com/Farama-Foundation/Gymnasium) or Deep Mind Control Suite (https://github.com/google-deepmind/dm_control) environment – provided you comply with all the dependencies for that environment. These examples make use of the package, and can provide an example on how one might use the package in their own environments.
 
-`example_training_loops.py` takes in hyperparameters that allow you to customise the training run – OpenAI Environment, training steps, gamma... Use `python3 example_training_loops.py -h` for help on what hyperparameters are available for customisation.
+`example_training_loops.py` takes in hyperparameters that allow you to customise the training run enviromment – OpenAI or DMCS Environment - or RL algorithm. Use `python3 example_training_loops.py -h` for help on what hyperparameters are available for customisation.
 
-An example is found below:
+An example is found below for running on the OpenAI and DMCS environments with TD3:
 ```
-python3 example_training_loops.py --task 'Pendulum-v1' --algorithm PPO --max_steps_training 1000000 --seed 571 --gamma 0.99 --actor_lr 0.0001 --critic_lr 0.001
+python3 example_training_loops.py --gym_environment gym --task HalfCheetah-v4 --algorithm TD3
+
+
+python3 example_training_loops.py --gym_environment dmcs --domain ball_in_cup --task catch --algorithm TD3
 ```
 
+### Data Outputs
+All data from a training run is saved into '~/cares_rl_logs'. A folder will be created for each training run named as 'ALGORITHM-TASK-YY_MM_DD:HH:MM:SS', e.g. 'TD3-HalfCheetah-v4-23_10_11_08:47:22'. This folder will contain the following directories and information saved during the training session:
+
+```
+ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
+├─ config.py
+├─ data
+|  ├─ train.csv
+|  ├─ eval.csv
+├─ figures
+|  ├─ eval.png
+|  ├─ train.png
+├─ models
+|  ├─ model.pht
+|  ├─ CHECKPOINT_N.pht
+|  ├─ ...
+├─ videos
+|  ├─ STEP.mp4
+|  ├─ ...
+```
+
+### Plotting
+The plotting utility will plot the data contained in the training data. An example of how to plot the data from one or multiple training sessions together is shown below. Running 'python3 plotter.py -h' will provide details on the plotting parameters.
+
+```
+python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS -w 20
+```
 
 ## Package Structure
 
