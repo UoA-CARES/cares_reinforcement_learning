@@ -5,15 +5,13 @@ from cares_reinforcement_learning.util import helpers as hlp, Record
 import time
 import gym
 import logging
+import numpy as np
 
 def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
 
     number_eval_episodes = int(args["number_eval_episodes"])
     
-    min_action_value = env.action_space.low[0]
-    max_action_value = env.action_space.high[0]
-
-    state, _ = env.reset()
+    state = env.reset()
 
     for eval_episode_counter in range(number_eval_episodes):
         episode_timesteps = 0
@@ -25,9 +23,9 @@ def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
         while not done and not truncated:
             episode_timesteps += 1
             action = agent.select_action_from_policy(state, evaluation=True)
-            action_env = hlp.denormalize(action, max_action_value, min_action_value)
+            action_env = hlp.denormalize(action, env.max_action_value, env.min_action_value)
 
-            state, reward, done, truncated, _ = env.step(action_env)
+            state, reward, done, truncated = env.step(action_env)
             episode_reward += reward
 
             if done or truncated:
@@ -40,7 +38,7 @@ def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
                     )
 
                 # Reset environment
-                state, _ = env.reset()
+                state = env.reset()
                 episode_reward = 0
                 episode_timesteps = 0
                 episode_num += 1
@@ -52,12 +50,11 @@ def policy_based_train(env, agent, memory, record, args):
     max_steps_exploration = args["max_steps_exploration"]
     number_steps_per_evaluation = args["number_steps_per_evaluation"]
 
+    logging.info(f"Training {max_steps_training} Exploration {max_steps_exploration} Evaluation {number_steps_per_evaluation}")
+
     batch_size = args["batch_size"]
     seed = args["seed"]
     G = args["G"]
-
-    min_action_value = env.action_space.low[0]
-    max_action_value = env.action_space.high[0]
 
     episode_timesteps = 0
     episode_reward = 0
@@ -65,7 +62,7 @@ def policy_based_train(env, agent, memory, record, args):
 
     evaluate = False
 
-    state, _ = env.reset(seed=seed)
+    state = env.reset()
 
     episode_start = time.time()
     for total_step_counter in range(int(max_steps_training)):
@@ -73,13 +70,17 @@ def policy_based_train(env, agent, memory, record, args):
 
         if total_step_counter < max_steps_exploration:
             logging.info(f"Running Exploration Steps {total_step_counter+1}/{max_steps_exploration}")
-            action_env = env.action_space.sample()  # action range the env uses [e.g. -2 , 2 for pendulum]
-            action = hlp.normalize(action_env, max_action_value, min_action_value)  # algorithm range [-1, 1]
+            # action range the env uses [e.g. -2 , 2 for pendulum]
+            action_env = np.random.uniform(env.min_action_value, env.max_action_value, size=env.action_num) 
+            # algorithm range [-1, 1] - note for DMCS this is redudenant but required for openai
+            action = hlp.normalize(action_env, env.max_action_value, env.min_action_value)  
         else:
-            action = agent.select_action_from_policy(state)  # algorithm range [-1, 1]
-            action_env = hlp.denormalize(action, max_action_value, min_action_value)  # mapping to env range [e.g. -2 , 2 for pendulum]
+            # algorithm range [-1, 1]
+            action = agent.select_action_from_policy(state)
+            # mapping to env range [e.g. -2 , 2 for pendulum] - note for DMCS this is redudenant but required for openai
+            action_env = hlp.denormalize(action, env.max_action_value, env.min_action_value)  
 
-        next_state, reward, done, truncated, info = env.step(action_env)
+        next_state, reward, done, truncated = env.step(action_env)
         memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done)
 
         state = next_state
@@ -120,7 +121,7 @@ def policy_based_train(env, agent, memory, record, args):
                 evaluate = False
 
             # Reset environment
-            state, _ = env.reset()
+            state = env.reset()
             episode_timesteps = 0
             episode_reward = 0
             episode_num += 1

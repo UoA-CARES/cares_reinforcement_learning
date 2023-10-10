@@ -70,7 +70,7 @@ class Record:
         string = '| ' + string + ' |'
 
         if display:
-            print(string)
+            logging.info(string)
 
     def save(self):
         logging.info(f"Saving final outputs")
