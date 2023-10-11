@@ -25,12 +25,23 @@ def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-def parse_args():
-    parser = argparse.ArgumentParser()  # Add an argument
+def environment_args(parent_parser):
+    env_parser = argparse.ArgumentParser()
+    env_parsers = env_parser.add_subparsers(help='sub-command help', dest='gym_environment', required=True)
 
-    parser.add_argument('--gym_environment', type=str, required=True)
-    parser.add_argument('--domain', type=str)
-    parser.add_argument('--task', type=str, required=True)
+    # create the parser for the DMCS sub-command
+    parser_dmcs = env_parsers.add_parser('dmcs', help='DMCS', parents=[parent_parser])
+    parser_dmcs.add_argument('--domain', type=str, required=True)
+    parser_dmcs.add_argument('--task', type=str, required=True)
+    
+    # create the parser for the OpenAI sub-command
+    parser_openai = env_parsers.add_parser('openai', help='openai', parents=[parent_parser])
+    parser_openai.add_argument('--task', type=str, required=True)
+    return env_parser
+
+def parse_args():
+    parser = argparse.ArgumentParser(add_help=False)  # Add an argument
+    
     parser.add_argument('--algorithm', type=str, required=True)
     parser.add_argument('--memory', type=str, default="MemoryBuffer")
     parser.add_argument('--image_observation', type=bool, default=False)
@@ -60,6 +71,8 @@ def parse_args():
 
     parser.add_argument('--plot_frequency', type=int, default=100)
     parser.add_argument('--checkpoint_frequency', type=int, default=100)
+
+    parser = environment_args(parent_parser=parser) # NOTE this has to go after the rest of parser is created
 
     return vars(parser.parse_args())  # converts into a dictionary
 

@@ -21,7 +21,7 @@ class EnvironmentFactory:
         logging.info(f"Training Environment: {gym_environment}")
         if gym_environment == 'dmcs':
             env = DMCSImageEnvironment(args=args) if args['image_observation'] else DMCS(args=args)
-        elif gym_environment == "gym":
+        elif gym_environment == "openai":
             env = OpenAIGym(args=args)
         else:
             raise ValueError(f"Unkown environment: {gym_environment}")
