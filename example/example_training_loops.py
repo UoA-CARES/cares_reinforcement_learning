@@ -8,6 +8,7 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
 from cares_reinforcement_learning.util import Record
 from cares_reinforcement_learning.util import EnvironmentFactory
+from cares_reinforcement_learning.util import arguement_parser as ap
 
 import example.policy_example as pbe
 import example.value_example as vbe
@@ -25,59 +26,9 @@ def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-def environment_args(parent_parser):
-    env_parser = argparse.ArgumentParser()
-    env_parsers = env_parser.add_subparsers(help='sub-command help', dest='gym_environment', required=True)
-
-    # create the parser for the DMCS sub-command
-    parser_dmcs = env_parsers.add_parser('dmcs', help='DMCS', parents=[parent_parser])
-    parser_dmcs.add_argument('--domain', type=str, required=True)
-    parser_dmcs.add_argument('--task', type=str, required=True)
-    
-    # create the parser for the OpenAI sub-command
-    parser_openai = env_parsers.add_parser('openai', help='openai', parents=[parent_parser])
-    parser_openai.add_argument('--task', type=str, required=True)
-    return env_parser
-
-def parse_args():
-    parser = argparse.ArgumentParser(add_help=False)  # Add an argument
-    
-    parser.add_argument('--algorithm', type=str, required=True)
-    parser.add_argument('--memory', type=str, default="MemoryBuffer")
-    parser.add_argument('--image_observation', type=bool, default=False)
-
-    parser.add_argument('--G', type=int, default=10)
-    parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--tau', type=float, default=0.005)
-    parser.add_argument('--batch_size', type=int, default=32)
-
-    parser.add_argument('--max_steps_exploration', type=int, default=10000)
-    parser.add_argument('--max_steps_training', type=int, default=100000)
-
-    parser.add_argument('--number_steps_per_evaluation', type=int, default=10000)
-    parser.add_argument('--number_eval_episodes', type=int, default=10)
-
-    parser.add_argument('--seed', type=int, default=571)
-    parser.add_argument('--evaluation_seed', type=int, default=152)
-
-    parser.add_argument('--actor_lr', type=float, default=1e-4)
-    parser.add_argument('--critic_lr', type=float, default=1e-3)
-
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--exploration_min', type=float, default=1e-3)
-    parser.add_argument('--exploration_decay', type=float, default=0.95)
-
-    parser.add_argument('--max_steps_per_batch', type=float, default=5000)
-
-    parser.add_argument('--plot_frequency', type=int, default=100)
-    parser.add_argument('--checkpoint_frequency', type=int, default=100)
-
-    parser = environment_args(parent_parser=parser) # NOTE this has to go after the rest of parser is created
-
-    return vars(parser.parse_args())  # converts into a dictionary
-
 def main():
-    args = parse_args()
+    args = ap.parse_args()
+
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f"Device: {args['device']}")
 
