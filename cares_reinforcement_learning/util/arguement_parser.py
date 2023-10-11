@@ -56,23 +56,28 @@ def algorithm_args(parent_parser):
     parser_DQN = alg_parsers.add_parser('DQN', help='DQN', parents=[parent_parser])
     parser_DQN.add_argument('--lr', type=float, default=1e-3)
     parser_DQN.add_argument('--gamma', type=float, default=0.99)
+    parser_DQN.add_argument('--exploration_min', type=float, default=1e-3)
+    parser_DQN.add_argument('--exploration_decay', type=float, default=0.95)
 
     # create the parser for DuelingDQN with default parameters
     parser_DuelingDQN = alg_parsers.add_parser('DuelingDQN', help='DuelingDQN', parents=[parent_parser])
     parser_DuelingDQN.add_argument('--lr', type=float, default=1e-3)
     parser_DuelingDQN.add_argument('--gamma', type=float, default=0.99)
+    parser_DuelingDQN.add_argument('--exploration_min', type=float, default=1e-3)
+    parser_DuelingDQN.add_argument('--exploration_decay', type=float, default=0.95)
 
     # create the parser for DoubleDQN with default parameters
     parser_DoubleDQN = alg_parsers.add_parser('DoubleDQN', help='DoubleDQN', parents=[parent_parser])
     parser_DoubleDQN.add_argument('--lr', type=float, default=1e-3)
     parser_DoubleDQN.add_argument('--gamma', type=float, default=0.99)
+    parser_DoubleDQN.add_argument('--exploration_min', type=float, default=1e-3)
+    parser_DoubleDQN.add_argument('--exploration_decay', type=float, default=0.95)
 
     return alg_parser
 
 def parse_args():
     parser = argparse.ArgumentParser(add_help=False)  # Add an argument
     
-    # TODO 
     parser.add_argument('--memory', type=str, default="MemoryBuffer", help="Memory type - options: {MemoryBuffer, PER}")
     parser.add_argument('--image_observation', type=bool, default=False, help="Use image as the observation state from the environment")
 

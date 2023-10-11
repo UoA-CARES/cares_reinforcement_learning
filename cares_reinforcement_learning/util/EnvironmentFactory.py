@@ -20,7 +20,7 @@ class EnvironmentFactory:
     def create_environment(self, gym_environment, args):
         logging.info(f"Training Environment: {gym_environment}")
         if gym_environment == 'dmcs':
-            env = DMCSImageEnvironment(args=args) if args['image_observation'] else DMCS(args=args)
+            env = DMCSImage(args=args) if args['image_observation'] else DMCS(args=args)
         elif gym_environment == "openai":
             env = OpenAIGym(args=args)
         else:
@@ -67,6 +67,38 @@ class OpenAIGym:
         frame = self.env.render()
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert to BGR for use with OpenCV
         return frame
+    
+class OpenAIGymImage:
+    def __init__(self, args, k=3):
+        self.k    = k  # number of frames to be stacked
+        self.frames_stacked = deque([], maxlen=k)
+
+        super().__init__(args=args)
+
+    # @override
+    @property
+    def observation_space(self):
+        raise NotImplementedError("Not Implemented Yet")
+
+    # @override
+    def reset(self):
+        _ = self.env.reset()
+        frame = self.env.physics.render(84, 84, camera_id=0) # --> shape= (84, 84, 3)
+        frame = np.moveaxis(frame, -1, 0)                    # --> shape= (3, 84, 84)
+        for _ in range(self.k):
+            self.frames_stacked.append(frame)
+        stacked_frames = np.concatenate(list(self.frames_stacked), axis=0) # --> shape = (9, 84, 84)
+        return stacked_frames
+
+    # @override
+    def step(self, action):
+        time_step    = self.env.step(action)
+        reward, done = time_step.reward, time_step.last()
+        frame = self.env.physics.render(84, 84, camera_id=0)
+        frame = np.moveaxis(frame, -1, 0)
+        self.frames_stacked.append(frame)
+        stacked_frames = np.concatenate(list(self.frames_stacked), axis=0)
+        return stacked_frames, reward, done, False # for consistency with open ai gym just add false for truncated
         
 class DMCS:
     def __init__(self, args) -> None:
@@ -109,7 +141,7 @@ class DMCS:
         return frame
 
 # TODO paramatise the observation size 3x84x84
-class DMCSImageEnvironment(DMCS):
+class DMCSImage(DMCS):
     def __init__(self, args, k=3):
         self.k    = k  # number of frames to be stacked
         self.frames_stacked = deque([], maxlen=k)
@@ -119,7 +151,7 @@ class DMCSImageEnvironment(DMCS):
     # @override
     @property
     def observation_space(self):
-        return self.env.observation_space.shape[0]
+        raise NotImplementedError("Not Implemented Yet")
 
     # @override
     def reset(self):
