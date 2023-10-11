@@ -64,9 +64,6 @@ def main():
 
     seed = args['seed']
 
-    glob_log_dir = f'{Path.home()}/cares_rl_logs/'
-    log_dir = f"{algoritm}-{task}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
-
     training_iterations = args['number_training_iterations']
     for training_iteration in range(0, training_iterations):
         logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {seed}")
@@ -74,7 +71,7 @@ def main():
         env.set_seed(seed)
 
         #create the record class - standardised results tracking
-        record = Record(glob_log_dir=glob_log_dir, network=agent, config={'args': args})
+        record = Record(network=agent, config={'args': args})
     
         # Train the policy or value based approach
         if args["algorithm"] == "PPO":
