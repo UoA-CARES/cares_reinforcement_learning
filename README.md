@@ -21,14 +21,14 @@ To make the module **globally accessible** in your working environment run `pip3
 ## Running an Example
 This repository includes a script that allows you to run any OpenAI Gymnasium (https://github.com/Farama-Foundation/Gymnasium) or Deep Mind Control Suite (https://github.com/google-deepmind/dm_control) environment – provided you comply with all the dependencies for that environment. These examples make use of the package, and can provide an example on how one might use the package in their own environments.
 
-`example_training_loops.py` takes in hyperparameters that allow you to customise the training run enviromment – OpenAI or DMCS Environment - or RL algorithm. Use `python3 example_training_loops.py -h` for help on what hyperparameters are available for customisation.
+`example_training_loops.py` takes in hyperparameters that allow you to customise the training run enviromment – OpenAI or DMCS Environment - or RL algorithm. Use `python3 example_training_loops.py -h` for help on what parameters are available for customisation.
 
 An example is found below for running on the OpenAI and DMCS environments with TD3:
 ```
-python3 example_training_loops.py openai --task HalfCheetah-v4 --algorithm TD3
+python3 example_training_loops.py openai --task HalfCheetah-v4 TD3
 
 
-python3 example_training_loops.py dmcs --domain ball_in_cup --task catch --algorithm TD3
+python3 example_training_loops.py dmcs --domain ball_in_cup --task catch TD3
 ```
 
 ### Data Outputs
