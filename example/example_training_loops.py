@@ -20,6 +20,7 @@ from gym import spaces
 import torch
 import random
 import numpy as np
+from pathlib import Path
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -44,9 +45,6 @@ def main():
     args['action_num'] = env.action_num
     logging.info(f"Action Num: {args['action_num']}")
 
-    logging.info(f"Seed: {args['seed']}")
-    set_seed(args["seed"])
-
     # Create the network we are using
     factory = NetworkFactory()
     logging.info(f"Algorithm: {args['algorithm']}")
@@ -64,17 +62,30 @@ def main():
     
     logging.info(f"Memory: {args['memory']}")
 
-    #create the record class - standardised results tracking
-    record = Record(network=agent, config={'args': args})
-    # Train the policy or value based approach
-    if args["algorithm"] == "PPO":
-        ppe.ppo_train(env, agent, record, args)
-    elif agent.type == "policy":
-        pbe.policy_based_train(env, agent, memory, record, args)
-    elif agent.type == "value":
-        vbe.value_based_train(env, agent, memory, record, args)
-    else:
-        raise ValueError(f"Agent type is unkown: {agent.type}")
+    seed = args['seed']
+
+    glob_log_dir = f'{Path.home()}/cares_rl_logs/'
+    log_dir = f"{algoritm}-{task}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
+
+    training_iterations = args['number_training_iterations']
+    for training_iteration in range(0, training_iterations):
+        logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {seed}")
+        set_seed(seed)
+        env.set_seed(seed)
+
+        #create the record class - standardised results tracking
+        record = Record(glob_log_dir=glob_log_dir, network=agent, config={'args': args})
+    
+        # Train the policy or value based approach
+        if args["algorithm"] == "PPO":
+            ppe.ppo_train(env, agent, record, args)
+        elif agent.type == "policy":
+            pbe.policy_based_train(env, agent, memory, record, args)
+        elif agent.type == "value":
+            vbe.value_based_train(env, agent, memory, record, args)
+        else:
+            raise ValueError(f"Agent type is unkown: {agent.type}")
+        seed += 10
     
     record.save()
 

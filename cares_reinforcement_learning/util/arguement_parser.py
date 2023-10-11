@@ -78,6 +78,8 @@ def algorithm_args(parent_parser):
 def parse_args():
     parser = argparse.ArgumentParser(add_help=False)  # Add an argument
     
+    parser.add_argument('--number_training_iterations', type=int, default=1, help="Total amount of training iterations to complete")
+
     parser.add_argument('--memory', type=str, default="MemoryBuffer", help="Memory type - options: {MemoryBuffer, PER}")
     parser.add_argument('--image_observation', type=bool, default=False, help="Use image as the observation state from the environment")
 

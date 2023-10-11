@@ -31,8 +31,8 @@ class OpenAIGym:
     def __init__(self, args) -> None:
         logging.info(f"Training task {args['task']}")
         self.env = gym.make(args["task"], render_mode="rgb_array")
-        self.env.action_space.seed(args['seed'])
-        
+        self.set_seed(args['seed'])
+    
     @cached_property
     def max_action_value(self):
         return self.env.action_space.high[0]
@@ -54,6 +54,9 @@ class OpenAIGym:
         else:
             raise ValueError(f"Unhandled action space type: {type(self.env.action_space)}")
         return action_num
+
+    def set_seed(self, seed):
+        self.env.action_space.seed(seed)
 
     def reset(self):
         state, _ = self.env.reset()
@@ -106,7 +109,7 @@ class DMCS:
         logging.info(f"Training with Task {args['task']}")
       
         self.env = suite.load(args['domain'], args['task'], task_kwargs={'random': args['seed']})
-    
+        
     @cached_property
     def min_action_value(self):
         return self.env.action_spec().minimum[0]
@@ -124,6 +127,9 @@ class DMCS:
     @cached_property
     def action_num(self):
         return self.env.action_spec().shape[0]
+
+    def set_seed(self, seed):
+        self.env = suite.load(self.env.domain, self.env.task, task_kwargs={'random': seed})
 
     def reset(self):
         time_step = self.env.reset()
