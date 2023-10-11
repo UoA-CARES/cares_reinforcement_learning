@@ -108,7 +108,9 @@ class DMCS:
         logging.info(f"Training on Domain {args['domain']}")
         logging.info(f"Training with Task {args['task']}")
       
-        self.env = suite.load(args['domain'], args['task'], task_kwargs={'random': args['seed']})
+        self.domain = args['domain']
+        self.task = args['task']
+        self.env = suite.load(self.domain, self.task, task_kwargs={'random': args['seed']})
         
     @cached_property
     def min_action_value(self):
@@ -129,7 +131,7 @@ class DMCS:
         return self.env.action_spec().shape[0]
 
     def set_seed(self, seed):
-        self.env = suite.load(self.env.domain, self.env.task, task_kwargs={'random': seed})
+        self.env = suite.load(self.domain, self.task, task_kwargs={'random': seed})
 
     def reset(self):
         time_step = self.env.reset()

@@ -21,6 +21,7 @@ import torch
 import random
 import numpy as np
 from pathlib import Path
+from datetime import datetime
 
 def set_seed(seed):
     torch.manual_seed(seed)
@@ -62,16 +63,18 @@ def main():
     
     logging.info(f"Memory: {args['memory']}")
 
-    seed = args['seed']
+    iterations_folder = f"{args['algorithm']}-{args['task']}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
+    glob_log_dir = f'{Path.home()}/cares_rl_logs/{iterations_folder}'
 
     training_iterations = args['number_training_iterations']
     for training_iteration in range(0, training_iterations):
-        logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {seed}")
-        set_seed(seed)
-        env.set_seed(seed)
+        logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {args['seed']}")
+        set_seed(args['seed'])
+        env.set_seed(args['seed'])
 
         #create the record class - standardised results tracking
-        record = Record(network=agent, config={'args': args})
+        log_dir = args['seed']
+        record = Record(glob_log_dir=glob_log_dir, log_dir=log_dir, network=agent, config={'args': args})
     
         # Train the policy or value based approach
         if args["algorithm"] == "PPO":
@@ -82,7 +85,7 @@ def main():
             vbe.value_based_train(env, agent, memory, record, args)
         else:
             raise ValueError(f"Agent type is unkown: {agent.type}")
-        seed += 10
+        args['seed'] += 10
     
     record.save()
 
