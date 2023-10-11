@@ -46,23 +46,6 @@ def main():
     args['action_num'] = env.action_num
     logging.info(f"Action Num: {args['action_num']}")
 
-    # Create the network we are using
-    factory = NetworkFactory()
-    logging.info(f"Algorithm: {args['algorithm']}")
-    agent = factory.create_network(args["algorithm"], args)
-
-    # TODO move to memory factory as we add new PER
-    if args["memory"] == "MemoryBuffer":
-        memory = MemoryBuffer()
-    elif args["memory"] == "PER":
-        memory = MemoryBuffer(augment=td_error)
-    else:
-        error_message = f"Unkown memory type: {args['memory']}"
-        logging.error(error_message)
-        raise ValueError(error_message)
-    
-    logging.info(f"Memory: {args['memory']}")
-
     iterations_folder = f"{args['algorithm']}-{args['task']}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
     glob_log_dir = f'{Path.home()}/cares_rl_logs/{iterations_folder}'
 
@@ -71,6 +54,23 @@ def main():
         logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {args['seed']}")
         set_seed(args['seed'])
         env.set_seed(args['seed'])
+
+        # Create the network we are using
+        factory = NetworkFactory()
+        logging.info(f"Algorithm: {args['algorithm']}")
+        agent = factory.create_network(args["algorithm"], args)
+
+        # TODO move to memory factory as we add new PER
+        if args["memory"] == "MemoryBuffer":
+            memory = MemoryBuffer()
+        elif args["memory"] == "PER":
+            memory = MemoryBuffer(augment=td_error)
+        else:
+            error_message = f"Unkown memory type: {args['memory']}"
+            logging.error(error_message)
+            raise ValueError(error_message)
+        
+        logging.info(f"Memory: {args['memory']}")
 
         #create the record class - standardised results tracking
         log_dir = args['seed']

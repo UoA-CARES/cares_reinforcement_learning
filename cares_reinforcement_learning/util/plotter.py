@@ -107,20 +107,22 @@ def main():
     SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
 
     for data_directory in args["data_path"]:
-        with open(f"{data_directory}/config.yml", 'r') as file:
-            config = yaml.load(file, Loader=SafeLoaderIgnoreUnknown)
+        result_directories = data_directory
+        for result_directory in result_directories:
+            with open(f"{result_directory}/config.yml", 'r') as file:
+                config = yaml.load(file, Loader=SafeLoaderIgnoreUnknown)
 
-        labels.append(config["args"]["algorithm"])
-        title = config["args"]["task"]
+            labels.append(config["args"]["algorithm"])
+            title = config["args"]["task"]
 
-        train_data = pd.read_csv(f"{data_directory}/data/train.csv")
-        eval_data  = pd.read_csv(f"{data_directory}/data/eval.csv")
-        
-        train_plot_frame = prepare_train_plot_frame(train_data, window_size=window_size)
-        eval_plot_frame = prepare_eval_plot_frame(eval_data)
+            train_data = pd.read_csv(f"{result_directory}/data/train.csv")
+            eval_data  = pd.read_csv(f"{result_directory}/data/eval.csv")
+            
+            train_plot_frame = prepare_train_plot_frame(train_data, window_size=window_size)
+            eval_plot_frame = prepare_eval_plot_frame(eval_data)
 
-        train_plot_frames.append(train_plot_frame)
-        eval_plot_frames.append(eval_plot_frame)
+            train_plot_frames.append(train_plot_frame)
+            eval_plot_frames.append(eval_plot_frame)
         
     plot_comparisons(train_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, f"{title}-compare-train", True)
     plot_comparisons(eval_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, f"{title}-compare-eval", True)
