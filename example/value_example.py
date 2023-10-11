@@ -1,18 +1,25 @@
 from cares_reinforcement_learning.memory import *
 from cares_reinforcement_learning.util import helpers as hlp, Record
 
+import numpy as np
 import time
 import gym
 import logging
 import random
 
+from random import randrange
+
 from timeit import default_timer as timer
 
 def evaluate_value_network(env, agent, args, record=None, total_steps=0):
 
+    if record is not None:
+        frame = env.grab_frame()
+        record.start_video(total_steps+1, frame)
+
     number_eval_episodes = int(args["number_eval_episodes"])
     
-    state, _ = env.reset()
+    state = env.reset()
     
     exploration_rate = args["exploration_min"]
 
@@ -27,12 +34,16 @@ def evaluate_value_network(env, agent, args, record=None, total_steps=0):
             episode_timesteps += 1
 
             if random.random() < exploration_rate:
-                action = env.action_space.sample()
+                action = randrange(env.action_num)
             else:
                 action = agent.select_action_from_policy(state)
 
-            state, reward, done, truncated, _ = env.step(action)
+            state, reward, done, truncated = env.step(action)
             episode_reward += reward
+
+            if eval_episode_counter == 0 and record is not None:
+                frame = env.grab_frame()
+                record.log_video(frame)
 
             if done or truncated:
                 if record is not None:
@@ -44,11 +55,12 @@ def evaluate_value_network(env, agent, args, record=None, total_steps=0):
                     )
 
                 # Reset environment
-                state, _ = env.reset()
+                state = env.reset()
                 episode_reward = 0
                 episode_timesteps = 0
                 episode_num += 1
 
+    record.stop_video()
 
 def value_based_train(env, agent, memory, record, args):
     start_time = time.time()
@@ -68,7 +80,7 @@ def value_based_train(env, agent, memory, record, args):
     
     evaluate = False
 
-    state, _ = env.reset(seed=seed)
+    state = env.reset()
 
     exploration_rate = 1
 
@@ -80,11 +92,11 @@ def value_based_train(env, agent, memory, record, args):
         exploration_rate = max(exploration_min, exploration_rate)
 
         if random.random() < exploration_rate:
-            action = env.action_space.sample()
+            action = randrange(env.action_num)
         else:
             action = agent.select_action_from_policy(state)
 
-        next_state, reward, done, truncated, _ = env.step(action)
+        next_state, reward, done, truncated = env.step(action)
         memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done)
         state = next_state
         episode_reward += reward
@@ -124,7 +136,7 @@ def value_based_train(env, agent, memory, record, args):
                 evaluate = False
 
             # Reset environment
-            state, _ = env.reset()
+            state = env.reset()
             episode_timesteps = 0
             episode_reward = 0
             episode_num += 1

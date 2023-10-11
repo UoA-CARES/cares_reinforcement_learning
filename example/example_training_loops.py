@@ -1,10 +1,14 @@
 import time
 import argparse
+import logging
+logging.basicConfig(level=logging.INFO)
 
 from cares_reinforcement_learning.util import NetworkFactory
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
 from cares_reinforcement_learning.util import Record
+from cares_reinforcement_learning.util import EnvironmentFactory
+from cares_reinforcement_learning.util import arguement_parser as ap
 
 import example.policy_example as pbe
 import example.value_example as vbe
@@ -15,83 +19,36 @@ from gym import spaces
 
 import torch
 import random
-import logging
 import numpy as np
+from pathlib import Path
 
-logging.basicConfig(level=logging.INFO)
-
-def set_seed(env, seed):
+def set_seed(seed):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    env.action_space.seed(seed)
-
-def parse_args():
-    parser = argparse.ArgumentParser()  # Add an argument
-
-    parser.add_argument('--task', type=str, required=True)
-    parser.add_argument('--render', type=str, default="None")
-    parser.add_argument('--algorithm', type=str, required=True)
-    parser.add_argument('--memory', type=str, default="MemoryBuffer")
-
-    parser.add_argument('--G', type=int, default=10)
-    parser.add_argument('--gamma', type=float, default=0.99)
-    parser.add_argument('--tau', type=float, default=0.005)
-    parser.add_argument('--batch_size', type=int, default=32)
-
-    parser.add_argument('--max_steps_exploration', type=int, default=10000)
-    parser.add_argument('--max_steps_training', type=int, default=50000)
-
-    parser.add_argument('--number_steps_per_evaluation', type=int, default=1000)
-    parser.add_argument('--number_eval_episodes', type=int, default=10)
-
-    parser.add_argument('--seed', type=int, default=571)
-    parser.add_argument('--evaluation_seed', type=int, default=152)
-
-    parser.add_argument('--actor_lr', type=float, default=1e-4)
-    parser.add_argument('--critic_lr', type=float, default=1e-3)
-
-    parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--exploration_min', type=float, default=1e-3)
-    parser.add_argument('--exploration_decay', type=float, default=0.95)
-
-    parser.add_argument('--max_steps_per_batch', type=float, default=5000)
-
-    parser.add_argument('--plot_frequency', type=int, default=100)
-    parser.add_argument('--checkpoint_frequency', type=int, default=100)
-
-    parser.add_argument('--display', type=str, default=True)
-
-    return vars(parser.parse_args())  # converts into a dictionary
 
 def main():
-    args = parse_args()
+    args = ap.parse_args()
+
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-    logging.info(f"Training on {args['task']}")
-    env = gym.make(args["task"], render_mode=(None if args['render'] == "None" else args['render']))
-
     logging.info(f"Device: {args['device']}")
 
-    args["observation_size"] = env.observation_space.shape[0]
+    logging.info(f"Training on {args['task']}")
+    env_factory = EnvironmentFactory()
+    
+    gym_environment = args['gym_environment']
+    env = env_factory.create_environment(gym_environment=gym_environment, args=args)
+
+    args["observation_size"] = env.observation_space
     logging.info(f"Observation Size: {args['observation_size']}")
 
-    if type(env.action_space) == spaces.Box:
-        args["action_num"] = env.action_space.shape[0]
-    elif type(env.action_space) == spaces.Discrete:
-        args["action_num"] = env.action_space.n
-    else:
-        raise ValueError(f"Unhandled action space type: {type(env.action_space)}")
+    args['action_num'] = env.action_num
     logging.info(f"Action Num: {args['action_num']}")
-
-    logging.info(f"Seed: {args['seed']}")
-    set_seed(env, args["seed"])
 
     # Create the network we are using
     factory = NetworkFactory()
     logging.info(f"Algorithm: {args['algorithm']}")
     agent = factory.create_network(args["algorithm"], args)
-    logging.info(f"Algorithm: {args['algorithm']}")
 
     # TODO move to memory factory as we add new PER
     if args["memory"] == "MemoryBuffer":
@@ -105,23 +62,27 @@ def main():
     
     logging.info(f"Memory: {args['memory']}")
 
-    #create the record class - standardised results tracking
-    record = Record(network=agent, config={'args': args})
-    # Train the policy or value based approach
-    if args["algorithm"] == "PPO":
-        ppe.ppo_train(env, agent, record, args)
-        env = gym.make(env.spec.id, render_mode="human")
-        ppe.evaluate_ppo_network(env, agent, args)
-    elif agent.type == "policy":
-        pbe.policy_based_train(env, agent, memory, record, args)
-        env = gym.make(env.spec.id, render_mode="human")
-        pbe.evaluate_policy_network(env, agent, args)
-    elif agent.type == "value":
-        vbe.value_based_train(env, agent, memory, record, args)
-        env = gym.make(env.spec.id, render_mode="human")
-        vbe.evaluate_value_network(env, agent, args)
-    else:
-        raise ValueError(f"Agent type is unkown: {agent.type}")
+    seed = args['seed']
+
+    training_iterations = args['number_training_iterations']
+    for training_iteration in range(0, training_iterations):
+        logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {seed}")
+        set_seed(seed)
+        env.set_seed(seed)
+
+        #create the record class - standardised results tracking
+        record = Record(network=agent, config={'args': args})
+    
+        # Train the policy or value based approach
+        if args["algorithm"] == "PPO":
+            ppe.ppo_train(env, agent, record, args)
+        elif agent.type == "policy":
+            pbe.policy_based_train(env, agent, memory, record, args)
+        elif agent.type == "value":
+            vbe.value_based_train(env, agent, memory, record, args)
+        else:
+            raise ValueError(f"Agent type is unkown: {agent.type}")
+        seed += 10
     
     record.save()
 
