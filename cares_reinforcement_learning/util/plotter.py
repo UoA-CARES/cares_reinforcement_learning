@@ -1,5 +1,6 @@
 import os
-
+import logging
+logging.basicConfig(level=logging.INFO)
 import argparse
 
 import yaml
@@ -9,19 +10,22 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import uuid
 
+from glob import glob
+from natsort import natsorted, ns
+
 # TODO make the plots look how people want them too. This is just a basic example
 def plot_data(plot_frame, title, label, x_label, y_label, directory, filename, display=True, close_figure=True):
-    window_size = plot_frame["window_size"]
-
     # TODO make font size a parameter
     plt.xlabel(x_label, fontsize=10)
     plt.ylabel(y_label, fontsize=10)
-    plt.title(title, fontsize=10) 
+    plt.title(title, fontsize=10)
 
     ax = sns.lineplot(data=plot_frame, x=plot_frame["steps"], y="avg", label=label)
     
+    # See for how to plot confidence interval
+    # https://saturncloud.io/blog/plot-95-confidence-interval-errorbar-python-pandas-dataframes/
     Z = 1.960 # 95% confidence interval
-    confidence_interval = Z * plot_frame["std_dev"] / np.sqrt(window_size)
+    confidence_interval = Z * plot_frame["std_dev"] / np.sqrt(len(plot_frame["avg"]))
 
     plt.fill_between(plot_frame["steps"], plot_frame["avg"] - confidence_interval, plot_frame["avg"] + confidence_interval, alpha=0.4)
 
@@ -46,8 +50,6 @@ def prepare_eval_plot_frame(eval_data):
     x_data = "total_steps"
     y_data = "episode_reward"
 
-    window_size = eval_data['episode'].max()
-
     plot_frame = pd.DataFrame()
 
     frame_average = eval_data.groupby([x_data], as_index=False).mean()
@@ -56,7 +58,6 @@ def prepare_eval_plot_frame(eval_data):
     plot_frame["steps"]   = frame_average[x_data]
     plot_frame["avg"]     = frame_average[y_data]
     plot_frame["std_dev"] = frame_std[y_data]
-    plot_frame["window_size"] = window_size
 
     return plot_frame
 
@@ -72,7 +73,6 @@ def prepare_train_plot_frame(train_data, window_size):
     plot_frame["steps"] = train_data[x_data]
     plot_frame["avg"]  = train_data[y_data].rolling(window_size, step=1, min_periods=1).mean()
     plot_frame["std_dev"] = train_data[y_data].rolling(window_size, step=1, min_periods=1).std()
-    plot_frame["window_size"] = window_size
 
     return plot_frame
 
@@ -85,7 +85,7 @@ def parse_args():
 
     parser.add_argument('-s','--save_directory', type=str, required=True)
     parser.add_argument('-d','--data_path', type=str, nargs='+', help='List of Directories', required=True)
-    parser.add_argument('-w','--window_size', type=int, required=True)
+    parser.add_argument('-w','--window_size', type=int, default=1)
 
     return vars(parser.parse_args())  # converts into a dictionary
 
@@ -99,7 +99,6 @@ def main():
     directory = args["save_directory"]
     window_size = args["window_size"]
 
-    train_plot_frames = []
     eval_plot_frames = []
     labels = []
     title = "Undefined Task"
@@ -107,24 +106,33 @@ def main():
     SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
 
     for data_directory in args["data_path"]:
-        result_directories = data_directory
-        for result_directory in result_directories:
-            with open(f"{result_directory}/config.yml", 'r') as file:
-                config = yaml.load(file, Loader=SafeLoaderIgnoreUnknown)
+        result_directories = glob(f"{data_directory}/*")
 
-            labels.append(config["args"]["algorithm"])
-            title = config["args"]["task"]
+        average_train_data = pd.DataFrame()
+        average_eval_data = pd.DataFrame()
+
+        result_directory = result_directories[0]
+        with open(f"{result_directory}/config.yml", 'r') as file:
+            config = yaml.load(file, Loader=SafeLoaderIgnoreUnknown)
+
+        algorithm = config["args"]["algorithm"]
+        labels.append(algorithm)
+        task = config["args"]["task"]
+        title = task
+
+        for i, result_directory in enumerate(result_directories):
+            logging.info(f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}")
 
             train_data = pd.read_csv(f"{result_directory}/data/train.csv")
             eval_data  = pd.read_csv(f"{result_directory}/data/eval.csv")
-            
-            train_plot_frame = prepare_train_plot_frame(train_data, window_size=window_size)
-            eval_plot_frame = prepare_eval_plot_frame(eval_data)
 
-            train_plot_frames.append(train_plot_frame)
-            eval_plot_frames.append(eval_plot_frame)
+            average_train_data = pd.concat([average_train_data, train_data], ignore_index=True)
+            average_eval_data = pd.concat([average_eval_data, eval_data], ignore_index=True)
+            
+        eval_plot_frame = prepare_eval_plot_frame(average_eval_data)
+
+        eval_plot_frames.append(eval_plot_frame)
         
-    plot_comparisons(train_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, f"{title}-compare-train", True)
     plot_comparisons(eval_plot_frames, f"{title}", labels, "Steps", "Average Reward", directory, f"{title}-compare-eval", True)
     
 if __name__ == '__main__':
