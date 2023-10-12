@@ -36,27 +36,30 @@ All data from a training run is saved into '~/cares_rl_logs'. A folder will be c
 
 ```
 ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
-├─ config.py
-├─ data
-|  ├─ train.csv
-|  ├─ eval.csv
-├─ figures
-|  ├─ eval.png
-|  ├─ train.png
-├─ models
-|  ├─ model.pht
-|  ├─ CHECKPOINT_N.pht
-|  ├─ ...
-├─ videos
-|  ├─ STEP.mp4
-|  ├─ ...
+├─ SEED
+|  ├─ config.py
+|  ├─ data
+|  |  ├─ train.csv
+|  |  ├─ eval.csv
+|  ├─ figures
+|  |  ├─ eval.png
+|  |  ├─ train.png
+|  ├─ models
+|  |  ├─ model.pht
+|  |  ├─ CHECKPOINT_N.pht
+|  |  ├─ ...
+|  ├─ videos
+|  |  ├─ STEP.mp4
+|  |  ├─ ...
+├─ SEED...
+├─ ...
 ```
 
 ### Plotting
 The plotting utility will plot the data contained in the training data. An example of how to plot the data from one or multiple training sessions together is shown below. Running 'python3 plotter.py -h' will provide details on the plotting parameters.
 
 ```
-python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS -w 20
+python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
 ```
 
 ## Package Structure
@@ -64,7 +67,7 @@ python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM-TASK-YY_MM_DD
 ```
 cares_reinforcement_learning/
 ├─ algorithm/
-│  ├─ policy/
+natsort  ├─ policy/
 │  │  ├─ TD3.py
 │  │  ├─ ...
 │  ├─ value/
