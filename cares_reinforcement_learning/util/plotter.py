@@ -11,7 +11,6 @@ import pandas as pd
 import uuid
 
 from glob import glob
-from natsort import natsorted, ns
 
 # TODO make the plots look how people want them too. This is just a basic example
 def plot_data(plot_frame, title, label, x_label, y_label, directory, filename, display=True, close_figure=True):
