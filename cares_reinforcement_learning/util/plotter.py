@@ -70,8 +70,8 @@ def prepare_train_plot_frame(train_data, window_size):
     y_data = "episode_reward"
 
     plot_frame = pd.DataFrame()
-    plot_frame["steps"] = train_data[x_data]
-    plot_frame["avg"]  = train_data[y_data].rolling(window_size, step=1, min_periods=1).mean()
+    plot_frame["steps"]   = train_data[x_data]
+    plot_frame["avg"]     = train_data[y_data].rolling(window_size, step=1, min_periods=1).mean()
     plot_frame["std_dev"] = train_data[y_data].rolling(window_size, step=1, min_periods=1).std()
 
     return plot_frame
@@ -83,8 +83,8 @@ def plot_train(train_data, title, label, directory, filename, window_size, displ
 def parse_args():
     parser = argparse.ArgumentParser()  # Add an argument
 
-    parser.add_argument('-s','--save_directory', type=str, required=True)
-    parser.add_argument('-d','--data_path', type=str, nargs='+', help='List of Directories', required=True)
+    parser.add_argument('-s','--save_directory', type=str, required=True, help="Directory you want to save the data into")
+    parser.add_argument('-d','--data_path', type=str, nargs='+', help='List of Directories with data you want to compare', required=True)
     parser.add_argument('-w','--window_size', type=int, default=1)
 
     return vars(parser.parse_args())  # converts into a dictionary
