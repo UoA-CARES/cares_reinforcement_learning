@@ -86,7 +86,7 @@ def parse_args():
     parser.add_argument('--G', type=int, default=10, help="Number of learning updates each step of training")
     parser.add_argument('--batch_size', type=int, default=32, help="Batch Size used during training")
 
-    parser.add_argument('--max_steps_exploration', type=int, default=10000, help="Total number of steps for exploration before training")
+    parser.add_argument('--max_steps_exploration', type=int, default=1000, help="Total number of steps for exploration before training")
     parser.add_argument('--max_steps_training', type=int, default=100000, help="Total number of steps to train the algorithm")
 
     parser.add_argument('--number_steps_per_evaluation', type=int, default=10000, help="The number of steps inbetween evaluation runs during training")
