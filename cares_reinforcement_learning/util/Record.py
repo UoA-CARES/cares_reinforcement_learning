@@ -98,19 +98,19 @@ class Record:
 
     def __initialise_directories(self):
         if not os.path.exists(self.glob_log_dir):
-            os.mkdir(self.glob_log_dir)
+            os.makedirs(self.glob_log_dir)
             
         if not os.path.exists(self.directory):
-            os.mkdir(self.directory)
+            os.makedirs(self.directory)
         
         if not os.path.exists(f'{self.directory}/data'):
-            os.mkdir(f'{self.directory}/data')
+            os.makedirs(f'{self.directory}/data')
             
         if not os.path.exists(f'{self.directory}/models'):
-            os.mkdir(f'{self.directory}/models')
+            os.makedirs(f'{self.directory}/models')
             
         if not os.path.exists(f'{self.directory}/figures'):
-            os.mkdir(f'{self.directory}/figures')
+            os.makedirs(f'{self.directory}/figures')
 
         if not os.path.exists(f'{self.directory}/videos'):
-            os.mkdir(f'{self.directory}/videos')
+            os.makedirs(f'{self.directory}/videos')
