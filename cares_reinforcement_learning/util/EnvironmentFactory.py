@@ -85,7 +85,7 @@ class OpenAIGymImage:
     # @override
     @property
     def observation_space(self):
-        raise NotImplementedError("Not Implemented Yet")
+        return (9, self.frame_width, self.frame_height)
 
     # @override
     def reset(self):
@@ -166,7 +166,7 @@ class DMCSImage(DMCS):
     # @override
     @property
     def observation_space(self):
-        raise NotImplementedError("Not Implemented Yet")
+        return (9, self.frame_width, self.frame_height)
 
     # @override
     def reset(self):
