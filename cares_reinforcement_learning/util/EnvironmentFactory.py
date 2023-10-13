@@ -66,8 +66,9 @@ class OpenAIGym:
         state, reward, done, truncated, _ = self.env.step(action)
         return state, reward, done, truncated
     
-    def grab_frame(self):
+    def grab_frame(self, height=240, width=300):
         frame = self.env.render()
+        frame = cv2.resize(frame, (width, height))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert to BGR for use with OpenCV
         return frame
     
@@ -76,28 +77,31 @@ class OpenAIGymImage:
         self.k    = k  # number of frames to be stacked
         self.frames_stacked = deque([], maxlen=k)
 
+        self.frame_width = 84
+        self.frame_height = 84
+
         super().__init__(args=args)
 
     # @override
     @property
     def observation_space(self):
-        raise NotImplementedError("Not Implemented Yet")
+        return (9, self.frame_width, self.frame_height)
 
     # @override
     def reset(self):
         _ = self.env.reset()
-        frame = self.env.physics.render(84, 84, camera_id=0) # --> shape= (84, 84, 3)
-        frame = np.moveaxis(frame, -1, 0)                    # --> shape= (3, 84, 84)
+        frame = self.grab_frame(height=self.frame_height, width=self.frame_width)
+        frame = np.moveaxis(frame, -1, 0)                    
         for _ in range(self.k):
             self.frames_stacked.append(frame)
-        stacked_frames = np.concatenate(list(self.frames_stacked), axis=0) # --> shape = (9, 84, 84)
+        stacked_frames = np.concatenate(list(self.frames_stacked), axis=0)
         return stacked_frames
 
     # @override
     def step(self, action):
         time_step    = self.env.step(action)
         reward, done = time_step.reward, time_step.last()
-        frame = self.env.physics.render(84, 84, camera_id=0)
+        frame = self.grab_frame(height=self.frame_height, width=self.frame_width)
         frame = np.moveaxis(frame, -1, 0)
         self.frames_stacked.append(frame)
         stacked_frames = np.concatenate(list(self.frames_stacked), axis=0)
@@ -143,8 +147,8 @@ class DMCS:
         state, reward, done = np.hstack(list(time_step.observation.values())), time_step.reward, time_step.last()
         return state, reward, done, False # for consistency with open ai gym just add false for truncated
     
-    def grab_frame(self):
-        frame = self.env.physics.render(camera_id=0, height=240, width=300)
+    def grab_frame(self, camera_id=0, height=240, width=300):
+        frame = self.env.physics.render(camera_id=camera_id, height=height, width=width)
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert to BGR for use with OpenCV
         return frame
 
@@ -154,28 +158,31 @@ class DMCSImage(DMCS):
         self.k    = k  # number of frames to be stacked
         self.frames_stacked = deque([], maxlen=k)
 
+        self.frame_width = 84
+        self.frame_height = 84
+
         super().__init__(args=args)
 
     # @override
     @property
     def observation_space(self):
-        raise NotImplementedError("Not Implemented Yet")
+        return (9, self.frame_width, self.frame_height)
 
     # @override
     def reset(self):
         _ = self.env.reset()
-        frame = self.env.physics.render(84, 84, camera_id=0) # --> shape= (84, 84, 3)
-        frame = np.moveaxis(frame, -1, 0)                    # --> shape= (3, 84, 84)
+        frame = self.grab_frame(height=self.frame_height, width=self.frame_width, camera_id=0)
+        frame = np.moveaxis(frame, -1, 0)                    
         for _ in range(self.k):
             self.frames_stacked.append(frame)
-        stacked_frames = np.concatenate(list(self.frames_stacked), axis=0) # --> shape = (9, 84, 84)
+        stacked_frames = np.concatenate(list(self.frames_stacked), axis=0)
         return stacked_frames
 
     # @override
     def step(self, action):
         time_step    = self.env.step(action)
         reward, done = time_step.reward, time_step.last()
-        frame = self.env.physics.render(84, 84, camera_id=0)
+        frame = self.grab_frame(height=self.frame_height, width=self.frame_width, camera_id=0)
         frame = np.moveaxis(frame, -1, 0)
         self.frames_stacked.append(frame)
         stacked_frames = np.concatenate(list(self.frames_stacked), axis=0)
