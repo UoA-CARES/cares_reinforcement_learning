@@ -57,6 +57,8 @@ def main():
 
         logging.info(f"Algorithm: {args['algorithm']}")
         agent = network_factory.create_network(args["algorithm"], args)
+        if agent == None:
+            raise ValueError(f"Unkown agent for default algorithms {args['algorithm']}")
 
         memory = memory_factory.create_memory(args['memory'], args)
         logging.info(f"Memory: {args['memory']}")

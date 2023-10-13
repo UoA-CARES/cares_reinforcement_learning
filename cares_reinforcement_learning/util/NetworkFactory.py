@@ -1,4 +1,5 @@
 import torch
+import logging
 
 def create_DQN(args):
     from cares_reinforcement_learning.algorithm.value import DQN
@@ -159,4 +160,5 @@ class NetworkFactory:
             return create_SAC(args)
         elif algorithm == "TD3":
             return create_TD3(args)
-        raise ValueError(f"Unkown algorithm: {algorithm}")
+        logging.warn(f"Algorithm: {algorithm} is not in the default cares_rl factory")
+        return None
