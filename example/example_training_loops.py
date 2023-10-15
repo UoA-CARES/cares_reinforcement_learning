@@ -28,7 +28,8 @@ def set_seed(seed):
     random.seed(seed)
 
 def main():
-    args = ap.parse_args()
+    parser = ap.create_parser()
+    args = vars(parser.parse_args()) # converts to a dictionary
 
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f"Device: {args['device']}")
