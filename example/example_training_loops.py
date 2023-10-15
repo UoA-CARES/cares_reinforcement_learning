@@ -9,9 +9,9 @@ from cares_reinforcement_learning.util import Record
 from cares_reinforcement_learning.util import EnvironmentFactory
 from cares_reinforcement_learning.util import arguement_parser as ap
 
-import example.policy_example as pbe
-import example.value_example as vbe
-import ppo_example as ppe
+import cares_reinforcement_learning.train_loops.policy_loop as pbe
+import cares_reinforcement_learning.train_loops.value_loop as vbe
+import cares_reinforcement_learning.train_loops.ppo_loop as ppe
 
 import gym
 from gym import spaces
@@ -28,7 +28,8 @@ def set_seed(seed):
     random.seed(seed)
 
 def main():
-    args = ap.parse_args()
+    parser = ap.create_parser()
+    args = vars(parser.parse_args()) # converts to a dictionary
 
     args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f"Device: {args['device']}")
@@ -57,6 +58,8 @@ def main():
 
         logging.info(f"Algorithm: {args['algorithm']}")
         agent = network_factory.create_network(args["algorithm"], args)
+        if agent == None:
+            raise ValueError(f"Unkown agent for default algorithms {args['algorithm']}")
 
         memory = memory_factory.create_memory(args['memory'], args)
         logging.info(f"Memory: {args['memory']}")

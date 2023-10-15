@@ -73,9 +73,9 @@ def algorithm_args(parent_parser):
     parser_DoubleDQN.add_argument('--exploration_min', type=float, default=1e-3)
     parser_DoubleDQN.add_argument('--exploration_decay', type=float, default=0.95)
 
-    return alg_parser
+    return alg_parser, alg_parsers
 
-def parse_args():
+def environment_parser():
     parser = argparse.ArgumentParser(add_help=False)  # Add an argument
     
     parser.add_argument('--number_training_iterations', type=int, default=1, help="Total amount of training iterations to complete")
@@ -86,7 +86,7 @@ def parse_args():
     parser.add_argument('--G', type=int, default=10, help="Number of learning updates each step of training")
     parser.add_argument('--batch_size', type=int, default=32, help="Batch Size used during training")
 
-    parser.add_argument('--max_steps_exploration', type=int, default=10000, help="Total number of steps for exploration before training")
+    parser.add_argument('--max_steps_exploration', type=int, default=1000, help="Total number of steps for exploration before training")
     parser.add_argument('--max_steps_training', type=int, default=100000, help="Total number of steps to train the algorithm")
 
     parser.add_argument('--number_steps_per_evaluation', type=int, default=10000, help="The number of steps inbetween evaluation runs during training")
@@ -97,10 +97,10 @@ def parse_args():
     parser.add_argument('--plot_frequency', type=int, default=100, help="How many steps between updating the running plot of the training and evaluation data during training")
     parser.add_argument('--checkpoint_frequency', type=int, default=100, help="How many steps between saving check point models of the agent during training")
 
-    parser = algorithm_args(parent_parser=parser)
+    return parser
+
+def create_parser():
+    parser = environment_parser()
+    parser, alg_parsers = algorithm_args(parent_parser=parser)
     parser = environment_args(parent_parser=parser)
-    
-    return vars(parser.parse_args()) # converts to a dictionary
-  
-if __name__ == '__main__':
-    print(parse_args())
+    return parser
