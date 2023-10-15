@@ -72,9 +72,9 @@ def test_create_network():
 
     agent = factory.create_network("TD3", args)
     assert isinstance(agent, TD3), "Failed to create TD3 agent"
-
-    with pytest.raises(ValueError):
-        factory.create_network("Unknown", args)
+    
+    agent = factory.create_network("Unknown", args)
+    assert agent is None, f"Unkown failed to return None: returned {agent}"
 
 
 def test_denormalize():
