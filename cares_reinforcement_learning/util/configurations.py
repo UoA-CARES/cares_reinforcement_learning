@@ -9,15 +9,15 @@ from typing import List, Optional
 
 def create_environment_config_from_file(file_path):
     with open(file_path) as f:
-        datax = json.load(f)
-        env_config = EnvironmentConfig(**datax)
+        args = json.load(f)
+        env_config = EnvironmentConfig.model_validate(args)
         print(f"Environment Configuration:\n{env_config}")
         return env_config
 
 def create_training_config_from_file(file_path):
     with open(file_path) as f:
-        datax = json.load(f)
-        training_config = TrainingConfig(**datax)
+        args = json.load(f)
+        training_config = TrainingConfig.model_validate(args)
         print(f"Training Configuration:\n{training_config}")
         return training_config
 
