@@ -29,3 +29,4 @@ urllib3==1.26.13
 PyYAML==6.0
 dm_control==1.0.10
 opencv-python
+pydantic

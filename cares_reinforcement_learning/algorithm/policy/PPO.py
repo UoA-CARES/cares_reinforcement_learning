@@ -15,7 +15,6 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
-
 class PPO:
     def __init__(self,
                  actor_network,

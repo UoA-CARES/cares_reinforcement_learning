@@ -1,6 +1,5 @@
-from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.memory.augments import *
-from cares_reinforcement_learning.util import helpers as hlp, Record
+from cares_reinforcement_learning.util.configurations import TrainingConfig
+from cares_reinforcement_learning.util import helpers as hlp
 
 import cv2
 import time
@@ -8,13 +7,13 @@ import gym
 import logging
 import numpy as np
 
-def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
+def evaluate_policy_network(env, agent, config: TrainingConfig, record=None, total_steps=0):
 
     if record is not None:
         frame = env.grab_frame()
         record.start_video(total_steps+1, frame)
 
-    number_eval_episodes = int(args["number_eval_episodes"])
+    number_eval_episodes = int(config.number_eval_episodes)
     
     state = env.reset()
 
@@ -54,18 +53,17 @@ def evaluate_policy_network(env, agent, args, record=None, total_steps=0):
     
     record.stop_video()
 
-def policy_based_train(env, agent, memory, record, args):
+def policy_based_train(env, agent, memory, record, config: TrainingConfig):
     start_time = time.time()
 
-    max_steps_training = args["max_steps_training"]
-    max_steps_exploration = args["max_steps_exploration"]
-    number_steps_per_evaluation = args["number_steps_per_evaluation"]
+    max_steps_training = config.max_steps_training
+    max_steps_exploration = config.max_steps_exploration
+    number_steps_per_evaluation = config.number_steps_per_evaluation
 
     logging.info(f"Training {max_steps_training} Exploration {max_steps_exploration} Evaluation {number_steps_per_evaluation}")
 
-    batch_size = args["batch_size"]
-    seed = args["seed"]
-    G = args["G"]
+    batch_size = config.batch_size
+    G = config.G
 
     episode_timesteps = 0
     episode_reward = 0
@@ -126,8 +124,7 @@ def policy_based_train(env, agent, memory, record, args):
 
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
-                args["evaluation_seed"] = seed
-                evaluate_policy_network(env, agent, args, record=record, total_steps=total_step_counter)
+                evaluate_policy_network(env, agent, config, record=record, total_steps=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

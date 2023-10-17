@@ -4,7 +4,6 @@ import logging
 import numpy as np
 import torch.nn.functional as F
 
-
 class DQN:
 
     def __init__(self,

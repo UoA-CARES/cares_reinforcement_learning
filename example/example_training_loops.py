@@ -17,6 +17,7 @@ import cares_reinforcement_learning.train_loops.ppo_loop as ppe
 import gym
 from gym import spaces
 
+import json
 import torch
 import random
 import numpy as np
@@ -24,59 +25,54 @@ from pathlib import Path
 from datetime import datetime
 
 def main():
-    parser = ap.create_parser()
-    args = vars(parser.parse_args()) # converts to a dictionary
-
-    args["device"] = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.info(f"Device: {args['device']}")
+    env_config, training_config, alg_config = ap.get_configurations()
 
     env_factory = EnvironmentFactory()
     network_factory = NetworkFactory()
     memory_factory = MemoryFactory()
     
-    gym_environment = args['gym_environment']
-    env = env_factory.create_environment(gym_environment=gym_environment, args=args)
+    env = env_factory.create_environment(env_config)
 
-    args["observation_size"] = env.observation_space
-    logging.info(f"Observation Size: {args['observation_size']}")
-
-    args['action_num'] = env.action_num
-    logging.info(f"Action Num: {args['action_num']}")
-
-    iterations_folder = f"{args['algorithm']}-{args['task']}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
+    iterations_folder = f"{alg_config.algorithm}-{env_config.task}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
     glob_log_dir = f'{Path.home()}/cares_rl_logs/{iterations_folder}'
 
-    training_iterations = args['number_training_iterations']
+    training_iterations = training_config.number_training_iterations
+
+    seed = training_config.seed
     for training_iteration in range(0, training_iterations):
-        logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {args['seed']}")
-        hlp.set_seed(args['seed'])
-        env.set_seed(args['seed'])
+        logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {seed}")
+        hlp.set_seed(seed)
+        env.set_seed(seed)
 
-        logging.info(f"Algorithm: {args['algorithm']}")
-        agent = network_factory.create_network(args["algorithm"], args)
+        logging.info(f"Algorithm: {alg_config.algorithm}")
+        agent = network_factory.create_network(env.observation_space, env.action_num, alg_config)
         if agent == None:
-            raise ValueError(f"Unkown agent for default algorithms {args['algorithm']}")
+            raise ValueError(f"Unkown agent for default algorithms {alg_config.algorithm}")
 
-        memory = memory_factory.create_memory(args['memory'], args)
-        logging.info(f"Memory: {args['memory']}")
+        # TODO manage arguements for future memory types
+        memory = memory_factory.create_memory(alg_config.memory, args=[])
+        logging.info(f"Memory: {alg_config.memory}")
 
         #create the record class - standardised results tracking
-        log_dir = args['seed']
-        record = Record(glob_log_dir=glob_log_dir, log_dir=log_dir, network=agent, config={'args': args})
+        log_dir = f"{seed}"
+        record = Record(glob_log_dir=glob_log_dir, log_dir=log_dir, network=agent, plot_frequency=training_config.plot_frequency, checkpoint_frequency=training_config.checkpoint_frequency)
+        record.save_config(env_config, "env_config")
+        record.save_config(training_config, "train_config")
+        record.save_config(alg_config, "alg_config")
     
         # Train the policy or value based approach
-        if args["algorithm"] == "PPO":
-            ppe.ppo_train(env, agent, record, args)
+        if alg_config.algorithm == "PPO":
+            ppe.ppo_train(env, agent, record, training_config)
         elif agent.type == "policy":
-            pbe.policy_based_train(env, agent, memory, record, args)
+            pbe.policy_based_train(env, agent, memory, record, training_config)
         elif agent.type == "value":
-            vbe.value_based_train(env, agent, memory, record, args)
+            vbe.value_based_train(env, agent, memory, record, training_config)
         else:
             raise ValueError(f"Agent type is unkown: {agent.type}")
         
         record.save()
         
-        args['seed'] += 10
+        seed += 10
 
 if __name__ == '__main__':
     main()

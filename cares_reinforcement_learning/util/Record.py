@@ -1,6 +1,7 @@
 import os
 import logging
 import cv2
+import json
 
 import pandas as pd
 
@@ -13,14 +14,12 @@ import cares_reinforcement_learning.util.plotter as plt
 
 class Record:
     
-    def __init__(self, glob_log_dir=None, log_dir=None, network=None, config=None) -> None:
-        self.task = config["args"]["task"]
-        self.algoritm = config["args"]["algorithm"]
-        self.plot_frequency = config["args"]["plot_frequency"]
-        self.checkpoint_frequency = config["args"]["checkpoint_frequency"]
+    def __init__(self, glob_log_dir, log_dir, plot_frequency=10, checkpoint_frequency=1000, network=None) -> None:
+        self.plot_frequency = plot_frequency
+        self.checkpoint_frequency = checkpoint_frequency
         
-        self.glob_log_dir = glob_log_dir or f'{Path.home()}/cares_rl_logs'
-        self.log_dir = log_dir or f"{self.algoritm}-{self.task}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
+        self.glob_log_dir = glob_log_dir
+        self.log_dir = log_dir
         self.directory = f'{self.glob_log_dir}/{self.log_dir}'
         
         self.train_data = pd.DataFrame()
@@ -33,10 +32,10 @@ class Record:
 
         self.__initialise_directories()
 
-        if config:
-            with open(f'{self.directory}/config.yml', 'w') as outfile:
-                yaml.dump(config, outfile, default_flow_style=False)
-    
+    def save_config(self, configuration, file_name):
+        with open(f'{self.directory}/{file_name}.json', 'w') as outfile:
+            json.dump(configuration.model_dump(), outfile)
+
     def start_video(self, file_name, frame):
         fps        = 30
         video_name = f"{self.directory}/videos/{file_name}.mp4"

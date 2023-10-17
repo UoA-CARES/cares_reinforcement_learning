@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-
 class TD3(object):
     def __init__(self,
                  actor_network,
@@ -103,15 +102,12 @@ class TD3(object):
             self.actor_net.optimiser.step()
 
             # Update target network params
-            for target_param, param in zip(self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()):
-                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
-
-            for target_param, param in zip(self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()):
+            for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
             for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
-
+            
             info['actor_loss'] = actor_loss
 
         # Building Dictionary
