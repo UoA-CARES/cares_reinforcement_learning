@@ -1,3 +1,4 @@
+import sys
 import time
 import argparse
 import logging
@@ -7,7 +8,7 @@ from cares_reinforcement_learning.util import NetworkFactory
 from cares_reinforcement_learning.util import MemoryFactory
 from cares_reinforcement_learning.util import Record
 from cares_reinforcement_learning.util import EnvironmentFactory
-from cares_reinforcement_learning.util import arguement_parser as ap
+from cares_reinforcement_learning.util import RLParser
 from cares_reinforcement_learning.util import helpers as hlp
 
 import cares_reinforcement_learning.util.configurations as configurations
@@ -28,15 +29,9 @@ from pathlib import Path
 from datetime import datetime
 
 def main():
-    parser = argparse.ArgumentParser(add_help=False)  # Add an argument
-    parser.add_argument('-c', '--configuration_files', action='store_true', default=False)
-    args, rest = parser.parse_known_args()
-    args = ap.parse_args(args, rest)
+    parser = RLParser()
+    env_config, training_config, alg_config = parser.parse_args()
     
-    env_config = EnvironmentConfig.model_validate(args)
-    training_config = TrainingConfig.model_validate(args)
-    alg_config = configurations.create_algorithm_config(args)
-
     env_factory = EnvironmentFactory()
     network_factory = NetworkFactory()
     memory_factory = MemoryFactory()

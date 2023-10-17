@@ -20,13 +20,13 @@ class EnvironmentFactory:
         pass
 
     def create_environment(self, config: EnvironmentConfig):
-        logging.info(f"Training Environment: {config.gym_environment}")
-        if config.gym_environment == 'dmcs':
+        logging.info(f"Training Environment: {config.gym}")
+        if config.gym == 'dmcs':
             env = DMCSImage(config) if config.image_observation else DMCS(config)
-        elif config.gym_environment == "openai":
+        elif config.gym == "openai":
             env = OpenAIGymImage(config) if config.image_observation else OpenAIGym(config)
         else:
-            raise ValueError(f"Unkown environment: {config.gym_environment}")
+            raise ValueError(f"Unkown environment: {config.gym}")
         return env
         
 class OpenAIGym:

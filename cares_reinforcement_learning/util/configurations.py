@@ -5,38 +5,16 @@ from pathlib import Path
 file_path = Path(__file__).parent.resolve()
 
 from pydantic import BaseModel, Field
-from typing import List, Optional
-
-def create_algorithm_config(args):
-    algorithm = args['algorithm']
-    if algorithm == "DQN":
-        alg_config = DQNConfig.model_validate(args)
-    elif algorithm == "DDQN":
-        alg_config = DoubleDQNConfig.model_validate(args)
-    elif algorithm == "DuelingDQN":
-        alg_config = DuelingDQNConfig.model_validate(args)
-    elif algorithm == "PPO":
-        alg_config = PPOConfig.model_validate(args)
-    elif algorithm == "DDPG":
-        alg_config = DDPGConfig.model_validate(args)
-    elif algorithm == "SAC":
-        alg_config = SACConfig.model_validate(args)
-    elif algorithm == "TD3":
-        alg_config = TD3Config.model_validate(args)
-    else:
-        logging.warn(f"Unkown algorithm: {algorithm} for config {file_path}")
-        return None
-    print(f"Algorithm Configuration:\n{alg_config}")
-    return alg_config
+from typing import List, Optional, Literal
 
 class EnvironmentConfig(BaseModel):
-    gym_environment: str
+    gym: str = Field(description='Gym Environment <openai, dmcs>')
     task: str
-    domain: Optional[str] = ""
+    domain: Optional[str] = None
     image_observation: Optional[bool] = False
 
 class TrainingConfig(BaseModel):
-    seed: int = Field(description='Random seed to set for the environment')
+    seed: Optional[int] = 10
     number_training_iterations: Optional[int] = 1
 
     G: Optional[int] = 1
@@ -50,11 +28,12 @@ class TrainingConfig(BaseModel):
 
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
-    
+
 class AlgorithmConfig(BaseModel):
     algorithm: str = Field(description='Name of the algorithm to be used')
 
 class DQNConfig(AlgorithmConfig):
+    algorithm: str = Field("DQN", Literal=True)
     lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
     memory: Optional[str] = "MemoryBuffer"
@@ -63,6 +42,7 @@ class DQNConfig(AlgorithmConfig):
     exploration_decay: Optional[float] = 0.95
 
 class DuelingDQNConfig(AlgorithmConfig):
+    algorithm: str = Field("DuelingDQN", Literal=True)
     lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
     memory: Optional[str] = "MemoryBuffer"
@@ -71,6 +51,7 @@ class DuelingDQNConfig(AlgorithmConfig):
     exploration_decay: Optional[float] = 0.95
 
 class DoubleDQNConfig(AlgorithmConfig):
+    algorithm: str = Field("DoubleDQN", Literal=True)
     lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
     memory: Optional[str] = "MemoryBuffer"
@@ -79,6 +60,7 @@ class DoubleDQNConfig(AlgorithmConfig):
     exploration_decay: Optional[float] = 0.95
 
 class DDPGConfig(AlgorithmConfig):
+    algorithm: str = Field("DDPG", Literal=True)
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
     
@@ -88,6 +70,7 @@ class DDPGConfig(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 class PPOConfig(AlgorithmConfig):
+    algorithm: str = Field("PPO", Literal=True)
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
     
@@ -96,6 +79,7 @@ class PPOConfig(AlgorithmConfig):
     memory: str = Field("MemoryBuffer", Literal=True)
 
 class TD3Config(AlgorithmConfig):
+    algorithm: str = Field("TD3", Literal=True)
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
     
@@ -105,6 +89,7 @@ class TD3Config(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 class SACConfig(AlgorithmConfig):
+    algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
     

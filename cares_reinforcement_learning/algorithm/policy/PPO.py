@@ -21,6 +21,8 @@ class PPO:
                  critic_network,
                  gamma,
                  action_num,
+                 actor_lr,
+                 critic_lr,
                  device):
 
         self.type = "policy"
@@ -30,6 +32,9 @@ class PPO:
         self.gamma = gamma
         self.action_num = action_num
         self.device = device
+
+        self.actor_net_optimiser  = torch.optim.Adam(self.actor_net.parameters(), lr=actor_lr)
+        self.critic_net_optimiser = torch.optim.Adam(self.critic_net.parameters(), lr=critic_lr)
 
         self.k = 10
         self.eps_clip = 0.2
@@ -111,13 +116,13 @@ class PPO:
             actor_loss = (-torch.minimum(surr1, surr2)).mean()
             critic_loss = F.mse_loss(v, rtgs)
 
-            self.actor_net.optimiser.zero_grad()
+            self.actor_net_optimiser.zero_grad()
             actor_loss.backward(retain_graph=True)
-            self.actor_net.optimiser.step()
+            self.actor_net_optimiser.step()
 
-            self.critic_net.optimiser.zero_grad()
+            self.critic_net_optimiser.zero_grad()
             critic_loss.backward()
-            self.critic_net.optimiser.step()
+            self.critic_net_optimiser.step()
 
         info['td_error'] = td_errors
         info['actor_loss'] = actor_loss

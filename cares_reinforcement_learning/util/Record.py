@@ -34,7 +34,7 @@ class Record:
 
     def save_config(self, configuration, file_name):
         with open(f'{self.directory}/{file_name}.json', 'w') as outfile:
-            json.dump(configuration.model_dump(), outfile)
+            json.dump(configuration.dict(exclude_none=True), outfile)
 
     def start_video(self, file_name, frame):
         fps        = 30
