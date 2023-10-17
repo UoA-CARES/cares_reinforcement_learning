@@ -8,7 +8,7 @@ from torch.distributions import Normal
 
 
 class Actor(nn.Module):
-    def __init__(self, observation_size, num_actions, learning_rate):
+    def __init__(self, observation_size, num_actions):
         super(Actor, self).__init__()
 
         self.hidden_size = [1024, 1024]
@@ -20,8 +20,6 @@ class Actor(nn.Module):
 
         self.mean_linear    = nn.Linear(in_features=self.hidden_size[1], out_features=num_actions)
         self.log_std_linear = nn.Linear(in_features=self.hidden_size[1], out_features=num_actions)
-
-        self.optimiser = optim.Adam(self.parameters(), lr=learning_rate)
 
     def forward(self, state):
         x = F.relu(self.h_linear_1(state))

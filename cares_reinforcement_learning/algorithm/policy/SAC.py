@@ -21,6 +21,8 @@ class SAC:
                  gamma,
                  tau,
                  action_num,
+                 actor_lr,
+                 critic_lr,
                  device):
 
         self.type = "policy"
@@ -39,6 +41,9 @@ class SAC:
 
         self.target_entropy = -action_num
         # self.target_entropy = -torch.prod(torch.Tensor([action_num]).to(self.device)).item()
+
+        self.actor_net_optimiser  = torch.optim.Adam(self.actor_net.parameters(), lr=actor_lr)
+        self.critic_net_optimiser = torch.optim.Adam(self.critic_net.parameters(), lr=critic_lr)
 
         init_temperature = 0.01
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
@@ -95,9 +100,9 @@ class SAC:
         critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
-        self.critic_net.optimiser.zero_grad()
+        self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
-        self.critic_net.optimiser.step()
+        self.critic_net_optimiser.step()
 
         pi, log_pi, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
@@ -106,9 +111,9 @@ class SAC:
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
         # Update the Actor
-        self.actor_net.optimiser.zero_grad()
+        self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
-        self.actor_net.optimiser.step()
+        self.actor_net_optimiser.step()
 
         # update the temperature
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
