@@ -10,11 +10,15 @@ class DQN:
     def __init__(self,
                  network,
                  gamma,
+                 network_lr,
                  device):
+
         self.type = "value"
         self.network = network.to(device)
         self.device = device
         self.gamma = gamma
+
+        self.network_optimiser  = torch.optim.Adam(self.network.parameters(), lr=network_lr)
 
     def select_action_from_policy(self, state):
         self.network.eval()
@@ -48,9 +52,9 @@ class DQN:
 
         # Update the Network
         loss = F.mse_loss(best_q_values, q_target)
-        self.network.optimiser.zero_grad()
+        self.network_optimiser.zero_grad()
         loss.backward()
-        self.network.optimiser.step()
+        self.network_optimiser.step()
 
         info['q_target'] = q_target
         info['q_values_min'] = best_q_values

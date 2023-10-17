@@ -16,6 +16,7 @@ class DoubleDQN:
                  network,
                  gamma,
                  tau,
+                 network_lr,
                  device):
 
         self.type = "value"
@@ -26,14 +27,17 @@ class DoubleDQN:
         self.tau    = tau
         self.device = device
 
+        self.network_optimiser  = torch.optim.Adam(self.network.parameters(), lr=network_lr)
+
+
     def select_action_from_policy(self, state):
-        self.actor_net.eval()
+        self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
             action   = torch.argmax(q_values).item()
-        self.actor_net.train()
+        self.network.train()
         return action
 
     def train_policy(self, experiences):
@@ -57,9 +61,10 @@ class DoubleDQN:
         q_target = rewards + self.gamma * (1 - dones) * next_q_value
 
         loss = F.mse_loss(q_value, q_target)
-        self.network.optimiser.zero_grad()
+
+        self.network_optimiser.zero_grad()
         loss.backward()
-        self.network.optimiser.step()
+        self.network_optimiser.step()
 
         for target_param, param in zip(self.target_network.parameters(), self.network.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))

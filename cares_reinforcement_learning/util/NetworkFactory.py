@@ -5,7 +5,7 @@ def create_DQN(args):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
 
-    network = Network(args["observation_size"], args["action_num"], args["lr"])
+    network = Network(args["observation_size"], args["action_num"])
 
     if "network_file_path" in args:
         network.load_state_dict(torch.load(args["network_file_path"]))
@@ -13,6 +13,7 @@ def create_DQN(args):
     agent = DQN(
         network=network,
         gamma=args["gamma"],
+        network_lr=args["lr"],
         device=args["device"]
     )
     return agent
@@ -22,7 +23,7 @@ def create_DuelingDQN(args):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DuelingDQN import DuelingNetwork
 
-    network = DuelingNetwork(args["observation_size"], args["action_num"], args["lr"])
+    network = DuelingNetwork(args["observation_size"], args["action_num"])
 
     if "network_file_path" in args:
         network.load_state_dict(torch.load(args["network_file_path"]))
@@ -30,6 +31,7 @@ def create_DuelingDQN(args):
     agent = DQN(
         network=network,
         gamma=args["gamma"],
+        network_lr=args["lr"],
         device=args["device"]
     )
     return agent
@@ -39,7 +41,7 @@ def create_DDQN(args):
     from cares_reinforcement_learning.algorithm.value import DoubleDQN
     from cares_reinforcement_learning.networks.DoubleDQN import Network
 
-    network = Network(args["observation_size"], args["action_num"], args["lr"])
+    network = Network(args["observation_size"], args["action_num"])
 
     if "network_file_path" in args:
         network.load_state_dict(torch.load(args["network_file_path"]))
@@ -47,6 +49,7 @@ def create_DDQN(args):
     agent = DoubleDQN(
         network=network,
         gamma=args["gamma"],
+        network_lr=args["lr"],
         tau=args["tau"],
         device=args["device"]
     )
@@ -58,8 +61,8 @@ def create_PPO(args):
     from cares_reinforcement_learning.networks.PPO import Actor
     from cares_reinforcement_learning.networks.PPO import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"], args["actor_lr"])
-    critic = Critic(args["observation_size"], args["critic_lr"])
+    actor = Actor(args["observation_size"], args["action_num"])
+    critic = Critic(args["observation_size"])
 
     if "actor_file_path" in args and "critic_file_path" in args:
         actor.load_state_dict(torch.load(args["actor_file_path"]))
@@ -68,6 +71,8 @@ def create_PPO(args):
     agent = PPO(
         actor_network=actor,
         critic_network=critic,
+        actor_lr=args["actor_lr"],
+        critic_lr=args["critic_lr"],
         gamma=args["gamma"],
         action_num=args["action_num"],
         device=args["device"]
@@ -80,8 +85,8 @@ def create_SAC(args):
     from cares_reinforcement_learning.networks.SAC import Actor
     from cares_reinforcement_learning.networks.SAC import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"], args["actor_lr"])
-    critic = Critic(args["observation_size"], args["action_num"], args["critic_lr"])
+    actor = Actor(args["observation_size"], args["action_num"])
+    critic = Critic(args["observation_size"], args["action_num"])
 
     if "actor_file_path" in args and "critic_file_path" in args:
         actor.load_state_dict(torch.load(args["actor_file_path"]))
@@ -90,6 +95,8 @@ def create_SAC(args):
     agent = SAC(
         actor_network=actor,
         critic_network=critic,
+        actor_lr=args["actor_lr"],
+        critic_lr=args["critic_lr"],
         gamma=args["gamma"],
         tau=args["tau"],
         action_num=args["action_num"],
@@ -103,8 +110,8 @@ def create_DDPG(args):
     from cares_reinforcement_learning.networks.DDPG import Actor
     from cares_reinforcement_learning.networks.DDPG import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"], args["actor_lr"])
-    critic = Critic(args["observation_size"], args["action_num"], args["critic_lr"])
+    actor = Actor(args["observation_size"], args["action_num"])
+    critic = Critic(args["observation_size"], args["action_num"])
 
     if "actor_file_path" in args and "critic_file_path" in args:
         actor.load_state_dict(torch.load(args["actor_file_path"]))
@@ -113,6 +120,8 @@ def create_DDPG(args):
     agent = DDPG(
         actor_network=actor,
         critic_network=critic,
+        actor_lr=args["actor_lr"],
+        critic_lr=args["critic_lr"],
         gamma=args["gamma"],
         tau=args["tau"],
         action_num=args["action_num"],
@@ -126,8 +135,8 @@ def create_TD3(args):
     from cares_reinforcement_learning.networks.TD3 import Actor
     from cares_reinforcement_learning.networks.TD3 import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"], args["actor_lr"])
-    critic = Critic(args["observation_size"], args["action_num"], args["critic_lr"])
+    actor = Actor(args["observation_size"], args["action_num"])
+    critic = Critic(args["observation_size"], args["action_num"])
 
     if "actor_file_path" in args and "critic_file_path" in args:
         actor.load_state_dict(torch.load(args["actor_file_path"]))
@@ -136,6 +145,8 @@ def create_TD3(args):
     agent = TD3(
         actor_network=actor,
         critic_network=critic,
+        actor_lr=args["actor_lr"],
+        critic_lr=args["critic_lr"],
         gamma=args["gamma"],
         tau=args["tau"],
         action_num=args["action_num"],

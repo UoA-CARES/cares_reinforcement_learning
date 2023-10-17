@@ -14,6 +14,8 @@ class DDPG:
                  gamma,
                  tau,
                  action_num,
+                 actor_lr,
+                 critic_lr,
                  device
                  ):
 
@@ -26,6 +28,9 @@ class DDPG:
 
         self.gamma = gamma
         self.tau = tau
+
+        self.actor_net_optimiser  = torch.optim.Adam(self.actor_net.parameters(), lr=actor_lr)
+        self.critic_net_optimiser = torch.optim.Adam(self.critic_net.parameters(), lr=critic_lr)
 
         self.device = device
 
@@ -65,17 +70,17 @@ class DDPG:
 
         # Update the Critic Network
         critic_loss = F.mse_loss(q_values, q_target)
-        self.critic_net.optimiser.zero_grad()
+        self.critic_net_optimiser.zero_grad()
         critic_loss.backward()
-        self.critic_net.optimiser.step()
+        self.critic_net_optimiser.step()
 
         # Update the Actor Network
         actor_q = self.critic_net(states, self.actor_net(states))
         actor_loss = -actor_q.mean()
 
-        self.actor_net.optimiser.zero_grad()
+        self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
-        self.actor_net.optimiser.step()
+        self.actor_net_optimiser.step()
 
         for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
             target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))

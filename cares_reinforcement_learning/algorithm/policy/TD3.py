@@ -17,6 +17,8 @@ class TD3(object):
                  gamma,
                  tau,
                  action_num,
+                 actor_lr,
+                 critic_lr,
                  device):
 
         self.type = "policy"
@@ -34,6 +36,10 @@ class TD3(object):
 
         self.action_num = action_num
         self.device = device
+
+        self.actor_net_optimiser  = torch.optim.Adam(self.actor_net.parameters(), lr=actor_lr)
+        self.critic_net_optimiser = torch.optim.Adam(self.critic_net.parameters(), lr=critic_lr)
+
 
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
         self.actor_net.eval()
@@ -87,9 +93,9 @@ class TD3(object):
         critic_loss_total = critic_loss_one + critic_loss_two
         
         # Update the Critic
-        self.critic_net.optimiser.zero_grad()
+        self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
-        self.critic_net.optimiser.step()
+        self.critic_net_optimiser.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
@@ -98,9 +104,9 @@ class TD3(object):
             actor_q_values = torch.minimum(actor_q_one, actor_q_two)
             actor_loss = -actor_q_values.mean()
 
-            self.actor_net.optimiser.zero_grad()
+            self.actor_net_optimiser.zero_grad()
             actor_loss.backward()
-            self.actor_net.optimiser.step()
+            self.actor_net_optimiser.step()
 
             # Update target network params
             for target_param, param in zip(self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()):
