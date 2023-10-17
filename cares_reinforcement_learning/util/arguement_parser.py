@@ -132,25 +132,24 @@ def create_parser():
     parser = openai_dmcs_args(parent_parser=parser)
     return parser
 
-def get_configurations():
-    parser = argparse.ArgumentParser(add_help=False)  # Add an argument
-    parser.add_argument('-c', '--configuration_files', action='store_true', default=False)
-
-    args, rest = parser.parse_known_args()
+def parse_args(args, rest, parser=create_parser()):
     if args.configuration_files:
         parser = configuration_args()
-        args = parser.parse_args(rest)
-        env_config = configurations.create_environment_config_from_file(args.env_config)
-        training_config = configurations.create_training_config_from_file(args.training_config)
-        alg_config = configurations.create_algorithm_config_from_file(args.algorithm_config)
-    else:
-        parser = create_parser()
-        args = vars(parser.parse_args(rest))
-        env_config = EnvironmentConfig.model_validate(args)
-        training_config = TrainingConfig.model_validate(args)
-        alg_config = configurations.create_algorithm_config(args)
-    
-    return env_config, training_config, alg_config
+        config_args = parser.parse_args(rest)
 
-if __name__ == '__main__':
-    get_configurations()
+        args = {}
+        with open(config_args.env_config) as f:
+            env_args = json.load(f)
+        
+        with open(config_args.training_config) as f:
+            training_config = json.load(f)
+
+        with open(config_args.algorithm_config) as f:
+            algorithm_config = json.load(f)
+
+        args.update(env_args)
+        args.update(training_config)
+        args.update(algorithm_config)
+    else:
+        args = vars(parser.parse_args(rest))
+    return args

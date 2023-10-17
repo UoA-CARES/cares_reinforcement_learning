@@ -10,6 +10,9 @@ from cares_reinforcement_learning.util import EnvironmentFactory
 from cares_reinforcement_learning.util import arguement_parser as ap
 from cares_reinforcement_learning.util import helpers as hlp
 
+import cares_reinforcement_learning.util.configurations as configurations
+from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig, EnvironmentConfig
+
 import cares_reinforcement_learning.train_loops.policy_loop as pbe
 import cares_reinforcement_learning.train_loops.value_loop as vbe
 import cares_reinforcement_learning.train_loops.ppo_loop as ppe
@@ -25,7 +28,14 @@ from pathlib import Path
 from datetime import datetime
 
 def main():
-    env_config, training_config, alg_config = ap.get_configurations()
+    parser = argparse.ArgumentParser(add_help=False)  # Add an argument
+    parser.add_argument('-c', '--configuration_files', action='store_true', default=False)
+    args, rest = parser.parse_known_args()
+    args = ap.parse_args(args, rest)
+    
+    env_config = EnvironmentConfig.model_validate(args)
+    training_config = TrainingConfig.model_validate(args)
+    alg_config = configurations.create_algorithm_config(args)
 
     env_factory = EnvironmentFactory()
     network_factory = NetworkFactory()

@@ -7,25 +7,6 @@ file_path = Path(__file__).parent.resolve()
 from pydantic import BaseModel, Field
 from typing import List, Optional
 
-def create_environment_config_from_file(file_path):
-    with open(file_path) as f:
-        args = json.load(f)
-        env_config = EnvironmentConfig.model_validate(args)
-        print(f"Environment Configuration:\n{env_config}")
-        return env_config
-
-def create_training_config_from_file(file_path):
-    with open(file_path) as f:
-        args = json.load(f)
-        training_config = TrainingConfig.model_validate(args)
-        print(f"Training Configuration:\n{training_config}")
-        return training_config
-
-def create_algorithm_config_from_file(file_path):
-    with open(file_path) as f:
-        args = json.load(f)
-        return create_algorithm_config(args)
-
 def create_algorithm_config(args):
     algorithm = args['algorithm']
     if algorithm == "DQN":
@@ -43,7 +24,7 @@ def create_algorithm_config(args):
     elif algorithm == "TD3":
         alg_config = TD3Config.model_validate(args)
     else:
-        logging.warn(f"Unkown algorithm: {alg_config} for config {file_path}")
+        logging.warn(f"Unkown algorithm: {algorithm} for config {file_path}")
         return None
     print(f"Algorithm Configuration:\n{alg_config}")
     return alg_config
