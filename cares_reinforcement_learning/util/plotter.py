@@ -3,7 +3,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 import argparse
 
-import yaml
+import json
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -88,10 +88,6 @@ def parse_args():
 
     return vars(parser.parse_args())  # converts into a dictionary
 
-class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
-    def ignore_unknown(self, node):
-        return None 
-
 def main():
     args = parse_args()
 
@@ -102,8 +98,6 @@ def main():
     labels = []
     title = "Undefined Task"
 
-    SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
-
     for data_directory in args["data_path"]:
         result_directories = glob(f"{data_directory}/*")
 
@@ -111,12 +105,18 @@ def main():
         average_eval_data = pd.DataFrame()
 
         result_directory = result_directories[0]
-        with open(f"{result_directory}/config.yml", 'r') as file:
-            config = yaml.load(file, Loader=SafeLoaderIgnoreUnknown)
+        with open(f"{result_directory}/env_config.json", 'r') as file:
+            env_config = json.load(file)
 
-        algorithm = config["args"]["algorithm"]
+        with open(f"{result_directory}/train_config.json", 'r') as file:
+            train_config = json.load(file)
+
+        with open(f"{result_directory}/alg_config.json", 'r') as file:
+            alg_config = json.load(file)
+
+        algorithm = alg_config["algorithm"]
         labels.append(algorithm)
-        task = config["args"]["task"]
+        task = env_config["task"]
         title = task
 
         for i, result_directory in enumerate(result_directories):

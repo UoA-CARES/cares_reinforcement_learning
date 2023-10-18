@@ -3,77 +3,57 @@ from cares_reinforcement_learning.algorithm.policy import *
 from cares_reinforcement_learning.algorithm.value import *
 from cares_reinforcement_learning.util.NetworkFactory import *
 from cares_reinforcement_learning.util.helpers import *
+from cares_reinforcement_learning.util.configurations import *
 
 
 def test_create_agents():
-    args = {
-        "observation_size": 10,
-        "action_num": 5,
-        "lr": 0.001,
-        "actor_lr": 0.001,
-        "critic_lr": 0.001,
-        "gamma": 0.99,
-        "tau": 0.01,
-        "device": "cpu"
-    }
-
-    agent = create_DQN(args)
+    agent = create_DQN(10, 5, DQNConfig())
     assert isinstance(agent, DQN), "Failed to create DQN agent"
 
-    agent = create_DuelingDQN(args)
+    agent = create_DuelingDQN(10, 5, DuelingDQNConfig())
     assert isinstance(agent, DQN), "Failed to create DuelingDQN agent"
 
-    agent = create_DDQN(args)
+    agent = create_DDQN(10, 5, DoubleDQNConfig())
     assert isinstance(agent, DoubleDQN), "Failed to create DDQN agent"
 
-    agent = create_PPO(args)
+    agent = create_PPO(10, 5,PPOConfig())
     assert isinstance(agent, PPO), "Failed to create PPO agent"
 
-    agent = create_SAC(args)
+    agent = create_SAC(10, 5, SACConfig())
     assert isinstance(agent, SAC), "Failed to create SAC agent"
 
-    agent = create_DDPG(args)
+    agent = create_DDPG(10, 5, DDPGConfig())
     assert isinstance(agent, DDPG), "Failed to create DDPG agent"
 
-    agent = create_TD3(args)
+    agent = create_TD3(10, 5, TD3Config())
     assert isinstance(agent, TD3), "Failed to create TD3 agent"
 
 
 def test_create_network():
     factory = NetworkFactory()
-    args = {
-        "observation_size": 10,
-        "action_num": 5,
-        "lr": 0.001,
-        "actor_lr": 0.001,
-        "critic_lr": 0.001,
-        "gamma": 0.99,
-        "tau": 0.01,
-        "device": "cpu"
-    }
 
-    agent = factory.create_network("DQN", args)
+    agent = factory.create_network(10, 5, DQNConfig())
     assert isinstance(agent, DQN), "Failed to create DQN agent"
 
-    agent = factory.create_network("DDQN", args)
+    agent = factory.create_network(10, 5, DoubleDQNConfig())
     assert isinstance(agent, DoubleDQN), "Failed to create DDQN agent"
 
-    agent = factory.create_network("DuelingDQN", args)
+    agent = factory.create_network(10, 5, DuelingDQNConfig())
     assert isinstance(agent, DQN), "Failed to create DuelingDQN agent"
 
-    agent = factory.create_network("PPO", args)
+    agent = factory.create_network(10, 5,PPOConfig())
     assert isinstance(agent, PPO), "Failed to create PPO agent"
 
-    agent = factory.create_network("SAC", args)
+    agent = factory.create_network(10, 5, SACConfig())
     assert isinstance(agent, SAC), "Failed to create SAC agent"
 
-    agent = factory.create_network("DDPG", args)
+    agent = factory.create_network(10, 5, DDPGConfig())
     assert isinstance(agent, DDPG), "Failed to create DDPG agent"
 
-    agent = factory.create_network("TD3", args)
+    agent = factory.create_network(10, 5, TD3Config())
     assert isinstance(agent, TD3), "Failed to create TD3 agent"
     
-    agent = factory.create_network("Unknown", args)
+    agent = factory.create_network(10, 5, AlgorithmConfig(algorithm="unknown"))
     assert agent is None, f"Unkown failed to return None: returned {agent}"
 
 

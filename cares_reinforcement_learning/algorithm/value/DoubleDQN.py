@@ -9,7 +9,6 @@ import logging
 import numpy as np
 import torch.nn.functional as F
 
-
 class DoubleDQN:
 
     def __init__(self,

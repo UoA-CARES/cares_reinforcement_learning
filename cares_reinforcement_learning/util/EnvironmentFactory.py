@@ -13,25 +13,26 @@ from collections import deque
 # from typing import override
 from functools import cached_property
 
+from cares_reinforcement_learning.util.configurations import EnvironmentConfig
+
 class EnvironmentFactory:
     def __init__(self) -> None:
         pass
 
-    def create_environment(self, gym_environment, args):
-        logging.info(f"Training Environment: {gym_environment}")
-        if gym_environment == 'dmcs':
-            env = DMCSImage(args=args) if args['image_observation'] else DMCS(args=args)
-        elif gym_environment == "openai":
-            env = OpenAIGym(args=args)
+    def create_environment(self, config: EnvironmentConfig):
+        logging.info(f"Training Environment: {config.gym}")
+        if config.gym == 'dmcs':
+            env = DMCSImage(config) if config.image_observation else DMCS(config)
+        elif config.gym == "openai":
+            env = OpenAIGymImage(config) if config.image_observation else OpenAIGym(config)
         else:
-            raise ValueError(f"Unkown environment: {gym_environment}")
+            raise ValueError(f"Unkown environment: {config.gym}")
         return env
         
 class OpenAIGym:
-    def __init__(self, args) -> None:
-        logging.info(f"Training task {args['task']}")
-        self.env = gym.make(args["task"], render_mode="rgb_array")
-        self.set_seed(args['seed'])
+    def __init__(self, config: EnvironmentConfig) -> None:
+        logging.info(f"Training task {config.task}")
+        self.env = gym.make(config.task, render_mode="rgb_array")
     
     @cached_property
     def max_action_value(self):
@@ -72,15 +73,15 @@ class OpenAIGym:
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Convert to BGR for use with OpenCV
         return frame
     
-class OpenAIGymImage:
-    def __init__(self, args, k=3):
+class OpenAIGymImage(OpenAIGym):
+    def __init__(self, config: EnvironmentConfig, k=3):
         self.k    = k  # number of frames to be stacked
         self.frames_stacked = deque([], maxlen=k)
 
         self.frame_width = 84
         self.frame_height = 84
 
-        super().__init__(args=args)
+        super().__init__(config)
 
     # @override
     @property
@@ -108,13 +109,13 @@ class OpenAIGymImage:
         return stacked_frames, reward, done, False # for consistency with open ai gym just add false for truncated
         
 class DMCS:
-    def __init__(self, args) -> None:
-        logging.info(f"Training on Domain {args['domain']}")
-        logging.info(f"Training with Task {args['task']}")
+    def __init__(self, config: EnvironmentConfig) -> None:
+        logging.info(f"Training on Domain {config.domain}")
+        logging.info(f"Training with Task {config.task}")
       
-        self.domain = args['domain']
-        self.task = args['task']
-        self.env = suite.load(self.domain, self.task, task_kwargs={'random': args['seed']})
+        self.domain = config.domain
+        self.task = config.task
+        self.env = suite.load(self.domain, self.task)
         
     @cached_property
     def min_action_value(self):
@@ -154,14 +155,14 @@ class DMCS:
 
 # TODO paramatise the observation size 3x84x84
 class DMCSImage(DMCS):
-    def __init__(self, args, k=3):
+    def __init__(self, config: EnvironmentConfig, k=3):
         self.k    = k  # number of frames to be stacked
         self.frames_stacked = deque([], maxlen=k)
 
         self.frame_width = 84
         self.frame_height = 84
 
-        super().__init__(args=args)
+        super().__init__(config)
 
     # @override
     @property

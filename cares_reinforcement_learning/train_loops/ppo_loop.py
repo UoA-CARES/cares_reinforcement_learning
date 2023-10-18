@@ -1,6 +1,6 @@
-from cares_reinforcement_learning.memory import *
+from cares_reinforcement_learning.util.configurations import TrainingConfig
 from cares_reinforcement_learning.util import helpers as hlp
-from cares_reinforcement_learning.util import Record
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 import time
 import gym
@@ -8,13 +8,13 @@ import logging
 
 from timeit import default_timer as timer
 
-def evaluate_ppo_network(env, agent, args, record=None, total_steps=0):
+def evaluate_ppo_network(env, agent, config: TrainingConfig, record=None, total_steps=0):
     
     if record is not None:
         frame = env.grab_frame()
         record.start_video(total_steps+1, frame)
 
-    number_eval_episodes = int(args["number_eval_episodes"])
+    number_eval_episodes = int(config.number_eval_episodes)
 
     state = env.reset()
 
@@ -54,13 +54,12 @@ def evaluate_ppo_network(env, agent, args, record=None, total_steps=0):
 
     record.stop_video()
 
-def ppo_train(env, agent, record, args):
+def ppo_train(env, agent, record, config: TrainingConfig):
     start_time = time.time()
 
-    seed = args["seed"]
-    max_steps_training = args["max_steps_training"]
-    max_steps_per_batch = args["max_steps_per_batch"]
-    number_steps_per_evaluation = args["number_steps_per_evaluation"]
+    max_steps_training = config.max_steps_training
+    max_steps_per_batch = config.max_steps_per_batch
+    number_steps_per_evaluation = config.number_steps_per_evaluation
 
     episode_timesteps = 0
     episode_num = 0
@@ -113,8 +112,7 @@ def ppo_train(env, agent, record, args):
 
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
-                args["evaluation_seed"] = seed
-                evaluate_ppo_network(env, agent, args, record=record, total_steps=total_step_counter)
+                evaluate_ppo_network(env, agent, config, record=record, total_steps=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

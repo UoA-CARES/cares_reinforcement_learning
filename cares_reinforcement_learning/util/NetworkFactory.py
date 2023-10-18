@@ -1,154 +1,159 @@
 import torch
 import logging
 
-def create_DQN(args):
+from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+
+def create_DQN(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
 
-    network = Network(args["observation_size"], args["action_num"])
+    network = Network(observation_size, action_num)
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     agent = DQN(
         network=network,
-        gamma=args["gamma"],
-        network_lr=args["lr"],
-        device=args["device"]
+        gamma=config.gamma,
+        network_lr=config.lr,
+        device=device
     )
     return agent
 
 
-def create_DuelingDQN(args):
+def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DuelingDQN import DuelingNetwork
 
-    network = DuelingNetwork(args["observation_size"], args["action_num"])
+    network = DuelingNetwork(observation_size, action_num)
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     agent = DQN(
         network=network,
-        gamma=args["gamma"],
-        network_lr=args["lr"],
-        device=args["device"]
+        gamma=config.gamma,
+        network_lr=config.lr,
+        device=device
     )
     return agent
 
 
-def create_DDQN(args):
+def create_DDQN(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.value import DoubleDQN
     from cares_reinforcement_learning.networks.DoubleDQN import Network
 
-    network = Network(args["observation_size"], args["action_num"])
+    network = Network(observation_size, action_num)
 
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     agent = DoubleDQN(
         network=network,
-        gamma=args["gamma"],
-        network_lr=args["lr"],
-        tau=args["tau"],
-        device=args["device"]
+        gamma=config.gamma,
+        network_lr=config.lr,
+        tau=config.tau,
+        device=device
     )
     return agent
 
 
-def create_PPO(args):
+def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PPO
     from cares_reinforcement_learning.networks.PPO import Actor
     from cares_reinforcement_learning.networks.PPO import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"])
-    critic = Critic(args["observation_size"])
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size)
 
-
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     agent = PPO(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=args["actor_lr"],
-        critic_lr=args["critic_lr"],
-        gamma=args["gamma"],
-        action_num=args["action_num"],
-        device=args["device"]
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        action_num=action_num,
+        device=device
     )
     return agent
 
 
-def create_SAC(args):
+def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor
     from cares_reinforcement_learning.networks.SAC import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"])
-    critic = Critic(args["observation_size"], args["action_num"])
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
 
-
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     agent = SAC(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=args["actor_lr"],
-        critic_lr=args["critic_lr"],
-        gamma=args["gamma"],
-        tau=args["tau"],
-        action_num=args["action_num"],
-        device=args["device"],
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
     )
     return agent
 
 
-def create_DDPG(args):
+def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor
     from cares_reinforcement_learning.networks.DDPG import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"])
-    critic = Critic(args["observation_size"], args["action_num"])
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
 
-
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     agent = DDPG(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=args["actor_lr"],
-        critic_lr=args["critic_lr"],
-        gamma=args["gamma"],
-        tau=args["tau"],
-        action_num=args["action_num"],
-        device=args["device"],
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
     )
     return agent
 
 
-def create_TD3(args):
+def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor
     from cares_reinforcement_learning.networks.TD3 import Critic
 
-    actor = Actor(args["observation_size"], args["action_num"])
-    critic = Critic(args["observation_size"], args["action_num"])
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
 
-
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     agent = TD3(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=args["actor_lr"],
-        critic_lr=args["critic_lr"],
-        gamma=args["gamma"],
-        tau=args["tau"],
-        action_num=args["action_num"],
-        device=args["device"],
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
     )
     return agent
 
-
 class NetworkFactory:
-    def create_network(self, algorithm, args):
+    def create_network(self, observation_size, action_num, config: AlgorithmConfig):
+        algorithm = config.algorithm
         if algorithm == "DQN":
-            return create_DQN(args)
-        elif algorithm == "DDQN":
-            return create_DDQN(args)
+            return create_DQN(observation_size, action_num, config)
+        elif algorithm == "DoubleDQN":
+            return create_DDQN(observation_size, action_num, config)
         elif algorithm == "DuelingDQN":
-            return create_DuelingDQN(args)
+            return create_DuelingDQN(observation_size, action_num, config)
         elif algorithm == "PPO":
-            return create_PPO(args)
+            return create_PPO(observation_size, action_num, config)
         elif algorithm == "DDPG":
-            return create_DDPG(args)
+            return create_DDPG(observation_size, action_num, config)
         elif algorithm == "SAC":
-            return create_SAC(args)
+            return create_SAC(observation_size, action_num, config)
         elif algorithm == "TD3":
-            return create_TD3(args)
+            return create_TD3(observation_size, action_num, config)
         logging.warn(f"Algorithm: {algorithm} is not in the default cares_rl factory")
         return None

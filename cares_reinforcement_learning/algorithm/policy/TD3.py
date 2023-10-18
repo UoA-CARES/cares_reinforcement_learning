@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-
 class TD3(object):
     def __init__(self,
                  actor_network,

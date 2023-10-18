@@ -13,7 +13,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-
 class SAC:
     def __init__(self,
                  actor_network,
