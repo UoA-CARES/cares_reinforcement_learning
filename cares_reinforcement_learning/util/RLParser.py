@@ -11,8 +11,6 @@ import cares_reinforcement_learning.util.configurations as configurations
 from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig, EnvironmentConfig
 import json
 
-import rich
-
 import pydantic
 
 import importlib
