@@ -25,7 +25,7 @@ This repository includes a script that allows you to run any OpenAI Gymnasium (h
 
 An example is found below for running on the OpenAI and DMCS environments with TD3 through console
 ```
-python example_training_loops.py run --gym openai --task HalfCheetah-v4 TD
+python example_training_loops.py run --gym openai --task HalfCheetah-v4 TD3
 
 
 python3 example_training_loops.py run dmcs --domain ball_in_cup --task catch TD3
