@@ -60,7 +60,14 @@ def main():
 
         #create the record class - standardised results tracking
         log_dir = f"{seed}"
-        record = Record(glob_log_dir=glob_log_dir, log_dir=log_dir, network=agent, plot_frequency=training_config.plot_frequency, checkpoint_frequency=training_config.checkpoint_frequency)
+        record = Record(glob_log_dir=glob_log_dir, 
+                        log_dir=log_dir, 
+                        algorithm=alg_config.algorithm, 
+                        task=env_config.task, 
+                        network=agent, 
+                        plot_frequency=training_config.plot_frequency, 
+                        checkpoint_frequency=training_config.checkpoint_frequency)
+        
         record.save_config(env_config, "env_config")
         record.save_config(training_config, "train_config")
         record.save_config(alg_config, "alg_config")

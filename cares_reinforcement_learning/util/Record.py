@@ -14,13 +14,16 @@ import cares_reinforcement_learning.util.plotter as plt
 
 class Record:
     
-    def __init__(self, glob_log_dir, log_dir, plot_frequency=10, checkpoint_frequency=1000, network=None) -> None:
-        self.plot_frequency = plot_frequency
-        self.checkpoint_frequency = checkpoint_frequency
-        
+    def __init__(self, glob_log_dir, log_dir, algorithm, task, plot_frequency=10, checkpoint_frequency=1000, network=None) -> None:
         self.glob_log_dir = glob_log_dir
         self.log_dir = log_dir
         self.directory = f'{self.glob_log_dir}/{self.log_dir}'
+
+        self.algorithm = algorithm
+        self.task = task
+
+        self.plot_frequency = plot_frequency
+        self.checkpoint_frequency = checkpoint_frequency
         
         self.train_data = pd.DataFrame()
         self.eval_data = pd.DataFrame()
@@ -59,16 +62,16 @@ class Record:
         self.save_data(self.train_data, "train", logs, display=display)
 
         if self.log_count % self.plot_frequency == 0:
-            plt.plot_train(self.train_data, f"Training-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "train", 20)
+            plt.plot_train(self.train_data, f"Training-{self.algorithm}-{self.task}", f"{self.algorithm}", self.directory, "train", 20)
 
         if self.network is not None and self.log_count % self.checkpoint_frequency == 0:
-            self.network.save_models(f"{self.algoritm}-checkpoint-{self.log_count}", self.directory)
+            self.network.save_models(f"{self.algorithm}-checkpoint-{self.log_count}", self.directory)
 
     def log_eval(self, display=False, **logs):
         self.eval_data = pd.concat([self.eval_data, pd.DataFrame([logs])], ignore_index=True)
         self.save_data(self.eval_data, "eval", logs, display=display)
 
-        plt.plot_eval(self.eval_data, f"Evaluation-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "eval")
+        plt.plot_eval(self.eval_data, f"Evaluation-{self.algorithm}-{self.task}", f"{self.algorithm}", self.directory, "eval")
          
     def save_data(self, data_frame, filename, logs, display=True):
         if data_frame.empty:
@@ -89,11 +92,11 @@ class Record:
         self.save_data(self.train_data, "train", {}, display=False)
         self.save_data(self.eval_data, "eval", {}, display=False)
 
-        plt.plot_eval(self.eval_data, f"Evaluation-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "eval")
-        plt.plot_train(self.train_data, f"Training-{self.algoritm}-{self.task}", f"{self.algoritm}", self.directory, "train", 20)
+        plt.plot_eval(self.eval_data, f"Evaluation-{self.algorithm}-{self.task}", f"{self.algorithm}", self.directory, "eval")
+        plt.plot_train(self.train_data, f"Training-{self.algorithm}-{self.task}", f"{self.algorithm}", self.directory, "train", 20)
 
         if self.network is not None:
-            self.network.save_models(self.algoritm, self.directory)
+            self.network.save_models(self.algorithm, self.directory)
 
     def __initialise_directories(self):
         if not os.path.exists(self.glob_log_dir):

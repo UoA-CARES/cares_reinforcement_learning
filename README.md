@@ -23,12 +23,17 @@ This repository includes a script that allows you to run any OpenAI Gymnasium (h
 
 `example_training_loops.py` takes in hyperparameters that allow you to customise the training run enviromment – OpenAI or DMCS Environment - or RL algorithm. Use `python3 example_training_loops.py -h` for help on what parameters are available for customisation.
 
-An example is found below for running on the OpenAI and DMCS environments with TD3:
+An example is found below for running on the OpenAI and DMCS environments with TD3 through console
 ```
-python3 example_training_loops.py openai --task HalfCheetah-v4 TD3
+python example_training_loops.py run --gym openai --task HalfCheetah-v4 TD
 
 
-python3 example_training_loops.py dmcs --domain ball_in_cup --task catch TD3
+python3 example_training_loops.py run dmcs --domain ball_in_cup --task catch TD3
+```
+
+An example is found below for running using pre-defined configuration files
+```
+python example_training_loops.py config --env_config ~/cares_rl_configs/env_dmcs_config.json --training_config ~/cares_rl_configs/training_config.json --algorithm_config ~/cares_rl_configs/algorithm_config.json
 ```
 
 ### Data Outputs

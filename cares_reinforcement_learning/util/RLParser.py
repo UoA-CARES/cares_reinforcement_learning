@@ -27,7 +27,6 @@ def add_model(parser, model):
     "Add Pydantic model to an ArgumentParser"
     fields = model.__fields__
     for name, field in fields.items():
-        print(field)
         parser.add_argument(
             f"--{name}", 
             dest=name, 
