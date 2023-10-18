@@ -54,6 +54,7 @@ class DoubleDQNConfig(AlgorithmConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
     lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
     memory: Optional[str] = "MemoryBuffer"
 
     exploration_min: Optional[float] = 1e-3

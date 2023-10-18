@@ -143,7 +143,7 @@ class NetworkFactory:
         algorithm = config.algorithm
         if algorithm == "DQN":
             return create_DQN(observation_size, action_num, config)
-        elif algorithm == "DDQN":
+        elif algorithm == "DoubleDQN":
             return create_DDQN(observation_size, action_num, config)
         elif algorithm == "DuelingDQN":
             return create_DuelingDQN(observation_size, action_num, config)
