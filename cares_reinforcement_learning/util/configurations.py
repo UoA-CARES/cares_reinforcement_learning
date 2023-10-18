@@ -7,6 +7,8 @@ file_path = Path(__file__).parent.resolve()
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 
+# NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
+
 class EnvironmentConfig(BaseModel):
     gym: str = Field(description='Gym Environment <openai, dmcs>')
     task: str
@@ -14,8 +16,7 @@ class EnvironmentConfig(BaseModel):
     image_observation: Optional[bool] = False
 
 class TrainingConfig(BaseModel):
-    seed: Optional[int] = 10
-    number_training_iterations: Optional[int] = 1
+    seeds: List[int] = [10]
 
     G: Optional[int] = 1
     batch_size: Optional[int] = 10
