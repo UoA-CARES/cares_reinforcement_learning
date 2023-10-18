@@ -8,14 +8,11 @@ from cares_reinforcement_learning.util.configurations import *
 
 def test_create_agents():
     args = {
-        "observation_size": 10,
-        "action_num": 5,
         "lr": 0.001,
         "actor_lr": 0.001,
         "critic_lr": 0.001,
         "gamma": 0.99,
         "tau": 0.01,
-        "device": "cpu"
     }
 
     agent = create_DQN(10, 5, DQNConfig(**args))
@@ -43,14 +40,11 @@ def test_create_agents():
 def test_create_network():
     factory = NetworkFactory()
     args = {
-        "observation_size": 10,
-        "action_num": 5,
         "lr": 0.001,
         "actor_lr": 0.001,
         "critic_lr": 0.001,
         "gamma": 0.99,
         "tau": 0.01,
-        "device": "cpu"
     }
 
     agent = factory.create_network(10, 5, DQNConfig(**args))
