@@ -42,7 +42,9 @@ All data from a training run is saved into '~/cares_rl_logs'. A folder will be c
 ```
 ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
 ├─ SEED
-|  ├─ config.py
+|  ├─ env_config.py
+|  ├─ alg_config.py
+|  ├─ train_config.py
 |  ├─ data
 |  |  ├─ train.csv
 |  |  ├─ eval.csv
