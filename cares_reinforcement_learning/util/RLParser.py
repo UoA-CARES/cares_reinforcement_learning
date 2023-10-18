@@ -18,11 +18,6 @@ import pydantic
 import importlib
 import inspect
 
-def factory(classname, args):
-    import cares_reinforcement_learning.util.configurations as configurations
-    cls = getattr(configurations, classname)
-    return cls(**vars(args))
-
 def add_model(parser, model):
     "Add Pydantic model to an ArgumentParser"
     fields = model.__fields__
@@ -40,33 +35,11 @@ def get_algorithm_parser():
     alg_parser = argparse.ArgumentParser()
     alg_parsers = alg_parser.add_subparsers(help='Select which RL algorith you want to use', dest='algorithm', required=True)
 
-    # create the parser for TD3 with default parameters
-    parser_TD3 = alg_parsers.add_parser('TD3', help='TD3')
-    add_model(parser_TD3, configurations.TD3Config)
-    
-    # create the parser for DDPG with default parameters
-    parser_DDPG = alg_parsers.add_parser('DDPG', help='DDPG')
-    add_model(parser_DDPG, configurations.DDPGConfig)
-
-    # create the parser for SAC with default parameters
-    parser_SAC = alg_parsers.add_parser('SAC', help='SAC')
-    add_model(parser_SAC, configurations.SACConfig)
-
-    # create the parser for PPO with default parameters
-    parser_PPO = alg_parsers.add_parser('PPO', help='PPO')
-    add_model(parser_PPO, configurations.PPOConfig)
-
-    # create the parser for DQN with default parameters
-    parser_DQN = alg_parsers.add_parser('DQN', help='DQN')
-    add_model(parser_DQN, configurations.DQNConfig)
-
-    # create the parser for DuelingDQN with default parameters
-    parser_DuelingDQN = alg_parsers.add_parser('DuelingDQN', help='DuelingDQN')
-    add_model(parser_DuelingDQN, configurations.DuelingDQNConfig)
-
-    # create the parser for DoubleDQN with default parameters
-    parser_DoubleDQN = alg_parsers.add_parser('DoubleDQN', help='DoubleDQN')
-    add_model(parser_DoubleDQN, configurations.DoubleDQNConfig)
+    for name, cls in inspect.getmembers(configurations, inspect.isclass):
+        if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
+            name = name.replace('Config', '')
+            cls_parser = alg_parsers.add_parser(name, help=name)
+            add_model(cls_parser, cls)
 
     return alg_parser, alg_parsers
 
@@ -76,9 +49,11 @@ class RLParser:
 
         self.algorithm_configs = {}
         for name, cls in inspect.getmembers(configurations, inspect.isclass):
-            self.algorithm_configs[name] = cls
+            if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
+                self.algorithm_configs[name] = cls
     
-    def add_algorithm(self, name, algorithm_model):
+    def add_algorithm(self, algorithm_model):
+        name = algorithm_model.__name__.replace('Config', '')
         parser = self.algorithm_parsers.add_parser(f"{name}", help=f"{name}")
         add_model(parser, algorithm_model)
         self.algorithm_configs[algorithm_model.__name__] = algorithm_model
@@ -150,5 +125,8 @@ class LMAOConfig(AlgorithmConfig):
 
 if __name__ == '__main__':
     parser = RLParser()
-    parser.add_algorithm("LMAO", LMAOConfig)
-    parser.parse_args()
+    parser.add_algorithm(LMAOConfig)
+    env_config, training_config, algorithm_config = parser.parse_args()
+    print(env_config)
+    print(training_config)
+    print(algorithm_config)
