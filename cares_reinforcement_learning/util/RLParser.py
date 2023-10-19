@@ -15,18 +15,21 @@ import pydantic
 
 import importlib
 import inspect
+from typing import get_origin
 
 def add_model(parser, model):
     "Add Pydantic model to an ArgumentParser"
     fields = model.__fields__
     for name, field in fields.items():
+        nargs = '+' if get_origin(field.annotation) is list else None
         parser.add_argument(
             f"--{name}", 
             dest=name, 
             type=field.type_, 
             default=field.default,
             help=field.field_info.description,
-            required=field.required
+            required=field.required,
+            nargs=nargs 
         )
 
 def get_algorithm_parser():
@@ -69,7 +72,7 @@ class RLParser:
             exit(1)
         # use dispatch pattern to invoke method with same name
         self.args = getattr(self, f"_{cmd_arg.command}")()
-
+        print(self.args)
         env_config = EnvironmentConfig(**self.args)
         training_config = TrainingConfig(**self.args)
         algorithm_config = self.algorithm_configs[f"{self.args['algorithm']}Config"](**self.args)

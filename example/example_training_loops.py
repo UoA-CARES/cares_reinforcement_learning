@@ -41,11 +41,8 @@ def main():
     iterations_folder = f"{alg_config.algorithm}-{env_config.task}-{datetime.now().strftime('%y_%m_%d_%H:%M:%S')}"
     glob_log_dir = f'{Path.home()}/cares_rl_logs/{iterations_folder}'
 
-    training_iterations = training_config.number_training_iterations
-
-    seed = training_config.seed
-    for training_iteration in range(0, training_iterations):
-        logging.info(f"Training iteration {training_iteration+1}/{training_iterations} with Seed: {seed}")
+    for training_iteration, seed in enumerate(training_config.seeds):
+        logging.info(f"Training iteration {training_iteration+1}/{len(training_config.seeds)} with Seed: {seed}")
         hlp.set_seed(seed)
         env.set_seed(seed)
 
@@ -83,8 +80,6 @@ def main():
             raise ValueError(f"Agent type is unkown: {agent.type}")
         
         record.save()
-        
-        seed += 10
 
 if __name__ == '__main__':
     main()
