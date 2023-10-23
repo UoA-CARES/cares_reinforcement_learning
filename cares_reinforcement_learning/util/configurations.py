@@ -30,6 +30,9 @@ class TrainingConfig(BaseModel):
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
 
+class PPOTrainingConfig(TrainingConfig):
+    max_steps_per_batch: Optional[int] = 5000
+
 class AlgorithmConfig(BaseModel):
     algorithm: str = Field(description='Name of the algorithm to be used')
 
