@@ -8,7 +8,7 @@ from argparse import Namespace
 import logging
 
 import cares_reinforcement_learning.util.configurations as configurations
-from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig, EnvironmentConfig
+from cares_reinforcement_learning.util.configurations import TrainingConfig, PPOTrainingConfig, AlgorithmConfig, EnvironmentConfig
 import json
 
 import pydantic
@@ -74,7 +74,12 @@ class RLParser:
         self.args = getattr(self, f"_{cmd_arg.command}")()
         print(self.args)
         env_config = EnvironmentConfig(**self.args)
-        training_config = TrainingConfig(**self.args)
+
+        if self.args['algorithm'] is 'PPO':
+            training_config = PPOTrainingConfig(**self.args)
+        else:
+            training_config = TrainingConfig(**self.args)
+
         algorithm_config = self.algorithm_configs[f"{self.args['algorithm']}Config"](**self.args)
         return env_config, training_config, algorithm_config
         
