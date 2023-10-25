@@ -9,13 +9,17 @@ from typing import List, Optional, Literal
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
 
-class EnvironmentConfig(BaseModel):
+class SubscriptableClass(BaseModel):
+    def __getitem__(self, item):
+        return getattr(self, item)
+    
+class EnvironmentConfig(SubscriptableClass):
     gym: str = Field(description='Gym Environment <openai, dmcs>')
     task: str
     domain: Optional[str] = None
     image_observation: Optional[bool] = False
 
-class TrainingConfig(BaseModel):
+class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
 
     G: Optional[int] = 1
@@ -30,7 +34,7 @@ class TrainingConfig(BaseModel):
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
 
-class AlgorithmConfig(BaseModel):
+class AlgorithmConfig(SubscriptableClass):
     algorithm: str = Field(description='Name of the algorithm to be used')
 
 class DQNConfig(AlgorithmConfig):
