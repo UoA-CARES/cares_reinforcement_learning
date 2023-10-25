@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.util.configurations import TrainingConfig
+from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig
 from cares_reinforcement_learning.util import helpers as hlp
 
 import numpy as np
@@ -11,17 +11,17 @@ from random import randrange
 
 from timeit import default_timer as timer
 
-def evaluate_value_network(env, agent, config: TrainingConfig, record=None, total_steps=0):
+def evaluate_value_network(env, agent, train_config: TrainingConfig, alg_config: AlgorithmConfig, record=None, total_steps=0):
 
     if record is not None:
         frame = env.grab_frame()
         record.start_video(total_steps+1, frame)
 
-    number_eval_episodes = int(config.number_eval_episodes)
+    number_eval_episodes = int(train_config.number_eval_episodes)
     
     state = env.reset()
     
-    exploration_rate = config.exploration_min
+    exploration_rate = alg_config.exploration_min
 
     for eval_episode_counter in range(number_eval_episodes):
         episode_timesteps = 0
@@ -62,16 +62,17 @@ def evaluate_value_network(env, agent, config: TrainingConfig, record=None, tota
 
     record.stop_video()
 
-def value_based_train(env, agent, memory, record, config: TrainingConfig):
+def value_based_train(env, agent, memory, record, train_config: TrainingConfig, alg_config: AlgorithmConfig):
     start_time = time.time()
 
-    max_steps_training = config.max_steps_training
-    exploration_min = config.exploration_min
-    exploration_decay = config.exploration_decay
-    number_steps_per_evaluation = config.number_steps_per_evaluation
+    exploration_min = alg_config.exploration_min
+    exploration_decay = alg_config.exploration_decay
 
-    batch_size = config.batch_size
-    G = config.G
+    max_steps_training = train_config.max_steps_training
+    number_steps_per_evaluation = train_config.number_steps_per_evaluation
+
+    batch_size = train_config.batch_size
+    G = train_config.G
 
     episode_timesteps = 0
     episode_reward = 0
@@ -129,7 +130,7 @@ def value_based_train(env, agent, memory, record, config: TrainingConfig):
 
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
-                evaluate_value_network(env, agent, config, record=record, total_steps=total_step_counter)
+                evaluate_value_network(env, agent, train_config, alg_config, record=record, total_steps=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 

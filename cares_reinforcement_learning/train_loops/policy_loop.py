@@ -1,4 +1,4 @@
-from cares_reinforcement_learning.util.configurations import TrainingConfig
+from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig
 from cares_reinforcement_learning.util import helpers as hlp
 
 import cv2
@@ -53,17 +53,17 @@ def evaluate_policy_network(env, agent, config: TrainingConfig, record=None, tot
     
     record.stop_video()
 
-def policy_based_train(env, agent, memory, record, config: TrainingConfig):
+def policy_based_train(env, agent, memory, record, train_config: TrainingConfig, alg_config : AlgorithmConfig):
     start_time = time.time()
 
-    max_steps_training = config.max_steps_training
-    max_steps_exploration = config.max_steps_exploration
-    number_steps_per_evaluation = config.number_steps_per_evaluation
+    max_steps_training = train_config.max_steps_training
+    max_steps_exploration = train_config.max_steps_exploration
+    number_steps_per_evaluation = train_config.number_steps_per_evaluation
 
     logging.info(f"Training {max_steps_training} Exploration {max_steps_exploration} Evaluation {number_steps_per_evaluation}")
 
-    batch_size = config.batch_size
-    G = config.G
+    batch_size = train_config.batch_size
+    G = train_config.G
 
     episode_timesteps = 0
     episode_reward = 0
@@ -124,7 +124,7 @@ def policy_based_train(env, agent, memory, record, config: TrainingConfig):
 
             if evaluate:
                 logging.info("*************--Evaluation Loop--*************")
-                evaluate_policy_network(env, agent, config, record=record, total_steps=total_step_counter)
+                evaluate_policy_network(env, agent, train_config, record=record, total_steps=total_step_counter)
                 logging.info("--------------------------------------------")
                 evaluate = False
 
