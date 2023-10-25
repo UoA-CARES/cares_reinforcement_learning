@@ -23,6 +23,7 @@ class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
 
     G: Optional[int] = 1
+    buffer_size: Optional[int] = 1000000
     batch_size: Optional[int] = 10
     
     max_steps_exploration: Optional[int] = 1000
@@ -81,6 +82,7 @@ class PPOConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 1e-3
     
     gamma: Optional[float] = 0.99
+    max_steps_per_batch: Optional[int] = 5000
     
     memory: str = Field("MemoryBuffer", Literal=True)
 
