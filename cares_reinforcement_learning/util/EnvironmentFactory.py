@@ -13,13 +13,13 @@ from collections import deque
 # from typing import override
 from functools import cached_property
 
-from cares_reinforcement_learning.util.configurations import EnvironmentConfig
+from cares_reinforcement_learning.util.configurations import GymEnvironmentConfig
 
 class EnvironmentFactory:
     def __init__(self) -> None:
         pass
 
-    def create_environment(self, config: EnvironmentConfig):
+    def create_environment(self, config: GymEnvironmentConfig):
         logging.info(f"Training Environment: {config.gym}")
         if config.gym == 'dmcs':
             env = DMCSImage(config) if config.image_observation else DMCS(config)
@@ -30,7 +30,7 @@ class EnvironmentFactory:
         return env
         
 class OpenAIGym:
-    def __init__(self, config: EnvironmentConfig) -> None:
+    def __init__(self, config: GymEnvironmentConfig) -> None:
         logging.info(f"Training task {config.task}")
         self.env = gym.make(config.task, render_mode="rgb_array")
     
@@ -74,7 +74,7 @@ class OpenAIGym:
         return frame
     
 class OpenAIGymImage(OpenAIGym):
-    def __init__(self, config: EnvironmentConfig, k=3):
+    def __init__(self, config: GymEnvironmentConfig, k=3):
         self.k    = k  # number of frames to be stacked
         self.frames_stacked = deque([], maxlen=k)
 
@@ -109,7 +109,7 @@ class OpenAIGymImage(OpenAIGym):
         return stacked_frames, reward, done, False # for consistency with open ai gym just add false for truncated
         
 class DMCS:
-    def __init__(self, config: EnvironmentConfig) -> None:
+    def __init__(self, config: GymEnvironmentConfig) -> None:
         logging.info(f"Training on Domain {config.domain}")
         logging.info(f"Training with Task {config.task}")
       
@@ -155,7 +155,7 @@ class DMCS:
 
 # TODO paramatise the observation size 3x84x84
 class DMCSImage(DMCS):
-    def __init__(self, config: EnvironmentConfig, k=3):
+    def __init__(self, config: GymEnvironmentConfig, k=3):
         self.k    = k  # number of frames to be stacked
         self.frames_stacked = deque([], maxlen=k)
 
