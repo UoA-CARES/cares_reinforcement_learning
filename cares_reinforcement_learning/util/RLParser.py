@@ -21,7 +21,7 @@ class RLParser:
     def __init__(self, EnvironmentConfig = GymEnvironmentConfig) -> None:
         self.configurations = {}
         
-        self.algorithm_parser, self.algorithm_parsers = self.get_algorithm_parser()
+        self.algorithm_parser, self.algorithm_parsers = self._get_algorithm_parser()
 
         self.algorithm_configurations = {}
         for name, cls in inspect.getmembers(configurations, inspect.isclass):
@@ -45,7 +45,7 @@ class RLParser:
                 nargs=nargs
             )
 
-    def get_algorithm_parser(self):
+    def _get_algorithm_parser(self):
         alg_parser = argparse.ArgumentParser()
         alg_parsers = alg_parser.add_subparsers(help='Select which RL algorith you want to use', dest='algorithm', required=True)
 
@@ -57,11 +57,11 @@ class RLParser:
 
         return alg_parser, alg_parsers
 
-    def add_algorithm_config(self, algorithm_model):
-        name = algorithm_model.__name__.replace('Config', '')
+    def add_algorithm_config(self, AlgorithmConfig):
+        name = AlgorithmConfig.__name__.replace('Config', '')
         parser = self.algorithm_parsers.add_parser(f"{name}", help=f"{name}")
-        self.add_model(parser, algorithm_model)
-        self.algorithm_configurations[algorithm_model.__name__] = algorithm_model
+        self.add_model(parser, AlgorithmConfig)
+        self.algorithm_configurations[AlgorithmConfig.__name__] = AlgorithmConfig
 
     def add_configuration(self, name, Configuration):
         self.configurations[name] = Configuration

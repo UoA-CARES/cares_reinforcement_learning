@@ -28,7 +28,7 @@ An example is found below for running on the OpenAI and DMCS environments with T
 python example_training_loops.py run --gym openai --task HalfCheetah-v4 TD3
 
 
-python3 example_training_loops.py run dmcs --domain ball_in_cup --task catch TD3
+python3 example_training_loops.py run --gym dmcs --domain ball_in_cup --task catch TD3
 ```
 
 An example is found below for running using pre-defined configuration files
