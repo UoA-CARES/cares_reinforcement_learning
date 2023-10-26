@@ -17,9 +17,9 @@ import copy
 import numpy as np
 from skimage.metrics import structural_similarity as ssim # This is used to metric the novelty.
 
-from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM # todo no sure how to import this, the ensemble will be the same? Can I pass this form outside?
+from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM # TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
 
-class NASA_TD3:
+class NaSATD3:
     def __init__(self,
                  encoder_network,
                  decoder_network,
@@ -32,9 +32,10 @@ class NASA_TD3:
                  intrinsic_on,
                  device):
 
+        self.type = "policy"
         self.gamma = gamma
         self.tau   = tau
-        self.ensemble_size = 10
+        self.ensemble_size = 5 # TODO move to parameters?
         self.latent_size   = latent_size
         self.intrinsic_on  = intrinsic_on
 
@@ -61,13 +62,14 @@ class NASA_TD3:
         self.epm.extend(networks)
         self.epm.to(self.device)
 
+        # TODO move these to parameters through NaSATD3Config
         lr_actor   = 1e-4
         lr_critic  = 1e-3
         self.actor_optimizer  = torch.optim.Adam(self.actor.parameters(),   lr=lr_actor)
         self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),  lr=lr_critic)
 
-        lr_encoder = 1e-3
-        lr_decoder = 1e-3
+        lr_encoder = 1e-4
+        lr_decoder = 1e-4
         self.encoder_optimizer = torch.optim.Adam(self.encoder.parameters(), lr=lr_encoder)
         self.decoder_optimizer = torch.optim.Adam(self.decoder.parameters(), lr=lr_decoder, weight_decay=1e-7)
 
@@ -177,12 +179,10 @@ class NASA_TD3:
 
             # Note: the encoders in target networks are the same of main networks, so I wont update them
         
+        # TODO split the tuple non-tuple
+        # Update intrinsic models
         if self.intrinsic_on:
-            self.train_predictive_model((
-                experiences['state'],
-                experiences['action'],
-                experiences['next_state']
-            ))
+            self.train_predictive_model(states, actions, next_states)
 
     def get_intrinsic_reward(self, state, action, next_state):
         with torch.no_grad():
@@ -196,6 +196,7 @@ class NASA_TD3:
             surprise_rate = self.get_surprise_rate(state_tensor, action_tensor, next_state_tensor)
             novelty_rate  = self.get_novelty_rate(state_tensor)
 
+        #TODO make these parameters - i.e. Tony's work
         a = 1.0
         b = 1.0
         reward_surprise = surprise_rate * a
@@ -233,12 +234,12 @@ class NASA_TD3:
 
         return novelty_rate
 
-    def train_predictive_model(self, experiences):
-        states, actions, next_states = experiences
+    def train_predictive_model(self, states, actions, next_states):
+        # states, actions, next_states = experiences
 
-        states      = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        # states      = torch.FloatTensor(np.asarray(states)).to(self.device)
+        # actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        # next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
 
         with torch.no_grad():
             latent_state      = self.encoder(states, detach=True)
