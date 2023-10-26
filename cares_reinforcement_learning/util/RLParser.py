@@ -95,24 +95,26 @@ class RLParser:
     def _config(self):
         parser = argparse.ArgumentParser()
         required = parser.add_argument_group('required arguments')
-        required.add_argument("--env_config", type=str, required=True, help='Configuration path for the environment')
-        required.add_argument("--training_config", type=str, required=True, help='Configuration path that defines the training parameters')
         required.add_argument("--algorithm_config", type=str, required=True, help='Configuration path that defines the algorithm and its learning parameters')
 
+        for name, configuration in self.configurations.items():
+            required.add_argument(f"--{name}", required=True, help=f"Configuration path for {name}")
+
         config_args = parser.parse_args(sys.argv[2:])
+
         args = {}
-        with open(config_args.env_config) as f:
-            env_args = json.load(f)
-        
-        with open(config_args.training_config) as f:
-            training_config = json.load(f)
 
         with open(config_args.algorithm_config) as f:
             algorithm_config = json.load(f)
 
-        args.update(env_args)
-        args.update(training_config)
         args.update(algorithm_config)
+
+        config_args = vars(config_args)
+        for name, configuration in self.configurations.items():
+            with open(config_args[name]) as f:
+                config = json.load(f)
+                args.update(config)
+
         return args
 
     def _run(self):
@@ -126,7 +128,7 @@ class RLParser:
         alg_args, rest = self.algorithm_parser.parse_known_args(rest)
 
         if len(rest) > 0:
-            logging.warn(f"Arugements not being passed properly: {rest}")
+            logging.warn(f"Arugements not being passed properly and have been left over: {rest}")
 
         args = Namespace(**vars(firt_args), **vars(alg_args))
         return vars(args)
