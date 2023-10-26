@@ -146,7 +146,7 @@ class LMAOConfig(AlgorithmConfig):
     exploration_decay: Optional[float] = 0.95
 
 class LMAOEnvironmentConfig(EnvironmentConfig):
-    gym: str = Field(description='Gym Environment <openai, dmcs>')
+    gym: str = Field("LMAO-Gym", Literal=True)
     task: str
     domain: Optional[str] = None
     image_observation: Optional[bool] = False
