@@ -60,6 +60,10 @@ def policy_based_train(env, agent, memory, record, train_config: TrainingConfig,
     max_steps_exploration = train_config.max_steps_exploration
     number_steps_per_evaluation = train_config.number_steps_per_evaluation
 
+    min_noise = alg_config.min_noise if hasattr(alg_config, "min_noise") else 0
+    noise_decay = alg_config.noise_decay if hasattr(alg_config, "noise_decay") else 0
+    noise_scale = alg_config.noise_scale if hasattr(alg_config, "noise_scale") else 0
+
     logging.info(f"Training {max_steps_training} Exploration {max_steps_exploration} Evaluation {number_steps_per_evaluation}")
 
     batch_size = train_config.batch_size
@@ -84,8 +88,11 @@ def policy_based_train(env, agent, memory, record, train_config: TrainingConfig,
             # algorithm range [-1, 1] - note for DMCS this is redudenant but required for openai
             action = hlp.normalize(action_env, env.max_action_value, env.min_action_value)  
         else:
+            noise_scale *= noise_decay
+            noise_scale = max(min_noise, noise_scale)
+
             # algorithm range [-1, 1]
-            action = agent.select_action_from_policy(state)
+            action = agent.select_action_from_policy(state, noise_scale=noise_scale)
             # mapping to env range [e.g. -2 , 2 for pendulum] - note for DMCS this is redudenant but required for openai
             action_env = hlp.denormalize(action, env.max_action_value, env.min_action_value)  
 

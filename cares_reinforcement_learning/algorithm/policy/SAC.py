@@ -49,7 +49,7 @@ class SAC:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
 
-    def select_action_from_policy(self, state, evaluation=False):
+    def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
         # note that when evaluating this algorithm we need to select mu as action so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
