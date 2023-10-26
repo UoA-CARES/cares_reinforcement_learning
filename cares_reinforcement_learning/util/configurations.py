@@ -69,16 +69,6 @@ class DoubleDQNConfig(AlgorithmConfig):
     exploration_min: Optional[float] = 1e-3
     exploration_decay: Optional[float] = 0.95
 
-class DDPGConfig(AlgorithmConfig):
-    algorithm: str = Field("DDPG", Literal=True)
-    actor_lr: Optional[float] = 1e-4
-    critic_lr: Optional[float] = 1e-3
-    
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    
-    memory: Optional[str] = "MemoryBuffer"
-
 class PPOConfig(AlgorithmConfig):
     algorithm: str = Field("PPO", Literal=True)
     actor_lr: Optional[float] = 1e-4
@@ -88,6 +78,16 @@ class PPOConfig(AlgorithmConfig):
     max_steps_per_batch: Optional[int] = 5000
     
     memory: str = Field("MemoryBuffer", Literal=True)
+
+class DDPGConfig(AlgorithmConfig):
+    algorithm: str = Field("DDPG", Literal=True)
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+    
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    
+    memory: Optional[str] = "MemoryBuffer"
 
 class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)

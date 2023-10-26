@@ -33,7 +33,7 @@ class DDPG:
 
         self.device = device
 
-    def select_action_from_policy(self, state, evaluation=None):
+    def select_action_from_policy(self, state, evaluation=None, noise_scale=0):
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
