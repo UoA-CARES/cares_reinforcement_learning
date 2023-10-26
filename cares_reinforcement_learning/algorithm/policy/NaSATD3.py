@@ -29,12 +29,14 @@ class NASA_TD3:
                  tau,
                  action_num,
                  latent_size,
+                 intrinsic_on,
                  device):
 
         self.gamma = gamma
         self.tau   = tau
         self.ensemble_size = 10
         self.latent_size   = latent_size
+        self.intrinsic_on  = intrinsic_on
 
         self.learn_counter      = 0
         self.policy_update_freq = 2
@@ -174,8 +176,15 @@ class NASA_TD3:
                 target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
 
             # Note: the encoders in target networks are the same of main networks, so I wont update them
+        
+        if self.intrinsic_on:
+            self.train_predictive_model((
+                experiences['state'],
+                experiences['action'],
+                experiences['next_state']
+            ))
 
-    def get_intrinsic_values(self, state, action, next_state):
+    def get_intrinsic_reward(self, state, action, next_state):
         with torch.no_grad():
             state_tensor      = torch.FloatTensor(state).to(self.device)
             state_tensor      = state_tensor.unsqueeze(0)
@@ -187,7 +196,12 @@ class NASA_TD3:
             surprise_rate = self.get_surprise_rate(state_tensor, action_tensor, next_state_tensor)
             novelty_rate  = self.get_novelty_rate(state_tensor)
 
-        return surprise_rate, novelty_rate
+        a = 1.0
+        b = 1.0
+        reward_surprise = surprise_rate * a
+        reward_novelty  = novelty_rate  * b
+
+        return reward_surprise + reward_novelty
 
     def get_surprise_rate(self, state_tensor, action_tensor, next_state_tensor):
         with torch.no_grad():

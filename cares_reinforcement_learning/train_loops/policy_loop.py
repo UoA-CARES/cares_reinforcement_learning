@@ -60,6 +60,9 @@ def policy_based_train(env, agent, memory, record, train_config: TrainingConfig,
     max_steps_exploration = train_config.max_steps_exploration
     number_steps_per_evaluation = train_config.number_steps_per_evaluation
 
+    # Algorthm specific attributes - e.g. NaSA-TD3 
+    intrinsic_on = alg_config.intrinsic if hasattr(alg_config, "intrinsic_on") else False 
+
     min_noise = alg_config.min_noise if hasattr(alg_config, "min_noise") else 0
     noise_decay = alg_config.noise_decay if hasattr(alg_config, "noise_decay") else 0
     noise_scale = alg_config.noise_scale if hasattr(alg_config, "noise_scale") else 0
@@ -96,11 +99,18 @@ def policy_based_train(env, agent, memory, record, train_config: TrainingConfig,
             # mapping to env range [e.g. -2 , 2 for pendulum] - note for DMCS this is redudenant but required for openai
             action_env = hlp.denormalize(action, env.max_action_value, env.min_action_value)  
 
-        next_state, reward, done, truncated = env.step(action_env)
-        memory.add(state=state, action=action, reward=reward, next_state=next_state, done=done)
+        next_state, reward_extrinsic, done, truncated = env.step(action_env)
+
+        intrinsic_reward = 0
+        if intrinsic_on and total_step_counter > max_steps_exploration:
+            intrinsic_reward = agent.get_intrinsic_reward(state, action, next_state)
+        
+        total_reward = reward_extrinsic + intrinsic_reward
+
+        memory.add(state=state, action=action, reward=total_reward, next_state=next_state, done=done)
 
         state = next_state
-        episode_reward += reward
+        episode_reward += reward_extrinsic # Note we only track the extrinsic reward for the episode for proper comparison
 
         if total_step_counter >= max_steps_exploration:
             for i in range(G):

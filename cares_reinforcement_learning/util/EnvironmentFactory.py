@@ -81,6 +81,7 @@ class OpenAIGymImage(OpenAIGym):
         self.frame_width = 84
         self.frame_height = 84
 
+        logging.info(f"Image Observation is on")
         super().__init__(config)
 
     # @override
@@ -161,7 +162,7 @@ class DMCSImage(DMCS):
 
         self.frame_width = 84
         self.frame_height = 84
-
+        logging.info(f"Image Observation is on")
         super().__init__(config)
 
     # @override
