@@ -12,8 +12,11 @@ from typing import List, Optional, Literal
 class SubscriptableClass(BaseModel):
     def __getitem__(self, item):
         return getattr(self, item)
-    
+
 class EnvironmentConfig(SubscriptableClass):
+    task: str
+
+class GymEnvironmentConfig(EnvironmentConfig):
     gym: str = Field(description='Gym Environment <openai, dmcs>')
     task: str
     domain: Optional[str] = None

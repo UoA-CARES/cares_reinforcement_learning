@@ -12,7 +12,7 @@ from cares_reinforcement_learning.util import RLParser
 from cares_reinforcement_learning.util import helpers as hlp
 
 import cares_reinforcement_learning.util.configurations as configurations
-from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig, EnvironmentConfig
+from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig, GymEnvironmentConfig
 
 import cares_reinforcement_learning.train_loops.policy_loop as pbe
 import cares_reinforcement_learning.train_loops.value_loop as vbe
@@ -30,7 +30,11 @@ from datetime import datetime
 
 def main():
     parser = RLParser()
-    env_config, training_config, alg_config = parser.parse_args()
+    
+    configurations = parser.parse_args()
+    env_config = configurations["env_config"] 
+    training_config = configurations["training_config"]
+    alg_config = configurations["algorithm_config"]
     
     env_factory = EnvironmentFactory()
     network_factory = NetworkFactory()
