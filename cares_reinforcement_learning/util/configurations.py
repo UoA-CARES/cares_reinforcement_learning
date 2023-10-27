@@ -16,12 +16,6 @@ class SubscriptableClass(BaseModel):
 class EnvironmentConfig(SubscriptableClass):
     task: str
 
-class GymEnvironmentConfig(EnvironmentConfig):
-    gym: str = Field(description='Gym Environment <openai, dmcs>')
-    task: str
-    domain: Optional[str] = None
-    image_observation: Optional[bool] = False
-
 class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
 

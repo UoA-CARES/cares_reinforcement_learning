@@ -1,4 +1,0 @@
-{
-    "gym_environment": "openai",
-    "task": "HalfCheetah-v4"
-}

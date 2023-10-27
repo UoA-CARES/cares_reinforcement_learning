@@ -1,6 +1,3 @@
-"""
-Example of using sub-parser, sub-commands and sub-sub-commands :-)
-"""
 import os
 import sys
 import argparse
@@ -8,7 +5,7 @@ from argparse import Namespace
 import logging
 
 import cares_reinforcement_learning.util.configurations as configurations
-from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig, GymEnvironmentConfig, EnvironmentConfig, SubscriptableClass
+from cares_reinforcement_learning.util.configurations import TrainingConfig, AlgorithmConfig, EnvironmentConfig, SubscriptableClass
 import json
 
 import pydantic
@@ -18,7 +15,7 @@ import inspect
 from typing import get_origin
 
 class RLParser:
-    def __init__(self, EnvironmentConfig = GymEnvironmentConfig) -> None:
+    def __init__(self, EnvironmentConfig : EnvironmentConfig) -> None:
         self.configurations = {}
         
         self.algorithm_parser, self.algorithm_parsers = self._get_algorithm_parser()
