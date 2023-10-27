@@ -130,7 +130,7 @@ class RLParser:
         args = Namespace(**vars(firt_args), **vars(alg_args))
         return vars(args)
 
-## Example of how to use the RLParser for custom environments - in this case the LAMO task
+## Example of how to use the RLParser for custom environments - in this case the LAMO envrionment and task with LAMO algorithm
 from pydantic import BaseModel, Field
 from typing import List, Optional, Literal
 class LMAOConfig(AlgorithmConfig):
