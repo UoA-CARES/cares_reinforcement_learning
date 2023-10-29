@@ -19,25 +19,21 @@ Run `pip3 install -r requirements.txt` in the **root directory** of the package
 To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
 
 ## Running an Example
-This repository includes a script that allows you to run any OpenAI Gymnasium (https://github.com/Farama-Foundation/Gymnasium) or Deep Mind Control Suite (https://github.com/google-deepmind/dm_control) environment – provided you comply with all the dependencies for that environment. These examples make use of the package, and can provide an example on how one might use the package in their own environments.
+This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own envrionments see this package which uses these algorithms on the Deep Mind Control suite and OpenAI gym envrionments - https://github.com/UoA-CARES/gymnasium_envrionments 
 
-`example_training_loops.py` takes in hyperparameters that allow you to customise the training run enviromment – OpenAI or DMCS Environment - or RL algorithm. Use `python3 example_training_loops.py -h` for help on what parameters are available for customisation.
+## Utilities
+CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new envrionments we build to test our approaches.
 
-An example is found below for running on the OpenAI and DMCS environments with TD3 through console
-```
-python example_training_loops.py run --gym openai --task HalfCheetah-v4 TD3
+### configurations.py
+Provides baseline dataclasses for environment, training, and algorithm configurations to allow for consistent recording of training parameters. 
 
+### RLParser.py
+Provides a means of loading enevironment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
 
-python3 example_training_loops.py run --gym dmcs --domain ball_in_cup --task catch TD3
-```
+### Record.py
+The Record class allows data to be saved into a consistent format during training. This allows all data to be consistently formatted for plotting against each other for fair and consistent evaluation.
 
-An example is found below for running using pre-defined configuration files
-```
-python example_training_loops.py config --env_config ~/cares_rl_configs/env_dmcs_config.json --training_config ~/cares_rl_configs/training_config.json --algorithm_config ~/cares_rl_configs/algorithm_config.json
-```
-
-### Data Outputs
-All data from a training run is saved into '~/cares_rl_logs'. A folder will be created for each training run named as 'ALGORITHM-TASK-YY_MM_DD:HH:MM:SS', e.g. 'TD3-HalfCheetah-v4-23_10_11_08:47:22'. This folder will contain the following directories and information saved during the training session:
+All data from a training run is saved into '~/cares_rl_logs'. A folder will be created for each training run named as 'seed/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS', e.g. '10/TD3-HalfCheetah-v4-23_10_11_08:47:22'. This folder will contain the following directories and information saved during the training session:
 
 ```
 ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
@@ -62,12 +58,18 @@ ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
 ├─ ...
 ```
 
-### Plotting
+### plotting.py
 The plotting utility will plot the data contained in the training data. An example of how to plot the data from one or multiple training sessions together is shown below. Running 'python3 plotter.py -h' will provide details on the plotting parameters.
 
 ```
 python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
 ```
+
+### NetworkFactory.py
+A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package. 
+
+### MemoryFactory.py
+A factory class for creating a memory buffer (prioritised or not) that has been implemented into the CARES RL package.
 
 ## Package Structure
 

@@ -16,12 +16,6 @@ class SubscriptableClass(BaseModel):
 class EnvironmentConfig(SubscriptableClass):
     task: str
 
-class GymEnvironmentConfig(EnvironmentConfig):
-    gym: str = Field(description='Gym Environment <openai, dmcs>')
-    task: str
-    domain: Optional[str] = None
-    image_observation: Optional[bool] = False
-
 class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
 
@@ -108,3 +102,25 @@ class SACConfig(AlgorithmConfig):
     tau: Optional[float] = 0.005
     
     memory: Optional[str] = "MemoryBuffer"
+
+class NaSATD3Config(AlgorithmConfig):
+    algorithm: str = Field("NaSATD3", Literal=True)
+    # actor_lr: Optional[float] = 1e-4
+    # critic_lr: Optional[float] = 1e-3
+    
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    
+    memory: Optional[str] = "MemoryBuffer"
+
+    latent_size: Optional[int] = 200
+    intrinsic_on: Optional[bool] = True
+
+                # lr_actor   = 1e-4
+                # lr_critic  = 1e-3
+
+                # lr_encoder = 1e-3
+                # lr_decoder = 1e-3
+
+                # lr_epm      = 1e-4
+                # w_decay_epm = 1e-3

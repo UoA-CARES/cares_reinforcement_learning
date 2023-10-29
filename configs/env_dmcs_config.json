@@ -1,5 +1,0 @@
-{
-    "gym_environment": "dmcs",
-    "task": "catch",
-    "domain": "ball_in_cup"
-}
