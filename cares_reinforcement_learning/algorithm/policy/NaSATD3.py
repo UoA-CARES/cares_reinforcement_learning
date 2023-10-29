@@ -35,7 +35,7 @@ class NaSATD3:
         self.type = "policy"
         self.gamma = gamma
         self.tau   = tau
-        self.ensemble_size = 5 # TODO move to parameters?
+        self.ensemble_size = 3 # TODO move to parameters?
         self.latent_size   = latent_size
         self.intrinsic_on  = intrinsic_on
 

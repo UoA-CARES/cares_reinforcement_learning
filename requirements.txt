@@ -1,7 +1,7 @@
 gym==0.26.2
 matplotlib==3.6.2
 numpy==1.23.5
-opencv_python==4.8.1.78
+opencv-contrib-python==4.6.0.66
 pandas==1.5.2
 pydantic==1.10.13
 pytest==7.4.2
