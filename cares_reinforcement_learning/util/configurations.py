@@ -85,8 +85,8 @@ class DDPGConfig(AlgorithmConfig):
 
 class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
-    actor_lr: Optional[float] = 1e-4
-    critic_lr: Optional[float] = 1e-3
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
     
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005

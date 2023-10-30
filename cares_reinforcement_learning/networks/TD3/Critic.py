@@ -7,7 +7,7 @@ class Critic(nn.Module):
     def __init__(self, observation_size, num_actions):
         super(Critic, self).__init__()
 
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = [256, 256]
 
         # Q1 architecture
         self.Q1 = nn.Sequential(

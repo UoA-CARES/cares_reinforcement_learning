@@ -97,10 +97,11 @@ class TD3(object):
         self.critic_net_optimiser.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
-            # Update Actor
-            actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
+            # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
+            # actor_q_values = torch.minimum(actor_q_one, actor_q_two)
 
-            actor_q_values = torch.minimum(actor_q_one, actor_q_two)
+            # Update Actor
+            actor_q_values, _ = self.critic_net(states, self.actor_net(states))
             actor_loss = -actor_q_values.mean()
 
             self.actor_net_optimiser.zero_grad()

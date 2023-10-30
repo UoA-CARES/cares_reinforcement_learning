@@ -5,7 +5,7 @@ class Actor(nn.Module):
     def __init__(self, observation_size, num_actions):
         super(Actor, self).__init__()
 
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = [256, 256]
 
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, self.hidden_size[0]),
