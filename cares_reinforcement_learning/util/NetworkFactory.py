@@ -176,9 +176,14 @@ class NetworkFactory:
         https://stackoverflow.com/questions/1796180/how-can-i-get-a-list-of-all-classes-within-current-module-in-python
         '''
 
+        agent = None
+        
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if inspect.isfunction(obj):
                 if name == f"create_{algorithm}":
-                    return obj(observation_size, action_num, config)
+                    agent = obj(observation_size, action_num, config)
         
-        raise Exception(f"CARES RL NetworkFactory: {algorithm} is not implemented ")
+        if agent is None:
+            logging.warn(f"Unkown failed to return None: returned {agent}")
+    
+        return agent
