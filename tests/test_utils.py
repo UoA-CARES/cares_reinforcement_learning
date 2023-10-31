@@ -13,7 +13,7 @@ def test_create_agents():
     agent = create_DuelingDQN(10, 5, DuelingDQNConfig())
     assert isinstance(agent, DQN), "Failed to create DuelingDQN agent"
 
-    agent = create_DDQN(10, 5, DoubleDQNConfig())
+    agent = create_DoubleDQN(10, 5, DoubleDQNConfig())
     assert isinstance(agent, DoubleDQN), "Failed to create DDQN agent"
 
     agent = create_PPO(10, 5,PPOConfig())
