@@ -9,7 +9,6 @@ import copy
 import logging
 import numpy as np
 import torch
-import math
 
 from cares_reinforcement_learning.networks.STC_TD3 import Actor, Stochastic_Critic as Critic
 
@@ -62,20 +61,12 @@ class STC_TD3(object):
             state_tensor = state_tensor.unsqueeze(0)
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
-            if math.isnan(action[0]):
-                logging.error(f"State 0: {state} {self.observation_size} {self.action_num}")
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
                 noise  = np.random.normal(0, scale=noise_scale, size=self.action_num)
                 action = action + noise
-                if math.isnan(action[0]):
-                    logging.error(f"State 1: {state} {noise}")
                 action = np.clip(action, -1, 1)
-                if math.isnan(action[0]):
-                    logging.error(f"State 2: {state}")
         self.actor_net.train()
-        if math.isnan(action[0]):
-            logging.error(f"State 3: {state}")
         return action
 
 
@@ -157,6 +148,7 @@ class STC_TD3(object):
             critic_net_optimiser.zero_grad()
             critic_individual_loss.backward()
             critic_net_optimiser.step()
+
 
         if self.learn_counter % self.policy_update_freq == 0:  # todo try if i change the freq update
             u_set   = []
