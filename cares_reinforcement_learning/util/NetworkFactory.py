@@ -167,6 +167,24 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
+def create_STC_TD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import STC_TD3
+    
+    #TODO: create actor and critic out here and pass in
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    agent = STC_TD3(
+        observation_size=observation_size,
+        action_num=action_num,
+        device=device,
+        ensemble_size=config.ensemble_size,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+    )
+
+    return agent
+
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
         algorithm = config.algorithm
@@ -186,5 +204,7 @@ class NetworkFactory:
             return create_TD3(observation_size, action_num, config)
         elif algorithm == "NaSATD3":
             return create_NaSATD3(observation_size, action_num, config)
+        elif algorithm == "STC_TD3":
+            return create_STC_TD3(observation_size, action_num, config)
         logging.warn(f"Algorithm: {algorithm} is not in the default cares_rl factory")
         return None
