@@ -35,7 +35,7 @@ def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_DDQN(observation_size, action_num, config: AlgorithmConfig):
+def create_DoubleDQN(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.value import DoubleDQN
     from cares_reinforcement_learning.networks.DoubleDQN import Network
 
