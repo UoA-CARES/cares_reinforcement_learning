@@ -121,21 +121,10 @@ class STC_TD3(object):
                     fusion_u, fusion_std = self.fusion_kalman(fusion_std, fusion_u, std_2, x_2)
             # -----------------------------------------#
 
-        #     # mean value
-        #     # -------------------------------------------------------------------------------------------------#
-        #     # average the distributions to create a unique distribution, encapsulating the whole outputs
-        #     # note, this is not a mixture of gaussians,
-        #     # problem with avr= too much protagonism could be given a curve with terrible std and while could be others with small std
-        #     # and if we take the avg we will compute this equally
-        #     # u_aver   = torch.mean(torch.concat(u_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
-        #     # std_aver = torch.mean(torch.concat(std_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
-        #     # -------------------------------------------------------------------------------------------------#
-
             # Create the target distribution = aX+b
             u_target   =  rewards +  self.gamma * fusion_u * (1 - dones)
             std_target =  self.gamma * fusion_std
             target_distribution = torch.distributions.normal.Normal(u_target, std_target)
-
 
         for critic_net, critic_net_optimiser in zip(self.ensemble_critics, self.ensemble_critics_optimizers):
             u_current, std_current = critic_net(states, actions)
@@ -144,20 +133,13 @@ class STC_TD3(object):
             # Compute each critic loss
             critic_individual_loss = torch.distributions.kl.kl_divergence(current_distribution, target_distribution).mean() # todo try other divergence too
 
-            # Update each Critic
+            # --------- Update Each Critic # ------------#
             critic_net_optimiser.zero_grad()
             critic_individual_loss.backward()
             critic_net_optimiser.step()
-
+            # -------------------------------------------#
 
         if self.learn_counter % self.policy_update_freq == 0:  # todo try if i change the freq update
-            u_set   = []
-            std_set = []
-            for target_critic_net in self.target_ensemble_critics:
-                u, std = target_critic_net(next_states, next_actions)
-                u_set.append(u)
-                std_set.append(std)
-
             actor_q_u_set   = []
             actor_q_std_set = []
             for critic_net in self.ensemble_critics:
@@ -177,10 +159,11 @@ class STC_TD3(object):
 
             actor_loss  = -fusion_u_a.mean()
 
-            # Update Actor
+            # --------- Update Actor # ------------#
             self.actor_net_optimiser.zero_grad()
             actor_loss.backward()
             self.actor_net_optimiser.step()
+            # -------------------------------------#
 
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip (self.ensemble_critics, self.target_ensemble_critics):
