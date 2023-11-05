@@ -131,12 +131,12 @@ class STC_TD3Config(AlgorithmConfig):
     critic_lr: Optional[float] = 1e-3
     
     gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
+    tau:   Optional[float] = 0.005
 
     ensemble_size: Optional[int] = 2
     
     memory: Optional[str] = "MemoryBuffer"
 
-    min_noise: Optional[float] = 0.1
-    noise_decay: Optional[float] = 1.0
+    min_noise:   Optional[float] = 0.0
+    noise_decay: Optional[float] = 0.99999
     noise_scale: Optional[float] = 0.1
