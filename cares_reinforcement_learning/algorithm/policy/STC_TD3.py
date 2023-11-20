@@ -24,6 +24,11 @@ class STC_TD3(object):
 
         self.type = "policy"
         #TODO: pass the parameters as arguments
+
+        self.noise_decay = 0.999999
+        self.min_noise   = 0.0
+        self.target_noise_scale = 0.2
+
         self.gamma = 0.99
         self.tau   = 0.005
         self.learn_counter      = 0
@@ -80,6 +85,8 @@ class STC_TD3(object):
 
     def train_policy(self, experiences):
         self.learn_counter += 1
+        self.target_noise_scale *= self.noise_decay
+        self.target_noise_scale = max(self.min_noise, self.target_noise_scale)
 
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
@@ -97,7 +104,7 @@ class STC_TD3(object):
 
         with (torch.no_grad()):
             next_actions = self.target_actor_net(next_states)
-            target_noise = 0.2 * torch.randn_like(next_actions)  # TODO what about this value 0.2 can be changed?
+            target_noise = self.target_noise_scale * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, min=-0.5, max=0.5)
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)

@@ -138,5 +138,5 @@ class STC_TD3Config(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
     min_noise:   Optional[float] = 0.0
-    noise_decay: Optional[float] = 0.99999
+    noise_decay: Optional[float] = 0.999999
     noise_scale: Optional[float] = 0.1
