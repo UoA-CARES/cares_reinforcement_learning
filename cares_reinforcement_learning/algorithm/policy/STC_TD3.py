@@ -70,7 +70,7 @@ class STC_TD3(object):
                 # this is part the TD3 too, add noise to the action
                 noise  = np.random.normal(0, scale=noise_scale, size=self.action_num)
                 action = action + noise
-                action = np.clip(action, -1, 1)
+                action = np.clip(action, a_min=-1, a_max=1)
         self.actor_net.train()
         return action
 
