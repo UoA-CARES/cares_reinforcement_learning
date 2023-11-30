@@ -9,10 +9,15 @@ class Actor(nn.Module):
 
         self.hidden_size = [1024, 1024]
 
-        self.h_linear_1 = nn.Linear(in_features=observation_size, out_features=self.hidden_size[0])
-        self.h_linear_2 = nn.Linear(in_features=self.hidden_size[0], out_features=self.hidden_size[1])
-        self.h_linear_3 = nn.Linear(in_features=self.hidden_size[1], out_features=num_actions)
-
+        self.h_linear_1 = nn.Linear(
+            in_features=observation_size, out_features=self.hidden_size[0]
+        )
+        self.h_linear_2 = nn.Linear(
+            in_features=self.hidden_size[0], out_features=self.hidden_size[1]
+        )
+        self.h_linear_3 = nn.Linear(
+            in_features=self.hidden_size[1], out_features=num_actions
+        )
 
     def forward(self, state):
         x = F.relu(self.h_linear_1(state))

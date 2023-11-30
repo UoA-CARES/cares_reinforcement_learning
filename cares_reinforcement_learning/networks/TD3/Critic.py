@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 
@@ -15,7 +14,7 @@ class Critic(nn.Module):
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1)
+            nn.Linear(self.hidden_size[1], 1),
         )
 
         # Q2 architecture
@@ -24,7 +23,7 @@ class Critic(nn.Module):
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1)
+            nn.Linear(self.hidden_size[1], 1),
         )
 
     def forward(self, state, action):

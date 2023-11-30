@@ -13,20 +13,26 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-class SAC:
-    def __init__(self,
-                 actor_network,
-                 critic_network,
-                 gamma,
-                 tau,
-                 action_num,
-                 actor_lr,
-                 critic_lr,
-                 device):
 
+class SAC:
+    def __init__(
+        self,
+        actor_network,
+        critic_network,
+        gamma,
+        tau,
+        action_num,
+        actor_lr,
+        critic_lr,
+        device,
+    ):
         self.type = "policy"
-        self.actor_net = actor_network.to(device)  # this may be called policy_net in other implementations
-        self.critic_net = critic_network.to(device)  # this may be called soft_q_net in other implementations
+        self.actor_net = actor_network.to(
+            device
+        )  # this may be called policy_net in other implementations
+        self.critic_net = critic_network.to(
+            device
+        )  # this may be called soft_q_net in other implementations
 
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
@@ -41,8 +47,12 @@ class SAC:
         self.target_entropy = -action_num
         # self.target_entropy = -torch.prod(torch.Tensor([action_num]).to(self.device)).item()
 
-        self.actor_net_optimiser  = torch.optim.Adam(self.actor_net.parameters(), lr=actor_lr)
-        self.critic_net_optimiser = torch.optim.Adam(self.critic_net.parameters(), lr=critic_lr)
+        self.actor_net_optimiser = torch.optim.Adam(
+            self.actor_net.parameters(), lr=actor_lr
+        )
+        self.critic_net_optimiser = torch.optim.Adam(
+            self.critic_net.parameters(), lr=critic_lr
+        )
 
         init_temperature = 0.01
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
@@ -56,9 +66,17 @@ class SAC:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                action, _, _, = self.actor_net.sample(state_tensor)
+                (
+                    action,
+                    _,
+                    _,
+                ) = self.actor_net.sample(state_tensor)
             else:
-                _, _, action, = self.actor_net.sample(state_tensor)
+                (
+                    _,
+                    _,
+                    action,
+                ) = self.actor_net.sample(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -87,8 +105,13 @@ class SAC:
 
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
-            target_q_values_one, target_q_values_two = self.target_critic_net(next_states, next_actions)
-            target_q_values = torch.minimum(target_q_values_one, target_q_values_two) - self.alpha * next_log_pi
+            target_q_values_one, target_q_values_two = self.target_critic_net(
+                next_states, next_actions
+            )
+            target_q_values = (
+                torch.minimum(target_q_values_one, target_q_values_two)
+                - self.alpha * next_log_pi
+            )
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -121,34 +144,38 @@ class SAC:
         self.log_alpha_optimizer.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
-            for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
-                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+            for target_param, param in zip(
+                self.target_critic_net.parameters(), self.critic_net.parameters()
+            ):
+                target_param.data.copy_(
+                    param.data * self.tau + target_param.data * (1.0 - self.tau)
+                )
 
-        info['q_target'] = q_target
-        info['q_values_one'] = q_values_one
-        info['q_values_two'] = q_values_two
-        info['q_values_min'] = torch.minimum(q_values_one, q_values_two)
-        info['critic_loss_total'] = critic_loss_total
-        info['critic_loss_one'] = critic_loss_one
-        info['critic_loss_two'] = critic_loss_two
-        info['actor_loss'] = actor_loss
-        
+        info["q_target"] = q_target
+        info["q_values_one"] = q_values_one
+        info["q_values_two"] = q_values_two
+        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
+        info["critic_loss_total"] = critic_loss_total
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["actor_loss"] = actor_loss
+
         return info
 
-    def save_models(self, filename, filepath='models'):
-        path = f"{filepath}/models" if filepath != 'models' else filepath
+    def save_models(self, filename, filepath="models"):
+        path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
         if not dir_exists:
             os.makedirs(path)
 
-        torch.save(self.actor_net.state_dict(), f'{path}/{filename}_actor.pht')
-        torch.save(self.critic_net.state_dict(), f'{path}/{filename}_critic.pht')
+        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath != 'models' else filepath
+        path = f"{filepath}/models" if filepath != "models" else filepath
 
-        self.actor_net.load_state_dict(torch.load(f'{path}/{filename}_actor.pht'))
-        self.critic_net.load_state_dict(torch.load(f'{path}/{filename}_critic.pht'))
+        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

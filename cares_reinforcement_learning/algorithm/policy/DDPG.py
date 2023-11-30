@@ -5,19 +5,19 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+
 class DDPG:
-
-    def __init__(self,
-                 actor_network,
-                 critic_network,
-                 gamma,
-                 tau,
-                 action_num,
-                 actor_lr,
-                 critic_lr,
-                 device
-                 ):
-
+    def __init__(
+        self,
+        actor_network,
+        critic_network,
+        gamma,
+        tau,
+        action_num,
+        actor_lr,
+        critic_lr,
+        device,
+    ):
         self.type = "policy"
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -28,8 +28,12 @@ class DDPG:
         self.gamma = gamma
         self.tau = tau
 
-        self.actor_net_optimiser  = torch.optim.Adam(self.actor_net.parameters(), lr=actor_lr)
-        self.critic_net_optimiser = torch.optim.Adam(self.critic_net.parameters(), lr=critic_lr)
+        self.actor_net_optimiser = torch.optim.Adam(
+            self.actor_net.parameters(), lr=actor_lr
+        )
+        self.critic_net_optimiser = torch.optim.Adam(
+            self.critic_net.parameters(), lr=critic_lr
+        )
 
         self.device = device
 
@@ -81,33 +85,41 @@ class DDPG:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
-            target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+        for target_param, param in zip(
+            self.target_critic_net.parameters(), self.critic_net.parameters()
+        ):
+            target_param.data.copy_(
+                param.data * self.tau + target_param.data * (1.0 - self.tau)
+            )
 
-        for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
-            target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+        for target_param, param in zip(
+            self.target_actor_net.parameters(), self.actor_net.parameters()
+        ):
+            target_param.data.copy_(
+                param.data * self.tau + target_param.data * (1.0 - self.tau)
+            )
 
-        info['actor_loss'] = actor_loss
-        info['critic_loss'] = critic_loss
-        info['q_values_min'] = q_values
-        info['q_values'] = q_values
-         
+        info["actor_loss"] = actor_loss
+        info["critic_loss"] = critic_loss
+        info["q_values_min"] = q_values
+        info["q_values"] = q_values
+
         return info
 
-    def save_models(self, filename, filepath='models'):
-        path = f"{filepath}/models" if filepath != 'models' else filepath
+    def save_models(self, filename, filepath="models"):
+        path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
         if not dir_exists:
             os.makedirs(path)
 
-        torch.save(self.actor_net.state_dict(), f'{path}/{filename}_actor.pht')
-        torch.save(self.critic_net.state_dict(), f'{path}/{filename}_critic.pht')
+        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath != 'models' else filepath
+        path = f"{filepath}/models" if filepath != "models" else filepath
 
-        self.actor_net.load_state_dict(torch.load(f'{path}/{filename}_actor.pht'))
-        self.critic_net.load_state_dict(torch.load(f'{path}/{filename}_critic.pht'))
+        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

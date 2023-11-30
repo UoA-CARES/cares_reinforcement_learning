@@ -3,18 +3,16 @@ import logging
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 import sys, inspect
 
+
 def create_DQN(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
 
     network = Network(observation_size, action_num)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DQN(
-        network=network,
-        gamma=config.gamma,
-        network_lr=config.lr,
-        device=device
+        network=network, gamma=config.gamma, network_lr=config.lr, device=device
     )
     return agent
 
@@ -25,12 +23,9 @@ def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
 
     network = DuelingNetwork(observation_size, action_num)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DQN(
-        network=network,
-        gamma=config.gamma,
-        network_lr=config.lr,
-        device=device
+        network=network, gamma=config.gamma, network_lr=config.lr, device=device
     )
     return agent
 
@@ -41,13 +36,13 @@ def create_DoubleDQN(observation_size, action_num, config: AlgorithmConfig):
 
     network = Network(observation_size, action_num)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DoubleDQN(
         network=network,
         gamma=config.gamma,
         network_lr=config.lr,
         tau=config.tau,
-        device=device
+        device=device,
     )
     return agent
 
@@ -60,7 +55,7 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = PPO(
         actor_network=actor,
         critic_network=critic,
@@ -68,7 +63,7 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
         critic_lr=config.critic_lr,
         gamma=config.gamma,
         action_num=action_num,
-        device=device
+        device=device,
     )
     return agent
 
@@ -81,7 +76,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = SAC(
         actor_network=actor,
         critic_network=critic,
@@ -103,7 +98,7 @@ def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DDPG(
         actor_network=actor,
         critic_network=critic,
@@ -125,7 +120,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = TD3(
         actor_network=actor,
         critic_network=critic,
@@ -137,6 +132,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
         device=device,
     )
     return agent
+
 
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
@@ -152,7 +148,7 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     actor = Actor(config.latent_size, action_num, encoder)
     critic = Critic(config.latent_size, action_num, encoder)
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = NaSATD3(
         encoder_network=encoder,
         decoder_network=decoder,
@@ -167,23 +163,24 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
+
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
         algorithm = config.algorithm
 
-        '''
+        """
         Method taken from:
         https://stackoverflow.com/questions/1796180/how-can-i-get-a-list-of-all-classes-within-current-module-in-python
-        '''
+        """
 
         agent = None
-        
+
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if inspect.isfunction(obj):
                 if name == f"create_{algorithm}":
                     agent = obj(observation_size, action_num, config)
-        
+
         if agent is None:
             logging.warn(f"Unkown failed to return None: returned {agent}")
-    
+
         return agent
