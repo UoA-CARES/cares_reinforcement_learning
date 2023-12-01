@@ -20,14 +20,17 @@ class STC_TD3(object):
                  ensemble_size=2,
                  actor_lr=1e-4,
                  critic_lr=1e-3,
+                 fusion_method = "kalman"
                  ):
 
+
         self.type = "policy"
-        #TODO: pass the parameters as arguments
 
         self.noise_decay = 0.999999
         self.min_noise   = 0.0
         self.target_noise_scale = 0.2
+
+        self.fusion_method = fusion_method
 
         self.gamma = 0.99
         self.tau   = 0.005
@@ -37,8 +40,7 @@ class STC_TD3(object):
         self.device             = device
 
         self.observation_size = observation_size
-        
-        #TODO: pass the actor and critic as arguments
+
         self.actor_net        = Actor(observation_size=observation_size, action_num = action_num).to(device)
         self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
 
@@ -116,17 +118,63 @@ class STC_TD3(object):
                 u_set.append(u)
                 std_set.append(std)
 
-            # # -------- Key part here -------------- #
-            # Kalman Filter
-            for i in range (len (u_set) - 1):
-                if i == 0:
-                    x_1 , std_1 = u_set[i], std_set[i]
-                    x_2 , std_2 = u_set[i + 1], std_set[i+1]
-                    fusion_u , fusion_std  = self.fusion_kalman(std_1, x_1, std_2, x_2)
-                else:
-                    x_2, std_2 = u_set[i + 1], std_set[i + 1]
-                    fusion_u, fusion_std = self.fusion_kalman(fusion_std, fusion_u, std_2, x_2)
-            # -----------------------------------------#
+
+            if self.fusion_method == "kalman":
+                # # -------- Key part here -------------- #
+                # Kalman Filter
+                for i in range (len (u_set) - 1):
+                    if i == 0:
+                        x_1 , std_1 = u_set[i], std_set[i]
+                        x_2 , std_2 = u_set[i + 1], std_set[i+1]
+                        fusion_u , fusion_std  = self.fusion_kalman(std_1, x_1, std_2, x_2)
+                    else:
+                        x_2, std_2 = u_set[i + 1], std_set[i + 1]
+                        fusion_u, fusion_std = self.fusion_kalman(fusion_std, fusion_u, std_2, x_2)
+                # -----------------------------------------#
+            elif  self.fusion_method == "average":
+                # -----------------------------------------#
+                # Average value among the critic predictions:
+                fusion_u   = torch.mean(torch.concat(u_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
+                fusion_std = torch.mean(torch.concat(std_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
+                # -----------------------------------------#
+
+            elif self.fusion_method == "minimum":
+                # -----------------------------------------#
+                a = torch.concat(u_set, dim=1)
+                b = torch.concat(std_set, dim=1)
+
+                logging.info(a)
+                logging.info(b)
+
+                c = torch.min(a, dim=1)
+                logging.info(c.values.unsqueeze(0).reshape(batch_size, 1))
+
+                d = [b[i, c.indices[i]]  for i in range(len(b))]
+
+
+
+                # for v in range (len(b)):
+                #     print(c.indices[v])
+                #     print(b[v, c.indices[v]])
+
+
+
+
+
+                min_values = torch.min(torch.concat(u_set, dim=1), dim=1)
+                fusion_u   = min_values.values.unsqueeze(0).reshape(batch_size, 1)
+                fusion_std = std_set[min_values.indices]  #
+
+
+                # fusion_u   = torch.min(torch.concat(u_set, dim=1), dim=1).values.unsqueeze(0).reshape(batch_size, 1)
+                # fusion_std = torch.min(torch.concat(std_set, dim=1), dim=1).values.unsqueeze(0).reshape(batch_size, 1)
+                # -----------------------------------------#
+                # This corresponds entirely to the std of the min U. That is; the min cannot be got between the stds
+            # logging.info("+++++++++")
+            # logging.info(u_set)
+            # logging.info("--------")
+            # logging.info(fusion_u.shape)
+            # logging.info("********")
 
             # Create the target distribution = aX+b
             u_target   =  rewards +  self.gamma * fusion_u * (1 - dones)
@@ -146,7 +194,7 @@ class STC_TD3(object):
             critic_net_optimiser.step()
             # -------------------------------------------#
 
-        if self.learn_counter % self.policy_update_freq == 0:  # todo try if i change the freq update
+        if self.learn_counter % self.policy_update_freq == 0:
             actor_q_u_set   = []
             actor_q_std_set = []
             for critic_net in self.ensemble_critics:
@@ -154,18 +202,34 @@ class STC_TD3(object):
                 actor_q_u_set.append(actor_q_u)
                 actor_q_std_set.append(actor_q_std)
 
-            # kalman filter combination of all critics and then a single mean for the actor loss
-            for i in range (len (actor_q_u_set) - 1):
-                if i == 0:
-                    x_1_a , std_1_a = actor_q_u_set[i], actor_q_std_set[i]
-                    x_2_a , std_2_a = actor_q_u_set[i + 1], actor_q_std_set[i+1]
-                    fusion_u_a , fusion_std_a  = self.fusion_kalman(std_1_a, x_1_a, std_2_a, x_2_a)
-                else:
-                    x_2_a, std_2_a = actor_q_u_set[i + 1], actor_q_std_set[i + 1]
-                    fusion_u_a, fusion_std_a = self.fusion_kalman(fusion_std_a, fusion_u_a, std_2_a, x_2_a)
+            if self.fusion_method == "kalman":
+                # ------------------- #
+                # kalman filter combination of all critics and then a single mean for the actor loss
+                for i in range (len (actor_q_u_set) - 1):
+                    if i == 0:
+                        x_1_a , std_1_a = actor_q_u_set[i], actor_q_std_set[i]
+                        x_2_a , std_2_a = actor_q_u_set[i + 1], actor_q_std_set[i+1]
+                        fusion_u_a , fusion_std_a  = self.fusion_kalman(std_1_a, x_1_a, std_2_a, x_2_a)
+                    else:
+                        x_2_a, std_2_a = actor_q_u_set[i + 1], actor_q_std_set[i + 1]
+                        fusion_u_a, fusion_std_a = self.fusion_kalman(fusion_std_a, fusion_u_a, std_2_a, x_2_a)
+                # ------------------- #
+
+            elif self.fusion_method == "average":
+                # -------------------------------  #
+                # average combination of all critics and then a single mean for the actor loss
+                fusion_u_a   = torch.mean(torch.concat(actor_q_u_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size,1)
+                fusion_std_a = torch.mean(torch.concat(actor_q_std_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
+                # -------------------------------- #
+
+            elif self.fusion_method == "minimum":
+                # -----------------------------------------#
+                pass
+                # -----------------------------------------#
+
+
 
             actor_loss  = -fusion_u_a.mean()
-
             # --------- Update Actor # ------------#
             self.actor_net_optimiser.zero_grad()
             actor_loss.backward()

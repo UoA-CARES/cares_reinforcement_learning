@@ -181,6 +181,7 @@ def create_STC_TD3(observation_size, action_num, config: AlgorithmConfig):
         ensemble_size=config.ensemble_size,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
+        fusion_method = config.fusion_method
     )
 
     return agent

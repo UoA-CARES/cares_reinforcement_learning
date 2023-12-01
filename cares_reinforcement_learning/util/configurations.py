@@ -127,6 +127,7 @@ class NaSATD3Config(AlgorithmConfig):
 
 class STC_TD3Config(AlgorithmConfig):
     algorithm: str = Field("STC_TD3", Literal=True)
+
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
     
@@ -140,3 +141,5 @@ class STC_TD3Config(AlgorithmConfig):
     min_noise:   Optional[float] = 0.0
     noise_decay: Optional[float] = 0.999999
     noise_scale: Optional[float] = 0.1
+
+    fusion_method: Optional[str] = "kalman" # kalman, minimum, average
