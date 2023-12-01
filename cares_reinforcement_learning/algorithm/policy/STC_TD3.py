@@ -118,7 +118,6 @@ class STC_TD3(object):
                 u_set.append(u)
                 std_set.append(std)
 
-
             if self.fusion_method == "kalman":
                 # # -------- Key part here -------------- #
                 # Kalman Filter
@@ -140,41 +139,12 @@ class STC_TD3(object):
 
             elif self.fusion_method == "minimum":
                 # -----------------------------------------#
-                a = torch.concat(u_set, dim=1)
-                b = torch.concat(std_set, dim=1)
+                fusion_min = torch.min(torch.concat(u_set, dim=1), dim=1)
+                fusion_u   = fusion_min.values.unsqueeze(0).reshape(batch_size, 1)
+                # # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
+                std_concat = torch.concat(std_set, dim=1)
+                fusion_std = torch.stack([std_concat[i, fusion_min.indices[i]] for i in range(len(std_concat))]).unsqueeze(0).reshape(batch_size, 1)
 
-                logging.info(a)
-                logging.info(b)
-
-                c = torch.min(a, dim=1)
-                logging.info(c.values.unsqueeze(0).reshape(batch_size, 1))
-
-                d = [b[i, c.indices[i]]  for i in range(len(b))]
-
-
-
-                # for v in range (len(b)):
-                #     print(c.indices[v])
-                #     print(b[v, c.indices[v]])
-
-
-
-
-
-                min_values = torch.min(torch.concat(u_set, dim=1), dim=1)
-                fusion_u   = min_values.values.unsqueeze(0).reshape(batch_size, 1)
-                fusion_std = std_set[min_values.indices]  #
-
-
-                # fusion_u   = torch.min(torch.concat(u_set, dim=1), dim=1).values.unsqueeze(0).reshape(batch_size, 1)
-                # fusion_std = torch.min(torch.concat(std_set, dim=1), dim=1).values.unsqueeze(0).reshape(batch_size, 1)
-                # -----------------------------------------#
-                # This corresponds entirely to the std of the min U. That is; the min cannot be got between the stds
-            # logging.info("+++++++++")
-            # logging.info(u_set)
-            # logging.info("--------")
-            # logging.info(fusion_u.shape)
-            # logging.info("********")
 
             # Create the target distribution = aX+b
             u_target   =  rewards +  self.gamma * fusion_u * (1 - dones)
@@ -193,6 +163,9 @@ class STC_TD3(object):
             critic_individual_loss.backward()
             critic_net_optimiser.step()
             # -------------------------------------------#
+
+
+
 
         if self.learn_counter % self.policy_update_freq == 0:
             actor_q_u_set   = []
@@ -219,15 +192,17 @@ class STC_TD3(object):
                 # -------------------------------  #
                 # average combination of all critics and then a single mean for the actor loss
                 fusion_u_a   = torch.mean(torch.concat(actor_q_u_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size,1)
-                fusion_std_a = torch.mean(torch.concat(actor_q_std_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
+                # fusion_std_a = torch.mean(torch.concat(actor_q_std_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
                 # -------------------------------- #
 
             elif self.fusion_method == "minimum":
                 # -----------------------------------------#
-                pass
+                fusion_min_a = torch.min(torch.concat(actor_q_u_set, dim=1), dim=1)
+                fusion_u_a   = fusion_min_a.values.unsqueeze(0).reshape(batch_size, 1)
+                # # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
+                # std_concat_a = torch.concat(actor_q_std_set, dim=1)
+                # fusion_std_a = torch.stack([std_concat_a[i, fusion_min_a.indices[i]] for i in range(len(std_concat_a))]).unsqueeze(0).reshape(batch_size, 1)
                 # -----------------------------------------#
-
-
 
             actor_loss  = -fusion_u_a.mean()
             # --------- Update Actor # ------------#
