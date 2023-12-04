@@ -69,7 +69,6 @@ class TanhTransform(pyd.transforms.Transform):
 
     @staticmethod
     def atanh(x):
-        print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
         return 0.5 * (x.log1p() - (-x).log1p())
 
     def __eq__(self, other):
@@ -79,7 +78,6 @@ class TanhTransform(pyd.transforms.Transform):
         return x.tanh()
 
     def _inverse(self, y):
-        print("--------------------------------------")
         # We do not clamp to the boundary here as it may degrade the performance of certain algorithms.
         # one should use `cache_size=1` instead
         return self.atanh(y)
