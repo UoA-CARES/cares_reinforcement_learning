@@ -26,8 +26,8 @@ class STC_TD3(object):
 
         self.type = "policy"
 
-        self.noise_decay = 0.999999
-        self.min_noise   = 0.0
+        # self.noise_decay = 0.999999
+        # self.min_noise   = 0.0
         self.target_noise_scale = 0.2
 
         self.fusion_method = fusion_method
@@ -87,8 +87,8 @@ class STC_TD3(object):
 
     def train_policy(self, experiences):
         self.learn_counter += 1
-        self.target_noise_scale *= self.noise_decay
-        self.target_noise_scale = max(self.min_noise, self.target_noise_scale)
+        # self.target_noise_scale *= self.noise_decay
+        # self.target_noise_scale = max(self.min_noise, self.target_noise_scale)
 
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
