@@ -1,9 +1,9 @@
-import torch.nn as nn
+from torch import nn
 
 
 class Actor(nn.Module):
     def __init__(self, observation_size, num_actions):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.hidden_size = [256, 256]
 
