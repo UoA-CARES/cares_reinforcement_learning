@@ -36,7 +36,6 @@ class SAC:
         self.critic_net = critic_network.to(
             device
         )  # this may be called soft_q_net in other implementations
-
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
         self.gamma = gamma
@@ -57,7 +56,9 @@ class SAC:
             self.critic_net.parameters(), lr=critic_lr
         )
 
-        init_temperature = 0.01
+        init_temperature = (
+            1.0  # Set to initial alpha to 1.0 according to other baselines.
+        )
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
