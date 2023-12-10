@@ -1,10 +1,10 @@
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 
 class Network(nn.Module):
     def __init__(self, observation_size, num_actions):
-        super(Network, self).__init__()
+        super().__init__()
 
         self.hidden_size = [1024, 1024]
 

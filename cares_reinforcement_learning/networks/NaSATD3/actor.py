@@ -1,5 +1,4 @@
-import torch
-import torch.nn as nn
+from torch import nn
 
 from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
     weight_init,
@@ -8,7 +7,7 @@ from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import 
 
 class Actor(nn.Module):
     def __init__(self, latent_size, num_actions, encoder):
-        super(Actor, self).__init__()
+        super().__init__()
 
         self.encoder_net = encoder
         self.hidden_size = [1024, 1024]

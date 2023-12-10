@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
 from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
     weight_init,
@@ -8,7 +8,7 @@ from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import 
 
 class Decoder(nn.Module):
     def __init__(self, latent_dim, k=9):
-        super(Decoder, self).__init__()
+        super().__init__()
         self.num_filters = 32
         self.latent_dim = latent_dim
 

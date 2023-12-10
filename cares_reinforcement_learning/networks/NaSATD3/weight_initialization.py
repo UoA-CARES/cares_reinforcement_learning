@@ -5,7 +5,7 @@ need to move this function to the cares LR or cares lib folder
 delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
 """
 
-import torch.nn as nn
+from torch import nn
 
 
 def weight_init(m):

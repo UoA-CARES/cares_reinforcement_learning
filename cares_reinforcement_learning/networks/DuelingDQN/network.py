@@ -1,9 +1,9 @@
-import torch.nn as nn
+from torch import nn
 
 
 class DuelingNetwork(nn.Module):
     def __init__(self, observation_space_size, action_num):
-        super(DuelingNetwork, self).__init__()
+        super().__init__()
         self.input_dim = observation_space_size
         self.output_dim = action_num
 

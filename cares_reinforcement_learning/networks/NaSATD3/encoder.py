@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
 from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
     weight_init,
@@ -8,13 +8,13 @@ from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import 
 
 class Encoder(nn.Module):
     def __init__(self, latent_dim, k=9):
-        super(Encoder, self).__init__()
+        super().__init__()
         self.num_layers = 4
         self.num_filters = 32
         self.latent_dim = latent_dim
 
         self.cov_net = nn.ModuleList([nn.Conv2d(k, self.num_filters, 3, stride=2)])
-        for i in range(self.num_layers - 1):
+        for _ in range(self.num_layers - 1):
             self.cov_net.append(
                 nn.Conv2d(self.num_filters, self.num_filters, 3, stride=1)
             )

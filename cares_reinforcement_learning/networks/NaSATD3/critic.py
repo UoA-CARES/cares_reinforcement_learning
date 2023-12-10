@@ -1,5 +1,5 @@
 import torch
-import torch.nn as nn
+from torch import nn
 
 from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
     weight_init,
@@ -8,11 +8,12 @@ from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import 
 
 class Critic(nn.Module):
     def __init__(self, latent_size, num_actions, encoder):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.encoder_net = encoder
         self.hidden_size = [1024, 1024]
 
+        # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
             nn.Linear(latent_size + num_actions, self.hidden_size[0]),
             nn.ReLU(),
@@ -21,6 +22,7 @@ class Critic(nn.Module):
             nn.Linear(self.hidden_size[1], 1),
         )
 
+        # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
             nn.Linear(latent_size + num_actions, self.hidden_size[0]),
             nn.ReLU(),

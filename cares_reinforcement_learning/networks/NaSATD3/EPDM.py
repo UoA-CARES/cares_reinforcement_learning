@@ -2,19 +2,19 @@
 Ensemble of Predictive Discrete Model (EPPM)
 Predict outputs  a point estimate e.g. discrete value
 """
-# pylint: disable-next=invalid-name
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
     weight_init,
 )
 
 
+# pylint: disable-next=invalid-name
 class EPDM(nn.Module):
     def __init__(self, latent_size, num_actions):
-        super(EPDM, self).__init__()
+        super().__init__()
 
         self.input_dim = latent_size + num_actions
         self.output_dim = latent_size
