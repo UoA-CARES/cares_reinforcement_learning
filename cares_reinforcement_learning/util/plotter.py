@@ -1,17 +1,14 @@
-import os
+import argparse
+import json
 import logging
+from glob import glob
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 
 logging.basicConfig(level=logging.INFO)
-import argparse
-
-import json
-import numpy as np
-import seaborn as sns
-import matplotlib.pyplot as plt
-import pandas as pd
-import uuid
-
-from glob import glob
 
 
 # TODO make the plots look how people want them too. This is just a basic example
@@ -139,7 +136,7 @@ def plot_train(
 
 
 def parse_args():
-    parser = argparse.ArgumentParser()  # Add an argument
+    parser = argparse.ArgumentParser()
 
     parser.add_argument(
         "-s",
@@ -158,7 +155,8 @@ def parse_args():
     )
     parser.add_argument("-w", "--window_size", type=int, default=1)
 
-    return vars(parser.parse_args())  # converts into a dictionary
+    # converts into a dictionary
+    return vars(parser.parse_args())
 
 
 def main():
@@ -178,13 +176,15 @@ def main():
         average_eval_data = pd.DataFrame()
 
         result_directory = result_directories[0]
-        with open(f"{result_directory}/env_config.json", "r") as file:
+        with open(f"{result_directory}/env_config.json", "r", encoding="utf-8") as file:
             env_config = json.load(file)
 
-        with open(f"{result_directory}/train_config.json", "r") as file:
+        with open(
+            f"{result_directory}/train_config.json", "r", encoding="utf-8"
+        ) as file:
             train_config = json.load(file)
 
-        with open(f"{result_directory}/alg_config.json", "r") as file:
+        with open(f"{result_directory}/alg_config.json", "r", encoding="utf-8") as file:
             alg_config = json.load(file)
 
         algorithm = alg_config["algorithm"]

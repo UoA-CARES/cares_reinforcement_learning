@@ -1,0 +1,19 @@
+[MESSAGES CONTROL]
+disable=
+    logging-fstring-interpolation,
+    too-few-public-methods,
+    missing-module-docstring,
+    missing-function-docstring,
+    missing-class-docstring,
+    too-many-locals,
+    W0511,
+    too-many-arguments,
+
+[FORMAT]
+max-line-length=130
+
+[MASTER]
+extension-pkg-whitelist=cv2, pydantic
+
+[TYPECHECK]
+generated-members=cv2.*, numpy.*, torch.*

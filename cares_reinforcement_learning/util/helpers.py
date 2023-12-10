@@ -1,9 +1,9 @@
-import torch
-import numpy as np
 import random
 
-import pandas as pd
 import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import torch
 
 
 def set_seed(seed):
@@ -20,7 +20,9 @@ def plot_reward_curve(data_reward):
 
 
 def denormalize(action, max_action_value, min_action_value):
-    # return action in env range [max_action_value, min_action_value]
+    """
+    return action in environment range [max_action_value, min_action_value]
+    """
     max_range_value = max_action_value
     min_range_value = min_action_value
     max_value_in = 1
@@ -32,7 +34,9 @@ def denormalize(action, max_action_value, min_action_value):
 
 
 def normalize(action, max_action_value, min_action_value):
-    # return action in algorithm range [-1, +1]
+    """
+    return action in algorithm range [-1, +1]
+    """
     max_range_value = 1
     min_range_value = -1
     max_value_in = max_action_value
@@ -58,6 +62,7 @@ def compare_models(model_1, model_2):
             if key_item_1[0] == key_item_2[0]:
                 print("Mismatch found at", key_item_1[0])
             else:
-                raise Exception
-    if models_differ == 0:
-        print("Models match perfectly! :)")
+                raise ValueError(
+                    f"Models are not equal. {key_item_1[0]} is not equal to {key_item_2[0]}"
+                )
+    return models_differ == 0

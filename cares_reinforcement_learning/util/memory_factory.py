@@ -1,3 +1,6 @@
+# Intentionally import all augmentations
+# pylint: disable=wildcard-import, unused-wildcard-import
+
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
 

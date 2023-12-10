@@ -1,7 +1,11 @@
 from __future__ import annotations
+
 from collections import deque
-from cares_reinforcement_learning.memory.augments import *
+
 import numpy as np
+
+# pylint: disable-next=wildcard-import, unused-wildcard-import
+from cares_reinforcement_learning.memory.augments import *
 
 
 class MemoryBuffer:
@@ -98,6 +102,7 @@ class MemoryBuffer:
         batch_size = batch_size if len(self) > batch_size else len(self)
         indices = self._sample_indices(batch_size)
         sampled_experiences = {"indices": indices}
+        # pylint: disable-next=consider-using-dict-items
         for key in self.buffers:
             sampled_experiences[key] = [self.buffers[key][i] for i in indices]
         return sampled_experiences
@@ -177,6 +182,7 @@ class MemoryBuffer:
             and values are the lists of experiences.
         """
         experiences = {"indices": range(len(self))}
+        # pylint: disable-next=consider-using-dict-items
         for key in self.buffers:
             experiences[key] = [self.buffers[key][i] for i in experiences["indices"]]
 

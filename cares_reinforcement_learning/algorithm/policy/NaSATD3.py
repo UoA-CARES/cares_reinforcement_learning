@@ -1,27 +1,20 @@
-"""
-NaSA-TD3: Novelty and Surprise Autoencoder TD3
-Learning from Images
-Algorithm for Gym and DM Control Suite
-"""
-
-import os
+# pylint: disable=invalid-name
+import copy
 import logging
+import os
 
-logging.basicConfig(level=logging.INFO)
-
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import copy
-import numpy as np
-from skimage.metrics import (
-    structural_similarity as ssim,
-)  # This is used to metric the novelty.
+# This is used to metric the novelty.
+from skimage.metrics import structural_similarity as ssim
 
-from cares_reinforcement_learning.networks.NaSATD3.EPDM import (
-    EPDM,
-)  # TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
+# TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
+from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
+
+logging.basicConfig(level=logging.INFO)
 
 
 class NaSATD3:

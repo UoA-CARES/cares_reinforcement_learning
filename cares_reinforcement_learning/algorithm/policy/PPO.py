@@ -7,6 +7,8 @@ Code based on:
                 https://github.com/ericyangyu/PPO-for-Beginners
                 https://github.com/nikhilbarhate99/PPO-PyTorch
 """
+# Deliberate naming convention to match papers and other implementations
+# pylint: disable-next=invalid-name
 
 import os
 import logging

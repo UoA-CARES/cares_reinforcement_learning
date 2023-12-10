@@ -1,7 +1,7 @@
-import pytest
 import numpy as np
+import pytest
+
 from cares_reinforcement_learning.memory import MemoryBuffer
-from collections import deque
 
 
 def test_add_experience():
@@ -15,9 +15,9 @@ def test_add_experience():
 def test_buffer_full():
     buffer = MemoryBuffer(max_capacity=2)
     buffer.add(state=[1, 2, 3])
-    assert buffer.full == False
+    assert buffer.full is False
     buffer.add(state=[7, 8, 9])
-    assert buffer.full == True
+    assert buffer.full is True
 
 
 def test_sample_experience():

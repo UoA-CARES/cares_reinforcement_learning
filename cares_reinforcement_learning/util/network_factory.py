@@ -1,7 +1,14 @@
-import torch
+import inspect
 import logging
+import sys
+
+import torch
+
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-import sys, inspect
+
+# Disable these as this is a deliberate use of dynamic imports
+# pylint: disable=import-outside-toplevel
+# pylint: disable=invalid-name
 
 
 def create_DQN(observation_size, action_num, config: AlgorithmConfig):
@@ -49,8 +56,7 @@ def create_DoubleDQN(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PPO
-    from cares_reinforcement_learning.networks.PPO import Actor
-    from cares_reinforcement_learning.networks.PPO import Critic
+    from cares_reinforcement_learning.networks.PPO import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size)
@@ -70,8 +76,7 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
 
 def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
-    from cares_reinforcement_learning.networks.SAC import Actor
-    from cares_reinforcement_learning.networks.SAC import Critic
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -92,8 +97,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
-    from cares_reinforcement_learning.networks.DDPG import Actor
-    from cares_reinforcement_learning.networks.DDPG import Critic
+    from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -114,8 +118,7 @@ def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
 
 def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3
-    from cares_reinforcement_learning.networks.TD3 import Actor
-    from cares_reinforcement_learning.networks.TD3 import Critic
+    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -136,11 +139,12 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
-    from cares_reinforcement_learning.networks.NaSATD3 import Actor
-    from cares_reinforcement_learning.networks.NaSATD3 import Critic
-    from cares_reinforcement_learning.networks.NaSATD3 import Decoder
-    from cares_reinforcement_learning.networks.NaSATD3 import Encoder
-    from cares_reinforcement_learning.networks.NaSATD3 import EPDM
+    from cares_reinforcement_learning.networks.NaSATD3 import (
+        Actor,
+        Critic,
+        Decoder,
+        Encoder,
+    )
 
     encoder = Encoder(latent_dim=config.latent_size)
     decoder = Decoder(latent_dim=config.latent_size)
@@ -168,19 +172,13 @@ class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
         algorithm = config.algorithm
 
-        """
-        Method taken from:
-        https://stackoverflow.com/questions/1796180/how-can-i-get-a-list-of-all-classes-within-current-module-in-python
-        """
-
         agent = None
-
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if inspect.isfunction(obj):
                 if name == f"create_{algorithm}":
                     agent = obj(observation_size, action_num, config)
 
         if agent is None:
-            logging.warn(f"Unkown failed to return None: returned {agent}")
+            logging.warning(f"Unkown failed to return None: returned {agent}")
 
         return agent

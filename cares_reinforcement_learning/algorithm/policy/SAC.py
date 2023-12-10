@@ -5,10 +5,13 @@ Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/
 This code runs automatic entropy tuning
 """
 
-import os
-from collections import defaultdict
+# pylint: disable-next=invalid-name
+
 import copy
 import logging
+import os
+from collections import defaultdict
+
 import numpy as np
 import torch
 import torch.nn.functional as F

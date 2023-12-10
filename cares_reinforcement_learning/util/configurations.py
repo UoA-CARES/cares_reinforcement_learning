@@ -1,14 +1,11 @@
-import logging
-import json
-
 from pathlib import Path
-
-file_path = Path(__file__).parent.resolve()
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
-from typing import List, Optional, Literal
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
+
+file_path = Path(__file__).parent.resolve()
 
 
 class SubscriptableClass(BaseModel):

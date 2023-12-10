@@ -2,9 +2,12 @@
 Original Paper: https://arxiv.org/abs/1802.09477v3
 """
 
-import os
+# pylint: disable-next=invalid-name
+
 import copy
 import logging
+import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F

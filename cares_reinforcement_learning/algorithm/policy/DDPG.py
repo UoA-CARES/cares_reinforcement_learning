@@ -1,6 +1,8 @@
-import os
+# pylint: disable-next=invalid-name
 import copy
 import logging
+import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F

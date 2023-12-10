@@ -1,12 +1,14 @@
 """
 code based on: https://github.com/dxyang/DQN_pytorch
 """
+# pylint: disable-next=invalid-name
 
-import os
 import copy
-import torch
 import logging
+import os
+
 import numpy as np
+import torch
 import torch.nn.functional as F
 
 

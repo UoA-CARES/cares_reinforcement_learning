@@ -1,7 +1,7 @@
 import pytest
 from cares_reinforcement_learning.algorithm.policy import *
 from cares_reinforcement_learning.algorithm.value import *
-from cares_reinforcement_learning.util.NetworkFactory import *
+from cares_reinforcement_learning.util.network_factory import *
 from cares_reinforcement_learning.util.helpers import *
 from cares_reinforcement_learning.util.configurations import *
 

@@ -1,14 +1,9 @@
-import os
-import logging
-import cv2
 import json
+import logging
+import os
 
+import cv2
 import pandas as pd
-
-import yaml
-
-from pathlib import Path
-from datetime import datetime
 
 import cares_reinforcement_learning.util.plotter as plt
 
@@ -42,16 +37,20 @@ class Record:
 
         self.log_count = 0
 
+        self.video = None
+
         self.__initialise_directories()
 
     def save_config(self, configuration, file_name):
-        with open(f"{self.directory}/{file_name}.json", "w") as outfile:
+        with open(
+            f"{self.directory}/{file_name}.json", "w", encoding="utf-8"
+        ) as outfile:
             json.dump(configuration.dict(exclude_none=True), outfile)
 
     def start_video(self, file_name, frame):
         fps = 30
         video_name = f"{self.directory}/videos/{file_name}.mp4"
-        height, width, channels = frame.shape
+        height, width, _ = frame.shape
         self.video = cv2.VideoWriter(
             video_name, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height)
         )
@@ -120,7 +119,7 @@ class Record:
             logging.info(string)
 
     def save(self):
-        logging.info(f"Saving final outputs")
+        logging.info("Saving final outputs")
         self.save_data(self.train_data, "train", {}, display=False)
         self.save_data(self.eval_data, "eval", {}, display=False)
 
