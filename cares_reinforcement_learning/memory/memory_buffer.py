@@ -1,7 +1,11 @@
 from __future__ import annotations
+
 from collections import deque
-from cares_reinforcement_learning.memory.augments import *
+
 import numpy as np
+
+# pylint: disable-next=wildcard-import, unused-wildcard-import
+from cares_reinforcement_learning.memory.augments import *
 
 
 class MemoryBuffer:
@@ -21,8 +25,9 @@ class MemoryBuffer:
         A dictionary to hold different buffers for easy management.
     """
 
-    def __init__(self, max_capacity: int = int(1e6),
-                 eps=1e-6, alpha=0.6, augment=std, **params):
+    def __init__(
+        self, max_capacity: int = int(1e6), eps=1e-6, alpha=0.6, augment=std, **params
+    ):
         """
         The constructor for MemoryBuffer class.
 
@@ -37,7 +42,7 @@ class MemoryBuffer:
         self.head = 0
         self.full = False
 
-        self.buffers = {'priorities': deque(maxlen=max_capacity)}
+        self.buffers = {"priorities": deque(maxlen=max_capacity)}
 
         self.augment = augment
         self.params = {"eps": eps, "alpha": alpha}
@@ -71,8 +76,10 @@ class MemoryBuffer:
 
         if self.buffers.get("priorities") is None:
             self.buffers["priorities"] = deque(maxlen=self.max_capacity)
-        max_priority = max(self.buffers['priorities']) if self.buffers['priorities'] else 1.0
-        self.buffers['priorities'].append(max_priority)
+        max_priority = (
+            max(self.buffers["priorities"]) if self.buffers["priorities"] else 1.0
+        )
+        self.buffers["priorities"].append(max_priority)
 
         self.head = (self.head + 1) % self.max_capacity
         self.full = self.full or self.head == 0
@@ -94,7 +101,8 @@ class MemoryBuffer:
         """
         batch_size = batch_size if len(self) > batch_size else len(self)
         indices = self._sample_indices(batch_size)
-        sampled_experiences = {'indices': indices}
+        sampled_experiences = {"indices": indices}
+        # pylint: disable-next=consider-using-dict-items
         for key in self.buffers:
             sampled_experiences[key] = [self.buffers[key][i] for i in indices]
         return sampled_experiences
@@ -113,10 +121,12 @@ class MemoryBuffer:
         list
             A list of indices.
         """
-        priorities = np.array(self.buffers['priorities'], dtype=np.float32).flatten()
+        priorities = np.array(self.buffers["priorities"], dtype=np.float32).flatten()
         probabilities = priorities ** self.params["alpha"]
         probabilities /= probabilities.sum()
-        return np.random.choice(len(self), size=batch_size, p=probabilities, replace=False)
+        return np.random.choice(
+            len(self), size=batch_size, p=probabilities, replace=False
+        )
 
     def _sample_experience(self, key, indices):
         """
@@ -151,7 +161,7 @@ class MemoryBuffer:
         """
         new_prios = self.augment(indices, info, self.params)
         for idx, new_prio in zip(indices, new_prios):
-            self.buffers['priorities'][idx] = abs(new_prio) + self.params["eps"]
+            self.buffers["priorities"][idx] = abs(new_prio) + self.params["eps"]
 
     def clear(self):
         """
@@ -171,9 +181,10 @@ class MemoryBuffer:
             A dictionary of all experiences. Keys are the names of the buffers,
             and values are the lists of experiences.
         """
-        experiences = {'indices': range(len(self))}
+        experiences = {"indices": range(len(self))}
+        # pylint: disable-next=consider-using-dict-items
         for key in self.buffers:
-            experiences[key] = [self.buffers[key][i] for i in experiences['indices']]
+            experiences[key] = [self.buffers[key][i] for i in experiences["indices"]]
 
         self.clear()
         return experiences

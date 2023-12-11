@@ -1,8 +1,9 @@
+import torch
 import torch.nn.functional as F
 from torch import nn
 
 
-class Network(nn.Module):
+class Actor(nn.Module):
     def __init__(self, observation_size, num_actions):
         super().__init__()
 
@@ -21,5 +22,5 @@ class Network(nn.Module):
     def forward(self, state):
         x = F.relu(self.h_linear_1(state))
         x = F.relu(self.h_linear_2(x))
-        x = self.h_linear_3(x)
+        x = torch.tanh(self.h_linear_3(x))
         return x

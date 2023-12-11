@@ -1,23 +1,21 @@
-import os
-import torch
 import logging
+import os
+
 import numpy as np
+import torch
 import torch.nn.functional as F
 
+
 class DQN:
-
-    def __init__(self,
-                 network,
-                 gamma,
-                 network_lr,
-                 device):
-
+    def __init__(self, network, gamma, network_lr, device):
         self.type = "value"
         self.network = network.to(device)
         self.device = device
         self.gamma = gamma
 
-        self.network_optimiser  = torch.optim.Adam(self.network.parameters(), lr=network_lr)
+        self.network_optimiser = torch.optim.Adam(
+            self.network.parameters(), lr=network_lr
+        )
 
     def select_action_from_policy(self, state):
         self.network.eval()
@@ -55,24 +53,24 @@ class DQN:
         loss.backward()
         self.network_optimiser.step()
 
-        info['q_target'] = q_target
-        info['q_values_min'] = best_q_values
-        info['network_loss'] = loss
-        
+        info["q_target"] = q_target
+        info["q_values_min"] = best_q_values
+        info["network_loss"] = loss
+
         return info
 
-    def save_models(self, filename, filepath='models'):
-        path = f"{filepath}/models" if filepath != 'models' else filepath
+    def save_models(self, filename, filepath="models"):
+        path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
         if not dir_exists:
             os.makedirs(path)
 
-        torch.save(self.network.state_dict(), f'{path}/{filename}_network.pht')
+        torch.save(self.network.state_dict(), f"{path}/{filename}_network.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath != 'models' else filepath
+        path = f"{filepath}/models" if filepath != "models" else filepath
 
-        self.network.load_state_dict(torch.load(f'{path}/{filename}_network.pht'))
+        self.network.load_state_dict(torch.load(f"{path}/{filename}_network.pht"))
         logging.info("models has been loaded...")
