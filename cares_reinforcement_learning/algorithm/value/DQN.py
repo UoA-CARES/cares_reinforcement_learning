@@ -1,4 +1,3 @@
-# pylint: disable-next=invalid-name
 import logging
 import os
 

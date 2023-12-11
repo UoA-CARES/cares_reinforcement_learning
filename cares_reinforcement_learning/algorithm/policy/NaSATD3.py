@@ -1,15 +1,14 @@
-# pylint: disable=invalid-name
 import copy
 import logging
 import os
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 
 # This is used to metric the novelty.
 from skimage.metrics import structural_similarity as ssim
+from torch import nn
 
 # TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM

@@ -8,7 +8,7 @@ from typing import Optional, get_origin
 
 from pydantic import Field
 
-import cares_reinforcement_learning.util.configurations as configurations
+from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import (
     AlgorithmConfig,
     EnvironmentConfig,

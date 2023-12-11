@@ -1,4 +1,3 @@
-# pylint: disable-next=invalid-name
 import copy
 import logging
 import os
@@ -15,7 +14,6 @@ class DDPG:
         critic_network,
         gamma,
         tau,
-        action_num,
         actor_lr,
         critic_lr,
         device,
@@ -39,6 +37,7 @@ class DDPG:
 
         self.device = device
 
+    # pylint: disable-next=unused-argument
     def select_action_from_policy(self, state, evaluation=None, noise_scale=0):
         self.actor_net.eval()
         with torch.no_grad():

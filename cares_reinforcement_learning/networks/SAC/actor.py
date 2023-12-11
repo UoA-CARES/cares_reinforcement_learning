@@ -6,13 +6,32 @@ from torch.distributions.transforms import TanhTransform
 from torch.nn import functional as F
 
 
+class SACTanhTransform(TanhTransform):
+    def __init__(self, cache_size=1):
+        super().__init__(cache_size=cache_size)
+
+    @staticmethod
+    def atanh(x):
+        return 0.5 * (x.log1p() - (-x).log1p())
+
+    def __eq__(self, other):
+        return isinstance(other, SACTanhTransform)
+
+    def _inverse(self, y):
+        # We do not clamp to the boundary here as it may degrade the performance of certain algorithms.
+        # one should use `cache_size=1` instead
+        return self.atanh(y)
+
+
+# These methods are not required for the purposes of SAC and are thus intentionally ignored
+# pylint: disable=abstract-method
 class SquashedNormal(TransformedDistribution):
     def __init__(self, loc, scale):
         self.loc = loc
         self.scale = scale
         self.base_dist = pyd.Normal(loc, scale)
 
-        transforms = [TanhTransform()]
+        transforms = [SACTanhTransform()]
         super().__init__(self.base_dist, transforms, validate_args=False)
 
     @property
@@ -21,20 +40,6 @@ class SquashedNormal(TransformedDistribution):
         for tr in self.transforms:
             mu = tr(mu)
         return mu
-
-    def entropy(self):
-        return self.base_dist.entropy()
-
-    def enumerate_support(self, expand=True):
-        return self.base_dist.enumerate_support(expand)
-
-    @property
-    def mode(self):
-        return self.base_dist.mode()
-
-    @property
-    def variance(self):
-        return self.base_dist.variance()
 
 
 class Actor(nn.Module):

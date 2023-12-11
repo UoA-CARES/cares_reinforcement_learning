@@ -1,8 +1,6 @@
 """
 code based on: https://github.com/dxyang/DQN_pytorch
 """
-# pylint: disable-next=invalid-name
-
 import copy
 import logging
 import os

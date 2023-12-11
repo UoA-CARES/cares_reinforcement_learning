@@ -4,7 +4,7 @@ from torch import nn
 
 class Critic(nn.Module):
     def __init__(self, observation_size):
-        super(Critic, self).__init__()
+        super().__init__()
 
         self.hidden_size = [1024, 1024]
 

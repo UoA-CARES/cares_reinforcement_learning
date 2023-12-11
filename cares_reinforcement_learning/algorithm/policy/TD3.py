@@ -1,9 +1,6 @@
 """
 Original Paper: https://arxiv.org/abs/1802.09477v3
 """
-
-# pylint: disable-next=invalid-name
-
 import copy
 import logging
 import os
@@ -13,7 +10,7 @@ import torch
 import torch.nn.functional as F
 
 
-class TD3(object):
+class TD3:
     def __init__(
         self,
         actor_network,

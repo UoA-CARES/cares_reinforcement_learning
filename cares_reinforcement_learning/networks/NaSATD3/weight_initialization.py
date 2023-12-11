@@ -14,7 +14,7 @@ def weight_init(m):
         nn.init.orthogonal_(m.weight.data)
         m.bias.data.fill_(0.0)
 
-    elif isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+    elif isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
         assert m.weight.size(2) == m.weight.size(3)
         m.weight.data.fill_(0.0)
         m.bias.data.fill_(0.0)

@@ -9,7 +9,6 @@ class MemoryFactory:
     def create_memory(self, memory_type, args):
         if memory_type == "MemoryBuffer":
             return MemoryBuffer()
-        elif memory_type == "PER":
+        if memory_type == "PER":
             return MemoryBuffer(augment=td_error)
-        else:
-            raise ValueError(f"Unkown memory type: {memory_type}")
+        raise ValueError(f"Unkown memory type: {memory_type}")

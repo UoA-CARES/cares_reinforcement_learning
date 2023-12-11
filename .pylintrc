@@ -8,6 +8,7 @@ disable=
     too-many-locals,
     W0511,
     too-many-arguments,
+    invalid-name,
 
 [FORMAT]
 max-line-length=130
