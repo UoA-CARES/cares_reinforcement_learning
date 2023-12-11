@@ -124,7 +124,7 @@ class NaSATD3Config(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
     latent_size: Optional[int] = 200
-    intrinsic_on: Optional[bool] = True
+    intrinsic_on: Optional[int] = 1
 
     # lr_actor   = 1e-4
     # lr_critic  = 1e-3
