@@ -27,23 +27,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install pylint
-      
-    - name: Clone cares_reinforcement_learning repository
-      uses: GuillaumeFalourd/clone-github-repo-action@main
-      with:
-        owner: 'UoA-CARES'
-        repository: 'cares_reinforcement_learning'
-    
-    - name: Install cares_reinforcement_learning repository content
-      run: |
-        cd cares_reinforcement_learning
-        pip install -r requirements.txt
-        pip install --editable .
-        cd -
-
+          
     - name: Install deps
       run: |
         pip install -r requirements.txt
+        pip install --editable .
 
     - name: Analysing the code with pylint
       run: |
