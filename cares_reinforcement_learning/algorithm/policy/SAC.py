@@ -44,7 +44,6 @@ class SAC:
         self.device = device
 
         self.target_entropy = -action_num
-        # self.target_entropy = -torch.prod(torch.Tensor([action_num]).to(self.device)).item()
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -53,9 +52,8 @@ class SAC:
             self.critic_net.parameters(), lr=critic_lr
         )
 
-        init_temperature = (
-            1.0  # Set to initial alpha to 1.0 according to other baselines.
-        )
+        # Set to initial alpha to 1.0 according to other baselines.
+        init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)

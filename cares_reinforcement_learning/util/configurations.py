@@ -104,8 +104,8 @@ class TD3Config(AlgorithmConfig):
 
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
-    actor_lr: Optional[float] = 1e-4
-    critic_lr: Optional[float] = 1e-3
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-3
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
