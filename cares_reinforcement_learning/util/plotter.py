@@ -28,6 +28,8 @@ def plot_data(
     plt.ylabel(y_label, fontsize=10)
     plt.title(title, fontsize=10)
 
+    sns.lineplot(data=plot_frame, x=plot_frame["steps"], y="avg", label=label)
+
     # See for how to plot confidence interval
     # https://saturncloud.io/blog/plot-95-confidence-interval-errorbar-python-pandas-dataframes/
     Z = 1.960  # 95% confidence interval
