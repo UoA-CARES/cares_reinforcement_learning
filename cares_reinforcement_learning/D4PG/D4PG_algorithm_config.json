@@ -1,0 +1,18 @@
+{
+"algorithm": "D4PG",  
+"replay_size" : 1e6,
+"batch_size": 512,    
+"trajectory_length": 300, 
+"tau" : 1e-3,
+"exploration_constant" : 0.3,
+"gamma" : 0.99,
+"actor_lr" : 1e-4, 
+"critic_lr": 1e-4, 
+"n_atoms" : 51,
+"v_Max": 10,
+"v_Min": -10, 
+"reward_size": 5, 
+"eps_decay" : 1e-6
+
+}
+
