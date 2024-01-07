@@ -30,13 +30,29 @@ class Record:
         self.checkpoint_frequency = checkpoint_frequency
 
         self.train_data_path = f"{self.directory}/data/train.csv"
-        self.train_data = pd.read_csv(self.train_data_path) if os.path.exists(self.train_data_path) else pd.DataFrame()
+        self.train_data = (
+            pd.read_csv(self.train_data_path)
+            if os.path.exists(self.train_data_path)
+            else pd.DataFrame()
+        )
         self.eval_data_path = f"{self.directory}/data/eval.csv"
-        self.eval_data = pd.read_csv(self.eval_data_path) if os.path.exists(self.eval_data_path) else pd.DataFrame()
+        self.eval_data = (
+            pd.read_csv(self.eval_data_path)
+            if os.path.exists(self.eval_data_path)
+            else pd.DataFrame()
+        )
         self.info_data_path = f"{self.directory}/data/info.csv"
-        self.info_data = pd.read_csv(self.info_data_path) if os.path.exists(self.info_data_path) else pd.DataFrame()
+        self.info_data = (
+            pd.read_csv(self.info_data_path)
+            if os.path.exists(self.info_data_path)
+            else pd.DataFrame()
+        )
 
-        if not self.train_data.empty or not self.eval_data.empty or not self.info_data.empty:
+        if (
+            not self.train_data.empty
+            or not self.eval_data.empty
+            or not self.info_data.empty
+        ):
             logging.warning("Data files not empty. Appending to existing data")
 
         self.network = network
