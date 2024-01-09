@@ -29,9 +29,31 @@ class Record:
         self.plot_frequency = plot_frequency
         self.checkpoint_frequency = checkpoint_frequency
 
-        self.train_data = pd.DataFrame()
-        self.eval_data = pd.DataFrame()
-        self.info_data = pd.DataFrame()
+        self.train_data_path = f"{self.directory}/data/train.csv"
+        self.train_data = (
+            pd.read_csv(self.train_data_path)
+            if os.path.exists(self.train_data_path)
+            else pd.DataFrame()
+        )
+        self.eval_data_path = f"{self.directory}/data/eval.csv"
+        self.eval_data = (
+            pd.read_csv(self.eval_data_path)
+            if os.path.exists(self.eval_data_path)
+            else pd.DataFrame()
+        )
+        self.info_data_path = f"{self.directory}/data/info.csv"
+        self.info_data = (
+            pd.read_csv(self.info_data_path)
+            if os.path.exists(self.info_data_path)
+            else pd.DataFrame()
+        )
+
+        if (
+            not self.train_data.empty
+            or not self.eval_data.empty
+            or not self.info_data.empty
+        ):
+            logging.warning("Data files not empty. Appending to existing data")
 
         self.network = network
 
@@ -65,7 +87,7 @@ class Record:
         self.info_data = pd.concat(
             [self.info_data, pd.DataFrame([info])], ignore_index=True
         )
-        self.save_data(self.info_data, "info", info, display=display)
+        self.save_data(self.info_data, self.info_data_path, info, display=display)
 
     def log_train(self, display=False, **logs):
         self.log_count += 1
@@ -73,7 +95,7 @@ class Record:
         self.train_data = pd.concat(
             [self.train_data, pd.DataFrame([logs])], ignore_index=True
         )
-        self.save_data(self.train_data, "train", logs, display=display)
+        self.save_data(self.train_data, self.train_data_path, logs, display=display)
 
         if self.log_count % self.plot_frequency == 0:
             plt.plot_train(
@@ -94,7 +116,7 @@ class Record:
         self.eval_data = pd.concat(
             [self.eval_data, pd.DataFrame([logs])], ignore_index=True
         )
-        self.save_data(self.eval_data, "eval", logs, display=display)
+        self.save_data(self.eval_data, self.eval_data_path, logs, display=display)
 
         plt.plot_eval(
             self.eval_data,
@@ -104,11 +126,10 @@ class Record:
             "eval",
         )
 
-    def save_data(self, data_frame, filename, logs, display=True):
+    def save_data(self, data_frame, path, logs, display=True):
         if data_frame.empty:
             logging.warning("Trying to save an Empty Dataframe")
 
-        path = f"{self.directory}/data/{filename}.csv"
         data_frame.to_csv(path, index=False)
 
         string = [f"{key}: {str(val)[0:10]:6s}" for key, val in logs.items()]
@@ -120,8 +141,8 @@ class Record:
 
     def save(self):
         logging.info("Saving final outputs")
-        self.save_data(self.train_data, "train", {}, display=False)
-        self.save_data(self.eval_data, "eval", {}, display=False)
+        self.save_data(self.train_data, self.train_data_path, {}, display=False)
+        self.save_data(self.eval_data, self.eval_data_path, {}, display=False)
 
         plt.plot_eval(
             self.eval_data,
