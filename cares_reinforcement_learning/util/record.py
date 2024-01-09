@@ -141,8 +141,8 @@ class Record:
 
     def save(self):
         logging.info("Saving final outputs")
-        self.save_data(self.train_data, "train", {}, display=False)
-        self.save_data(self.eval_data, "eval", {}, display=False)
+        self.save_data(self.train_data, self.train_data_path, {}, display=False)
+        self.save_data(self.eval_data, self.eval_data_path, {}, display=False)
 
         plt.plot_eval(
             self.eval_data,
