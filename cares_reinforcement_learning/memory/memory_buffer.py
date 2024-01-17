@@ -26,7 +26,8 @@ class MemoryBuffer:
     """
 
     def __init__(
-        self, max_capacity: int = int(1e6), eps=1e-6, alpha=0.6, augment=std, **params
+            self, max_capacity: int = int(1e6), eps=1e-6, alpha=0.6,
+            augment=std, **params
     ):
         """
         The constructor for MemoryBuffer class.
@@ -71,14 +72,16 @@ class MemoryBuffer:
         for key, value in experience.items():
             if key not in self.buffers:
                 self.buffers[key] = [None] * self.max_capacity
-
             self.buffers[key][self.head] = value
 
         if self.buffers.get("priorities") is None:
             self.buffers["priorities"] = deque(maxlen=self.max_capacity)
+
         max_priority = (
-            max(self.buffers["priorities"]) if self.buffers["priorities"] else 1.0
+            max(self.buffers["priorities"]) if self.buffers[
+                "priorities"] else 1.0
         )
+
         self.buffers["priorities"].append(max_priority)
 
         self.head = (self.head + 1) % self.max_capacity
@@ -107,6 +110,38 @@ class MemoryBuffer:
             sampled_experiences[key] = [self.buffers[key][i] for i in indices]
         return sampled_experiences
 
+    def sample_next(self, batch_size):
+        """
+        Sample a batch of experineces that also contains next actions and
+        next rewards for jointly trianing a world model.
+
+        Parameters
+        ----------
+        batch_size : int
+            The size of the batch to sample.
+
+        Returns
+        -------
+        dict
+            A dictionary of batched experiences. Keys are the names of the
+            buffers, and values are the lists of experiences.
+        """
+
+        batch_size = batch_size if len(self) > batch_size else len(self)
+        # Random sampling from 0 to max - 1.
+        indices = np.random.randint(0, (len(self) - 1), size=batch_size)
+
+        sample_exps = {"indices": indices}
+        # pylint: disable-next=consider-using-dict-items
+        for key in self.buffers:
+            sample_exps[key] = [self.buffers[key][i] for i in indices]
+
+        sample_exps['next_reward'] = [self.buffers['reward'][i + 1] for i in
+                                      indices]
+        sample_exps['next_action'] = [self.buffers['action'][i + 1] for i in
+                                      indices]
+        return sample_exps
+
     def _sample_indices(self, batch_size):
         """
         Samples a batch of indices for experiences.
@@ -121,7 +156,8 @@ class MemoryBuffer:
         list
             A list of indices.
         """
-        priorities = np.array(self.buffers["priorities"], dtype=np.float32).flatten()
+        priorities = np.array(self.buffers["priorities"],
+                              dtype=np.float32).flatten()
         probabilities = priorities ** self.params["alpha"]
         probabilities /= probabilities.sum()
         return np.random.choice(
@@ -161,7 +197,8 @@ class MemoryBuffer:
         """
         new_prios = self.augment(indices, info, self.params)
         for idx, new_prio in zip(indices, new_prios):
-            self.buffers["priorities"][idx] = abs(new_prio) + self.params["eps"]
+            self.buffers["priorities"][idx] = abs(new_prio) + self.params[
+                "eps"]
 
     def clear(self):
         """
@@ -184,7 +221,8 @@ class MemoryBuffer:
         experiences = {"indices": range(len(self))}
         # pylint: disable-next=consider-using-dict-items
         for key in self.buffers:
-            experiences[key] = [self.buffers[key][i] for i in experiences["indices"]]
+            experiences[key] = [self.buffers[key][i] for i in
+                                experiences["indices"]]
 
         self.clear()
         return experiences
@@ -199,3 +237,29 @@ class MemoryBuffer:
             The number of experiences in any buffer. Assumes all buffers have the same length.
         """
         return self.max_capacity if self.full else self.head
+
+    def get_statistics(self):
+        """
+        Return the statisitcs, mean , and std for normalizing for observations.
+        It is used to predict the next states.
+
+        """
+        # dones = [done for done in self.buffers['done'] if done is not None]
+
+        states = [state for state in self.buffers['state'] if
+                  state is not None]
+        next_states = [next_state for next_state in self.buffers['next_state']
+                       if next_state is not None]
+
+        states = np.array(states)
+        next_states = np.array(next_states)
+        delta = next_states - states
+
+        statistics = {
+            'ob_mean': np.mean(states, axis=0) + 0.0001,
+            'ob_std': np.std(states, axis=0) + 0.0001,
+            'delta_mean': np.mean(delta, axis=0) + 0.0001,
+            'delta_std': np.std(delta, axis=0) + 0.0001
+        }
+
+        return statistics

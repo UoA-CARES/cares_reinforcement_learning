@@ -113,6 +113,15 @@ class SACConfig(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 
+class MBRLSACConfig(AlgorithmConfig):
+    algorithm: str = Field("MBRL_SAC", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-3
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    memory: Optional[str] = "SARSAR"
+
+
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)
     # actor_lr: Optional[float] = 1e-4

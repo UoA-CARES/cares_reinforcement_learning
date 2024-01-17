@@ -6,6 +6,7 @@ import torch
 
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
+
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
 # pylint: disable=invalid-name
@@ -19,7 +20,8 @@ def create_DQN(observation_size, action_num, config: AlgorithmConfig):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DQN(
-        network=network, gamma=config.gamma, network_lr=config.lr, device=device
+        network=network, gamma=config.gamma, network_lr=config.lr,
+        device=device
     )
     return agent
 
@@ -32,7 +34,8 @@ def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DQN(
-        network=network, gamma=config.gamma, network_lr=config.lr, device=device
+        network=network, gamma=config.gamma, network_lr=config.lr,
+        device=device
     )
     return agent
 
@@ -68,6 +71,35 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
         gamma=config.gamma,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
+
+def create_MBRL_SAC(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import SAC_MBRL
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.World_Models.ensemble_integrated import \
+        Ensemble_World_Reward
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+    world_model = Ensemble_World_Reward(observation_size=observation_size,
+                                        num_actions=action_num, num_models=5)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = SAC_MBRL(
+        actor_network=actor,
+        critic_network=critic,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
         action_num=action_num,
         device=device,
     )
@@ -168,7 +200,8 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
 
 
 class NetworkFactory:
-    def create_network(self, observation_size, action_num, config: AlgorithmConfig):
+    def create_network(self, observation_size, action_num,
+                       config: AlgorithmConfig):
         algorithm = config.algorithm
 
         agent = None

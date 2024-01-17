@@ -1,12 +1,14 @@
 import math
 import random
+import sys
 import torch
 import torch.nn.functional as F
 import torch.utils
 from torch import optim
+import numpy as np
 from cares_reinforcement_learning.util.helpers import normalize_obs_deltas
-from cares_reinforcement_learning.networks.world_models.simple_dynamics import (Simple_Dynamics)
-from cares_reinforcement_learning.networks.world_models.simple_rewards import (Simple_Reward)
+from cares_reinforcement_learning.networks.World_Models.simple_dynamics import (Simple_Dynamics)
+from cares_reinforcement_learning.networks.World_Models.simple_rewards import (Simple_Reward)
 
 
 class IntegratedWorldModel:
@@ -128,6 +130,10 @@ class Ensemble_World_Reward:
 
         :param (Dictionary) statistics:
         """
+        for key, value in statistics.items():
+            if isinstance(value, np.ndarray):
+                statistics[key] = torch.FloatTensor(statistics[key])
+
         self.statistics = statistics
         for model in self.models:
             model.statistics = statistics
@@ -190,7 +196,7 @@ class Ensemble_World_Reward:
                 not_nans.append(i)
         if len(not_nans) == 0:
             print("Predicting all Nans")
-            exit(0)
+            sys.exit()
         rand_ind = random.randint(0, len(not_nans) - 1)
         prediction = predictions_means[not_nans[rand_ind]]
         # next = current + delta
