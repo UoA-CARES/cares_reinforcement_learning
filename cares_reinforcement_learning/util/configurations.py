@@ -115,6 +115,10 @@ class SACConfig(AlgorithmConfig):
 
 class MBRLSACConfig(AlgorithmConfig):
     algorithm: str = Field("MBRL_SAC", Literal=True)
+    use_bounded_active: bool = Field(default=False)
+    use_mve_actor: bool = Field(default=False)
+    use_mve_critic: bool = Field(default=False)
+    use_dyna: bool = Field(default=False)
     num_models: Optional[int] = 5
     world_model_lr: Optional[float] = 0.001
     actor_lr: Optional[float] = 3e-4
