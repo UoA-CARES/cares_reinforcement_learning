@@ -228,10 +228,10 @@ class SAC_MBRL:
             actor_loss = -1 * pred_v
 
         else:
-            pi, log_pi, _ = self.actor_net.sample(states)
+            pi, first_log_p, _ = self.actor_net.sample(states)
             qf1_pi, qf2_pi = self.critic_net(states, pi)
             min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
-            actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+            actor_loss = ((self.alpha * first_log_p) - min_qf_pi).mean()
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
