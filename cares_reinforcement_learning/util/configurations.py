@@ -105,7 +105,7 @@ class TD3Config(AlgorithmConfig):
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-3
+    critic_lr: Optional[float] = 3e-4
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
@@ -113,16 +113,16 @@ class SACConfig(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 
-class MBRLSACConfig(AlgorithmConfig):
+class MBRL_SACConfig(AlgorithmConfig):
     algorithm: str = Field("MBRL_SAC", Literal=True)
-    use_bounded_active: bool = Field(default=False)
-    use_mve_actor: bool = Field(default=False)
-    use_mve_critic: bool = Field(default=False)
-    use_dyna: bool = Field(default=False)
+    use_bounded_active: Optional[bool] = False
+    use_mve_actor: Optional[bool] = False
+    use_mve_critic: Optional[bool] = False
+    use_dyna: Optional[bool] = False
     num_models: Optional[int] = 5
     world_model_lr: Optional[float] = 0.001
     actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-3
+    critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     memory: Optional[str] = "MemoryBuffer"

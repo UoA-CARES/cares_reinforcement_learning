@@ -42,7 +42,7 @@ class SAC_MBRL:
         self.use_dyna = False
         self.horizon = 5
 
-        self.type = "policy"
+        self.type = "mbrl"
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
         # this may be called soft_q_net in other implementations
