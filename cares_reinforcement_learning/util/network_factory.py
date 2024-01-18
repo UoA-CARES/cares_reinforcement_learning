@@ -90,7 +90,8 @@ def create_MBRL_SAC(observation_size, action_num, config: AlgorithmConfig):
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
     world_model = Ensemble_World_Reward(observation_size=observation_size,
-                                        num_actions=action_num, num_models=5)
+                                        num_actions=action_num,
+                                        num_models=config.num_models)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = SAC_MBRL(
         actor_network=actor,
@@ -98,6 +99,12 @@ def create_MBRL_SAC(observation_size, action_num, config: AlgorithmConfig):
         world_network=world_model,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
+        use_bounded_active=config.use_bounded_active,
+        use_mve_steve=config.use_mve_steve,
+        use_mve_actor=config.use_mve_actor,
+        use_mve_critic=config.use_mve_critic,
+        use_dyna=config.use_dyna,
+        horizon=config.horizon,
         gamma=config.gamma,
         tau=config.tau,
         action_num=action_num,

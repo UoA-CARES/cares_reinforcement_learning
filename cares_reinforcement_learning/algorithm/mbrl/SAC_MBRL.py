@@ -32,16 +32,22 @@ class SAC_MBRL:
             action_num,
             actor_lr,
             critic_lr,
+            use_bounded_active,
+            use_mve_steve,
+            use_mve_actor,
+            use_mve_critic,
+            use_dyna,
+            horizon,
             device,
     ):
         self.device = device
         self.batch_size = None
-        self.use_bounded_active = False
-        self.use_mve_steve = False
-        self.use_mve_actor = True
-        self.use_mve_critic = False
-        self.use_dyna = False
-        self.horizon = 5
+        self.use_bounded_active = use_bounded_active
+        self.use_mve_steve = use_mve_steve
+        self.use_mve_actor = use_mve_actor
+        self.use_mve_critic = use_mve_critic
+        self.use_dyna = use_dyna
+        self.horizon = horizon
 
         self.type = "mbrl"
         # this may be called policy_net in other implementations
@@ -68,7 +74,8 @@ class SAC_MBRL:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha])
         # World model
-        self.world_model = world_network.to(device)
+        self.world_model = world_network
+        self.world_model.to(device)
 
     # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
@@ -109,13 +116,13 @@ class SAC_MBRL:
         assert len(action_tensor.shape) == 2 and action_tensor.shape[0] == 1
         assert len(state_tensor.shape) == 2 and state_tensor.shape[0] == 1
 
-        pred_mean, _ = self.world_model.predict_rewards(obs=state_tensor,
+        pred_mean, _ = self.world_model.pred_rewards(obs=state_tensor,
                                                          actions=action_tensor)
         pred_mean = pred_mean.item()
         reward_error = abs(pred_mean - reward)
 
         # World model prediction
-        pred_next_state, _, _, _ = self.world_model.predict_next_states(
+        pred_next_state, _, _, _ = self.world_model.pred_next_states(
             obs=state_tensor, actions=action_tensor)
         pred_next_state = pred_next_state.detach().cpu().numpy().squeeze()
         dynamic_error = (np.mean((pred_next_state - next_state) ** 2))
