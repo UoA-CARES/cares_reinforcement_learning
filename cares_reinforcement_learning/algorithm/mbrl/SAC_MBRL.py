@@ -34,6 +34,7 @@ class SAC_MBRL:
             critic_lr,
             device,
     ):
+        self.device = device
         self.batch_size = None
         self.use_bounded_active = False
         self.use_mve_steve = False
@@ -67,7 +68,7 @@ class SAC_MBRL:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha])
         # World model
-        self.world_model = world_network
+        self.world_model = world_network.to(device)
 
     # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
@@ -96,6 +97,30 @@ class SAC_MBRL:
         A variatble decide to what extend entropy shoud be valued.
         """
         return self.log_alpha.exp()
+
+    def eval_model(self, state, action, next_state, reward):
+        """
+        For each evaluation time step, evaluate the world model and reward
+        model.
+
+        """
+        state_tensor = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
+        action_tensor = torch.FloatTensor(action).unsqueeze(dim=0).to(self.device)
+        assert len(action_tensor.shape) == 2 and action_tensor.shape[0] == 1
+        assert len(state_tensor.shape) == 2 and state_tensor.shape[0] == 1
+
+        pred_mean, _ = self.world_model.predict_rewards(obs=state_tensor,
+                                                         actions=action_tensor)
+        pred_mean = pred_mean.item()
+        reward_error = abs(pred_mean - reward)
+
+        # World model prediction
+        pred_next_state, _, _, _ = self.world_model.predict_next_states(
+            obs=state_tensor, actions=action_tensor)
+        pred_next_state = pred_next_state.detach().cpu().numpy().squeeze()
+        dynamic_error = (np.mean((pred_next_state - next_state) ** 2))
+
+        return dynamic_error, reward_error
 
     def train_policy(self, experiences):
         """

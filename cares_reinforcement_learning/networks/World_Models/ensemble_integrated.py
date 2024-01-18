@@ -123,6 +123,14 @@ class Ensemble_World_Reward:
                        for _ in range(self.num_models)]
         self.statistics = {}
 
+    def to(self, device):
+        """
+        A function that take all networks to a designate device.
+        """
+        for model in self.models:
+            model.dyna_network.to(device)
+            model.reward_network.to(device)
+
     def set_statistics(self, statistics):
         """
         Update all statistics for normalization for all world models and the
