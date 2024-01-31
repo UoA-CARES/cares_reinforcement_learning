@@ -32,23 +32,35 @@ class SAC_MBRL:
             action_num,
             actor_lr,
             critic_lr,
+
             use_bounded_active,
-            use_mve_steve,
-            use_mve_actor,
-            use_mve_critic,
+            use_critic_steve,
+            use_actor_mve,
+            use_critic_mve,
             use_dyna,
             horizon,
+
             device,
     ):
         self.device = device
         self.batch_size = None
+
         self.use_bounded_active = use_bounded_active
-        self.use_mve_steve = use_mve_steve
-        self.use_mve_actor = use_mve_actor
-        self.use_mve_critic = use_mve_critic
+        self.use_actor_mve = use_actor_mve
+        self.use_critic_mve = use_critic_mve
+        self.use_critic_steve = use_critic_steve
         self.use_dyna = use_dyna
         self.horizon = horizon
 
+        print(self.use_bounded_active)
+        print(self.use_actor_mve)
+        print(self.use_critic_mve)
+        print(self.use_critic_steve)
+        print(self.use_dyna)
+        print(self.horizon)
+
+
+        # This variable is used to define which training loop will be used.
         self.type = "mbrl"
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -91,9 +103,9 @@ class SAC_MBRL:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                (action,_,_) = self.actor_net.sample(state_tensor)
+                (action, _, _) = self.actor_net.sample(state_tensor)
             else:
-                (_,_,action) = self.actor_net.sample(state_tensor)
+                (_, _, action) = self.actor_net.sample(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -105,30 +117,6 @@ class SAC_MBRL:
         """
         return self.log_alpha.exp()
 
-    def eval_model(self, state, action, next_state, reward):
-        """
-        For each evaluation time step, evaluate the world model and reward
-        model.
-
-        """
-        state_tensor = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
-        action_tensor = torch.FloatTensor(action).unsqueeze(dim=0).to(self.device)
-        assert len(action_tensor.shape) == 2 and action_tensor.shape[0] == 1
-        assert len(state_tensor.shape) == 2 and state_tensor.shape[0] == 1
-
-        pred_mean, _ = self.world_model.pred_rewards(obs=state_tensor,
-                                                         actions=action_tensor)
-        pred_mean = pred_mean.item()
-        reward_error = abs(pred_mean - reward)
-
-        # World model prediction
-        pred_next_state, _, _, _ = self.world_model.pred_next_states(
-            obs=state_tensor, actions=action_tensor)
-        pred_next_state = pred_next_state.detach().cpu().numpy().squeeze()
-        dynamic_error = (np.mean((pred_next_state - next_state) ** 2))
-
-        return dynamic_error, reward_error
-
     def train_policy(self, experiences):
         """
         Train the policy with Model-Based Value Expansion. A family of MBRL.
@@ -136,50 +124,115 @@ class SAC_MBRL:
         """
         self.learn_counter += 1
         info = {}
+
+        ### Standarize the data.
         (states, actions, rewards, next_states, dones, next_actions,
          next_rewards) = experiences
-
         batch_size = len(states)
+
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-
-        next_rewards = torch.FloatTensor(np.asarray(next_rewards)).to(self.device)
-        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
-
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(
+        next_rewards = torch.FloatTensor(np.asarray(next_rewards)).to(
             self.device)
+        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(
+            self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         next_rewards = next_rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
         not_dones = 1 - dones
+
         assert len(states.shape) >= 2
         assert len(actions.shape) == 2
         assert len(rewards.shape) == 2 and rewards.shape[1] == 1
         assert len(next_states.shape) >= 2
         assert len(not_dones.shape) == 2 and not_dones.shape[1] == 1
-        self.batch_size = states.shape[0]
+
+        ###################     Train the world model     ######################
         self.train_world_model(states=states, actions=actions, rewards=rewards,
                                next_states=next_states,
                                next_actions=next_actions,
                                next_rewards=next_rewards)
+        ##################     Update the Critic First     #####################
 
         with torch.no_grad():
-            if (not self.use_mve_steve) and (not self.use_mve_critic):
-                next_actions, next_log_pi, _ = self.actor_net.sample(
-                    next_states)
-                target_q_one, target_q_two = self.target_critic_net(
-                    next_states, next_actions
-                )
-                target_q_values = (
-                        torch.minimum(target_q_one, target_q_two)
-                        - self.alpha * next_log_pi
-                )
-                q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            # train critic with the steve first.
+            if self.use_critic_steve:
+                # Increase a horizon channel.
+                pred_all_next_obs = next_states.unsqueeze(dim=0)
+                pred_all_next_rewards = rewards.unsqueeze(dim=0)
+                means = []
+                vars = []
+                # For each horizon
+                for hori in range(self.horizon):
+                    pred_all_next_rewards_list = []
+                    pred_all_next_next_obs = []
+                    est_target_q = []
+                    # For each predicted state.
+                    for stat in range(pred_all_next_obs.shape[0]):
+                        pred_target_us, pred_log_pi, _ = self.actor_net.sample(
+                            pred_all_next_obs[stat])
+                        pred_target_q1, pred_target_q2 = self.target_critic_net(
+                            pred_all_next_obs[stat], pred_target_us)
+
+                        pred_target_q = torch.min(pred_target_q1,
+                                                  pred_target_q2) \
+                                        - self.alpha.detach() * pred_log_pi
+
+                        _, pred_rewards = self.world_model.pred_rewards(
+                            obs=pred_all_next_obs[stat],
+                            actions=pred_target_us)
+
+                        # For each reward, estimate a q value.
+                        temp_disc_rewards = []
+                        for rwd in range(pred_rewards.shape[0]):
+                            disc_pred_reward = (self.gamma ** (hori + 1)) * \
+                                               pred_rewards[rwd]
+                            if hori > 0:
+                                a = pred_all_next_rewards[
+                                        stat] + not_dones * disc_pred_reward
+                            else:
+                                a = not_dones * disc_pred_reward
+                            temp_disc_rewards.append(a)
+                            assert rewards.shape == not_dones.shape == a.shape == pred_target_q.shape
+                            pred_q = rewards + a + not_dones * (
+                                    self.gamma ** (
+                                    hori + 2)) * pred_target_q
+                            est_target_q.append(pred_q)
+
+                    if hori < self.horizon - 1:
+                        _, pred_all_next_ob, _, _ = self.world_model.pred_next_states(
+                            pred_all_next_obs[stat],
+                            pred_target_us)
+                        temp_disc_rewards = torch.stack(temp_disc_rewards)
+                        pred_all_next_rewards_list.append(temp_disc_rewards)
+                        pred_all_next_next_obs.append(pred_all_next_ob)
+                        # Predict the future.
+                        pred_all_next_obs = torch.vstack(
+                            pred_all_next_next_obs)
+                        pred_all_next_rewards = torch.vstack(
+                            pred_all_next_rewards_list)
+
+                    #     # Statistics of target q
+                    h_0 = torch.stack(est_target_q)
+                    mean_0 = torch.mean(h_0, dim=0)
+                    means.append(mean_0)
+                    var_0 = torch.var(h_0, dim=0)
+                    var_0[torch.abs(var_0) < 0.001] = 0.001
+                    var_0 = 1.0 / var_0
+                    vars.append(var_0)
+
+                all_means = torch.stack(means)
+                all_vars = torch.stack(vars)
+                total_vars = torch.sum(all_vars, dim=0)
+                for n in range(self.horizon):
+                    all_vars[n] /= total_vars
+                q_target = torch.sum(all_vars * all_means, dim=0)
+
         q_values_one, q_values_two = self.critic_net(states, actions)
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
@@ -189,49 +242,11 @@ class SAC_MBRL:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        ###     Updating the actor   ###
-        if self.use_mve_actor:
-            pred_states = [states]
-            pred_state = states
-            a_s = []
-            log_pi_s = []
-            # first_log_p = 0
-            for h in range(self.horizon):
-                # Roll out
-                sample_a, log_pi, _ = self.actor_net.sample(pred_state)
-                if h == 0:
-                    first_log_p = log_pi
-                pred_state, _, _, _ = self.world_model.pred_next_states(
-                    pred_state, sample_a)
-                # Add to list
-                pred_states.append(pred_state)
-                a_s.append(sample_a)
-                log_pi_s.append(log_pi.squeeze())
-            #    Last step    #
-            sample_a, log_pi, _ = self.actor_net.sample(pred_state)
-            a_s.append(sample_a)
-            log_pi_s.append(log_pi.squeeze())
-            #    Stacking all produced data    #
-            pred_states = torch.stack(pred_states)
-            a_s = torch.stack(a_s)
-            log_pi_s = torch.stack(log_pi_s)
-
-            #    Computing the loss of the Actor    #
-            pred_v = 0
-            for i in range(self.horizon):
-                q_1, q_2 = self.critic_net.forward(pred_states[i,:], a_s[i,:])
-                # all_obs : [3, 64], us: [3, 64]
-                # V = Q -alpha * log
-                v_min = (torch.min(q_1, q_2).reshape(self.batch_size)-
-                         self.alpha.detach() * log_pi_s[i, :])
-                pred_v += v_min.sum()
-            actor_loss = -1 * pred_v
-
-        else:
-            pi, first_log_p, _ = self.actor_net.sample(states)
-            qf1_pi, qf2_pi = self.critic_net(states, pi)
-            min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
-            actor_loss = ((self.alpha * first_log_p) - min_qf_pi).mean()
+        ##################     Update the Actor Second     #####################
+        pi, first_log_p, _ = self.actor_net.sample(states)
+        qf1_pi, qf2_pi = self.critic_net(states, pi)
+        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        actor_loss = ((self.alpha * first_log_p) - min_qf_pi).mean()
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
@@ -263,7 +278,6 @@ class SAC_MBRL:
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
         info["actor_loss"] = actor_loss
-
         return info
 
     def train_world_model(self, states, actions, rewards, next_states,
@@ -290,6 +304,31 @@ class SAC_MBRL:
         next_rewards = next_rewards[ok_masks]
         self.world_model.train_world(states, actions, rewards,
                                      next_states, next_actions, next_rewards)
+
+    def eval_model(self, state, action, next_state, reward):
+        """
+        For each evaluation time step, evaluate the world model and reward
+        model.
+
+        """
+        state_tensor = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
+        action_tensor = torch.FloatTensor(action).unsqueeze(dim=0).to(
+            self.device)
+        assert len(action_tensor.shape) == 2 and action_tensor.shape[0] == 1
+        assert len(state_tensor.shape) == 2 and state_tensor.shape[0] == 1
+
+        pred_mean, _ = self.world_model.pred_rewards(obs=state_tensor,
+                                                     actions=action_tensor)
+        pred_mean = pred_mean.item()
+        reward_error = abs(pred_mean - reward)
+
+        # World model prediction
+        pred_next_state, _, _, _ = self.world_model.pred_next_states(
+            obs=state_tensor, actions=action_tensor)
+        pred_next_state = pred_next_state.detach().cpu().numpy().squeeze()
+        dynamic_error = (np.mean((pred_next_state - next_state) ** 2))
+
+        return dynamic_error, reward_error
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
