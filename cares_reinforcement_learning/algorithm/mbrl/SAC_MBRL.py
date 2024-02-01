@@ -158,7 +158,7 @@ class SAC_MBRL:
                     # For each state batch [256, 17], reward extend 5 times,
                     # next extend 5 time.
                     for stat in range(pred_all_next_obs.shape[0]):
-                        pred_action, pred_log_pi, _ = self.actor_net(
+                        pred_action, pred_log_pi, _ = self.actor_net.sample(
                             pred_all_next_obs[stat])
                         pred_q1, pred_q2 = self.target_critic_net(
                             pred_all_next_obs[stat], pred_action)
