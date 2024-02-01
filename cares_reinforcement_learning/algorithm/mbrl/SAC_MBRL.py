@@ -211,7 +211,7 @@ class SAC_MBRL:
                     all_vars[n] /= total_vars
                 q_target = torch.sum(all_vars * all_means, dim=0)
 
-            if (not self.use_mve_steve) and (not self.use_mve_critic):
+            if (not self.use_critic_steve) and (not self.use_critic_mve):
                 next_actions, next_log_pi, _ = self.actor_net.sample(
                     next_states)
                 target_q_one, target_q_two = self.target_critic_net(
