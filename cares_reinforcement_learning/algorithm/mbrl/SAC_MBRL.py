@@ -114,7 +114,6 @@ class SAC_MBRL:
         """
         self.learn_counter += 1
         info = {}
-
         ### Standarize the data.
         (states, actions, rewards, next_states, dones, next_actions,
          next_rewards) = experiences
