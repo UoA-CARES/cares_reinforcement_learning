@@ -34,7 +34,6 @@ class SAC_MBRL:
             critic_lr,
             use_bounded_active,
             use_actor_mve,
-            use_actor_pg,
             use_critic_mve,
             use_critic_steve,
             use_dyna,
@@ -47,7 +46,6 @@ class SAC_MBRL:
         self.use_critic_steve = use_critic_steve
         self.use_critic_mve = use_critic_mve
         self.use_actor_mve = use_actor_mve
-        self.use_actor_pg = use_actor_pg
         self.use_dyna = use_dyna
         self.horizon = horizon
 

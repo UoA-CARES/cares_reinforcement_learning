@@ -82,4 +82,5 @@ class Actor(nn.Module):
         return sample, log_pi, dist.mean
 
     def forward(self, state):
-        raise NotImplementedError("Not required for SAC - use sample() instead")
+        return self.sample(state)
+        # raise NotImplementedError("Not required for SAC - use sample() instead")
