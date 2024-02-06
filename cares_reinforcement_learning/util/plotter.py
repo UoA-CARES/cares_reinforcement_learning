@@ -15,9 +15,15 @@ from glob import glob
 # TODO make the plots look how people want them too. This is just a basic example
 def plot_data(plot_frame, title, label, x_label, y_label, directory, filename, display=True, close_figure=True):
     # TODO make font size a parameter
-    plt.xlabel(x_label, fontsize=10)
-    plt.ylabel(y_label, fontsize=10)
-    plt.title(title, fontsize=10)
+
+    plt.xlabel(x_label, fontsize=21)
+    plt.ylabel(y_label, fontsize=21)
+    plt.title(title, fontsize=30)
+    plt.xticks(fontsize=15, )
+    plt.yticks(fontsize=15, )
+    plt.gca().xaxis.offsetText.set_fontsize(15)
+
+
 
     ax = sns.lineplot(data=plot_frame, x=plot_frame["steps"], y="avg", label=label)
     
@@ -25,8 +31,11 @@ def plot_data(plot_frame, title, label, x_label, y_label, directory, filename, d
     # https://saturncloud.io/blog/plot-95-confidence-interval-errorbar-python-pandas-dataframes/
     Z = 1.960 # 95% confidence interval
     confidence_interval = Z * plot_frame["std_dev"] / np.sqrt(len(plot_frame["avg"]))
-
     plt.fill_between(plot_frame["steps"], plot_frame["avg"] - confidence_interval, plot_frame["avg"] + confidence_interval, alpha=0.4)
+
+    plt.legend( fontsize="15", loc="upper left")
+    fig_manager = plt.get_current_fig_manager()
+    fig_manager.window.setGeometry(100, 100, 800, 650)
 
     plt.savefig(f"{directory}/figures/{filename}.png")
 

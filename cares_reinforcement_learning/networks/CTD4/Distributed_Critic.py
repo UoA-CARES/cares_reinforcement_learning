@@ -2,9 +2,9 @@
 import torch
 import torch.nn as nn
 
-class Stochastic_Critic(nn.Module):
+class Distributed_Critic(nn.Module):
     def __init__(self, observation_size, action_num):
-        super(Stochastic_Critic, self).__init__()
+        super(Distributed_Critic, self).__init__()
 
 
         self.hidden_size = [256, 256]

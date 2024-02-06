@@ -1,7 +1,8 @@
 
 """
-Stochastic TD3
-Here the critic return a probability distribution.
+CTD4
+Continues Distributed TD3
+Each Critic output a normal distribution
 """
 
 import os
@@ -10,9 +11,9 @@ import logging
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.networks.STC_TD3 import Actor, Stochastic_Critic as Critic
+from cares_reinforcement_learning.networks.CTD4 import Actor, Distributed_Critic as Critic
 
-class STC_TD3(object):
+class CTD4(object):
     def __init__(self,
                  observation_size=10,
                  action_num=2,
@@ -20,7 +21,7 @@ class STC_TD3(object):
                  ensemble_size=2,
                  actor_lr=1e-4,
                  critic_lr=1e-3,
-                 fusion_method = "kalman"
+                 fusion_method = "average"
                  ):
 
 
@@ -69,7 +70,6 @@ class STC_TD3(object):
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
-                # this is part the TD3 too, add noise to the action
                 noise  = np.random.normal(0, scale=noise_scale, size=self.action_num)
                 action = action + noise
                 action = np.clip(action, a_min=-1, a_max=1)
@@ -145,7 +145,6 @@ class STC_TD3(object):
                 std_concat = torch.concat(std_set, dim=1)
                 fusion_std = torch.stack([std_concat[i, fusion_min.indices[i]] for i in range(len(std_concat))]).unsqueeze(0).reshape(batch_size, 1)
 
-
             # Create the target distribution = aX+b
             u_target   =  rewards +  self.gamma * fusion_u * (1 - dones)
             std_target =  self.gamma * fusion_std
@@ -156,16 +155,13 @@ class STC_TD3(object):
             current_distribution   = torch.distributions.normal.Normal(u_current, std_current)
 
             # Compute each critic loss
-            critic_individual_loss = torch.distributions.kl.kl_divergence(current_distribution, target_distribution).mean() # todo try other divergence too
+            critic_individual_loss = torch.distributions.kl.kl_divergence(current_distribution, target_distribution).mean()
 
             # --------- Update Each Critic # ------------#
             critic_net_optimiser.zero_grad()
             critic_individual_loss.backward()
             critic_net_optimiser.step()
             # -------------------------------------------#
-
-
-
 
         if self.learn_counter % self.policy_update_freq == 0:
             actor_q_u_set   = []
@@ -192,16 +188,16 @@ class STC_TD3(object):
                 # -------------------------------  #
                 # average combination of all critics and then a single mean for the actor loss
                 fusion_u_a   = torch.mean(torch.concat(actor_q_u_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size,1)
-                # fusion_std_a = torch.mean(torch.concat(actor_q_std_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
+                fusion_std_a = torch.mean(torch.concat(actor_q_std_set, dim=1), dim=1).unsqueeze(0).reshape(batch_size, 1)
                 # -------------------------------- #
 
             elif self.fusion_method == "minimum":
                 # -----------------------------------------#
                 fusion_min_a = torch.min(torch.concat(actor_q_u_set, dim=1), dim=1)
                 fusion_u_a   = fusion_min_a.values.unsqueeze(0).reshape(batch_size, 1)
-                # # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
-                # std_concat_a = torch.concat(actor_q_std_set, dim=1)
-                # fusion_std_a = torch.stack([std_concat_a[i, fusion_min_a.indices[i]] for i in range(len(std_concat_a))]).unsqueeze(0).reshape(batch_size, 1)
+                # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
+                std_concat_a = torch.concat(actor_q_std_set, dim=1)
+                fusion_std_a = torch.stack([std_concat_a[i, fusion_min_a.indices[i]] for i in range(len(std_concat_a))]).unsqueeze(0).reshape(batch_size, 1)
                 # -----------------------------------------#
 
             actor_loss  = -fusion_u_a.mean()

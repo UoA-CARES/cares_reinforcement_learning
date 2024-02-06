@@ -125,10 +125,10 @@ class NaSATD3Config(AlgorithmConfig):
                 # lr_epm      = 1e-4
                 # w_decay_epm = 1e-3
 
-class STC_TD3Config(AlgorithmConfig):
-    algorithm: str = Field("STC_TD3", Literal=True)
+class CTD4Config(AlgorithmConfig):
+    algorithm: str = Field("CTD4", Literal=True)
 
-    actor_lr: Optional[float] = 1e-4
+    actor_lr: Optional[float]  = 1e-4
     critic_lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
     tau:   Optional[float] = 0.005
