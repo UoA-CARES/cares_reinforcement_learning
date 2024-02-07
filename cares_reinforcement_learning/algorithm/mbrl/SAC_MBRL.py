@@ -162,7 +162,7 @@ class SAC_MBRL:
                             pred_all_next_obs[stat])
                         pred_q1, pred_q2 = self.target_critic_net(
                             pred_all_next_obs[stat], pred_action)
-                        pred_q3, pred_q4 = self.critic_net.sample(
+                        pred_q3, pred_q4 = self.critic_net(
                             pred_all_next_obs[stat], pred_action)
 
                         pred_q1 -= self.alpha.detach() * pred_log_pi

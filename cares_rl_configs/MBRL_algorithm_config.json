@@ -1,0 +1,13 @@
+{
+    "algorithm": "MBRL_SAC",
+    "actor_lr": 3e-4,
+    "critic_lr": 3e-4,
+    "gamma": 0.99,
+    "tau": 0.005,
+    "use_bounded_active": false,
+    "use_critic_steve": true,
+    "use_actor_mve": false,
+    "use_critic_mve": false,
+    "horizon": 4,
+    "use_dyna": false
+}

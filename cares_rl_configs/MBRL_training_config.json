@@ -1,0 +1,18 @@
+{
+    "_comment": "Different from other algorithms, SAC do automatic exploration",
+    "seeds": [
+        10,
+        25,
+        35,
+        45,
+        55
+    ],
+    "G": 1,
+    "batch_size": 256,
+    "max_steps_exploration": 256,
+    "max_steps_training": 1000000,
+    "number_steps_per_evaluation": 10000,
+    "number_eval_episodes": 10,
+    "plot_frequency": 100,
+    "checkpoint_frequency": 100
+}
