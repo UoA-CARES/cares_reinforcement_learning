@@ -162,8 +162,16 @@ class SAC_MBRL:
                             pred_all_next_obs[stat])
                         pred_q1, pred_q2 = self.target_critic_net(
                             pred_all_next_obs[stat], pred_action)
-                        pred_v = torch.min(pred_q1, pred_q2) \
-                                 - self.alpha.detach() * pred_log_pi
+                        pred_q3, pred_q4 = self.critic_net.sample(
+                            pred_all_next_obs[stat], pred_action)
+
+                        pred_q1 -= self.alpha.detach() * pred_log_pi
+                        pred_q2 -= self.alpha.detach() * pred_log_pi
+                        pred_q3 -= self.alpha.detach() * pred_log_pi
+                        pred_q4 -= self.alpha.detach() * pred_log_pi
+
+                        # pred_v = torch.min(pred_q1, pred_q2) \
+                        #          - self.alpha.detach() * pred_log_pi
                         # Predict a set of reward first
                         _, pred_rewards = self.world_model.pred_rewards(
                             obs=pred_all_next_obs[stat],
@@ -185,11 +193,26 @@ class SAC_MBRL:
                             else:
                                 disc_sum_reward = not_dones * disc_pred_reward
                             temp_disc_rewards.append(disc_sum_reward)
-                            assert rewards.shape == not_dones.shape == disc_sum_reward.shape == pred_v.shape
+                            assert rewards.shape == not_dones.shape == disc_sum_reward.shape
                             # Q = r + disc_rewards + pred_v
-                            pred_tq = rewards + disc_sum_reward + not_dones * (
-                                    self.gamma ** (hori + 2)) * pred_v
-                            horizon_q_list.append(pred_tq)
+
+                            pred_tq1 = rewards + disc_sum_reward + not_dones * (
+                                    self.gamma ** (hori + 2)) * pred_q1
+                            pred_tq2 = rewards + disc_sum_reward + not_dones * (
+                                    self.gamma ** (hori + 2)) * pred_q2
+                            pred_tq3 = rewards + disc_sum_reward + not_dones * (
+                                    self.gamma ** (hori + 2)) * pred_q3
+                            pred_tq4 = rewards + disc_sum_reward + not_dones * (
+                                    self.gamma ** (hori + 2)) * pred_q4
+                            #
+                            # pred_tq = rewards + disc_sum_reward + not_dones * (
+                            #         self.gamma ** (hori + 2)) * pred_v
+                            # horizon_q_list.append(pred_tq)
+                            horizon_q_list.append(pred_tq1)
+                            horizon_q_list.append(pred_tq2)
+                            horizon_q_list.append(pred_tq3)
+                            horizon_q_list.append(pred_tq4)
+
                         ## Observation Level
                         temp_disc_rewards = torch.stack(temp_disc_rewards)
                         horizon_rewards_list.append(temp_disc_rewards)
