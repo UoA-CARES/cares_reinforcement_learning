@@ -110,7 +110,6 @@ def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
         critic_lr=config.critic_lr,
         gamma=config.gamma,
         tau=config.tau,
-        action_num=action_num,
         device=device,
     )
     return agent
