@@ -13,9 +13,9 @@ class Actor(nn.Module):
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
             nn.Linear(self.hidden_size[1], action_num),
-            nn.Tanh()
+            nn.Tanh(),
         )
 
     def forward(self, state):
-        output   = self.act_net(state)
+        output = self.act_net(state)
         return output
