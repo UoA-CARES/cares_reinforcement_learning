@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 
-class Distributed_Critic(nn.Module):
+class DistributedCritic(nn.Module):
     def __init__(self, observation_size, action_num):
         super().__init__()
 

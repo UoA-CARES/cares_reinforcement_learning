@@ -171,7 +171,7 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import CTD4
     from cares_reinforcement_learning.networks.CTD4 import (
         Actor,
-        Distributed_Critic as Critic,
+        DistributedCritic as Critic,
     )
 
     actor = Actor(observation_size, action_num)

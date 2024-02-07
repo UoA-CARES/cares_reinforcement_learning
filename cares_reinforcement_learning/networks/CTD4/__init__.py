@@ -1,2 +1,2 @@
 from .actor import Actor
-from .distributed_critic import Distributed_Critic
+from .distributed_critic import DistributedCritic
