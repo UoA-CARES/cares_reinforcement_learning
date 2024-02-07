@@ -136,7 +136,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
+def create_NaSATD3(action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
     from cares_reinforcement_learning.networks.NaSATD3 import (
         Actor,
