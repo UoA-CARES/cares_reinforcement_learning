@@ -169,9 +169,18 @@ def create_NaSATD3(action_num, config: AlgorithmConfig):
 
 def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import CTD4
+    from cares_reinforcement_learning.networks.CTD4 import (
+        Actor,
+        Distributed_Critic as Critic,
+    )
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = CTD4(
+        actor_network=actor,
+        critic_network=critic,
         observation_size=observation_size,
         action_num=action_num,
         device=device,

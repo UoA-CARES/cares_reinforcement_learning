@@ -10,15 +10,12 @@ import logging
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.networks.CTD4 import (
-    Actor,
-    Distributed_Critic as Critic,
-)
-
 
 class CTD4:
     def __init__(
         self,
+        actor_network,
+        critic_network,
         observation_size=10,
         action_num=2,
         device="cuda",
@@ -44,10 +41,7 @@ class CTD4:
         self.device = device
 
         self.observation_size = observation_size
-
-        self.actor_net = Actor(
-            observation_size=observation_size, action_num=action_num
-        ).to(device)
+        self.actor_net = actor_network.to(device)
         self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
 
         lr_actor = actor_lr
@@ -58,10 +52,8 @@ class CTD4:
         # ------------- Ensemble of critics ------------------#
         self.ensemble_size = ensemble_size
         self.ensemble_critics = torch.nn.ModuleList()
-        critics = [
-            Critic(observation_size=observation_size, action_num=action_num)
-            for _ in range(self.ensemble_size)
-        ]
+
+        critics = [critic_network for _ in range(self.ensemble_size)]
         self.ensemble_critics.extend(critics)
         self.ensemble_critics.to(device)
 
