@@ -1,7 +1,7 @@
 import pytest
 from cares_reinforcement_learning.algorithm.policy import *
 from cares_reinforcement_learning.algorithm.value import *
-from cares_reinforcement_learning.util.NetworkFactory import *
+from cares_reinforcement_learning.util.network_factory import *
 from cares_reinforcement_learning.util.helpers import *
 from cares_reinforcement_learning.util.configurations import *
 
@@ -13,10 +13,10 @@ def test_create_agents():
     agent = create_DuelingDQN(10, 5, DuelingDQNConfig())
     assert isinstance(agent, DQN), "Failed to create DuelingDQN agent"
 
-    agent = create_DDQN(10, 5, DoubleDQNConfig())
+    agent = create_DoubleDQN(10, 5, DoubleDQNConfig())
     assert isinstance(agent, DoubleDQN), "Failed to create DDQN agent"
 
-    agent = create_PPO(10, 5,PPOConfig())
+    agent = create_PPO(10, 5, PPOConfig())
     assert isinstance(agent, PPO), "Failed to create PPO agent"
 
     agent = create_SAC(10, 5, SACConfig())
@@ -41,7 +41,7 @@ def test_create_network():
     agent = factory.create_network(10, 5, DuelingDQNConfig())
     assert isinstance(agent, DQN), "Failed to create DuelingDQN agent"
 
-    agent = factory.create_network(10, 5,PPOConfig())
+    agent = factory.create_network(10, 5, PPOConfig())
     assert isinstance(agent, PPO), "Failed to create PPO agent"
 
     agent = factory.create_network(10, 5, SACConfig())
@@ -52,7 +52,7 @@ def test_create_network():
 
     agent = factory.create_network(10, 5, TD3Config())
     assert isinstance(agent, TD3), "Failed to create TD3 agent"
-    
+
     agent = factory.create_network(10, 5, AlgorithmConfig(algorithm="unknown"))
     assert agent is None, f"Unkown failed to return None: returned {agent}"
 

@@ -1,1 +1,1 @@
-from .Network import DuelingNetwork
+from .network import DuelingNetwork
