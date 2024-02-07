@@ -1,10 +1,10 @@
 
 import torch
-import torch.nn as nn
+from torch import nn
 
 class Distributed_Critic(nn.Module):
     def __init__(self, observation_size, action_num):
-        super(Distributed_Critic, self).__init__()
+        super().__init__()
 
 
         self.hidden_size = [256, 256]

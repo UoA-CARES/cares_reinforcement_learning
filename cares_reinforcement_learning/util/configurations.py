@@ -132,8 +132,8 @@ class NaSATD3Config(AlgorithmConfig):
     # lr_encoder = 1e-3
     # lr_decoder = 1e-3
 
-                # lr_epm      = 1e-4
-                # w_decay_epm = 1e-3
+    # lr_epm      = 1e-4
+    # w_decay_epm = 1e-3
 
 class CTD4Config(AlgorithmConfig):
     algorithm: str = Field("CTD4", Literal=True)
