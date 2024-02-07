@@ -28,11 +28,13 @@ def plot_data(
     plt.xlabel(x_label, fontsize=21)
     plt.ylabel(y_label, fontsize=21)
     plt.title(title, fontsize=30)
-    plt.xticks(fontsize=15, )
-    plt.yticks(fontsize=15, )
+    plt.xticks(
+        fontsize=15,
+    )
+    plt.yticks(
+        fontsize=15,
+    )
     plt.gca().xaxis.offsetText.set_fontsize(15)
-
-
 
     sns.lineplot(data=plot_frame, x=plot_frame["steps"], y="avg", label=label)
 
@@ -48,7 +50,7 @@ def plot_data(
         alpha=0.4,
     )
 
-    plt.legend( fontsize="15", loc="upper left")
+    plt.legend(fontsize="15", loc="upper left")
     fig_manager = plt.get_current_fig_manager()
     fig_manager.window.setGeometry(100, 100, 800, 650)
 

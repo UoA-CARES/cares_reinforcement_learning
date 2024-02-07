@@ -166,21 +166,23 @@ def create_NaSATD3(action_num, config: AlgorithmConfig):
     )
     return agent
 
+
 def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import CTD4
 
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    agent  = CTD4(
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = CTD4(
         observation_size=observation_size,
         action_num=action_num,
         device=device,
         ensemble_size=config.ensemble_size,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
-        fusion_method = config.fusion_method
+        fusion_method=config.fusion_method,
     )
 
     return agent
+
 
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
