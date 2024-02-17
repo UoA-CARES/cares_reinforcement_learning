@@ -67,7 +67,6 @@ class TD3:
 
         states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
-
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -78,6 +77,13 @@ class TD3:
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        # print("states", states.shape)
+        # print("actions", actions.shape)
+        # print("rewards", rewards.shape)
+        # print("next_states", next_states.shape)
+        # print("dones", dones.shape)
+
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)

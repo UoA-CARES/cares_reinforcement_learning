@@ -1,6 +1,7 @@
 import logging
 import random
 from collections import deque
+import numpy as np
 
 
 class MemoryBuffer:
@@ -11,11 +12,13 @@ class MemoryBuffer:
         self.buffer.append(experience)
 
     def sample(self, batch_size):
-
         batch_size = min(batch_size, len(self.buffer))
         experience_batch = random.sample(self.buffer, batch_size)
-        states, actions, rewards, next_states, dones = zip(*experience_batch)
-        return states, actions, rewards, next_states, dones
+        # states, actions, rewards, next_states, dones = zip(*experience_batch)
+        # return states, actions, rewards, next_states, dones
+        transposed_batch = zip(*experience_batch)
+        # return [component for component in transposed_batch]
+        return transposed_batch
 
     def flush(self):
         states, actions, rewards, next_states, dones, log_probs = zip(
@@ -39,12 +42,11 @@ class MemoryBuffer:
 #
 #         if self.state is None:
 #             # Infer dimensions from the inputs to avoid passing them as arg
-#             state_dim = state.shape[0]
+#             state_dim =  state.shape[0]
 #             action_dim = action.shape[0]
-#
-#
+
 #             # Initialize arrays
-#             self.state = np.zeros((self.max_size, state_dim))
+#             self.state = np.empty((self.max_size, *state_dim))
 #             self.action = np.zeros((self.max_size, action_dim))
 #             self.next_state = np.zeros((self.max_size, state_dim))
 #             self.reward = np.zeros((self.max_size))
