@@ -78,13 +78,6 @@ class TD3:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # print("states", states.shape)
-        # print("actions", actions.shape)
-        # print("rewards", rewards.shape)
-        # print("next_states", next_states.shape)
-        # print("dones", dones.shape)
-
-
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = 0.2 * torch.randn_like(next_actions)
