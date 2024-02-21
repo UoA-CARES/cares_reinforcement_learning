@@ -2,7 +2,6 @@ import argparse
 import json
 import logging
 from glob import glob
-
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -51,8 +50,8 @@ def plot_data(
     )
 
     plt.legend(fontsize="15", loc="upper left")
-    fig_manager = plt.get_current_fig_manager()
-    fig_manager.window.setGeometry(100, 100, 800, 650)
+    # fig_manager = plt.get_current_fig_manager()
+    # fig_manager.window.setGeometry(100, 100, 800, 650)
 
     plt.savefig(f"{directory}/figures/{filename}.png")
 
