@@ -6,9 +6,10 @@ from cares_reinforcement_learning.memory.augments import *
 
 
 class MemoryFactory:
-    def create_memory(self, memory_type, args):
+    def create_memory(self, memory_type, state_dim, action_dim):
         if memory_type == "MemoryBuffer":
-            return MemoryBuffer()
+            return MemoryBuffer(state_dim=state_dim, action_dim=action_dim)
+
         if memory_type == "PER":
-            return MemoryBuffer(augment=td_error)
+            return MemoryBuffer()
         raise ValueError(f"Unkown memory type: {memory_type}")

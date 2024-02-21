@@ -134,6 +134,46 @@ class MBRL_SACConfig(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 
+class MBRL_STEVEConfig(AlgorithmConfig):
+    algorithm: str = Field("MBRL_SAC", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    use_bounded_active: Optional[bool] = False
+    use_critic_steve: Optional[bool] = False
+    use_actor_mve: Optional[bool] = False
+    use_critic_mve: Optional[bool] = False
+    use_dyna: Optional[bool] = False
+
+    num_models: Optional[int] = 5
+
+    horizon: Optional[int] = 5
+    world_model_lr: Optional[float] = 0.001
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    memory: Optional[str] = "MemoryBuffer"
+
+class MBRL_DYNAConfig(AlgorithmConfig):
+    algorithm: str = Field("MBRL_SAC", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    use_bounded_active: Optional[bool] = False
+    use_critic_steve: Optional[bool] = False
+    use_actor_mve: Optional[bool] = False
+    use_critic_mve: Optional[bool] = False
+    use_dyna: Optional[bool] = False
+
+    num_models: Optional[int] = 5
+
+    horizon: Optional[int] = 5
+    world_model_lr: Optional[float] = 0.001
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    memory: Optional[str] = "MemoryBuffer"
+
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)
     # actor_lr: Optional[float] = 1e-4
