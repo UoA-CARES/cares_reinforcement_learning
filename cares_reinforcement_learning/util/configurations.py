@@ -106,73 +106,37 @@ class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
-
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-
     memory: Optional[str] = "MemoryBuffer"
 
 
-class MBRL_SACConfig(AlgorithmConfig):
-    algorithm: str = Field("MBRL_SAC", Literal=True)
+class MBRL_DYNAConfig(AlgorithmConfig):
+    algorithm: str = Field("MBRL_DYNA", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
-
     use_bounded_active: Optional[bool] = False
-    use_critic_steve: Optional[bool] = False
-    use_actor_mve: Optional[bool] = False
-    use_critic_mve: Optional[bool] = False
-    use_dyna: Optional[bool] = False
-
     num_models: Optional[int] = 5
-
-    horizon: Optional[int] = 5
-    world_model_lr: Optional[float] = 0.001
-
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     memory: Optional[str] = "MemoryBuffer"
+    horizon: Optional[int] = 3
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
 
 
 class MBRL_STEVEConfig(AlgorithmConfig):
-    algorithm: str = Field("MBRL_SAC", Literal=True)
+    algorithm: str = Field("MBRL_STEVE", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
-
     use_bounded_active: Optional[bool] = False
-    use_critic_steve: Optional[bool] = False
-    use_actor_mve: Optional[bool] = False
-    use_critic_mve: Optional[bool] = False
-    use_dyna: Optional[bool] = False
-
     num_models: Optional[int] = 5
-
-    horizon: Optional[int] = 5
-    world_model_lr: Optional[float] = 0.001
-
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     memory: Optional[str] = "MemoryBuffer"
-
-class MBRL_DYNAConfig(AlgorithmConfig):
-    algorithm: str = Field("MBRL_SAC", Literal=True)
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-
-    use_bounded_active: Optional[bool] = False
-    use_critic_steve: Optional[bool] = False
-    use_actor_mve: Optional[bool] = False
-    use_critic_mve: Optional[bool] = False
-    use_dyna: Optional[bool] = False
-
-    num_models: Optional[int] = 5
-
     horizon: Optional[int] = 5
     world_model_lr: Optional[float] = 0.001
 
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    memory: Optional[str] = "MemoryBuffer"
 
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)

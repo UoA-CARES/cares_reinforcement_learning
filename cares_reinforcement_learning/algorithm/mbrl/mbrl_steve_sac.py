@@ -33,20 +33,12 @@ class MBRL_STEVE_SAC:
         actor_lr,
         critic_lr,
         use_bounded_active,
-        use_actor_mve,
-        use_critic_mve,
-        use_critic_steve,
-        use_dyna,
         horizon,
         device,
     ):
         self.device = device
         self.batch_size = None
         self.use_bounded_active = use_bounded_active
-        self.use_critic_steve = use_critic_steve
-        self.use_critic_mve = use_critic_mve
-        self.use_actor_mve = use_actor_mve
-        self.use_dyna = use_dyna
         self.horizon = horizon
 
         self.type = "mbrl"
@@ -114,7 +106,7 @@ class MBRL_STEVE_SAC:
         self.learn_counter += 1
         info = {}
         ### Standarize the data.
-        (states, actions, rewards, next_states, dones, next_actions, next_rewards) = (experiences)
+        (states, actions, rewards, next_states, dones, _, next_actions, next_rewards) = (experiences)
         batch_size = len(states)
 
         # Convert into tensor
@@ -147,130 +139,119 @@ class MBRL_STEVE_SAC:
         )
 
         with torch.no_grad():
-            if self.use_critic_steve:
-                pred_all_next_obs = next_states.unsqueeze(dim=0)
-                pred_all_next_rewards = torch.zeros(rewards.shape).unsqueeze(dim=0)
-                means = []
-                q_vars = []
-                for hori in range(self.horizon):
-                    horizon_rewards_list = []
-                    horizon_obs_list = []
-                    horizon_q_list = []
-                    # For each state batch [256, 17], reward extend 5 times,
-                    # next extend 5 time.
-                    for stat in range(pred_all_next_obs.shape[0]):
-                        pred_action, pred_log_pi, _ = self.actor_net.sample(
-                            pred_all_next_obs[stat]
-                        )
-                        pred_q1, pred_q2 = self.target_critic_net(
-                            pred_all_next_obs[stat], pred_action
-                        )
-                        pred_q3, pred_q4 = self.critic_net(
-                            pred_all_next_obs[stat], pred_action
-                        )
+            pred_all_next_obs = next_states.unsqueeze(dim=0)
+            pred_all_next_rewards = torch.zeros(rewards.shape).unsqueeze(dim=0)
+            means = []
+            q_vars = []
+            for hori in range(self.horizon):
+                horizon_rewards_list = []
+                horizon_obs_list = []
+                horizon_q_list = []
+                # For each state batch [256, 17], reward extend 5 times,
+                # next extend 5 time.
+                for stat in range(pred_all_next_obs.shape[0]):
+                    pred_action, pred_log_pi, _ = self.actor_net.sample(
+                        pred_all_next_obs[stat]
+                    )
+                    pred_q1, pred_q2 = self.target_critic_net(
+                        pred_all_next_obs[stat], pred_action
+                    )
+                    pred_q3, pred_q4 = self.critic_net(
+                        pred_all_next_obs[stat], pred_action
+                    )
 
-                        pred_q1 -= self.alpha.detach() * pred_log_pi
-                        pred_q2 -= self.alpha.detach() * pred_log_pi
-                        pred_q3 -= self.alpha.detach() * pred_log_pi
-                        pred_q4 -= self.alpha.detach() * pred_log_pi
+                    pred_q1 -= self.alpha.detach() * pred_log_pi
+                    pred_q2 -= self.alpha.detach() * pred_log_pi
+                    pred_q3 -= self.alpha.detach() * pred_log_pi
+                    pred_q4 -= self.alpha.detach() * pred_log_pi
 
-                        # pred_v = torch.min(pred_q1, pred_q2) \
-                        #          - self.alpha.detach() * pred_log_pi
-                        # Predict a set of reward first
-                        _, pred_rewards = self.world_model.pred_rewards(
-                            obs=pred_all_next_obs[stat], actions=pred_action
-                        )
+                    # pred_v = torch.min(pred_q1, pred_q2) \
+                    #          - self.alpha.detach() * pred_log_pi
+                    # Predict a set of reward first
+                    _, pred_rewards = self.world_model.pred_rewards(
+                        obs=pred_all_next_obs[stat], actions=pred_action
+                    )
 
-                        # 0, 1, 2, 3,
-                        if hori < self.horizon - 1:
-                            _, pred_obs, _, _ = self.world_model.pred_next_states(
-                                pred_all_next_obs[stat], pred_action
-                            )
-                            horizon_obs_list.append(pred_obs)
-
-                        temp_disc_rewards = []
-                        # For each predict reward.
-                        for rwd in range(pred_rewards.shape[0]):
-                            disc_pred_reward = (
-                                not_dones
-                                * (self.gamma ** (hori + 1))
-                                * pred_rewards[rwd]
-                            )
-                            if hori > 0:
-                                # Horizon = 1, 2, 3, 4, 5
-                                disc_sum_reward = (
-                                    pred_all_next_rewards[stat] + disc_pred_reward
-                                )
-                            else:
-                                disc_sum_reward = not_dones * disc_pred_reward
-                            temp_disc_rewards.append(disc_sum_reward)
-                            assert (
-                                rewards.shape
-                                == not_dones.shape
-                                == disc_sum_reward.shape
-                            )
-                            # Q = r + disc_rewards + pred_v
-                            pred_tq1 = (
-                                rewards
-                                + disc_sum_reward
-                                + not_dones * (self.gamma ** (hori + 2)) * pred_q1
-                            )
-                            pred_tq2 = (
-                                rewards
-                                + disc_sum_reward
-                                + not_dones * (self.gamma ** (hori + 2)) * pred_q2
-                            )
-                            pred_tq3 = (
-                                rewards
-                                + disc_sum_reward
-                                + not_dones * (self.gamma ** (hori + 2)) * pred_q3
-                            )
-                            pred_tq4 = (
-                                rewards
-                                + disc_sum_reward
-                                + not_dones * (self.gamma ** (hori + 2)) * pred_q4
-                            )
-                            #
-                            # pred_tq = rewards + disc_sum_reward + not_dones * (
-                            #         self.gamma ** (hori + 2)) * pred_v
-                            # horizon_q_list.append(pred_tq)
-                            horizon_q_list.append(pred_tq1)
-                            horizon_q_list.append(pred_tq2)
-                            horizon_q_list.append(pred_tq3)
-                            horizon_q_list.append(pred_tq4)
-
-                        ## Observation Level
-                        temp_disc_rewards = torch.stack(temp_disc_rewards)
-                        horizon_rewards_list.append(temp_disc_rewards)
-
-                    ## Horizon level.
+                    # 0, 1, 2, 3,
                     if hori < self.horizon - 1:
-                        pred_all_next_obs = torch.vstack(horizon_obs_list)
-                        pred_all_next_rewards = torch.vstack(horizon_rewards_list)
-                    #     # Statistics of target q
-                    h_0 = torch.stack(horizon_q_list)
-                    mean_0 = torch.mean(h_0, dim=0)
-                    means.append(mean_0)
-                    var_0 = torch.var(h_0, dim=0)
-                    var_0[torch.abs(var_0) < 0.001] = 0.001
-                    var_0 = 1.0 / var_0
-                    q_vars.append(var_0)
-                all_means = torch.stack(means)
-                all_vars = torch.stack(q_vars)
-                total_vars = torch.sum(all_vars, dim=0)
-                for n in range(self.horizon):
-                    all_vars[n] /= total_vars
-                q_target = torch.sum(all_vars * all_means, dim=0)
+                        _, pred_obs, _, _ = self.world_model.pred_next_states(
+                            pred_all_next_obs[stat], pred_action
+                        )
+                        horizon_obs_list.append(pred_obs)
 
-            if (not self.use_critic_steve) and (not self.use_critic_mve):
-                next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
-                target_q_one, target_q_two = self.target_critic_net(
-                    next_states, next_actions
-                )
-                target_q_values = (
-                    torch.minimum(target_q_one, target_q_two) - self.alpha * next_log_pi
-                )
-                q_target = rewards + self.gamma * (1 - dones) * target_q_values
+                    temp_disc_rewards = []
+                    # For each predict reward.
+                    for rwd in range(pred_rewards.shape[0]):
+                        disc_pred_reward = (
+                            not_dones
+                            * (self.gamma ** (hori + 1))
+                            * pred_rewards[rwd]
+                        )
+                        if hori > 0:
+                            # Horizon = 1, 2, 3, 4, 5
+                            disc_sum_reward = (
+                                pred_all_next_rewards[stat] + disc_pred_reward
+                            )
+                        else:
+                            disc_sum_reward = not_dones * disc_pred_reward
+                        temp_disc_rewards.append(disc_sum_reward)
+                        assert (
+                            rewards.shape
+                            == not_dones.shape
+                            == disc_sum_reward.shape
+                        )
+                        # Q = r + disc_rewards + pred_v
+                        pred_tq1 = (
+                            rewards
+                            + disc_sum_reward
+                            + not_dones * (self.gamma ** (hori + 2)) * pred_q1
+                        )
+                        pred_tq2 = (
+                            rewards
+                            + disc_sum_reward
+                            + not_dones * (self.gamma ** (hori + 2)) * pred_q2
+                        )
+                        pred_tq3 = (
+                            rewards
+                            + disc_sum_reward
+                            + not_dones * (self.gamma ** (hori + 2)) * pred_q3
+                        )
+                        pred_tq4 = (
+                            rewards
+                            + disc_sum_reward
+                            + not_dones * (self.gamma ** (hori + 2)) * pred_q4
+                        )
+                        #
+                        # pred_tq = rewards + disc_sum_reward + not_dones * (
+                        #         self.gamma ** (hori + 2)) * pred_v
+                        # horizon_q_list.append(pred_tq)
+                        horizon_q_list.append(pred_tq1)
+                        horizon_q_list.append(pred_tq2)
+                        horizon_q_list.append(pred_tq3)
+                        horizon_q_list.append(pred_tq4)
+
+                    ## Observation Level
+                    temp_disc_rewards = torch.stack(temp_disc_rewards)
+                    horizon_rewards_list.append(temp_disc_rewards)
+
+                ## Horizon level.
+                if hori < self.horizon - 1:
+                    pred_all_next_obs = torch.vstack(horizon_obs_list)
+                    pred_all_next_rewards = torch.vstack(horizon_rewards_list)
+                #     # Statistics of target q
+                h_0 = torch.stack(horizon_q_list)
+                mean_0 = torch.mean(h_0, dim=0)
+                means.append(mean_0)
+                var_0 = torch.var(h_0, dim=0)
+                var_0[torch.abs(var_0) < 0.001] = 0.001
+                var_0 = 1.0 / var_0
+                q_vars.append(var_0)
+            all_means = torch.stack(means)
+            all_vars = torch.stack(q_vars)
+            total_vars = torch.sum(all_vars, dim=0)
+            for n in range(self.horizon):
+                all_vars[n] /= total_vars
+            q_target = torch.sum(all_vars * all_means, dim=0)
 
         q_values_one, q_values_two = self.critic_net(states, actions)
         critic_loss_one = F.mse_loss(q_values_one, q_target)
@@ -344,32 +325,6 @@ class MBRL_STEVE_SAC:
         self.world_model.train_world(
             states, actions, rewards, next_states, next_actions, next_rewards
         )
-
-    def eval_model(self, state, action, next_state, reward):
-        """
-        For each evaluation time step, evaluate the world model and reward
-        model.
-
-        """
-        state_tensor = torch.FloatTensor(state).unsqueeze(dim=0).to(self.device)
-        action_tensor = torch.FloatTensor(action).unsqueeze(dim=0).to(self.device)
-        assert len(action_tensor.shape) == 2 and action_tensor.shape[0] == 1
-        assert len(state_tensor.shape) == 2 and state_tensor.shape[0] == 1
-
-        pred_mean, _ = self.world_model.pred_rewards(
-            obs=state_tensor, actions=action_tensor
-        )
-        pred_mean = pred_mean.item()
-        reward_error = abs(pred_mean - reward)
-
-        # World model prediction
-        pred_next_state, _, _, _ = self.world_model.pred_next_states(
-            obs=state_tensor, actions=action_tensor
-        )
-        pred_next_state = pred_next_state.detach().cpu().numpy().squeeze()
-        dynamic_error = np.mean((pred_next_state - next_state) ** 2)
-
-        return dynamic_error, reward_error
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath

@@ -93,7 +93,7 @@ class SAC:
         self.learn_counter += 1
         info = {}
 
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, _ = experiences
         batch_size = len(states)
 
         # Convert into tensor
