@@ -26,7 +26,6 @@ class MemoryBuffer:
         batch_size = min(batch_size, len(self.buffer))
         experience_batch = random.sample(self.buffer, batch_size)
         transposed_batch = zip(*experience_batch)
-        self.sample_next(batch_size=batch_size)
         return transposed_batch
 
     def sample_next(self, batch_size):
