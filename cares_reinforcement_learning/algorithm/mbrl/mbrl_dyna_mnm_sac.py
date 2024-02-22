@@ -269,15 +269,12 @@ class MBRL_DYNA_MNM_SAC:
             pred_reward, _ = self.world_model.pred_rewards(pred_state, pred_acts)
 
             # Uncertainty measures.
-            # fake_transi = torch.cat((pred_state.detach(),
-            #                          pred_acts.detach(),
-            #                          pred_next_state.detach()), dim=1)
-            # scores = self.discriminator(fake_transi)
-            # scores = scores.detach()
-            # scores *= 0.99
-            # pred_reward[pred_reward <= 0.0] = 0.01
-            # pred_reward = torch.log(pred_reward.detach()) + torch.log(
-            #     scores / (1 - scores))
+            scores = self.world_model.discriminator(pred_next_state)
+            scores = scores.detach()
+            scores *= 0.99
+            pred_reward[pred_reward <= 0.0] = 0.01
+            pred_reward = torch.log(pred_reward.detach()) + torch.log(
+                scores / (1 - scores))
 
             pred_states.append(pred_state)
             pred_actions.append(pred_acts.detach())
