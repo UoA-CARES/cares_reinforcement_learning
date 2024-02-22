@@ -39,4 +39,5 @@ class Simple_Reward(nn.Module):
         x = self.linear2(x)
         x = F.relu(x)
         x = self.linear3(x)
+        x = F.sigmoid(x)
         return x
