@@ -4,9 +4,12 @@ import sys
 
 import torch
 
-from cares_reinforcement_learning.util.configurations import (AlgorithmConfig,
-                                                              MBRL_DYNAConfig,
-                                                              MBRL_STEVEConfig)
+from cares_reinforcement_learning.util.configurations import (
+    AlgorithmConfig,
+    MBRL_DYNAConfig,
+    MBRL_STEVEConfig,
+    MBRL_DYNA_MNMConfig
+)
 
 
 # Disable these as this is a deliberate use of dynamic imports
@@ -99,6 +102,43 @@ def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     agent = MBRL_DYNA_SAC(
+        actor_network=actor,
+        critic_network=critic,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
+        use_bounded_active=config.use_bounded_active,
+        horizon=config.horizon,
+        num_samples=config.num_samples,
+    )
+    return agent
+
+
+def create_MBRL_DYNA_MNM(observation_size, action_num, config: MBRL_DYNA_MNMConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import MBRL_DYNA_MNM_SAC
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.World_Models import Ensemble_World_Reward_GAN
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+    world_model = Ensemble_World_Reward_GAN(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+    )
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    agent = MBRL_DYNA_MNM_SAC(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
