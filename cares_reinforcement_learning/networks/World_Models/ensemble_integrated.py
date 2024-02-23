@@ -56,20 +56,6 @@ class IntegratedWorldModel:
         model_loss.backward()
         self.dyna_optimizer.step()
 
-    def train_reward(self, states, actions, rewards):
-        """
-        Train the reward prediction alone.
-
-        :param (Tensor) states -- states input
-        :param (Tensor) actions -- actions input
-        :param (Tensor) rewards -- target label.
-        """
-        n_mean = self.reward_network.forward(states, actions)
-        reward_loss = F.mse_loss(n_mean, rewards)
-        self.reward_optimizer.zero_grad()
-        reward_loss.backward()
-        self.reward_optimizer.step()
-
     def train_overall(self, states, actions, next_states, next_actions,
                       next_rewards):
         """
@@ -166,7 +152,7 @@ class Ensemble_World_Reward:
             rewards.append(pred_rewards)
         # Use average
         rewards = torch.stack(rewards)
-        reward = torch.mean(rewards, dim=0)
+        reward = torch.min(rewards, dim=0).values  # Pessimetic
         return reward, rewards
 
     def pred_next_states(self, obs, actions):

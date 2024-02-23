@@ -16,9 +16,9 @@ class Discriminator(nn.Module):
         :return:
         """
         x_1 = self.linear1(state)
-        x_1 = F.leaky_relu(x_1, negative_slope=0.2, inplace=True)
+        x_1 = F.leaky_relu(x_1, negative_slope=0.1, inplace=True)
         x_1 = self.linear2(x_1)
-        x_1 = F.leaky_relu(x_1, negative_slope=0.2, inplace=True)
+        x_1 = F.leaky_relu(x_1, negative_slope=0.1, inplace=True)
         x_1 = self.linear3(x_1)
         x_1 = F.sigmoid(x_1)
         return x_1

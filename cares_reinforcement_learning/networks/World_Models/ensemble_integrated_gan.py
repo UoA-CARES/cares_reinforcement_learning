@@ -177,23 +177,23 @@ class Ensemble_World_Reward_GAN:
                 input=n_mean, target=delta_targets_normalized, var=n_var
             ).mean()
 
+            self.models[i].dyna_optimizer.zero_grad()
+            model_loss.backward()
+            self.models[i].dyna_optimizer.step()
+            
             adv_loss = torch.nn.BCELoss()
             valid = Variable(
-                torch.FloatTensor(sub_states.size(0), 1).fill_(1.0), requires_grad=False
+                torch.FloatTensor(sub_states.size(0), 1).fill_(1.0),
+                requires_grad=False
             ).to(self.device)
-            loss_g = adv_loss(self.discriminator(gen_states), valid)
-            total_loss = model_loss + loss_g
-
-            self.models[i].dyna_optimizer.zero_grad()
-            total_loss.backward()
-            self.models[i].dyna_optimizer.step()
+            fake = Variable(
+                torch.FloatTensor(sub_states.size(0), 1).fill_(0.0),
+                requires_grad=False
+            ).to(self.device)
 
             # Train Discriminator
             self.optimizer_D.zero_grad()
             real_loss = adv_loss(self.discriminator(sub_next_states), valid)
-            fake = Variable(
-                torch.FloatTensor(sub_states.size(0), 1).fill_(0.0), requires_grad=False
-            ).to(self.device)
             fake_loss = adv_loss(self.discriminator(gen_states.detach()), fake)
             d_loss = (real_loss + fake_loss) / 2
             d_loss.backward()
