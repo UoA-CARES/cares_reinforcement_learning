@@ -137,7 +137,7 @@ class MBRL_DYNA_SAC:
         assert len(rewards.shape) == 2 and rewards.shape[1] == 1
         assert len(next_rewards.shape) == 2 and next_rewards.shape[1] == 1
         assert len(next_states.shape) >= 2
-        # Step 1 train the world model.
+        # # Step 1 train the world model.
         self.world_model.train_world(
             states=states,
             actions=actions,
@@ -154,7 +154,7 @@ class MBRL_DYNA_SAC:
             next_states=next_states,
             dones=dones,
         )
-        # Dyna add more data
+        # # Step 3 Dyna add more data
         self.dyna_generate_and_train(next_states=next_states)
 
     def true_train_policy(self, states, actions, rewards, next_states, dones):
@@ -246,8 +246,6 @@ class MBRL_DYNA_SAC:
         pred_rs = torch.vstack(pred_rs)
         pred_n_states = torch.vstack(pred_n_states)
         pred_not_dones = torch.FloatTensor(np.ones(pred_rs.shape)).to(self.device)
-
-        # states, actions, rewards, next_states, not_dones
         self.true_train_policy(
             pred_states, pred_actions, pred_rs, pred_n_states, pred_not_dones
         )

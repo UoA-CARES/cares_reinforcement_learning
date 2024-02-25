@@ -227,7 +227,6 @@ class Ensemble_World_Reward:
             self.models[i].train_dynamics(states[i*mini_batch_size:(i+1)*mini_batch_size],
                                           actions[i*mini_batch_size:(i+1)*mini_batch_size],
                                           next_states[i*mini_batch_size:(i+1)*mini_batch_size])
-            # model.train_reward(states, actions, rewards)
             self.models[i].train_overall(states[i*mini_batch_size:(i+1)*mini_batch_size],
                                          actions[i*mini_batch_size:(i+1)*mini_batch_size],
                                          next_states[i*mini_batch_size:(i+1)*mini_batch_size],
