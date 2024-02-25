@@ -32,46 +32,54 @@ class MBRL_DYNA_MNM_SAC:
         action_num,
         actor_lr,
         critic_lr,
-        use_bounded_active,
+        alpha_lr,
         num_samples,
         horizon,
         device,
     ):
-        self.on_policy = True
+        self.type = "mbrl"
+        # Switches
+        self.num_samples = num_samples
+        self.horizon = horizon
+
+        # Other Variables
+        self.gamma = gamma
+        self.tau = tau
         self.device = device
         self.batch_size = None
-        self.use_bounded_active = use_bounded_active
-        self.horizon = horizon
-        self.num_samples = num_samples
 
-        self.type = "mbrl"
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
-        self.gamma = gamma
-        self.tau = tau
-        self.learn_counter = 0
-        self.policy_update_freq = 1
-        self.device = device
 
+        # Set to initial alpha to 1.0 according to other baselines.
+        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
+        self.log_alpha.requires_grad = True
         self.target_entropy = -action_num
+
+        # optimizer
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=critic_lr
         )
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
-        self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha])
         # World model
         self.world_model = world_network
         self.world_model.to(device)
+        self.learn_counter = 0
+        self.policy_update_freq = 1
+
+    @property
+    def alpha(self):
+        """
+        A variatble decide to what extend entropy shoud be valued.
+        """
+        return self.log_alpha.exp()
 
     # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
@@ -84,8 +92,7 @@ class MBRL_DYNA_MNM_SAC:
         # action so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if evaluation is False:
                 (action, _, _) = self.actor_net.sample(state_tensor)
             else:
@@ -93,65 +100,6 @@ class MBRL_DYNA_MNM_SAC:
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
-
-    @property
-    def alpha(self):
-        """
-        A variatble decide to what extend entropy shoud be valued.
-        """
-        return self.log_alpha.exp()
-
-    def train_policy(self, experiences):
-        """
-        Interface
-        """
-        self.learn_counter += 1
-        (states, actions, rewards, next_states, dones, _, next_actions, next_rewards) = (
-            experiences
-        )
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        next_rewards = torch.FloatTensor(np.asarray(next_rewards)).to(self.device)
-        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        next_rewards = next_rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-        not_dones = 1 - dones
-        self.batch_size = states.shape[0]
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
-        assert len(next_rewards.shape) == 2 and next_rewards.shape[1] == 1
-        assert len(next_states.shape) >= 2
-        assert len(not_dones.shape) == 2 and not_dones.shape[1] == 1
-        # Step 1 train the world model.
-        self.train_world_model(
-            states=states,
-            actions=actions,
-            rewards=rewards,
-            next_states=next_states,
-            next_actions=next_actions,
-            next_rewards=next_rewards,
-        )
-        # Step 2 train as usual
-        self.true_train_policy(
-            states=states,
-            actions=actions,
-            rewards=rewards,
-            next_states=next_states,
-            dones=dones,
-        )
-        # Dyna add more data
-        self.dyna_generate_and_train(next_states=next_states)
 
     def true_train_policy(self, states, actions, rewards, next_states, dones):
         """
@@ -168,6 +116,8 @@ class MBRL_DYNA_MNM_SAC:
                 torch.minimum(target_q_one, target_q_two) - self.alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
+        q_target = q_target.detach()
+        assert (len(q_target.shape) == 2) and (q_target.shape[1] == 1)
 
         q_values_one, q_values_two = self.critic_net(states, actions)
         critic_loss_one = F.mse_loss(q_values_one, q_target)
@@ -178,7 +128,7 @@ class MBRL_DYNA_MNM_SAC:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        ##################     Update the Actor Second     #####################
+        ##################     Update the Actor Second     ####################
         pi, first_log_p, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
@@ -215,32 +165,59 @@ class MBRL_DYNA_MNM_SAC:
         info["actor_loss"] = actor_loss
         return info
 
-    def train_world_model(
-        self, states, actions, rewards, next_states, next_actions, next_rewards
-    ):
+    def train_policy(self, experiences):
         """
-        Train the world model with sampled experiences.
+        Interface
+        """
+        self.learn_counter += 1
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            _,
+            next_actions,
+            next_rewards,
+        ) = experiences
 
-        :param (Dictionary) statistics -- The mean and var of collected
-        transitions.
-        :param (Tensor) transitions -- The data used for training.
-        """
-        # mask the nones and zeros out.
-        ok_masks = []
-        for i in range(len(states)):
-            if torch.sum(next_actions[i]) == 0 or next_rewards[i] == np.inf:
-                ok_masks.append(False)
-            else:
-                ok_masks.append(True)
-        states = states[ok_masks]
-        actions = actions[ok_masks]
-        rewards = rewards[ok_masks]
-        next_states = next_states[ok_masks]
-        next_actions = next_actions[ok_masks]
-        next_rewards = next_rewards[ok_masks]
-        self.world_model.train_world(
-            states, actions, rewards, next_states, next_actions, next_rewards
+        self.batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
+        next_rewards = (
+            torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
         )
+        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
+
+        assert len(states.shape) >= 2
+        assert len(actions.shape) == 2
+        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
+        assert len(next_rewards.shape) == 2 and next_rewards.shape[1] == 1
+        assert len(next_states.shape) >= 2
+        # # Step 1 train the world model.
+        self.world_model.train_world(
+            states=states,
+            actions=actions,
+            rewards=rewards,
+            next_states=next_states,
+            next_actions=next_actions,
+            next_rewards=next_rewards,
+        )
+        # Step 2 train as usual
+        self.true_train_policy(
+            states=states,
+            actions=actions,
+            rewards=rewards,
+            next_states=next_states,
+            dones=dones,
+        )
+        # # # Step 3 Dyna add more data
+        self.dyna_generate_and_train(next_states=next_states)
 
     def dyna_generate_and_train(self, next_states):
         """
@@ -249,47 +226,41 @@ class MBRL_DYNA_MNM_SAC:
         """
         pred_states = []
         pred_actions = []
-        pred_rewards = []
-        pred_next_states = []
+        pred_rs = []
+        pred_n_states = []
         pred_state = next_states
         for _ in range(self.horizon):
             pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
-            if self.on_policy:
-                pred_acts, _, _ = self.actor_net.sample(pred_state)
-            else:
-                random_actions = []
-                for _ in range(pred_state.shape[0]):
-                    for _ in range(self.num_samples):
-                        pred_act = np.random.uniform(-1, 1, (-self.target_entropy,))
-                        random_actions.append(pred_act)
-                pred_acts = torch.FloatTensor(np.array(random_actions)).to(self.device)
+            pred_acts, _, _ = self.actor_net.sample(pred_state)
+            pred_acts = pred_acts.detach()
             pred_next_state, _, _, _ = self.world_model.pred_next_states(
                 pred_state, pred_acts
             )
+            pred_next_state = pred_next_state.detach()
             pred_reward, _ = self.world_model.pred_rewards(pred_state, pred_acts)
-
-            # Uncertainty measures.
+            pred_reward = pred_reward.detach()
             scores = self.world_model.discriminator(pred_next_state)
             scores = scores.detach()
             scores *= 0.99
-            pred_reward[pred_reward <= 0.0] = 0.01
-            pred_reward = torch.log(pred_reward.detach()) + torch.log(
-                scores / (1 - scores))
-
+            pred_reward[pred_reward <= 0.01] = 0.01
+            pred_reward[pred_reward >= 0.99] = 0.99
+            scores[scores <= 0.01] = 0.01
+            scores[scores >= 0.99] = 0.99
+            pred_reward = torch.log(pred_reward) + torch.log(scores/(1-scores))
             pred_states.append(pred_state)
-            pred_actions.append(pred_acts.detach())
-            pred_rewards.append(pred_reward.detach())
-            pred_next_states.append(pred_next_state.detach())
+            pred_actions.append(pred_acts)
+            pred_rs.append(pred_reward)
+            pred_n_states.append(pred_next_state)
             pred_state = pred_next_state.detach()
         pred_states = torch.vstack(pred_states)
         pred_actions = torch.vstack(pred_actions)
-        pred_rewards = torch.vstack(pred_rewards)
-        pred_next_states = torch.vstack(pred_next_states)
-        pred_not_dones = torch.FloatTensor(np.ones(pred_rewards.shape)).to(self.device)
-
+        pred_rs = torch.vstack(pred_rs)
+        pred_n_states = torch.vstack(pred_n_states)
+        # Pay attention to here! It is dones in the Cares RL Code!
+        pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
         # states, actions, rewards, next_states, not_dones
         self.true_train_policy(
-            pred_states, pred_actions, pred_rewards, pred_next_states, pred_not_dones
+            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
     def save_models(self, filename, filepath="models"):
