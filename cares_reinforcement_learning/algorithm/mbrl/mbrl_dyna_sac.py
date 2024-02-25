@@ -66,7 +66,8 @@ class MBRL_DYNA_SAC:
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=critic_lr
         )
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha],
+                                                    lr=alpha_lr)
 
         # World model
         self.world_model = world_network
