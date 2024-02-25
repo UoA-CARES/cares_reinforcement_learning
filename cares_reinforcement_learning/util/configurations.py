@@ -129,6 +129,7 @@ class MBRL_DYNAConfig(AlgorithmConfig):
     algorithm: str = Field("MBRL_DYNA", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
     use_bounded_active: Optional[bool] = False
     num_models: Optional[int] = 5
     gamma: Optional[float] = 0.99

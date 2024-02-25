@@ -111,7 +111,7 @@ def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
         tau=config.tau,
         action_num=action_num,
         device=device,
-        use_bounded_active=config.use_bounded_active,
+        alpha_lr=config.alpha_lr,
         horizon=config.horizon,
         num_samples=config.num_samples,
     )
