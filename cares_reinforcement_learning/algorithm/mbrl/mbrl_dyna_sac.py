@@ -32,17 +32,15 @@ class MBRL_DYNA_SAC:
         action_num,
         actor_lr,
         critic_lr,
-        use_bounded_active,
+        alpha_lr,
         num_samples,
         horizon,
         device,
     ):
         self.type = "mbrl"
         # Switches
-        self.on_policy = True
         self.num_samples = num_samples
         self.horizon = horizon
-        self.use_bounded_active = use_bounded_active
 
         # Other Variables
         self.gamma = gamma
@@ -68,7 +66,7 @@ class MBRL_DYNA_SAC:
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=critic_lr
         )
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha])
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
         # World model
         self.world_model = world_network
@@ -103,60 +101,6 @@ class MBRL_DYNA_SAC:
         self.actor_net.train()
         return action
 
-    def train_policy(self, experiences):
-        """
-        Interface
-        """
-        self.learn_counter += 1
-        (
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-            _,
-            next_actions,
-            next_rewards,
-        ) = experiences
-        self.batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
-
-        next_rewards = (
-            torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
-        )
-        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
-
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
-        assert len(next_rewards.shape) == 2 and next_rewards.shape[1] == 1
-        assert len(next_states.shape) >= 2
-        # # Step 1 train the world model.
-        self.world_model.train_world(
-            states=states,
-            actions=actions,
-            rewards=rewards,
-            next_states=next_states,
-            next_actions=next_actions,
-            next_rewards=next_rewards,
-        )
-        # Step 2 train as usual
-        self.true_train_policy(
-            states=states,
-            actions=actions,
-            rewards=rewards,
-            next_states=next_states,
-            dones=dones,
-        )
-        # # Step 3 Dyna add more data
-        self.dyna_generate_and_train(next_states=next_states)
-
     def true_train_policy(self, states, actions, rewards, next_states, dones):
         """
         Train the policy with Model-Based Value Expansion. A family of MBRL.
@@ -173,6 +117,8 @@ class MBRL_DYNA_SAC:
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
         q_target = q_target.detach()
+        assert (len(q_target.shape) == 2) and (q_target.shape[1] == 1)
+
         q_values_one, q_values_two = self.critic_net(states, actions)
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
@@ -219,6 +165,58 @@ class MBRL_DYNA_SAC:
         info["actor_loss"] = actor_loss
         return info
 
+    def train_policy(self, experiences):
+        """
+        Interface
+        """
+        self.learn_counter += 1
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            _,
+            next_actions,
+            next_rewards,
+        ) = experiences
+
+        self.batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
+        next_rewards = (torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1))
+        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
+
+        assert len(states.shape) >= 2
+        assert len(actions.shape) == 2
+        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
+        assert len(next_rewards.shape) == 2 and next_rewards.shape[1] == 1
+        assert len(next_states.shape) >= 2
+        # # Step 1 train the world model.
+        self.world_model.train_world(
+            states=states,
+            actions=actions,
+            rewards=rewards,
+            next_states=next_states,
+            next_actions=next_actions,
+            next_rewards=next_rewards,
+        )
+        # Step 2 train as usual
+        self.true_train_policy(
+            states=states,
+            actions=actions,
+            rewards=rewards,
+            next_states=next_states,
+            dones=dones
+        )
+        # # # Step 3 Dyna add more data
+        self.dyna_generate_and_train(next_states=next_states)
+
     def dyna_generate_and_train(self, next_states):
         """
         Only off-policy Dyna will work.
@@ -245,10 +243,10 @@ class MBRL_DYNA_SAC:
         pred_actions = torch.vstack(pred_actions)
         pred_rs = torch.vstack(pred_rs)
         pred_n_states = torch.vstack(pred_n_states)
-        pred_not_dones = torch.FloatTensor(np.ones(pred_rs.shape)).to(self.device)
-        self.true_train_policy(
-            pred_states, pred_actions, pred_rs, pred_n_states, pred_not_dones
-        )
+        # Pay attention to here! It is dones in the Cares RL Code!
+        pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
+        # states, actions, rewards, next_states, not_dones
+        self.true_train_policy(pred_states, pred_actions, pred_rs, pred_n_states, pred_dones)
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
