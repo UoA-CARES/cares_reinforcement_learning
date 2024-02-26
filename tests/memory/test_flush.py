@@ -7,14 +7,24 @@ def test_flush(memory_buffer):
 
     states, actions, rewards, next_states, dones, log_probs = memory_buffer.flush()
 
-    assert len(states) == len(actions) == len(rewards) == len(next_states) == len(dones) == len(log_probs) == 2
+    assert (
+        len(states)
+        == len(actions)
+        == len(rewards)
+        == len(next_states)
+        == len(dones)
+        == len(log_probs)
+        == 2
+    )
     assert len(memory_buffer) == 0
+
 
 def test_flush_empty_buffer(memory_buffer):
     nothing = memory_buffer.flush()
 
     assert len(nothing) == 0
     assert len(memory_buffer) == 0
+
 
 def test_flush_order(memory_buffer):
     for i in range(5):
