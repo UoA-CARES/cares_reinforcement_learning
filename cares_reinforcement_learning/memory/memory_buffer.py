@@ -5,8 +5,10 @@ class MemoryBuffer:
     def __init__(self, max_capacity=int(1e6)):
         self.buffer = deque(maxlen=max_capacity)
 
+    def __len__(self):
+        return len(self.buffer)
+    
     def add(self, *experience):
-        print(experience)
         self.buffer.append(experience)
 
     def sample(self, batch_size):
@@ -19,3 +21,6 @@ class MemoryBuffer:
         experience = list(zip(*self.buffer))
         self.buffer.clear()
         return experience
+
+    def clear(self):
+        self.buffer.clear()
