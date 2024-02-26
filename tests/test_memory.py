@@ -1,23 +1,54 @@
-import numpy as np
 import pytest
-
 from cares_reinforcement_learning.memory import MemoryBuffer
 
-#
-# def test_add_experience():
-#     buffer = MemoryBuffer(max_capacity=10)
-#     assert len(buffer) == 0
-#     buffer.add(action=[1, 2, 3])
-#     assert len(buffer) == 1
-#     assert buffer.buffers["action"][0] == [1, 2, 3]
-#
-#
-# def test_buffer_full():
-#     buffer = MemoryBuffer(max_capacity=2)
-#     buffer.add(state=[1, 2, 3])
-#     assert buffer.full is False
-#     buffer.add(state=[7, 8, 9])
-#     assert buffer.full is True
+@pytest.fixture
+def memory_buffer():
+    return MemoryBuffer(max_capacity=5)
+
+def test_add(memory_buffer):
+    memory_buffer.add(1, 2, 3, 4, False, 0.5)
+    assert len(memory_buffer.buffer) == 1
+
+def test_sample(memory_buffer):
+    experiences = [(1, 2, 3, 4, False, 0.5), (5, 6, 7, 8, True, 0.8)]
+    for exp in experiences:
+        memory_buffer.add(*exp)
+
+    batch_size = 1
+    states, *_ = memory_buffer.sample(batch_size)
+    assert len(states) == batch_size
+
+def test_flush(memory_buffer):
+    experiences = [(1, 2, 3, 4, False, 0.5), (5, 6, 7, 8, True, 0.8)]
+    for exp in experiences:
+        memory_buffer.add(*exp)
+
+    states, actions, rewards, next_states, dones, log_probs = memory_buffer.flush()
+
+    assert len(states) == len(actions) == len(rewards) == len(next_states) == len(dones) == len(log_probs) == 2
+    assert len(memory_buffer.buffer) == 0
+
+def test_flush_empty_buffer(memory_buffer):
+    nothing = memory_buffer.flush()
+
+    assert len(nothing) == 0
+    assert len(memory_buffer.buffer) == 0
+
+def test_buffer_full(memory_buffer):
+    experiences = [
+        (1, 2, 3, 4, False, 0.5), 
+        (5, 6, 7, 8, True, 0.8), 
+        (9, 10, 11, 12, False, 0.3), 
+        (13, 14, 15, 16, True, 0.9), 
+        (17, 18, 19, 20, False, 0.7)
+        ]
+
+    for exp in experiences:
+        memory_buffer.add(*exp)
+
+    assert len(memory_buffer.buffer) == 5
+
+
 #
 #
 # def test_sample_experience():

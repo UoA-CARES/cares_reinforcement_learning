@@ -1,12 +1,12 @@
 import random
 from collections import deque
 
-
 class MemoryBuffer:
     def __init__(self, max_capacity=int(1e6)):
-        self.buffer = deque([], maxlen=max_capacity)
+        self.buffer = deque(maxlen=max_capacity)
 
     def add(self, *experience):
+        print(experience)
         self.buffer.append(experience)
 
     def sample(self, batch_size):
@@ -16,8 +16,6 @@ class MemoryBuffer:
         return transposed_batch
 
     def flush(self):
-        states, actions, rewards, next_states, dones, log_probs = zip(
-            *[(element[i] for i in range(len(element))) for element in self.buffer]
-        )
+        experience = list(zip(*self.buffer))
         self.buffer.clear()
-        return states, actions, rewards, next_states, dones, log_probs
+        return experience
