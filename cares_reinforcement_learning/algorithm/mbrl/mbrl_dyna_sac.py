@@ -1,6 +1,5 @@
 """
-Original Paper: https://arxiv.org/abs/1812.05905
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+Sutton, Richard S. "Dyna, an integrated architecture for learning, planning, and reacting."
 
 This code runs automatic entropy tuning
 """
@@ -166,7 +165,8 @@ class MBRL_DYNA_SAC:
 
     def train_policy(self, experiences):
         """
-        Interface
+        Interface to training loop.
+
         """
         self.learn_counter += 1
         (

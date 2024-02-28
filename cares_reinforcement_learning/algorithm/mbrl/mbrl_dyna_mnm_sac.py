@@ -1,6 +1,7 @@
 """
-Original Paper: https://arxiv.org/abs/1812.05905
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+Original Paper: https://proceedings.neurips.cc/paper_files/paper/2022/file/935151cc6cb5d8b6816133b75233775a-Paper-Conference.pdf
+
+Code based on: Eysenbach, Benjamin, et al. "Mismatched no more: Joint model-policy optimization for model-based rl."
 
 This code runs automatic entropy tuning
 """
@@ -239,6 +240,8 @@ class MBRL_DYNA_MNM_SAC:
             pred_next_state = pred_next_state.detach()
             pred_reward, _ = self.world_model.pred_rewards(pred_state, pred_acts)
             pred_reward = pred_reward.detach()
+
+            # Re-weight the predicted reward based on discriminator.
             scores = self.world_model.discriminator(pred_next_state)
             scores = scores.detach()
             scores *= 0.99
@@ -247,6 +250,7 @@ class MBRL_DYNA_MNM_SAC:
             scores[scores <= 0.01] = 0.01
             scores[scores >= 0.99] = 0.99
             pred_reward = torch.log(pred_reward) + torch.log(scores/(1-scores))
+
             pred_states.append(pred_state)
             pred_actions.append(pred_acts)
             pred_rs.append(pred_reward)
