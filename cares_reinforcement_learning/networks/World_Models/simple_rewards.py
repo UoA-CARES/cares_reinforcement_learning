@@ -23,12 +23,14 @@ class Simple_Reward(nn.Module):
         self.linear3 = nn.Linear(hidden_size, 1)
         self.apply(weight_init)
 
-    def forward(self, obs, actions):
+    def forward(self, obs, actions, normalized=False):
         """
         Forward the inputs throught the network.
+        Note: For DMCS environment, the reward is from 0~1.
 
         :param (Tensors) obs -- dimension of states
         :param (Tensors) actions -- dimension of actions
+        :param (Bool) normalized -- whether normalized reward to 0~1
 
         :return (Tensors) x -- predicted rewards.
         """
@@ -40,5 +42,6 @@ class Simple_Reward(nn.Module):
         x = self.linear2(x)
         x = F.relu(x)
         x = self.linear3(x)
-        x = F.sigmoid(x)
+        if normalized:
+            x = F.sigmoid(x)
         return x

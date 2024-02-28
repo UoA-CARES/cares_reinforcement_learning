@@ -88,9 +88,7 @@ def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
     """
     from cares_reinforcement_learning.algorithm.mbrl import MBRL_DYNA_SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.World_Models.ensemble_integrated import (
-        Ensemble_World_Reward,
-    )
+    from cares_reinforcement_learning.networks.World_Models import Ensemble_World_Reward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -98,6 +96,7 @@ def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
+        lr=config.world_model_lr,
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -118,81 +117,10 @@ def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
     return agent
 
 
-def create_MBRL_DYNA_MNM(observation_size, action_num, config: MBRL_DYNA_MNMConfig):
-    """
-    Create networks for model-based SAC agent. The Actor and Critic is same.
-    An extra world model is added.
-
-    """
-    from cares_reinforcement_learning.algorithm.mbrl import MBRL_DYNA_MNM_SAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.World_Models import Ensemble_World_Reward_GAN
-
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-    world_model = Ensemble_World_Reward_GAN(
-        observation_size=observation_size,
-        num_actions=action_num,
-        num_models=config.num_models,
-    )
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    agent = MBRL_DYNA_MNM_SAC(
-        actor_network=actor,
-        critic_network=critic,
-        world_network=world_model,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        action_num=action_num,
-        device=device,
-        horizon=config.horizon,
-        num_samples=config.num_samples,
-    )
-    return agent
-
-
-def create_MBRL_STEVE(observation_size, action_num, config: MBRL_STEVEConfig):
-    """
-    Create networks for model-based SAC agent. The Actor and Critic is same.
-    An extra world model is added.
-
-    """
-    from cares_reinforcement_learning.algorithm.mbrl import MBRL_STEVE_SAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.World_Models.ensemble_integrated import (
-        Ensemble_World_Reward,
-    )
-
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-    world_model = Ensemble_World_Reward(
-        observation_size=observation_size,
-        num_actions=action_num,
-        num_models=config.num_models,
-    )
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    agent = MBRL_STEVE_SAC(
-        actor_network=actor,
-        critic_network=critic,
-        world_network=world_model,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        use_bounded_active=config.use_bounded_active,
-        horizon=config.horizon,
-        gamma=config.gamma,
-        tau=config.tau,
-        action_num=action_num,
-        device=device,
-    )
-    return agent
-
-
 def create_SAC(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Create an SAC agent.
+    """
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
 

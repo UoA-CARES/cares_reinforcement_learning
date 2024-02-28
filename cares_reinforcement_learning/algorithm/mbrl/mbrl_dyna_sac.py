@@ -16,9 +16,7 @@ import torch.nn.functional as F
 
 class MBRL_DYNA_SAC:
     """
-    Soft Actor Critic: Adding a entropy of policy term into the objective
-    function for automatic exploration. This agent maximize the reward will
-    maximizing the exploration.
+    Use the Soft Actor Critic as the Actor Critic framework.
 
     """
 

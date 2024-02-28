@@ -16,6 +16,8 @@ class Simple_Dynamics(nn.Module):
     accurate estiamtion. Both input and label are normalized based on
     experience replay dataset.
 
+    Normalization is recommanded. So it can be trained faster.
+
     :param (int) observation_size -- dimension of states
     :param (int) num_actions -- dimension of actions
     :param (int) hidden_size -- size of neurons in hidden layers.
