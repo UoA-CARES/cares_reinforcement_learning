@@ -4,10 +4,6 @@ from torch.nn import functional as F
 
 
 class Critic(nn.Module):
-    """
-    Double critic
-
-    """
     def __init__(self, observation_size, num_actions):
         super().__init__()
 
@@ -26,12 +22,6 @@ class Critic(nn.Module):
         self.h_linear_32 = nn.Linear(self.hidden_size[1], 1)
 
     def forward(self, state, action):
-        """
-
-        :param state:
-        :param action:
-        :return:
-        """
         obs_action = torch.cat([state, action], dim=1)
 
         q1 = F.relu(self.h_linear_1(obs_action))

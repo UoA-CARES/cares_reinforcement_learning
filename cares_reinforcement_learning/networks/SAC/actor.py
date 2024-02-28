@@ -12,23 +12,18 @@ class SACTanhTransform(TanhTransform):
 
     @staticmethod
     def atanh(x):
-        """
-        Self Implemented arctanh function for efficiency.
-        """
         return 0.5 * (x.log1p() - (-x).log1p())
 
     def __eq__(self, other):
         return isinstance(other, SACTanhTransform)
 
     def _inverse(self, y):
-        # We do not clamp to the boundary here as it may degrade the
-        # performance of certain algorithms.
+        # We do not clamp to the boundary here as it may degrade the performance of certain algorithms.
         # one should use `cache_size=1` instead
         return self.atanh(y)
 
 
-# These methods are not required for the purposes of SAC and are thus
-# intentionally ignored
+# These methods are not required for the purposes of SAC and are thus intentionally ignored
 # pylint: disable=abstract-method
 class SquashedNormal(TransformedDistribution):
     def __init__(self, loc, scale):
@@ -63,9 +58,6 @@ class Actor(nn.Module):
         # self.apply(weight_init)
 
     def sample(self, obs):
-        """
-        Sample action(s) based on given observation.
-        """
         x = F.relu(self.linear1(obs))
         x = F.relu(self.linear2(x))
         mu = self.mean_linear(x)
@@ -73,14 +65,13 @@ class Actor(nn.Module):
 
         # Bound the action to finite interval.
         # Apply an invertible squashing function: tanh
-        # employ the change of variables formula to compute the likelihoods
-        # of the bounded actions
+        # employ the change of variables formula to compute the likelihoods of the bounded actions
 
         # constrain log_std inside [log_std_min, log_std_max]
         log_std = torch.tanh(log_std)
 
         log_std_min, log_std_max = self.log_std_bounds
-        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std+1)
+        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
 
         std = log_std.exp()
 
@@ -91,8 +82,4 @@ class Actor(nn.Module):
         return sample, log_pi, dist.mean
 
     def forward(self, state):
-        """
-        This function is for implementing a proper nn.Module sake.
-        Please use sample function instead.
-        """
         raise NotImplementedError("Not required for SAC - use sample() instead")

@@ -84,16 +84,13 @@ class SAC:
 
     @property
     def alpha(self):
-        """
-        A variatble decide to what extend entropy shoud be valued.
-        """
         return self.log_alpha.exp()
 
     def train_policy(self, experiences):
         self.learn_counter += 1
         info = {}
 
-        states, actions, rewards, next_states, dones, _ = experiences
+        states, actions, rewards, next_states, dones = experiences
         batch_size = len(states)
 
         # Convert into tensor
@@ -154,6 +151,7 @@ class SAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
+
         info["q_target"] = q_target
         info["q_values_one"] = q_values_one
         info["q_values_two"] = q_values_two
@@ -162,19 +160,23 @@ class SAC:
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
         info["actor_loss"] = actor_loss
+
         return info
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
+
         if not dir_exists:
             os.makedirs(path)
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pth")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pth")
+
+        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
         path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pth"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pth"))
+
+        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
         logging.info("models has been loaded...")
