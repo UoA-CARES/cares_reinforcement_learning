@@ -3,20 +3,15 @@ from collections import deque
 import numpy as np
 
 
-class MemoryBuffer:
-    """ """
 
+class MemoryBuffer:
     def __init__(self, max_capacity=int(1e6)):
-        self.buffer = deque([], maxlen=max_capacity)
+        self.buffer = deque(maxlen=max_capacity)
 
     def __len__(self):
         return len(self.buffer)
 
-    def add(self, state, action, reward, next_state, done, log_prob=0.0):
-        """
-        Add experiences to deque
-        """
-        experience = (state, action, reward, next_state, done, log_prob)
+    def add(self, *experience):
         self.buffer.append(experience)
 
     def sample(self, batch_size):
@@ -48,14 +43,12 @@ class MemoryBuffer:
         return transposed_batch
 
     def flush(self):
-        """
-        For PPO usage
-        """
-        states, actions, rewards, next_states, dones, log_probs = zip(
-            *[(element[i] for i in range(len(element))) for element in self.buffer]
-        )
+        experience = list(zip(*self.buffer))
         self.buffer.clear()
-        return states, actions, rewards, next_states, dones, log_probs
+        return experience
+
+    def clear(self):
+        self.buffer.clear()
 
     def get_statistics(self):
         """

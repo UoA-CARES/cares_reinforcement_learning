@@ -5,7 +5,6 @@ Original Paper: https://arxiv.org/abs/1802.09477v3
 import copy
 import logging
 import os
-
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -27,8 +26,8 @@ class TD3:
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
-        self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_actor_net = copy.deepcopy(self.actor_net)  # .to(device)
+        self.target_critic_net = copy.deepcopy(self.critic_net)  # .to(device)
 
         self.gamma = gamma
         self.tau = tau
