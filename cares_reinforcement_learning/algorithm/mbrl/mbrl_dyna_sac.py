@@ -230,6 +230,7 @@ class MBRL_DYNA_SAC:
         pred_state = next_states
         for _ in range(self.horizon):
             pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
+            # On-policy generating.Temporary results shows no diff with random.
             pred_acts, _, _ = self.actor_net.sample(pred_state)
             pred_next_state, _, _, _ = self.world_model.pred_next_states(
                 pred_state, pred_acts
@@ -250,6 +251,9 @@ class MBRL_DYNA_SAC:
         self.true_train_policy(pred_states, pred_actions, pred_rs, pred_n_states, pred_dones)
 
     def save_models(self, filename, filepath="models"):
+        """
+        Save the intrim actor critics.
+        """
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
         if not dir_exists:
@@ -259,6 +263,9 @@ class MBRL_DYNA_SAC:
         logging.info("models has been saved...")
 
     def load_models(self, filepath, filename):
+        """
+        Load trained networks
+        """
         path = f"{filepath}/models" if filepath != "models" else filepath
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pth"))
         self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pth"))
