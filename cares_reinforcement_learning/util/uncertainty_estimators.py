@@ -15,18 +15,18 @@ def vi(mean, var):
         print("--------------------")
         return multi_loss.item()
     # if multi_loss.shape
-    min = torch.min(multi_loss)
-    max = torch.max(multi_loss)
-    scale = (max - min)
+    nmin = torch.min(multi_loss)
+    nmax = torch.max(multi_loss)
+    scale = nmax - nmin
     scale[torch.abs(scale) < 0.001] = 0.001
     # [0 - 1]: Certainty.
-    multi_loss = (multi_loss - min) / scale
+    multi_loss = (multi_loss - nmin) / scale
     # Uncertainty.
     multi_loss = 1.0 - multi_loss
     return multi_loss.unsqueeze(dim=1).detach()
 
 
-def mean_std(mean, var):
+def mean_std(mean):
     total_stds = torch.std(mean, dim=0)
     total_stds = torch.sum(total_stds, dim=1)
     return total_stds.detach().item()

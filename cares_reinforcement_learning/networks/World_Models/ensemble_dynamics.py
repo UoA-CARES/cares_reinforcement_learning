@@ -25,7 +25,7 @@ class Ensemble_Dynamics:
     """
 
     def __init__(
-            self, observation_size, num_actions, num_models, hidden_size=128, lr=0.001
+        self, observation_size, num_actions, num_models, hidden_size=128, lr=0.001
     ):
         self.device = None
         self.num_models = num_models
@@ -149,4 +149,3 @@ class Ensemble_Dynamics:
             self.optimizers[i].zero_grad()
             model_loss.backward()
             self.optimizers[i].step()
-

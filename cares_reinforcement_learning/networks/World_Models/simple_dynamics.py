@@ -51,7 +51,7 @@ class Simple_Dynamics(nn.Module):
         uncertainty estimation.
         """
         assert (
-                obs.shape[1] + actions.shape[1] == self.observation_size + self.num_actions
+            obs.shape[1] + actions.shape[1] == self.observation_size + self.num_actions
         )
         # Always normalized obs
         normalized_obs = normalize_obs(obs, self.statistics)

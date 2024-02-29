@@ -7,9 +7,11 @@ import torch.nn.functional as F
 import torch.utils
 from torch import optim
 import numpy as np
-from .ensemble_integrated import IntegratedWorldModel
-from cares_reinforcement_learning.util.helpers import normalize_obs_deltas
 from torch.autograd import Variable
+from cares_reinforcement_learning.util.helpers import normalize_obs_deltas
+from .ensemble_integrated import IntegratedWorldModel
+
+
 
 
 class Discriminator(nn.Module):
@@ -184,8 +186,8 @@ class Ensemble_World_Reward_GAN:
             sub_states = states[i * mini_batch_size : (i + 1) * mini_batch_size]
             sub_actions = actions[i * mini_batch_size : (i + 1) * mini_batch_size]
             sub_next_states = next_states[
-                              i * mini_batch_size : (i + 1) * mini_batch_size
-                              ]
+                i * mini_batch_size : (i + 1) * mini_batch_size
+            ]
 
             target = sub_next_states - sub_states
             delta_targets_normalized = normalize_obs_deltas(target, self.statistics)
