@@ -6,10 +6,10 @@ from torch import nn
 import torch.nn.functional as F
 import torch.utils
 from torch import optim
-import numpy as np
 from torch.autograd import Variable
+import numpy as np
 from cares_reinforcement_learning.util.helpers import normalize_obs_deltas
-from .ensemble_integrated import IntegratedWorldModel
+from cares_reinforcement_learning.networks.World_Models.ensemble_integrated import IntegratedWorldModel
 
 
 
