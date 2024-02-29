@@ -181,12 +181,14 @@ class Ensemble_World_Reward_GAN:
         mini_batch_size = int(math.floor(states.shape[0] / self.num_models))
 
         for i in range(self.num_models):
-            sub_states = states[i*mini_batch_size:(i+1)*mini_batch_size]
-            sub_actions = actions[i*mini_batch_size:(i+1)*mini_batch_size]
-            sub_next_states = next_states[i*mini_batch_size:(i+1)*mini_batch_size]
+            sub_states = states[i * mini_batch_size : (i + 1) * mini_batch_size]
+            sub_actions = actions[i * mini_batch_size : (i + 1) * mini_batch_size]
+            sub_next_states = next_states[
+                              i * mini_batch_size : (i + 1) * mini_batch_size
+                              ]
 
             target = sub_next_states - sub_states
-            delta_targets_normalized = normalize_obs_deltas(target,self.statistics)
+            delta_targets_normalized = normalize_obs_deltas(target, self.statistics)
             # Get the world model error.
             delta_state, n_mean, n_var = self.models[i].dyna_network.forward(
                 sub_states, sub_actions

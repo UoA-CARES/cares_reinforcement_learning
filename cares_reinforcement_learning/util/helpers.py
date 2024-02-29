@@ -75,7 +75,7 @@ def denormalize(action, max_action_value, min_action_value):
     max_value_in = 1
     min_value_in = -1
     action_denorm = (action - min_value_in) * (max_range_value - min_range_value) / (
-            max_value_in - min_value_in
+        max_value_in - min_value_in
     ) + min_range_value
     return action_denorm
 
@@ -89,7 +89,7 @@ def normalize(action, max_action_value, min_action_value):
     max_value_in = max_action_value
     min_value_in = min_action_value
     action_norm = (action - min_value_in) * (max_range_value - min_range_value) / (
-            max_value_in - min_value_in
+        max_value_in - min_value_in
     ) + min_range_value
     return action_norm
 
@@ -100,7 +100,7 @@ def compare_models(model_1, model_2):
     """
     models_differ = 0
     for key_item_1, key_item_2 in zip(
-            model_1.state_dict().items(), model_2.state_dict().items()
+        model_1.state_dict().items(), model_2.state_dict().items()
     ):
         if torch.equal(key_item_1[1], key_item_2[1]):
             pass

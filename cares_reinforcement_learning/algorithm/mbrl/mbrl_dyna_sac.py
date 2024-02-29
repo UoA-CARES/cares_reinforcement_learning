@@ -63,8 +63,7 @@ class MBRL_DYNA_SAC:
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=critic_lr
         )
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha],
-                                                    lr=alpha_lr)
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
         # World model
         self.world_model = world_network
@@ -188,7 +187,9 @@ class MBRL_DYNA_SAC:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
-        next_rewards = (torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1))
+        next_rewards = (
+            torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
+        )
         next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
 
         assert len(states.shape) >= 2
@@ -211,7 +212,7 @@ class MBRL_DYNA_SAC:
             actions=actions,
             rewards=rewards,
             next_states=next_states,
-            dones=dones
+            dones=dones,
         )
         # # # Step 3 Dyna add more data
         self.dyna_generate_and_train(next_states=next_states)
@@ -246,7 +247,9 @@ class MBRL_DYNA_SAC:
         # Pay attention to here! It is dones in the Cares RL Code!
         pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
         # states, actions, rewards, next_states, not_dones
-        self.true_train_policy(pred_states, pred_actions, pred_rs, pred_n_states, pred_dones)
+        self.true_train_policy(
+            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
+        )
 
     def save_models(self, filename, filepath="models"):
         """

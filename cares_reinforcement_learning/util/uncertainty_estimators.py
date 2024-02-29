@@ -5,7 +5,9 @@ def vi(mean, var):
     # Distance to unit gaussian, means how certain it is high distance means high certainty.
     # Loss is small: uncertain. Loss is high: certain.
     multi_p = torch.distributions.normal.Normal(mean, var)
-    multi_q = torch.distributions.normal.Normal(torch.zeros(mean.shape), torch.ones(var.shape))
+    multi_q = torch.distributions.normal.Normal(
+        torch.zeros(mean.shape), torch.ones(var.shape)
+    )
     multi_loss = torch.distributions.kl_divergence(multi_p, multi_q)
     multi_loss = torch.sum(multi_loss, dim=0)
     multi_loss = torch.sum(multi_loss, dim=1)
@@ -15,13 +17,14 @@ def vi(mean, var):
     # if multi_loss.shape
     min = torch.min(multi_loss)
     max = torch.max(multi_loss)
-    scale = (max-min)
+    scale = (max - min)
     scale[torch.abs(scale) < 0.001] = 0.001
     # [0 - 1]: Certainty.
     multi_loss = (multi_loss - min) / scale
     # Uncertainty.
     multi_loss = 1.0 - multi_loss
     return multi_loss.unsqueeze(dim=1).detach()
+
 
 def mean_std(mean, var):
     total_stds = torch.std(mean, dim=0)

@@ -2,9 +2,11 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import torch.utils
-from cares_reinforcement_learning.util.helpers import (weight_init,
-                                                       normalize_obs,
-                                                       unnormalize_obs_deltas)
+from cares_reinforcement_learning.util.helpers import (
+    weight_init,
+    normalize_obs,
+    unnormalize_obs_deltas,
+)
 
 
 class Simple_Dynamics(nn.Module):
@@ -22,6 +24,7 @@ class Simple_Dynamics(nn.Module):
     :param (int) num_actions -- dimension of actions
     :param (int) hidden_size -- size of neurons in hidden layers.
     """
+
     def __init__(self, observation_size, num_actions, hidden_size):
         super().__init__()
         self.observation_size = observation_size
@@ -47,8 +50,9 @@ class Simple_Dynamics(nn.Module):
         :return (Tensors) normalized_var -- normalized delta of var for
         uncertainty estimation.
         """
-        assert (obs.shape[1] + actions.shape[1] == self.observation_size +
-                self.num_actions)
+        assert (
+                obs.shape[1] + actions.shape[1] == self.observation_size + self.num_actions
+        )
         # Always normalized obs
         normalized_obs = normalize_obs(obs, self.statistics)
         x = torch.cat((normalized_obs, actions), dim=1)

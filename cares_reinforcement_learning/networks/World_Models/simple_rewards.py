@@ -18,7 +18,7 @@ class Simple_Reward(nn.Module):
         super().__init__()
         self.observation_size = observation_size
         self.num_actions = num_actions
-        self.linear1 = nn.Linear(observation_size+num_actions, hidden_size)
+        self.linear1 = nn.Linear(observation_size + num_actions, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
         self.linear3 = nn.Linear(hidden_size, 1)
         self.apply(weight_init)
@@ -34,8 +34,9 @@ class Simple_Reward(nn.Module):
 
         :return (Tensors) x -- predicted rewards.
         """
-        assert (obs.shape[1]+actions.shape[1] == self.observation_size +
-                self.num_actions)
+        assert (
+                obs.shape[1]+actions.shape[1] == self.observation_size + self.num_actions
+        )
         x = torch.cat((obs, actions), dim=1)
         x = self.linear1(x)
         x = F.relu(x)

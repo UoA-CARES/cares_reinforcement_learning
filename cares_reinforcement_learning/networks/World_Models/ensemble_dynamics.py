@@ -24,7 +24,9 @@ class Ensemble_Dynamics:
     :param (int) hidden_size -- size of neurons in hidden layers.
     """
 
-    def __init__(self, observation_size, num_actions, num_models, hidden_size=128, lr=0.001):
+    def __init__(
+            self, observation_size, num_actions, num_models, hidden_size=128, lr=0.001
+    ):
         self.device = None
         self.num_models = num_models
         self.observation_size = observation_size
@@ -137,8 +139,7 @@ class Ensemble_Dynamics:
             sub_n_states = next_states[i * mini_batch_size : (i + 1) * mini_batch_size]
 
             target = sub_n_states - sub_states
-            delta_targets_normalized = normalize_obs_deltas(target,
-                                                            self.statistics)
+            delta_targets_normalized = normalize_obs_deltas(target, self.statistics)
             _, n_mean, n_var = self.models[i].forward(sub_states, sub_actions)
 
             model_loss = F.gaussian_nll_loss(

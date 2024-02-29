@@ -249,7 +249,7 @@ class MBRL_DYNA_MNM_SAC:
             pred_reward[pred_reward >= 0.99] = 0.99
             scores[scores <= 0.01] = 0.01
             scores[scores >= 0.99] = 0.99
-            pred_reward = torch.log(pred_reward) + torch.log(scores/(1-scores))
+            pred_reward = torch.log(pred_reward) + torch.log(scores / (1 - scores))
 
             pred_states.append(pred_state)
             pred_actions.append(pred_acts)
