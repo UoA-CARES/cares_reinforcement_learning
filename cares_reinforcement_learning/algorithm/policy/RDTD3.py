@@ -5,7 +5,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-class RD_PER_TD3:
+class RDTD3:
     def __init__(self,
                  actor_network,
                  critic_network,

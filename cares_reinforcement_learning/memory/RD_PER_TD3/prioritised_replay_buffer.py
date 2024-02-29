@@ -5,16 +5,17 @@ from .SumTree import SumTree
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class PrioritizedReplayBuffer():
-    def __init__(self, state_dim, action_dim, max_size=int(1e6)):  # max_capacity
+    def __init__(self, max_size=int(1e6)):  # max_capacity
         self.max_size = max_size
+
         self.ptr = 0
         self.size = 0
 
-        self.state = np.zeros((max_size, state_dim))
-        self.action = np.zeros((max_size, action_dim))
-        self.next_state = np.zeros((max_size, state_dim))
-        self.reward = np.zeros((max_size, 1))
-        self.done = np.zeros((max_size, 1))
+        self.state = []
+        self.action = []
+        self.next_state = []
+        self.reward = []
+        self.done = []
 
         self.tree = SumTree(max_size)
         self.max_priority = 1.0
@@ -24,11 +25,11 @@ class PrioritizedReplayBuffer():
         self.device = DEVICE
 
     def add(self, state, action, reward, next_state, done):
-        self.state[self.ptr] = state
-        self.action[self.ptr] = action
-        self.next_state[self.ptr] = next_state
-        self.reward[self.ptr] = reward
-        self.done[self.ptr] = done
+        self.state.append(state)
+        self.action.append(action)
+        self.next_state.append(next_state)
+        self.reward.append(reward)
+        self.done.append(done)
 
         self.tree.set(self.ptr, self.max_priority)
         self.ptr = (self.ptr + 1) % self.max_size

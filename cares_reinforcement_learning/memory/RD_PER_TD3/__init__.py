@@ -1,1 +1,1 @@
-from .memory_buffer import PrioritizedReplayBuffer
+from .prioritised_replay_buffer import PrioritizedReplayBuffer
