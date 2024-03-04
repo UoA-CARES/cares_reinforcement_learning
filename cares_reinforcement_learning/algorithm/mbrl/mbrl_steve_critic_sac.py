@@ -106,7 +106,16 @@ class MBRL_STEVE_Critic_SAC:
         self.learn_counter += 1
         info = {}
         ### Standarize the data.
-        (states, actions, rewards, next_states, dones, _, next_actions, next_rewards) = (experiences)
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            _,
+            next_actions,
+            next_rewards,
+        ) = experiences
         batch_size = len(states)
 
         # Convert into tensor
@@ -183,9 +192,7 @@ class MBRL_STEVE_Critic_SAC:
                     # For each predict reward.
                     for rwd in range(pred_rewards.shape[0]):
                         disc_pred_reward = (
-                            not_dones
-                            * (self.gamma ** (hori + 1))
-                            * pred_rewards[rwd]
+                            not_dones * (self.gamma ** (hori + 1)) * pred_rewards[rwd]
                         )
                         if hori > 0:
                             # Horizon = 1, 2, 3, 4, 5
@@ -195,11 +202,7 @@ class MBRL_STEVE_Critic_SAC:
                         else:
                             disc_sum_reward = not_dones * disc_pred_reward
                         temp_disc_rewards.append(disc_sum_reward)
-                        assert (
-                            rewards.shape
-                            == not_dones.shape
-                            == disc_sum_reward.shape
-                        )
+                        assert rewards.shape == not_dones.shape == disc_sum_reward.shape
                         # Q = r + disc_rewards + pred_v
                         pred_tq1 = (
                             rewards
