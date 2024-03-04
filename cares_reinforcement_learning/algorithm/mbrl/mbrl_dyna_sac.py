@@ -251,7 +251,7 @@ class MBRL_DYNA_SAC:
             # On-policy generating.Temporary results shows no diff with random.
             # pred_acts, _, _ = self.actor_net.sample(pred_state)
             # rand_acts = np.random.uniform(-1,1,(self.num_samples, self.action_num))
-            rand_acts = np.random.uniform(-1,1,(pred_state.shape[0], self.action_num))
+            rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
             pred_acts = torch.FloatTensor(rand_acts).to(self.device)
             # pred_acts = pred_acts.repeat(repeats=next_states.shape[0])
             pred_next_state, _, _, _ = self.world_model.pred_next_states(

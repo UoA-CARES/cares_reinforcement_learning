@@ -106,7 +106,16 @@ class MBRL_STEVE_SAC:
         self.learn_counter += 1
         info = {}
         ### Standarize the data.
-        (states, actions, rewards, next_states, dones, _, next_actions, next_rewards) = (experiences)
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            _,
+            next_actions,
+            next_rewards,
+        ) = experiences
         batch_size = len(states)
 
         # Convert into tensor
