@@ -9,9 +9,9 @@ from torch import optim
 from torch.autograd import Variable
 import numpy as np
 from cares_reinforcement_learning.util.helpers import normalize_obs_deltas
-from cares_reinforcement_learning.networks.World_Models.ensemble_integrated import IntegratedWorldModel
-
-
+from cares_reinforcement_learning.networks.World_Models.ensemble_integrated import (
+    IntegratedWorldModel,
+)
 
 
 class Discriminator(nn.Module):
