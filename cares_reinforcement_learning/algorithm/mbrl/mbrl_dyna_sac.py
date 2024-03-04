@@ -38,7 +38,7 @@ class MBRL_DYNA_SAC:
         # Switches
         self.num_samples = num_samples
         self.horizon = horizon
-
+        self.action_num = action_num
         # Other Variables
         self.gamma = gamma
         self.tau = tau
@@ -162,36 +162,29 @@ class MBRL_DYNA_SAC:
         info["actor_loss"] = actor_loss
         return info
 
-    def train_policy(self, experiences):
+    def train_world_model(self, experiences):
         """
-        Interface to training loop.
+        Sample the buffer again for training the world model can reach higher rewards.
 
+        :param experiences:
         """
-        self.learn_counter += 1
         (
             states,
             actions,
             rewards,
             next_states,
-            dones,
             _,
             next_actions,
             next_rewards,
         ) = experiences
-
-        self.batch_size = len(states)
-
-        # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
         next_rewards = (
             torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
         )
         next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
-
         assert len(states.shape) >= 2
         assert len(actions.shape) == 2
         assert len(rewards.shape) == 2 and rewards.shape[1] == 1
@@ -206,6 +199,31 @@ class MBRL_DYNA_SAC:
             next_actions=next_actions,
             next_rewards=next_rewards,
         )
+
+    def train_policy(self, experiences):
+        """
+        Interface to training loop.
+
+        """
+        self.learn_counter += 1
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+        ) = experiences
+        self.batch_size = len(states)
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
+        assert len(states.shape) >= 2
+        assert len(actions.shape) == 2
+        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
+        assert len(next_states.shape) >= 2
         # Step 2 train as usual
         self.true_train_policy(
             states=states,
@@ -229,8 +247,13 @@ class MBRL_DYNA_SAC:
         pred_state = next_states
         for _ in range(self.horizon):
             pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
+            # This part is controversial. But random is definately better. Q: All random?
             # On-policy generating.Temporary results shows no diff with random.
-            pred_acts, _, _ = self.actor_net.sample(pred_state)
+            # pred_acts, _, _ = self.actor_net.sample(pred_state)
+            # rand_acts = np.random.uniform(-1,1,(self.num_samples, self.action_num))
+            rand_acts = np.random.uniform(-1,1,(pred_state.shape[0], self.action_num))
+            pred_acts = torch.FloatTensor(rand_acts).to(self.device)
+            # pred_acts = pred_acts.repeat(repeats=next_states.shape[0])
             pred_next_state, _, _, _ = self.world_model.pred_next_states(
                 pred_state, pred_acts
             )
