@@ -192,6 +192,24 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
 
     return agent
 
+def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import RDTD3
+    from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config.actor_lr)
+    critic = Critic(observation_size, action_num, config.critic_lr)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = RDTD3(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        state_dim=observation_size,
+        device=device,
+    )
+    return agent
 
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):

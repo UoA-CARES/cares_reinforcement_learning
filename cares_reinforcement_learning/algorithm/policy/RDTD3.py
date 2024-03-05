@@ -60,15 +60,24 @@ class RDTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, replay_buffer, batch_size):
+    def train_policy(self, experience):
 
         self.learn_counter += 1
         info = {}
 
         # Sample replay buffer
-        states, actions, rewards, next_states, dones, indices, weights = replay_buffer.sample(batch_size)
+        states, actions, rewards, next_states, dones, indices, weights = experience
 
         dones = dones.reshape(-1, 1)
+        rewards = rewards.reshape(-1, 1)
+
+        # print("states", states.shape)
+        # print("actions", actions.shape)
+        # print("rewards", rewards.shape)
+        # print("next_states", next_states.shape)
+        # print("dones", dones.shape)
+        # print("indices", indices.shape)
+        # print("weights", weights.shape)
 
         # Get current Q estimates way2 (2)
         q_values_one, q_values_two = self.critic_net(states.detach(), actions.detach())
@@ -114,8 +123,7 @@ class RDTD3:
         ############################
         # calculate priority
 
-        priority = torch.max(critic1_loss, critic2_loss).clamp(min=self.min_priority).pow(self.alpha).cpu().data.numpy().flatten()
-        replay_buffer.update_priority(indices, priority)
+        priorities = torch.max(critic1_loss, critic2_loss).clamp(min=self.min_priority).pow(self.alpha).cpu().data.numpy().flatten()
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
@@ -173,6 +181,8 @@ class RDTD3:
         info["critic_loss_total"] = critic_loss_total
         info["critic_loss_one"] = critic1_loss
         info["critic_loss_two"] = critic2_loss
+        info["priorities"] = priorities
+        info["indices"] = indices
 
         return info
 

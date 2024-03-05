@@ -20,9 +20,9 @@ class EnvironmentConfig(SubscriptableClass):
 class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
 
-    G: Optional[int] = 1
+    G: Optional[int] = 10
     buffer_size: Optional[int] = 1000000
-    batch_size: Optional[int] = 10
+    batch_size: Optional[int] = 32
 
     max_steps_exploration: Optional[int] = 1000
     max_steps_training: Optional[int] = 1000000
@@ -151,3 +151,17 @@ class CTD4Config(AlgorithmConfig):
     noise_scale: Optional[float] = 0.1
 
     fusion_method: Optional[str] = "kalman"  # kalman, minimum, average
+
+class RDTD3Config(AlgorithmConfig):
+    algorithm: str = Field("RDTD3", Literal=True)
+
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    ensemble_size: Optional[int] = 2
+    memory: Optional[str] = "PER"
+
+    min_noise: Optional[float] = 0.0
+    noise_decay: Optional[float] = 0.999999
+    noise_scale: Optional[float] = 0.1

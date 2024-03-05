@@ -43,13 +43,12 @@ class PrioritizedReplayBuffer():
 
         self.beta = min(self.beta + 2e-7, 1)
 
-
         return (
-            torch.FloatTensor(self.state[ind]).to(self.device),
-            torch.FloatTensor(self.action[ind]).to(self.device),
-            torch.FloatTensor(self.reward[ind]).to(self.device),
-            torch.FloatTensor(self.next_state[ind]).to(self.device),
-            torch.FloatTensor(self.done[ind]).to(self.device),
+            torch.FloatTensor(np.array(self.state)[ind]).to(self.device),
+            torch.FloatTensor(np.array(self.action)[ind]).to(self.device),
+            torch.FloatTensor(np.array(self.reward)[ind]).to(self.device),
+            torch.FloatTensor(np.array(self.next_state)[ind]).to(self.device),
+            torch.FloatTensor(np.array(self.done)[ind]).to(self.device),
             ind,
             torch.FloatTensor(weights).to(self.device).reshape(-1, 1)
         )
