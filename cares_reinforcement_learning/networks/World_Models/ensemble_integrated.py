@@ -107,7 +107,7 @@ class Ensemble_World_Reward:
     """
 
     def __init__(
-        self, observation_size, num_actions, num_models, hidden_size=128, lr=0.001
+        self, observation_size, num_actions, num_models, lr, hidden_size=128,
     ):
         self.device = None
         self.num_models = num_models
