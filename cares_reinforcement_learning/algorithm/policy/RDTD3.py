@@ -69,15 +69,6 @@ class RDTD3:
         states, actions, rewards, next_states, dones, indices, weights = experience
 
         dones = dones.reshape(-1, 1)
-        rewards = rewards.reshape(-1, 1)
-
-        # print("states", states.shape)
-        # print("actions", actions.shape)
-        # print("rewards", rewards.shape)
-        # print("next_states", next_states.shape)
-        # print("dones", dones.shape)
-        # print("indices", indices.shape)
-        # print("weights", weights.shape)
 
         # Get current Q estimates way2 (2)
         q_values_one, q_values_two = self.critic_net(states.detach(), actions.detach())

@@ -17,5 +17,5 @@ class MemoryFactory:
             if not 'action_num' in kwargs:
                 raise AttributeError('action_num not passed into kwargs. PER memory buffer is dependent on this.')
             
-            return PrioritizedReplayBuffer(max_size=buffer_size)
+            return PrioritizedReplayBuffer(kwargs['observation_size'], kwargs['action_num'], max_size=buffer_size)
         raise ValueError(f"Unkown memory type: {memory_type}")
