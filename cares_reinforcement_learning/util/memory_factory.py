@@ -4,7 +4,7 @@
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.memory.augments import *
 
-from cares_reinforcement_learning.memory.RD_PER_TD3 import PrioritizedReplayBuffer
+from cares_reinforcement_learning.memory.rd_td3 import PrioritizedReplayBuffer
 
 class MemoryFactory:
     def create_memory(self, memory_type, buffer_size, args):

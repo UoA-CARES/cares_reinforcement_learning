@@ -20,9 +20,9 @@ class EnvironmentConfig(SubscriptableClass):
 class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
 
-    G: Optional[int] = 10
+    G: Optional[int] = 1
     buffer_size: Optional[int] = 1000000
-    batch_size: Optional[int] = 32
+    batch_size: Optional[int] = 10
 
     max_steps_exploration: Optional[int] = 1000
     max_steps_training: Optional[int] = 1000000

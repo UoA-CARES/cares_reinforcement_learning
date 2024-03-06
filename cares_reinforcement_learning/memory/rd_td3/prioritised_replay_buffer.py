@@ -31,7 +31,11 @@ class PrioritizedReplayBuffer():
         self.reward.append(reward)
         self.done.append(done)
 
+        import time
+        time_start = time.time()
         self.tree.set(self.ptr, self.max_priority)
+        time_end = time.time()
+        # print(f"Time taken to set priority: {time_end - time_start}")
         self.ptr = (self.ptr + 1) % self.max_size
         self.size = min(self.size + 1, self.max_size)
 
