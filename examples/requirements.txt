@@ -1,0 +1,12 @@
+matplotlib==3.6.2
+numpy==1.23.5
+opencv-contrib-python==4.6.0.66
+pandas==1.5.2
+pydantic==1.10.13
+pytest==7.4.2
+PyYAML==6.0.1
+scikit_image==0.19.3
+seaborn==0.13.0
+setuptools==67.8.0
+torch==2.0.1
+gymnasium==0.29.0
