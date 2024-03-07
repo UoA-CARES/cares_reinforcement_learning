@@ -29,6 +29,7 @@ class TrainingConfig(SubscriptableClass):
 
     number_steps_per_evaluation: Optional[int] = 10000
     number_eval_episodes: Optional[int] = 10
+    number_steps_per_train_policy: Optional[int] = 1
 
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
