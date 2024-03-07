@@ -102,6 +102,20 @@ class TD3Config(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 
+class DeulingTD3Config(AlgorithmConfig):
+    algorithm: str = Field("DuelingTD3", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    agent_observation_size: int
+    envrionment_observation_size: int
+
+    memory: Optional[str] = "MemoryBuffer"
+
+
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 3e-4

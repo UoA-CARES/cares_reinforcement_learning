@@ -136,6 +136,29 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_DuelingTD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import TD3
+    from cares_reinforcement_learning.networks.DuelingTD3 import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(
+        config.agent_observation_size, config.envrionment_observation_size, action_num
+    )
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = TD3(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
+
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
     from cares_reinforcement_learning.networks.NaSATD3 import (
