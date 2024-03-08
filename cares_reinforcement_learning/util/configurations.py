@@ -103,7 +103,7 @@ class TD3Config(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 
-class DeulingTD3Config(AlgorithmConfig):
+class DuelingTD3Config(AlgorithmConfig):
     algorithm: str = Field("DuelingTD3", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4

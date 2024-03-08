@@ -137,7 +137,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_DuelingTD3(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.algorithm.policy import TD3
+    from cares_reinforcement_learning.algorithm.policy import DuelingTD3
     from cares_reinforcement_learning.networks.DuelingTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
@@ -146,7 +146,7 @@ def create_DuelingTD3(observation_size, action_num, config: AlgorithmConfig):
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = TD3(
+    agent = DuelingTD3(
         actor_network=actor,
         critic_network=critic,
         actor_lr=config.actor_lr,
