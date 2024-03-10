@@ -97,7 +97,7 @@ class DynaSAC:
         self.actor_net.train()
         return action
 
-    def _true_train_policy(self, states, actions, rewards, next_states, dones):
+    def _train_policy(self, states, actions, rewards, next_states, dones):
         """
         Train the policy with Model-Based Value Expansion. A family of MBRL.
 
@@ -224,7 +224,7 @@ class DynaSAC:
         assert len(rewards.shape) == 2 and rewards.shape[1] == 1
         assert len(next_states.shape) >= 2
         # Step 2 train as usual
-        self._true_train_policy(
+        self._train_policy(
             states=states,
             actions=actions,
             rewards=rewards,
@@ -265,7 +265,7 @@ class DynaSAC:
         # Pay attention to here! It is dones in the Cares RL Code!
         pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
         # states, actions, rewards, next_states, not_dones
-        self._true_train_policy(
+        self._train_policy(
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
