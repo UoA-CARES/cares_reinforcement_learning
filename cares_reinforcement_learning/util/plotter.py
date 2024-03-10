@@ -51,8 +51,8 @@ def plot_data(
     )
 
     plt.legend(fontsize="15", loc="upper left")
-    # fig_manager = plt.get_current_fig_manager()
-    # fig_manager.window.setGeometry(100, 100, 800, 650)
+    fig_manager = plt.get_current_fig_manager()
+    fig_manager.window.setGeometry(100, 100, 800, 650)
 
     plt.savefig(f"{directory}/figures/{filename}.png")
 

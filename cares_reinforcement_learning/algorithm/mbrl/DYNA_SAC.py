@@ -247,14 +247,9 @@ class MBRL_DYNA_SAC:
         pred_state = next_states
         for _ in range(self.horizon):
             pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
-            # This part is controversial. But random is definately better. Q: All random?
-            # On-policy generating.Temporary results shows no diff with random.
-            # pred_acts, _, _ = self.actor_net.sample(pred_state)
-            # rand_acts = np.random.uniform(-1,1,(self.num_samples, self.action_num))
-
+            # This part is controversial. But random actions is empirically better.
             rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
             pred_acts = torch.FloatTensor(rand_acts).to(self.device)
-            # pred_acts = pred_acts.repeat(repeats=next_states.shape[0])
             pred_next_state, _, _, _ = self.world_model.pred_next_states(
                 pred_state, pred_acts
             )
