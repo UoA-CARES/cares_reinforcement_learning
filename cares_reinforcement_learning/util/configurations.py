@@ -112,7 +112,7 @@ class SACConfig(AlgorithmConfig):
     memory: Optional[str] = "MemoryBuffer"
 
 
-class MBRL_DYNAConfig(AlgorithmConfig):
+class DYNAConfig(AlgorithmConfig):
     algorithm: str = Field("MBRL_DYNA", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4

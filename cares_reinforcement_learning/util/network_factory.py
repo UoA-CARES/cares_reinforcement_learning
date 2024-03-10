@@ -6,7 +6,7 @@ import torch
 
 from cares_reinforcement_learning.util.configurations import (
     AlgorithmConfig,
-    MBRL_DYNAConfig,
+    DYNAConfig,
 )
 
 
@@ -78,7 +78,7 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
+def create_MBRL_DYNA(observation_size, action_num, config: DYNAConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
