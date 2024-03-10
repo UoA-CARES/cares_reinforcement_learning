@@ -106,12 +106,25 @@ class TD3Config(AlgorithmConfig):
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-3
-
+    critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-
     memory: Optional[str] = "MemoryBuffer"
+
+
+class DYNAConfig(AlgorithmConfig):
+    algorithm: str = Field("MBRL_DYNA", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    memory: Optional[str] = "MemoryBuffer"
+    horizon: Optional[int] = 3
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
 
 
 class NaSATD3Config(AlgorithmConfig):

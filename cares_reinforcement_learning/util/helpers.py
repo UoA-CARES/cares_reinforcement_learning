@@ -20,6 +20,20 @@ def plot_reward_curve(data_reward):
     plt.show()
 
 
+def weight_init(m):
+    """
+    Initialize the world model with orthogonal initializer for diversity.
+    It works better than Xavier, which is commented.
+
+    Keyword arguments:
+        m -- the layer to be initialized.
+    """
+    if isinstance(m, torch.nn.Linear):
+        #     torch.nn.init.xavier_uniform_(m.weight)
+        torch.nn.init.orthogonal_(m.weight.data)
+        m.bias.data.fill_(0.0)
+
+
 def denormalize(action, max_action_value, min_action_value):
     """
     return action in environment range [max_action_value, min_action_value]
