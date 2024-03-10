@@ -67,7 +67,6 @@ class DynaSAC:
 
         # World model
         self.world_model = world_network
-        self.world_model.to(device)
         self.learn_counter = 0
         self.policy_update_freq = 1
 

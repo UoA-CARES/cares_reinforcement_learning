@@ -90,13 +90,16 @@ def create_MBRL_DYNA(observation_size, action_num, config: DYNAConfig):
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
     world_model = EnsembleWorldReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
+        device=device,
         lr=config.world_model_lr,
     )
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     agent = DynaSAC(
         actor_network=actor,

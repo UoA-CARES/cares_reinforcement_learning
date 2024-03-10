@@ -112,9 +112,9 @@ class EnsembleWorldReward:
         num_actions,
         num_models,
         lr,
+        device,
         hidden_size=128,
     ):
-        self.device = None
         self.num_models = num_models
         self.observation_size = observation_size
         self.num_actions = num_actions
@@ -129,10 +129,7 @@ class EnsembleWorldReward:
         ]
         self.statistics = {}
 
-    def to(self, device):
-        """
-        A function that take all networks to a designate device.
-        """
+        # Bring all reward prediction and dynamic rediction networks to device.
         self.device = device
         for model in self.models:
             model.dyna_network.to(device)
