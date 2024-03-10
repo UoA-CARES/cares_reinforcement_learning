@@ -84,13 +84,13 @@ def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
     An extra world model is added.
 
     """
-    from cares_reinforcement_learning.algorithm.mbrl import MBRL_DYNA_SAC
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.World_Models import Ensemble_World_Reward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
-    world_model = Ensemble_World_Reward(
+    world_model = EnsembleWorldReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
@@ -98,7 +98,7 @@ def create_MBRL_DYNA(observation_size, action_num, config: MBRL_DYNAConfig):
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    agent = MBRL_DYNA_SAC(
+    agent = DynaSAC(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,

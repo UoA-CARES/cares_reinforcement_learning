@@ -8,11 +8,11 @@ import torch.utils
 from torch import optim
 import numpy as np
 from cares_reinforcement_learning.util.helpers import normalize_obs_deltas
-from cares_reinforcement_learning.networks.World_Models.simple_dynamics import (
-    Simple_Dynamics,
+from cares_reinforcement_learning.networks.world_models.simple_dynamics import (
+    SimpleDynamics,
 )
-from cares_reinforcement_learning.networks.World_Models.simple_rewards import (
-    Simple_Reward,
+from cares_reinforcement_learning.networks.world_models.simple_rewards import (
+    SimpleReward,
 )
 
 
@@ -27,12 +27,12 @@ class IntegratedWorldModel:
     """
 
     def __init__(self, observation_size, num_actions, hidden_size, lr=0.001):
-        self.dyna_network = Simple_Dynamics(
+        self.dyna_network = SimpleDynamics(
             observation_size=observation_size,
             num_actions=num_actions,
             hidden_size=hidden_size,
         )
-        self.reward_network = Simple_Reward(
+        self.reward_network = SimpleReward(
             observation_size=observation_size,
             num_actions=num_actions,
             hidden_size=hidden_size,
@@ -95,7 +95,7 @@ class IntegratedWorldModel:
         self.all_optimizer.step()
 
 
-class Ensemble_World_Reward:
+class EnsembleWorldReward:
     """
     Ensemble the integrated dynamic reward models. It works like a group of
     experts. The predicted results can be used to estimate the uncertainty.

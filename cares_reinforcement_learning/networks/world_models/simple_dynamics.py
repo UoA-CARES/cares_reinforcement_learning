@@ -9,7 +9,7 @@ from cares_reinforcement_learning.util.helpers import (
 )
 
 
-class Simple_Dynamics(nn.Module):
+class SimpleDynamics(nn.Module):
     """
     A world model with fully connected layers. It takes current states (s) and
     current actions (a), and predict next states (s').

@@ -13,7 +13,7 @@ import torch
 import torch.nn.functional as F
 
 
-class MBRL_DYNA_SAC:
+class DynaSAC:
     """
     Use the Soft Actor Critic as the Actor Critic framework.
 
@@ -72,7 +72,7 @@ class MBRL_DYNA_SAC:
         self.policy_update_freq = 1
 
     @property
-    def alpha(self):
+    def _alpha(self):
         """
         A variatble decide to what extend entropy shoud be valued.
         """
@@ -98,7 +98,7 @@ class MBRL_DYNA_SAC:
         self.actor_net.train()
         return action
 
-    def true_train_policy(self, states, actions, rewards, next_states, dones):
+    def _true_train_policy(self, states, actions, rewards, next_states, dones):
         """
         Train the policy with Model-Based Value Expansion. A family of MBRL.
 
@@ -110,7 +110,7 @@ class MBRL_DYNA_SAC:
                 next_states, next_actions
             )
             target_q_values = (
-                torch.minimum(target_q_one, target_q_two) - self.alpha * next_log_pi
+                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
         q_target = q_target.detach()
@@ -129,7 +129,7 @@ class MBRL_DYNA_SAC:
         pi, first_log_p, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
-        actor_loss = ((self.alpha * first_log_p) - min_qf_pi).mean()
+        actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
@@ -225,7 +225,7 @@ class MBRL_DYNA_SAC:
         assert len(rewards.shape) == 2 and rewards.shape[1] == 1
         assert len(next_states.shape) >= 2
         # Step 2 train as usual
-        self.true_train_policy(
+        self._true_train_policy(
             states=states,
             actions=actions,
             rewards=rewards,
@@ -233,9 +233,9 @@ class MBRL_DYNA_SAC:
             dones=dones,
         )
         # # # Step 3 Dyna add more data
-        self.dyna_generate_and_train(next_states=next_states)
+        self._dyna_generate_and_train(next_states=next_states)
 
-    def dyna_generate_and_train(self, next_states):
+    def _dyna_generate_and_train(self, next_states):
         """
         Only off-policy Dyna will work.
         :param next_states:
@@ -266,7 +266,7 @@ class MBRL_DYNA_SAC:
         # Pay attention to here! It is dones in the Cares RL Code!
         pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
         # states, actions, rewards, next_states, not_dones
-        self.true_train_policy(
+        self._true_train_policy(
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
