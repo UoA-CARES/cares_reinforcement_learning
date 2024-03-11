@@ -34,7 +34,7 @@ def weight_init(m):
         m.bias.data.fill_(0.0)
 
 
-def normalize_obs(obs, statistics):
+def normalize_observations(obs, statistics):
     """
     This normalization is applied to world models inputs.
     Normalize the states based on the statistics from experience replay.
@@ -46,7 +46,7 @@ def normalize_obs(obs, statistics):
     return (obs - statistics["observation_mean"]) / statistics["observation_std"]
 
 
-def unnormalize_obs_deltas(normalized_deltas, statistics):
+def unnormalize_observations_deltas(normalized_deltas, statistics):
     """
     This denormlizing is applied to world models predicitons to restore the range of state difference between next and
     current.
@@ -58,7 +58,7 @@ def unnormalize_obs_deltas(normalized_deltas, statistics):
     return (normalized_deltas * statistics["delta_std"]) + statistics["delta_mean"]
 
 
-def normalize_obs_deltas(deltas, statistics):
+def normalize_observations_deltas(deltas, statistics):
     """
     This normalization is applied to world models' target lables. The world model is predicting the difference between
     current states and next states. This normalization is applied to the deltas.
