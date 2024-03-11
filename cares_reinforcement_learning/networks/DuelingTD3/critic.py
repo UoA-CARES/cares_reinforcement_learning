@@ -11,7 +11,7 @@ class Critic(nn.Module):
     ):
         super().__init__()
 
-        self.hidden_size = [256, 256]
+        self.hidden_size = [128, 128]
 
         self.agent_observation_size = agent_observation_size
         self.envrionment_observation_size = envrionment_observation_size

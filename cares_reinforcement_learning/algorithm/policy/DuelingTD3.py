@@ -1,5 +1,7 @@
 """
 Original Paper: N/A
+
+python3 train.py run --gym dmcs --domain ball_in_cup --task catch DuelingTD3 --agent_observation_size 4 --envrionment_observation_size 4
 """
 
 import copy
