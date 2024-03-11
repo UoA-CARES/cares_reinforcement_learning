@@ -22,7 +22,7 @@ class TrainingConfig(SubscriptableClass):
 
     G: Optional[int] = 1
     buffer_size: Optional[int] = 1000000
-    batch_size: Optional[int] = 10
+    batch_size: Optional[int] = 256
 
     max_steps_exploration: Optional[int] = 1000
     max_steps_training: Optional[int] = 1000000
