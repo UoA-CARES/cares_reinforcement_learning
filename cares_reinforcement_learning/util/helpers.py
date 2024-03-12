@@ -43,7 +43,9 @@ def normalize_observation(observation, statistics):
         obs -- input states
         statistics -- statistics from experience replay (no default)
     """
-    return (observation - statistics["observation_mean"]) / statistics["observation_std"]
+    return (observation - statistics["observation_mean"]) / statistics[
+        "observation_std"
+    ]
 
 
 def denormalize_observation_delta(normalized_delta, statistics):

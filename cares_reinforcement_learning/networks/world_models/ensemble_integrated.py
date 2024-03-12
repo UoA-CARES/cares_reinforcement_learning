@@ -56,9 +56,7 @@ class IntegratedWorldModel:
         :param (Tensor) next_states -- target label.
         """
         target = next_states - states
-        delta_targets_normalized = normalize_observation_delta(
-            target, self.statistics
-        )
+        delta_targets_normalized = normalize_observation_delta(target, self.statistics)
         _, n_mean, n_var = self.dyna_network.forward(states, actions)
         model_loss = F.gaussian_nll_loss(
             input=n_mean, target=delta_targets_normalized, var=n_var
@@ -85,9 +83,7 @@ class IntegratedWorldModel:
         # Always denormalized delta
         pred_next_state = mean_deltas + states
         target = next_states - states
-        delta_targets_normalized = normalize_observation_delta(
-            target, self.statistics
-        )
+        delta_targets_normalized = normalize_observation_delta(target, self.statistics)
         model_loss = F.gaussian_nll_loss(
             input=normalized_mean, target=delta_targets_normalized, var=normalized_var
         ).mean()
