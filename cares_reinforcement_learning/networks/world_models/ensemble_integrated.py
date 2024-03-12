@@ -7,7 +7,7 @@ import torch.nn.functional as F
 import torch.utils
 from torch import optim
 import numpy as np
-from cares_reinforcement_learning.util.helpers import normalize_observations_deltas
+from cares_reinforcement_learning.util.helpers import normalize_observation_delta
 from cares_reinforcement_learning.networks.world_models.simple_dynamics import (
     SimpleDynamics,
 )
@@ -56,7 +56,7 @@ class IntegratedWorldModel:
         :param (Tensor) next_states -- target label.
         """
         target = next_states - states
-        delta_targets_normalized = normalize_observations_deltas(
+        delta_targets_normalized = normalize_observation_delta(
             target, self.statistics
         )
         _, n_mean, n_var = self.dyna_network.forward(states, actions)
@@ -85,7 +85,7 @@ class IntegratedWorldModel:
         # Always denormalized delta
         pred_next_state = mean_deltas + states
         target = next_states - states
-        delta_targets_normalized = normalize_observations_deltas(
+        delta_targets_normalized = normalize_observation_delta(
             target, self.statistics
         )
         model_loss = F.gaussian_nll_loss(
