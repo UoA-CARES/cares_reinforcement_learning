@@ -54,11 +54,11 @@ def plot_data(
 
     # Resize the plotted figure. Pixel = DPI * Inch. PLT Default DPI: 100.
     fig = plt.gcf()
-    width= 800
+    width = 800
     height = 650
     default_dpi = 100
     fig.set_dpi(default_dpi)
-    fig.set_size_inches(width/default_dpi, height/default_dpi)
+    fig.set_size_inches(width / default_dpi, height / default_dpi)
 
     plt.savefig(f"{directory}/figures/{filename}.png")
 
