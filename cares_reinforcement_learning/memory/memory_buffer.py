@@ -29,6 +29,29 @@ class MemoryBuffer:
         """
         self.buffer.append(experience)
 
+    def sample_next(self, batch_size):
+        """
+        For training MBRL to predict rewards. The right next transition is
+        sampled as well. WHEN THE BUFFER IS NOT SHUFFLED.
+
+        (State, action, reward, next_state, next_action, next_reard)
+
+        """
+        batch_size = min(batch_size, len(self.buffer) - 1)
+        max_length = len(self.buffer)
+        idxs = np.random.randint(0, (max_length - 1), size=batch_size)
+        # A list of tuples
+        experience_batch = [
+            self.buffer[i]
+            + (
+                self.buffer[i + 1][1],
+                self.buffer[i + 1][2],
+            )
+            for i in idxs
+        ]
+        transposed_batch = zip(*experience_batch)
+        return transposed_batch
+
     def sample(self, batch_size):
         """
         Sample for training the agent.
