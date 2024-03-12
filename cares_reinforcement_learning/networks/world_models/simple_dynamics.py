@@ -4,8 +4,8 @@ import torch.nn.functional as F
 import torch.utils
 from cares_reinforcement_learning.util.helpers import (
     weight_init,
-    normalize_obs,
-    unnormalize_obs_deltas,
+    normalize_observation,
+    denormalize_observation_delta,
 )
 
 
@@ -54,7 +54,7 @@ class SimpleDynamics(nn.Module):
             obs.shape[1] + actions.shape[1] == self.observation_size + self.num_actions
         )
         # Always normalized obs
-        normalized_obs = normalize_obs(obs, self.statistics)
+        normalized_obs = normalize_observation(obs, self.statistics)
         x = torch.cat((normalized_obs, actions), dim=1)
         x = self.layer1(x)
         x = F.relu(x)
@@ -65,5 +65,5 @@ class SimpleDynamics(nn.Module):
         logvar = torch.tanh(logvar)
         normalized_var = torch.exp(logvar)
         # Always denormalized delta
-        mean_deltas = unnormalize_obs_deltas(normalized_mean, self.statistics)
+        mean_deltas = denormalize_observation_delta(normalized_mean, self.statistics)
         return mean_deltas, normalized_mean, normalized_var
