@@ -17,7 +17,7 @@ class PrioritizedReplayBuffer():
 		self.action = np.zeros((max_size, action_dim))
 		self.next_state = np.zeros((max_size, state_dim))
 		self.reward = np.zeros((max_size, 1))
-		self.not_done = np.zeros((max_size, 1))
+		self.done = np.zeros((max_size, 1))
 
 		self.tree = SumTree(max_size)
 		self.max_priority = 1.0
@@ -25,17 +25,13 @@ class PrioritizedReplayBuffer():
 
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-
-
-
-
 	def add(self, state, action, reward, next_state, done):
 
 		self.state[self.ptr] = state
 		self.action[self.ptr] = action
 		self.next_state[self.ptr] = next_state
 		self.reward[self.ptr] = reward
-		self.not_done[self.ptr] = 1. - done
+		self.done[self.ptr] = done
 
 		self.tree.set(self.ptr, self.max_priority)
 
@@ -59,7 +55,7 @@ class PrioritizedReplayBuffer():
 			torch.FloatTensor(self.action[ind]).to(self.device),
             torch.FloatTensor(self.reward[ind]).to(self.device),
 			torch.FloatTensor(self.next_state[ind]).to(self.device),
-			torch.FloatTensor(self.not_done[ind]).to(self.device),
+			torch.FloatTensor(self.done[ind]).to(self.device),
 			ind,
 			torch.FloatTensor(weights).to(self.device).reshape(-1, 1)
 		)
