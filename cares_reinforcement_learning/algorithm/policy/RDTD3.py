@@ -90,10 +90,8 @@ class RDTD3:
             target_q_values_one, target_q_values_two = self.target_critic_net(next_states, next_actions)
             next_values1, _, _ = self.div(target_q_values_one)
             next_values2, _, _ = self.div(target_q_values_two)
-            target_q_values = torch.min(next_values1, next_values2).reshape(-1,1)  # torch.min
+            target_q_values = torch.min(next_values1, next_values2).reshape(-1,1)
 
-            #rew = (rew1.reshape(-1, 1) + rew2.reshape(-1, 1)) / 2
-            #rewards = rew.reshape(-1, 1)
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         #############################################
@@ -121,11 +119,7 @@ class RDTD3:
             actor_q_one, actor_q_two = self.critic_net(states.detach(), self.actor_net(states.detach()))
             actor_q_values = torch.minimum(actor_q_one, actor_q_two)
             actor_val, _, _ = self.div(actor_q_values)
-            ###############
-            # way1
-            #actor_loss = -(weights * actor_val).mean()
-            ###############
-            # way2
+ 
             actor_loss = -actor_val.mean()
 
             # Optimize the actor
