@@ -162,6 +162,5 @@ class RDTD3Config(AlgorithmConfig):
     ensemble_size: Optional[int] = 2
     memory: Optional[str] = "PER"
 
-    min_noise: Optional[float] = 0.0
-    noise_decay: Optional[float] = 0.999999
     noise_scale: Optional[float] = 0.1
+    noise_decay: Optional[float] = 1

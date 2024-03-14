@@ -22,7 +22,7 @@ class PrioritizedReplayBuffer():
 		self.tree = SumTree(max_size)
 		self.max_priority = 1.0
 		self.beta = 0.4
-
+		
 		self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 	def add(self, state, action, reward, next_state, done):
@@ -37,9 +37,6 @@ class PrioritizedReplayBuffer():
 
 		self.ptr = (self.ptr + 1) % self.max_size
 		self.size = min(self.size + 1, self.max_size)
-
-
-
 
 
 	def sample(self, batch_size):
