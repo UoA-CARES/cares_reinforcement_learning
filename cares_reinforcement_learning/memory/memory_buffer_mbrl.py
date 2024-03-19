@@ -3,7 +3,7 @@ from collections import deque
 import numpy as np
 
 
-class MemoryBuffer:
+class MemoryBufferMBRL:
     """
     A memory buffer to temporarily store transitions. It is like a transition
     pool. Only off-policy algorithms needs random sampling this buffer.
@@ -102,3 +102,31 @@ class MemoryBuffer:
         Clear the buffer.
         """
         self.buffer.clear()
+
+    def get_statistics(self):
+        """
+        Compute the statisitics for world model state normalization.
+        state, action, reward, next_state, done
+
+        :return: statistic tuple of the collected transitions.
+        """
+        states = [trans[0] for trans in self.buffer]
+        next_states = [trans[3] for trans in self.buffer]
+
+        states = np.array(states)
+        next_states = np.array(next_states)
+        delta = next_states - states
+
+        # Add a small number to avoid zeros.
+        observation_mean = np.mean(states, axis=0) + 0.00001
+        observation_std = np.std(states, axis=0) + 0.00001
+        delta_mean = np.mean(delta, axis=0) + 0.00001
+        delta_std = np.std(delta, axis=0) + 0.00001
+
+        statistics = {
+            "observation_mean": observation_mean,
+            "observation_std": observation_std,
+            "delta_mean": delta_mean,
+            "delta_std": delta_std,
+        }
+        return statistics

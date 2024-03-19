@@ -22,7 +22,7 @@ class TrainingConfig(SubscriptableClass):
     # for general agent training.
     G: Optional[int] = 1
     # for training the world model in MBRL.
-    G_model: Optional[int] = 1
+    G_model: Optional[float] = 1.0
 
     buffer_size: Optional[int] = 1000000
     batch_size: Optional[int] = 256
@@ -124,7 +124,7 @@ class DYNAConfig(AlgorithmConfig):
     num_models: Optional[int] = 5
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    memory: Optional[str] = "MemoryBuffer"
+    memory: Optional[str] = "MemoryBufferMBRL"
     horizon: Optional[int] = 3
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
