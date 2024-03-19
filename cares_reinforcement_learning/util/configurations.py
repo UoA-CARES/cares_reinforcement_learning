@@ -22,7 +22,7 @@ class TrainingConfig(SubscriptableClass):
     # for general agent training.
     G: Optional[int] = 1
     # for training the world model in MBRL.
-    G_model: Optional[float] = 1.0
+    G_model: Optional[int] = 1
 
     buffer_size: Optional[int] = 1000000
     batch_size: Optional[int] = 256
