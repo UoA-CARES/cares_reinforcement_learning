@@ -269,6 +269,13 @@ class DynaSAC:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
+    def set_statistics(self, stats):
+        """
+        Set and update the statatistics (means and stds) for MBRL to normalize the states.
+
+        """
+        self.world_model.set_statistics(stats)
+
     def save_models(self, filename, filepath="models"):
         """
         Save the intrim actor critics.
