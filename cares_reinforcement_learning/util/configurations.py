@@ -22,7 +22,7 @@ class TrainingConfig(SubscriptableClass):
     # for general agent training.
     G: Optional[int] = 1
     # for training the world model in MBRL.
-    G_model: Optional[int] = 1
+    G_model: Optional[float] = 1
 
     buffer_size: Optional[int] = 1000000
     batch_size: Optional[int] = 256
@@ -117,6 +117,21 @@ class SACConfig(AlgorithmConfig):
 
 class DYNAConfig(AlgorithmConfig):
     algorithm: str = Field("MBRL_DYNA", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    memory: Optional[str] = "MemoryBuffer"
+    horizon: Optional[int] = 3
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+
+class MBRL_DYNA_ReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("MBRL_DYNA_Reweight", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
     alpha_lr: Optional[float] = 3e-4
