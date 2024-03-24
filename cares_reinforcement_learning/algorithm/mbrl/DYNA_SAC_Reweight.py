@@ -227,7 +227,7 @@ class DynaSAC_Reweight:
         assert len(actions.shape) == 2
         assert len(rewards.shape) == 2 and rewards.shape[1] == 1
         assert len(next_states.shape) >= 2
-        full_weights = torch.ones(rewards.shape)
+        full_weights = torch.ones(rewards.shape).to(self.device)
         # Step 2 train as usual
         self._train_policy(
             states=states,
@@ -260,7 +260,7 @@ class DynaSAC_Reweight:
                 pred_state, pred_acts
             )
             uncert = sampling(pred_means=pred_mean, pred_vars=pred_var)
-            uncert = uncert.unsqueeze(dim=1)
+            uncert = uncert.unsqueeze(dim=1).to(self.device)
             pred_uncerts.append(uncert)
 
             pred_reward, _ = self.world_model.pred_rewards(pred_state, pred_acts)
