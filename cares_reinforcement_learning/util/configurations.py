@@ -116,7 +116,7 @@ class SACConfig(AlgorithmConfig):
 
 
 class DYNAConfig(AlgorithmConfig):
-    algorithm: str = Field("MBRL_DYNA", Literal=True)
+    algorithm: str = Field("DYNA", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
     alpha_lr: Optional[float] = 3e-4
