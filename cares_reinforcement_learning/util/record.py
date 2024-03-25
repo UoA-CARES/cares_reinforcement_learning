@@ -69,8 +69,7 @@ class Record:
         ) as outfile:
             json.dump(configuration.dict(exclude_none=True), outfile)
 
-    def start_video(self, file_name, frame):
-        fps = 30
+    def start_video(self, file_name, frame, fps=30):
         video_name = f"{self.directory}/videos/{file_name}.mp4"
         height, width, _ = frame.shape
         self.video = cv2.VideoWriter(
