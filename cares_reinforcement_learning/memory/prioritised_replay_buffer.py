@@ -1,8 +1,7 @@
-import torch
 import numpy as np
-from .SumTree import SumTree
+import torch
 
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+from cares_reinforcement_learning.util.sum_tree import SumTree
 
 
 class PrioritizedReplayBuffer:
