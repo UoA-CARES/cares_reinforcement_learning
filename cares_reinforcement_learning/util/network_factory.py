@@ -239,6 +239,7 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
 
     return agent
 
+
 def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import RDTD3
     from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
@@ -257,6 +258,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
         device=device,
     )
     return agent
+
 
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):

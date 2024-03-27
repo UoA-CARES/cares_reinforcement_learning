@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class SumTree(object):
     def __init__(self, max_size):
         self.levels = [np.zeros(1)]

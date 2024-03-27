@@ -169,6 +169,7 @@ class CTD4Config(AlgorithmConfig):
 
     fusion_method: Optional[str] = "kalman"  # kalman, minimum, average
 
+
 class RDTD3Config(AlgorithmConfig):
     algorithm: str = Field("RDTD3", Literal=True)
 

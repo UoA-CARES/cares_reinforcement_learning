@@ -5,15 +5,11 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+
 class RDTD3:
-    def __init__(self,
-                 actor_network,
-                 critic_network,
-                 gamma,
-                 tau,
-                 action_num,
-                 state_dim,
-                 device):
+    def __init__(
+        self, actor_network, critic_network, gamma, tau, action_num, state_dim, device
+    ):
 
         self.type = "policy"
         self.actor_net = actor_network.to(device)
@@ -41,7 +37,7 @@ class RDTD3:
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
-    def div(self,target):
+    def div(self, target):
         return target[:, 0], target[:, 1], target[:, 2:]
 
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
@@ -75,10 +71,28 @@ class RDTD3:
         values1, rew1, next_states1 = self.div(q_values_one)
         values2, rew2, next_states2 = self.div(q_values_two)
 
-        diff_rew1 = 0.5 * torch.pow(rew1.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0).reshape(-1, 1)
-        diff_rew2 = 0.5 * torch.pow(rew2.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0).reshape(-1, 1)
-        diff_next_states1 = 0.5 * torch.mean(torch.pow(next_states1.reshape(-1, self.state_dim) - next_states.reshape(-1, self.state_dim), 2.0), -1).reshape(-1, 1)
-        diff_next_states2 = 0.5 * torch.mean(torch.pow(next_states2.reshape(-1, self.state_dim) - next_states.reshape(-1, self.state_dim), 2.0), -1).reshape(-1, 1)
+        diff_rew1 = 0.5 * torch.pow(
+            rew1.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+        ).reshape(-1, 1)
+        diff_rew2 = 0.5 * torch.pow(
+            rew2.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+        ).reshape(-1, 1)
+        diff_next_states1 = 0.5 * torch.mean(
+            torch.pow(
+                next_states1.reshape(-1, self.state_dim)
+                - next_states.reshape(-1, self.state_dim),
+                2.0,
+            ),
+            -1,
+        ).reshape(-1, 1)
+        diff_next_states2 = 0.5 * torch.mean(
+            torch.pow(
+                next_states2.reshape(-1, self.state_dim)
+                - next_states.reshape(-1, self.state_dim),
+                2.0,
+            ),
+            -1,
+        ).reshape(-1, 1)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
@@ -87,23 +101,29 @@ class RDTD3:
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
-            target_q_values_one, target_q_values_two = self.target_critic_net(next_states, next_actions)
+            target_q_values_one, target_q_values_two = self.target_critic_net(
+                next_states, next_actions
+            )
             next_values1, _, _ = self.div(target_q_values_one)
             next_values2, _, _ = self.div(target_q_values_two)
-            target_q_values = torch.min(next_values1, next_values2).reshape(-1,1)
+            target_q_values = torch.min(next_values1, next_values2).reshape(-1, 1)
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         #############################################
-        diff_td1 = F.mse_loss(values1.reshape(-1, 1), q_target, reduction='none')
-        diff_td2 = F.mse_loss(values2.reshape(-1, 1), q_target, reduction='none')
-        critic3_loss = (diff_td1 + self.scale_r * diff_rew1 + self.scale_s * diff_next_states1)
-        critic4_loss = (diff_td2 + self.scale_r * diff_rew2 + self.scale_s * diff_next_states2)
+        diff_td1 = F.mse_loss(values1.reshape(-1, 1), q_target, reduction="none")
+        diff_td2 = F.mse_loss(values2.reshape(-1, 1), q_target, reduction="none")
+        critic3_loss = (
+            diff_td1 + self.scale_r * diff_rew1 + self.scale_s * diff_next_states1
+        )
+        critic4_loss = (
+            diff_td2 + self.scale_r * diff_rew2 + self.scale_s * diff_next_states2
+        )
 
-        critic1_loss = (diff_rew1.reshape(-1, 1))
-        critic2_loss = (diff_rew2.reshape(-1, 1))
+        critic1_loss = diff_rew1.reshape(-1, 1)
+        critic2_loss = diff_rew2.reshape(-1, 1)
 
-        critic_loss_total = (critic3_loss * weights + critic4_loss * weights)
+        critic_loss_total = critic3_loss * weights + critic4_loss * weights
         # train critic
         self.critic_net.optimiser.zero_grad()
         torch.mean(critic_loss_total).backward()
@@ -112,14 +132,23 @@ class RDTD3:
         ############################
         # calculate priority
 
-        priorities = torch.max(critic1_loss, critic2_loss).clamp(min=self.min_priority).pow(self.alpha).cpu().data.numpy().flatten()
+        priorities = (
+            torch.max(critic1_loss, critic2_loss)
+            .clamp(min=self.min_priority)
+            .pow(self.alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_q_one, actor_q_two = self.critic_net(states.detach(), self.actor_net(states.detach()))
+            actor_q_one, actor_q_two = self.critic_net(
+                states.detach(), self.actor_net(states.detach())
+            )
             actor_q_values = torch.minimum(actor_q_one, actor_q_two)
             actor_val, _, _ = self.div(actor_q_values)
- 
+
             actor_loss = -actor_val.mean()
 
             # Optimize the actor
@@ -128,13 +157,21 @@ class RDTD3:
             self.actor_net.optimiser.step()
 
             # Update target network params
-            for target_param, param in zip(self.target_critic_net.parameters(), self.critic_net.parameters()):
-                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+            for target_param, param in zip(
+                self.target_critic_net.parameters(), self.critic_net.parameters()
+            ):
+                target_param.data.copy_(
+                    param.data * self.tau + target_param.data * (1.0 - self.tau)
+                )
 
-            for target_param, param in zip(self.target_actor_net.parameters(), self.actor_net.parameters()):
-                target_param.data.copy_(param.data * self.tau + target_param.data * (1.0 - self.tau))
+            for target_param, param in zip(
+                self.target_actor_net.parameters(), self.actor_net.parameters()
+            ):
+                target_param.data.copy_(
+                    param.data * self.tau + target_param.data * (1.0 - self.tau)
+                )
 
-            info['actor_loss'] = actor_loss
+            info["actor_loss"] = actor_loss
 
         ################################################
         # Update Scales
@@ -155,7 +192,6 @@ class RDTD3:
             numpy_state_err = mean_state_err[:, 0].detach().data.cpu().numpy()
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
-
 
         self.update_step += 1
 

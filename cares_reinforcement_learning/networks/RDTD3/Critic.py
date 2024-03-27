@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
+
 class Critic(nn.Module):
     def __init__(self, observation_size, num_actions, learning_rate):
         super(Critic, self).__init__()
@@ -15,9 +16,11 @@ class Critic(nn.Module):
         self.h_linear_3 = nn.Linear(self.hidden_size[1], 1 + 1 + observation_size)
 
         # Q2 architecture
-        self.h_linear_12 = nn.Linear(observation_size + num_actions, self.hidden_size[0])
+        self.h_linear_12 = nn.Linear(
+            observation_size + num_actions, self.hidden_size[0]
+        )
         self.h_linear_22 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
-        self.h_linear_32 = nn.Linear(self.hidden_size[1],  1 + 1 + observation_size)
+        self.h_linear_32 = nn.Linear(self.hidden_size[1], 1 + 1 + observation_size)
 
         self.optimiser = optim.Adam(self.parameters(), lr=learning_rate)  # AdamW, Adam
 
