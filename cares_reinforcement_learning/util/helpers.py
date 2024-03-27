@@ -9,6 +9,7 @@ import torch
 def set_seed(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
+
     np.random.seed(seed)
     random.seed(seed)
 
@@ -17,6 +18,55 @@ def plot_reward_curve(data_reward):
     data = pd.DataFrame.from_dict(data_reward)
     data.plot(x="step", y="episode_reward", title="Reward Curve")
     plt.show()
+
+
+def weight_init(m):
+    """
+    Initialize the world model with orthogonal initializer for diversity.
+    It works better than Xavier, which is commented.
+
+    Keyword arguments:
+        m -- the layer to be initialized.
+    """
+    if isinstance(m, torch.nn.Linear):
+        #     torch.nn.init.xavier_uniform_(m.weight)
+        torch.nn.init.orthogonal_(m.weight.data)
+        m.bias.data.fill_(0.0)
+
+
+def normalize_observation(observation, statistics):
+    """
+    This normalization is applied to world models inputs.
+    Normalize the states based on the statistics from experience replay.
+
+    Keyword arguments:
+        obs -- input states
+        statistics -- statistics from experience replay (no default)
+    """
+    return (observation - statistics["observation_mean"]) / statistics[
+        "observation_std"
+    ]
+
+
+def denormalize_observation_delta(normalized_delta, statistics):
+    """
+    This denormlizing is applied to world models predicitons to restore the range of state difference between next and
+    current.
+
+    Keyword arguments:
+        obs -- input states
+        statistics -- statistics from experience replay (no default)
+    """
+    return (normalized_delta * statistics["delta_std"]) + statistics["delta_mean"]
+
+
+def normalize_observation_delta(delta, statistics):
+    """
+    This normalization is applied to world models' target lables. The world model is predicting the difference between
+    current states and next states. This normalization is applied to the deltas.
+
+    """
+    return (delta - statistics["delta_mean"]) / statistics["delta_std"]
 
 
 def denormalize(action, max_action_value, min_action_value):

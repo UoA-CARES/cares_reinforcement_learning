@@ -19,16 +19,20 @@ class EnvironmentConfig(SubscriptableClass):
 
 class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
-
+    # for general agent training.
     G: Optional[int] = 1
+    # for training the world model in MBRL.
+    G_model: Optional[int] = 1
+
     buffer_size: Optional[int] = 1000000
-    batch_size: Optional[int] = 10
+    batch_size: Optional[int] = 256
 
     max_steps_exploration: Optional[int] = 1000
     max_steps_training: Optional[int] = 1000000
 
     number_steps_per_evaluation: Optional[int] = 10000
     number_eval_episodes: Optional[int] = 10
+    number_steps_per_train_policy: Optional[int] = 1
 
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
@@ -105,12 +109,25 @@ class TD3Config(AlgorithmConfig):
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-3
-
+    critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-
     memory: Optional[str] = "MemoryBuffer"
+
+
+class DYNAConfig(AlgorithmConfig):
+    algorithm: str = Field("MBRL_DYNA", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    memory: Optional[str] = "MemoryBuffer"
+    horizon: Optional[int] = 3
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
 
 
 class NaSATD3Config(AlgorithmConfig):
