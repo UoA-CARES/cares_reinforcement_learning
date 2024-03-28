@@ -79,8 +79,8 @@ class RDTD3:
 
         # Get current Q estimates way2 (2)
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
-        q_values_one, reward_one, next_states_one = self._split_output(output_one)
-        q_values_two, reward_two, next_states_two = self._split_output(output_two)
+        q_value_one, reward_one, next_states_one = self._split_output(output_one)
+        q_value_two, reward_two, next_states_two = self._split_output(output_two)
 
         diff_reward_one = 0.5 * torch.pow(reward_one - rewards, 2.0)
         diff_reward_two = 0.5 * torch.pow(reward_two - rewards, 2.0)
@@ -121,12 +121,8 @@ class RDTD3:
 
         # calculate priority
         #############################################
-        diff_td_one = F.mse_loss(
-            q_values_one.reshape(-1, 1), q_target, reduction="none"
-        )
-        diff_td_two = F.mse_loss(
-            q_values_two.reshape(-1, 1), q_target, reduction="none"
-        )
+        diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
+        diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
         critic_three_loss = (
             diff_td_one
             + self.scale_r * diff_reward_one
