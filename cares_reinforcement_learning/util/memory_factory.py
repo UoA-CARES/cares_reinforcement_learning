@@ -12,12 +12,12 @@ class MemoryFactory:
         if memory_type == "MemoryBuffer":
             return MemoryBuffer(max_capacity=buffer_size)
         if memory_type == "PER":
-            if not "observation_size" in kwargs:
+            if "observation_size" not in kwargs:
                 raise AttributeError(
                     "observation_size not passed into kwargs. PER memory buffer is dependent on this."
                 )
 
-            if not "action_num" in kwargs:
+            if "action_num" not in kwargs:
                 raise AttributeError(
                     "action_num not passed into kwargs. PER memory buffer is dependent on this."
                 )

@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 
 from cares_reinforcement_learning.util.sum_tree import SumTree
 
