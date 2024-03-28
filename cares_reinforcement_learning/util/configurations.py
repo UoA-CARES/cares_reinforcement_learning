@@ -168,3 +168,17 @@ class CTD4Config(AlgorithmConfig):
     noise_scale: Optional[float] = 0.1
 
     fusion_method: Optional[str] = "kalman"  # kalman, minimum, average
+
+
+class RDTD3Config(AlgorithmConfig):
+    algorithm: str = Field("RDTD3", Literal=True)
+
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    ensemble_size: Optional[int] = 2
+    memory: Optional[str] = "PER"
+
+    noise_scale: Optional[float] = 0.1
+    noise_decay: Optional[float] = 1
