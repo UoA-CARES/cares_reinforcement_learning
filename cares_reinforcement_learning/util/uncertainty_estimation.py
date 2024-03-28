@@ -28,7 +28,7 @@ def sampling(pred_means, pred_vars):
     # print(stds.shape)
     # [10 predictions, 11 state dims]
     total_stds = torch.mean(stds, dim=1)
-    total_stds = F.sigmoid(total_stds)
+    total_stds = F.sigmoid(total_stds)  # 0.5 - 1.0
     # total_stds = 1 / total_stds
     # total_stds = total_stds / torch.mean(total_stds)  # if very uncertain,
     # high std, encouraged.
