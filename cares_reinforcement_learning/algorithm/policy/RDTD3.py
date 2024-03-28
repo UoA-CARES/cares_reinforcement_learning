@@ -63,6 +63,7 @@ class RDTD3:
 
         # Sample replay buffer
         states, actions, rewards, next_states, dones, indices, weights = experience
+        batch_size = len(states)
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -72,12 +73,9 @@ class RDTD3:
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
-        # Compare this to TD3 - why different?
-        # rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        # dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
-        weights = weights.reshape(-1, 1)
-        dones = dones.reshape(-1, 1)
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # Get current Q estimates way2 (2)
         q_values_one, q_values_two = self.critic_net(states.detach(), actions.detach())
@@ -87,9 +85,11 @@ class RDTD3:
         diff_rew1 = 0.5 * torch.pow(
             rew1.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
+
         diff_rew2 = 0.5 * torch.pow(
             rew2.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
+
         diff_next_states1 = 0.5 * torch.mean(
             torch.pow(
                 next_states1.reshape(-1, self.state_dim)
@@ -98,6 +98,7 @@ class RDTD3:
             ),
             -1,
         ).reshape(-1, 1)
+
         diff_next_states2 = 0.5 * torch.mean(
             torch.pow(
                 next_states2.reshape(-1, self.state_dim)
