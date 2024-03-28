@@ -27,12 +27,12 @@ class Critic(nn.Module):
     def forward(self, state, action):
         obs_action = torch.cat([state, action], dim=1)
 
-        q1 = F.relu(self.h_linear_1(obs_action))
-        q1 = F.relu(self.h_linear_2(q1))
-        q1 = self.h_linear_3(q1)
+        output_1 = F.relu(self.h_linear_1(obs_action))
+        output_1 = F.relu(self.h_linear_2(output_1))
+        output_1 = self.h_linear_3(output_1)
 
-        q2 = F.relu(self.h_linear_12(obs_action))
-        q2 = F.relu(self.h_linear_22(q2))
-        q2 = self.h_linear_32(q2)
+        output_2 = F.relu(self.h_linear_12(obs_action))
+        output_2 = F.relu(self.h_linear_22(output_2))
+        output_2 = self.h_linear_32(output_2)
 
-        return q1, q2
+        return output_1, output_2
