@@ -23,8 +23,6 @@ class PrioritizedReplayBuffer:
         self.max_priority = 1.0
         self.beta = 0.4
 
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
     def add(self, state, action, reward, next_state, done):
 
         self.state[self.ptr] = state
@@ -44,21 +42,19 @@ class PrioritizedReplayBuffer:
         weights = self.tree.levels[-1][ind] ** -self.beta
         weights /= weights.max()
 
-        self.beta = min(
-            self.beta + 2e-7, 1
-        )  # Hardcoded: 0.4 + 2e-7 * 3e6 = 1.0. Only used by PER.
+        self.beta = min(self.beta + 2e-7, 1)
+        # Hardcoded: 0.4 + 2e-7 * 3e6 = 1.0. Only used by PER.
 
         return (
-            torch.FloatTensor(self.state[ind]).to(self.device),
-            torch.FloatTensor(self.action[ind]).to(self.device),
-            torch.FloatTensor(self.reward[ind]).to(self.device),
-            torch.FloatTensor(self.next_state[ind]).to(self.device),
-            torch.FloatTensor(self.done[ind]).to(self.device),
+            self.state[ind],
+            self.action[ind],
+            self.reward[ind],
+            self.next_state[ind],
+            self.done[ind],
             ind,
-            torch.FloatTensor(weights).to(self.device).reshape(-1, 1),
+            weights,
         )
 
     def update_priority(self, ind, priority):
-
         self.max_priority = max(priority.max(), self.max_priority)
         self.tree.batch_set(ind, priority)

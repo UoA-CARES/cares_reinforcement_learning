@@ -64,6 +64,19 @@ class RDTD3:
         # Sample replay buffer
         states, actions, rewards, next_states, dones, indices, weights = experience
 
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
+
+        # Compare this to TD3 - why different?
+        # rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        # dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        weights = weights.reshape(-1, 1)
         dones = dones.reshape(-1, 1)
 
         # Get current Q estimates way2 (2)
