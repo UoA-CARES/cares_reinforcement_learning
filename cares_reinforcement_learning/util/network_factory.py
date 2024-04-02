@@ -244,8 +244,8 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import RDTD3
     from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config.actor_lr)
-    critic = Critic(observation_size, action_num, config.critic_lr)
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = RDTD3(
@@ -255,6 +255,8 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
         tau=config.tau,
         action_num=action_num,
         state_dim=observation_size,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
         device=device,
     )
     return agent

@@ -1,11 +1,10 @@
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 
 
 class Actor(nn.Module):
-    def __init__(self, observation_size, num_actions, learning_rate):
+    def __init__(self, observation_size, num_actions):
         super(Actor, self).__init__()
 
         self.hidden_size = [1024, 1024]  # [256, 256], [1024, 1024]
@@ -19,8 +18,6 @@ class Actor(nn.Module):
         self.h_linear_3 = nn.Linear(
             in_features=self.hidden_size[1], out_features=num_actions
         )
-
-        self.optimiser = optim.Adam(self.parameters(), lr=learning_rate)  # AdamW, Adam
 
     def forward(self, state):
         x = F.relu(self.h_linear_1(state))

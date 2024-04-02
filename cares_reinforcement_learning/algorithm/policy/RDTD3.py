@@ -1,14 +1,25 @@
-import os
 import copy
 import logging
+import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F
+import torch.optim as optim
 
 
 class RDTD3:
     def __init__(
-        self, actor_network, critic_network, gamma, tau, action_num, state_dim, device
+        self,
+        actor_network,
+        critic_network,
+        gamma,
+        tau,
+        action_num,
+        state_dim,
+        actor_lr,
+        critic_lr,
+        device,
     ):
 
         self.type = "policy"
@@ -28,14 +39,21 @@ class RDTD3:
         self.state_dim = state_dim
         self.device = device
 
+        self.update_step = 0
+
         # RD-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
-        self.update_step = 0
         self.alpha = 0.7  # 0.4 0.6
         self.min_priority = 1
         self.noise_clip = 0.5
         self.policy_noise = 0.2
+
+        self.actor_net_optimiser = optim.Adam(self.actor_net.parameters(), lr=actor_lr)
+
+        self.critic_net_optimiser = optim.Adam(
+            self.critic_net.parameters(), lr=critic_lr
+        )
 
     def _split_output(self, target):
         return target[:, 0], target[:, 1], target[:, 2:]
@@ -140,9 +158,9 @@ class RDTD3:
         critic_loss_total = critic_three_loss * weights + critic_four_loss * weights
 
         # train critic
-        self.critic_net.optimiser.zero_grad()
+        self.critic_net_optimiser.zero_grad()
         torch.mean(critic_loss_total).backward()
-        self.critic_net.optimiser.step()
+        self.critic_net_optimiser.step()
         ############################
 
         priorities = (
@@ -165,9 +183,9 @@ class RDTD3:
             actor_loss = -actor_val.mean()
 
             # Optimize the actor
-            self.actor_net.optimiser.zero_grad()
+            self.actor_net_optimiser.zero_grad()
             actor_loss.backward()
-            self.actor_net.optimiser.step()
+            self.actor_net_optimiser.step()
 
             # Update target network params
             for target_param, param in zip(
