@@ -177,7 +177,8 @@ class RDTD3Config(AlgorithmConfig):
     critic_lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    ensemble_size: Optional[int] = 2
+    alpha: Optional[float] = 0.7
+
     memory: Optional[str] = "PER"
 
     noise_scale: Optional[float] = 0.1

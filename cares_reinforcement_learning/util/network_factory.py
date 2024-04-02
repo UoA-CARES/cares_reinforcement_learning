@@ -253,6 +253,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
+        alpha=config.alpha,
         action_num=action_num,
         state_dim=observation_size,
         actor_lr=config.actor_lr,

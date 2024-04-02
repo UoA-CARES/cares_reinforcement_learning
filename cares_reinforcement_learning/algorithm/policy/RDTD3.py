@@ -15,6 +15,7 @@ class RDTD3:
         critic_network,
         gamma,
         tau,
+        alpha,
         action_num,
         state_dim,
         actor_lr,
@@ -31,6 +32,7 @@ class RDTD3:
 
         self.gamma = gamma
         self.tau = tau
+        self.alpha = alpha  # 0.7  # 0.4 0.6
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -39,12 +41,9 @@ class RDTD3:
         self.state_dim = state_dim
         self.device = device
 
-        self.update_step = 0
-
         # RD-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
-        self.alpha = 0.7  # 0.4 0.6
         self.min_priority = 1
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -206,7 +205,7 @@ class RDTD3:
 
         ################################################
         # Update Scales
-        if self.update_step == 0:
+        if self.learn_counter == 1:
             td_err = torch.cat([diff_td_one, diff_td_two], -1)
             mean_td_err = torch.mean(td_err, 1)
             mean_td_err = mean_td_err.view(-1, 1)
@@ -223,8 +222,6 @@ class RDTD3:
             numpy_state_err = mean_state_err[:, 0].detach().data.cpu().numpy()
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
-
-        self.update_step += 1
 
         info["q_target"] = q_target
         info["q_values_one"] = output_one
