@@ -67,13 +67,6 @@ class PERTD3:
         info = {}
 
         states, actions, rewards, next_states, dones, indices, weights = experiences
-        print(f"{states.shape=}")
-        print(f"{actions.shape=}")
-        print(f"{rewards.shape=}")
-        print(f"{next_states.shape=}")
-        print(f"{dones.shape=}")
-        print(f"{indices.shape=}")
-        print(f"{weights.shape=}")
         info["indices"] = indices
 
         batch_size = len(states)
@@ -106,17 +99,11 @@ class PERTD3:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        print(f"{q_target.shape=}")
-        print(f"{q_values_one.shape=}")
-        print(f"{q_values_two.shape=}")
+        td_loss_one = (target_q_values_one - q_target).abs()
+        td_loss_two = (target_q_values_two - q_target).abs()
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
-
-        print(f"{critic_loss_one.shape=}")
-        print(f"{critic_loss_one=}")
-        print(f"{critic_loss_two.shape=}")
-        print(f"{critic_loss_two=}")
 
         critic_loss_total = critic_loss_one * weights + critic_loss_two * weights
 
@@ -126,16 +113,11 @@ class PERTD3:
         self.critic_net_optimiser.step()
 
         priorities = (
-            torch.max(critic_loss_one, critic_loss_two)
+            torch.max(td_loss_one, td_loss_two)
             .pow(self.alpha)
             .cpu()
             .data.numpy()
             .flatten()
-        )
-
-        print(f"{priorities.shape=}")
-        input(
-            "Double check your experiement configurations :) Press ENTER to continue."
         )
 
         if self.learn_counter % self.policy_update_freq == 0:
