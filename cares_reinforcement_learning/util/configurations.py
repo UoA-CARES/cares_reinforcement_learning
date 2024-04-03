@@ -179,7 +179,7 @@ class RDTD3Config(AlgorithmConfig):
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.7
 
-    memory: Optional[str] = "PER"
+    memory: Optional[str] = "algorithm"
 
     noise_scale: Optional[float] = 0.1
     noise_decay: Optional[float] = 1

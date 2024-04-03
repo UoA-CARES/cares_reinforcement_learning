@@ -74,12 +74,13 @@ class RDTD3:
         return action
 
     def train_policy(self, experience):
-
         self.learn_counter += 1
         info = {}
 
         # Sample replay buffer
         states, actions, rewards, next_states, dones, indices, weights = experience
+        info["indices"] = indices
+
         batch_size = len(states)
 
         # Convert into tensor
@@ -231,7 +232,6 @@ class RDTD3:
         info["critic_loss_one"] = critic_one_loss
         info["critic_loss_two"] = critic_two_loss
         info["priorities"] = priorities
-        info["indices"] = indices
 
         return info
 

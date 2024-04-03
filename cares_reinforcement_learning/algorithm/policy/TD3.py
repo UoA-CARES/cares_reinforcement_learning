@@ -64,7 +64,9 @@ class TD3:
         self.learn_counter += 1
         info = {}
 
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, indices, _ = experiences
+        info["indices"] = indices
+
         batch_size = len(states)
 
         # Convert into tensor

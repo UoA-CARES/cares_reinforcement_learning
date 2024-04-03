@@ -1,28 +1,27 @@
 # Intentionally import all augmentations
 # pylint: disable=wildcard-import, unused-wildcard-import
 
-from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.memory.augments import *
-
+import cares_reinforcement_learning.memory.priority_functions as pf
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
+def get_priority_function(memory_type):
+    if memory_type == "MemoryBuffer":
+        return pf.standard
+    elif memory_type == "PER":
+        return pf.td_error
+    elif memory_type == "algorithm":
+        return pf.algorithm_priority
+    raise ValueError(f"Unkown memory type: {memory_type}")
+
+
 class MemoryFactory:
-    def create_memory(self, memory_type, buffer_size, **kwargs):
-        if memory_type == "MemoryBuffer":
-            return MemoryBuffer(max_capacity=buffer_size)
-        if memory_type == "PER":
-            if "observation_size" not in kwargs:
-                raise AttributeError(
-                    "observation_size not passed into kwargs. PER memory buffer is dependent on this."
-                )
+    def create_memory(self, memory_type, buffer_size, **priority_params):
 
-            if "action_num" not in kwargs:
-                raise AttributeError(
-                    "action_num not passed into kwargs. PER memory buffer is dependent on this."
-                )
+        priority_function = get_priority_function(memory_type)
 
-            return PrioritizedReplayBuffer(
-                kwargs["observation_size"], kwargs["action_num"], max_size=buffer_size
-            )
-        raise ValueError(f"Unkown memory type: {memory_type}")
+        return PrioritizedReplayBuffer(
+            max_size=buffer_size,
+            priority_function=priority_function,
+            priority_params=priority_params,
+        )
