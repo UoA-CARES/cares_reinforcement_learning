@@ -40,7 +40,12 @@ env = gym.make('Pendulum-v1', g=9.81)
 
 def main():
 
-    record = Record()
+    record = Record(
+        glob_log_dir='global_logs',
+        log_dir='local_logs',
+        algorithm='TD3',
+        task='Pendulum-v1',
+    )
 
     observation_size = env.observation_space.shape[0]
     action_num = env.action_space.shape[0]
@@ -68,6 +73,10 @@ def main():
 def train(td3: TD3, memory: MemoryBuffer, record: Record):
 
     episode_num = 1
+    episode_timesteps = 0
+    episode_reward = 0
+
+    state, _ = env.reset()
 
     for total_step_counter in range(int(MAX_STEPS_TRAINING)):
         episode_timesteps += 1
@@ -78,14 +87,18 @@ def train(td3: TD3, memory: MemoryBuffer, record: Record):
             )
 
             action_env = env.action_space.sample()
+            # algorithm range [-1, 1] - note for DMCS this is redudenant but required for openai
+            action = hlp.normalize(
+                action_env, env.action_space.high[0], env.action_space.low[0]
+            )
         else:
             action = td3.select_action_from_policy(state)
 
             action_env = hlp.denormalize(
-                action, env.max_action_value, env.min_action_value
+                action, env.action_space.high[0], env.action_space.low[0]
             )
 
-        next_state, reward, done, truncated = env.step(action_env)
+        next_state, reward, done, truncated, _ = env.step(action_env)
 
         memory.add(state, action, reward, next_state, done)
 
@@ -109,7 +122,7 @@ def train(td3: TD3, memory: MemoryBuffer, record: Record):
             print(f'Episode: {episode_num} | Reward: {episode_reward} | Steps: {episode_timesteps}')
 
             # Reset environment
-            state = env.reset()
+            state, _ = env.reset()
             episode_timesteps = 0
             episode_reward = 0
             episode_num += 1
