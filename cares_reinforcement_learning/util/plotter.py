@@ -51,8 +51,14 @@ def plot_data(
     )
 
     plt.legend(fontsize="15", loc="upper left")
-    fig_manager = plt.get_current_fig_manager()
-    fig_manager.window.setGeometry(100, 100, 800, 650)
+
+    # Resize the plotted figure. Pixel = DPI * Inch. PLT Default DPI: 100.
+    fig = plt.gcf()
+    width = 800
+    height = 650
+    default_dpi = 100
+    fig.set_dpi(default_dpi)
+    fig.set_size_inches(width / default_dpi, height / default_dpi)
 
     plt.savefig(f"{directory}/figures/{filename}.png")
 
