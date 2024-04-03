@@ -19,7 +19,7 @@ Run `pip3 install -r requirements.txt` in the **root directory** of the package
 To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
 
 ## Running an Example
-This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own envrionments see this package which uses these algorithms on the Deep Mind Control suite and OpenAI gym envrionments - https://github.com/UoA-CARES/gymnasium_envrionments 
+This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. Check out our [examples](./examples/README.md) for a series of simple applications of the package. For a more complex example of how to use this package in your own envrionments see this package which uses these algorithms on the Deep Mind Control suite and OpenAI gym envrionments - https://github.com/UoA-CARES/gymnasium_envrionments 
 
 ## Utilities
 CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new envrionments we build to test our approaches.
