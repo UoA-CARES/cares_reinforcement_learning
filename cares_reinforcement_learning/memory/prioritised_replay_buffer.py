@@ -1,6 +1,6 @@
 import numpy as np
+import torch
 
-import cares_reinforcement_learning.memory.priority_functions as pf
 from cares_reinforcement_learning.util.sum_tree import SumTree
 
 
@@ -8,11 +8,9 @@ class PrioritizedReplayBuffer:
 
     def __init__(
         self,
-        priority_function=pf.standard,
         max_size=int(1e6),
         **priority_params,
     ):
-        self.priority_function = priority_function
         self.priority_params = priority_params
 
         self.max_size = max_size
@@ -60,7 +58,13 @@ class PrioritizedReplayBuffer:
         )
 
     def update_priority(self, info):
-        ind, priorities = self.priority_function(info, self.priority_params)
+        ind = info["indices"]
+        priorities = (
+            info["priorities"]
+            if "priorities" in info
+            else torch.tensor([1.0] * len(info["indices"]))
+        )
+
         self.max_priority = max(priorities.max(), self.max_priority)
         self.tree.batch_set(ind, priorities)
 

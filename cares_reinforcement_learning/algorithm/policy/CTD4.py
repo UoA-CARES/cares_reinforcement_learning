@@ -33,6 +33,7 @@ class CTD4:
 
         self.fusion_method = fusion_method
 
+        # TODO pull these out into configurations
         self.gamma = 0.99
         self.tau = 0.005
         self.learn_counter = 0

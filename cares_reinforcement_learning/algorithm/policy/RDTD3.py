@@ -17,7 +17,6 @@ class RDTD3:
         tau,
         alpha,
         action_num,
-        state_dim,
         actor_lr,
         critic_lr,
         device,
@@ -38,7 +37,6 @@ class RDTD3:
         self.policy_update_freq = 2
 
         self.action_num = action_num
-        self.state_dim = state_dim
         self.device = device
 
         # RD-PER parameters
@@ -100,8 +98,12 @@ class RDTD3:
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
         q_value_two, reward_two, next_states_two = self._split_output(output_two)
 
-        diff_reward_one = 0.5 * torch.pow(reward_one - rewards, 2.0)
-        diff_reward_two = 0.5 * torch.pow(reward_two - rewards, 2.0)
+        diff_reward_one = 0.5 * torch.pow(
+            reward_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+        ).reshape(-1, 1)
+        diff_reward_two = 0.5 * torch.pow(
+            reward_two.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+        ).reshape(-1, 1)
 
         diff_next_states_one = 0.5 * torch.mean(
             torch.pow(
@@ -141,21 +143,20 @@ class RDTD3:
         #############################################
         diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
         diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
-        critic_three_loss = (
+
+        critic_one_loss = (
             diff_td_one
             + self.scale_r * diff_reward_one
             + self.scale_s * diff_next_states_one
         )
-        critic_four_loss = (
+
+        critic_two_loss = (
             diff_td_two
             + self.scale_r * diff_reward_two
             + self.scale_s * diff_next_states_two
         )
 
-        critic_one_loss = diff_reward_one.reshape(-1, 1)
-        critic_two_loss = diff_reward_two.reshape(-1, 1)
-
-        critic_loss_total = critic_three_loss * weights + critic_four_loss * weights
+        critic_loss_total = critic_one_loss * weights + critic_two_loss * weights
 
         # train critic
         self.critic_net_optimiser.zero_grad()
@@ -164,7 +165,7 @@ class RDTD3:
         ############################
 
         priorities = (
-            torch.max(critic_one_loss, critic_two_loss)
+            torch.max(diff_reward_one, diff_reward_two)
             .clamp(min=self.min_priority)
             .pow(self.alpha)
             .cpu()
