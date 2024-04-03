@@ -260,7 +260,9 @@ class DynaSAC_Reweight:
                 pred_state, pred_acts
             )
             uncert = sampling(pred_means=pred_mean, pred_vars=pred_var)
+            uncert = 1.5 - uncert
             uncert = uncert.unsqueeze(dim=1).to(self.device)
+            
             pred_uncerts.append(uncert)
 
             pred_reward, _ = self.world_model.pred_rewards(pred_state, pred_acts)
