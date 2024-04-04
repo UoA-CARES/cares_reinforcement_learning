@@ -13,10 +13,10 @@ import gymnasium as gym
 import torch
 
 if torch.cuda.is_available():
-    DEVICE = torch.device('cuda')
+    DEVICE = torch.device("cuda")
     print("Working with GPU")
 else:
-    DEVICE = torch.device('cpu')
+    DEVICE = torch.device("cpu")
     print("Working with CPU")
 
 BUFFER_CAPACITY = 100_000
@@ -35,16 +35,16 @@ MAX_STEPS_EXPLORATION = 10_000
 G = 10
 
 
-env = gym.make('Pendulum-v1', g=9.81)
+env = gym.make("Pendulum-v1", g=9.81)
 
 
 def main():
 
     record = Record(
-        glob_log_dir='global_logs',
-        log_dir='local_logs',
-        algorithm='TD3',
-        task='Pendulum-v1',
+        glob_log_dir="global_logs",
+        log_dir="local_logs",
+        algorithm="TD3",
+        task="Pendulum-v1",
     )
 
     observation_size = env.observation_space.shape[0]
@@ -63,7 +63,7 @@ def main():
         action_num=action_num,
         actor_lr=ACTOR_LR,
         critic_lr=CRITIC_LR,
-        device=DEVICE
+        device=DEVICE,
     )
 
     print(f"Training Beginning")
@@ -119,7 +119,9 @@ def train(td3: TD3, memory: MemoryBuffer, record: Record):
                 display=True,
             )
 
-            print(f'Episode: {episode_num} | Reward: {episode_reward} | Steps: {episode_timesteps}')
+            print(
+                f"Episode: {episode_num} | Reward: {episode_reward} | Steps: {episode_timesteps}"
+            )
 
             # Reset environment
             state, _ = env.reset()
@@ -127,5 +129,6 @@ def train(td3: TD3, memory: MemoryBuffer, record: Record):
             episode_reward = 0
             episode_num += 1
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
