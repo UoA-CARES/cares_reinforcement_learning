@@ -1,5 +1,5 @@
 """
-Original Paper: https://arxiv.org/abs/1802.09477v3
+Original Paper: https://arxiv.org/abs/1511.05952
 """
 
 import copy
