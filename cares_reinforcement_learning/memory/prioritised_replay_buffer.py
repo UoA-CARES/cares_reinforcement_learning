@@ -116,8 +116,8 @@ class PrioritizedReplayBuffer:
 
         return (
             *experiences,
-            indices,
-            weights,
+            indices.tolist(),
+            weights.tolist(),
         )
 
     def update_priority(self, info):

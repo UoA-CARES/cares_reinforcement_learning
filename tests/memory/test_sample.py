@@ -1,4 +1,4 @@
-from memory import memory_buffer
+from memory import memory_buffer, memory_buffer_1e6
 
 
 def test_sample(memory_buffer):
