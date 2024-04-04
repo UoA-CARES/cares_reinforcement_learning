@@ -7,9 +7,10 @@ def test_sample(memory_buffer):
         memory_buffer.add(i, i, i, i, False, 0.5 * i)
 
     batch_size = 3
-    states, actions, rewards, next_states, dones, log_probs = memory_buffer.sample(
-        batch_size
+    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
+        memory_buffer.sample(batch_size)
     )
+
     assert (
         len(states)
         == len(actions)
@@ -17,6 +18,8 @@ def test_sample(memory_buffer):
         == len(next_states)
         == len(dones)
         == len(log_probs)
+        == len(ind)
+        == len(weights)
         == batch_size
     )
 
@@ -26,8 +29,8 @@ def test_sample_more_than_buffer(memory_buffer):
         memory_buffer.add(i, i, i, i, False, 0.5 * i)
 
     batch_size = 10
-    states, actions, rewards, next_states, dones, log_probs = memory_buffer.sample(
-        batch_size
+    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
+        memory_buffer.sample(batch_size)
     )
 
     assert (
@@ -37,6 +40,8 @@ def test_sample_more_than_buffer(memory_buffer):
         == len(next_states)
         == len(dones)
         == len(log_probs)
+        == len(ind)
+        == len(weights)
         == 5
     )
 

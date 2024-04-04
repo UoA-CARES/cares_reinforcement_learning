@@ -8,44 +8,49 @@ class PrioritizedReplayBuffer:
 
     def __init__(
         self,
-        max_size=int(1e6),
+        max_capacity=int(1e6),
         **priority_params,
     ):
         self.priority_params = priority_params
 
-        self.max_size = max_size
+        self.max_capacity = max_capacity
 
         self.ptr = 0
         self.size = 0
 
         self.memory_buffers = []
 
-        self.tree = SumTree(self.max_size)
+        self.tree = SumTree(self.max_capacity)
         self.max_priority = 1.0
         self.beta = 0.4
+
+    def __len__(self):
+        return self.size
 
     def add(self, *experience):
         # Dynamically create the full memory size on first experience
         for index, exp in enumerate(experience):
             if index >= len(self.memory_buffers):
                 exp_size = 1 if isinstance(exp, (int, float)) else exp.shape[0]
-                self.memory_buffers.append(np.zeros((self.max_size, exp_size)))
+                self.memory_buffers.append(np.zeros((self.max_capacity, exp_size)))
 
             self.memory_buffers[index][self.ptr] = exp
 
         self.tree.set(self.ptr, self.max_priority)
 
-        self.ptr = (self.ptr + 1) % self.max_size
-        self.size = min(self.size + 1, self.max_size)
+        self.ptr = (self.ptr + 1) % self.max_capacity
+        self.size = min(self.size + 1, self.max_capacity)
 
     def sample(self, batch_size):
+        # if batch size is greater than size we need to limit it to just the data that exists
+        batch_size = min(batch_size, self.size)
         indices = self.tree.sample(batch_size)
 
         weights = self.tree.levels[-1][indices] ** -self.beta
         weights /= weights.max()
 
+        # Prevents priorities from being zero
         self.beta = min(self.beta + 2e-7, 1)
-        # Hardcoded: 0.4 + 2e-7 * 3e6 = 1.0. Only used by PER.
 
         experiences = []
         for buffer in self.memory_buffers:
@@ -71,7 +76,7 @@ class PrioritizedReplayBuffer:
     def flush(self):
         experiences = []
         for buffer in self.memory_buffers:
-            experiences.append(buffer)
+            experiences.append(buffer[0 : self.size])
         self.clear()
         return experiences
 
@@ -80,7 +85,7 @@ class PrioritizedReplayBuffer:
         self.size = 0
         self.memory_buffers = []
 
-        self.tree = SumTree(self.max_size)
+        self.tree = SumTree(self.max_capacity)
         self.max_priority = 1.0
         self.beta = 0.4
 

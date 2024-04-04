@@ -32,9 +32,9 @@ def test_flush_order(memory_buffer):
 
     states, actions, rewards, next_states, dones, log_probs = memory_buffer.flush()
 
-    assert states == (0, 1, 2, 3, 4)
-    assert actions == (0, 1, 2, 3, 4)
-    assert rewards == (0, 1, 2, 3, 4)
-    assert next_states == (0, 1, 2, 3, 4)
-    assert dones == (False, False, False, False, False)
-    assert log_probs == (0.0, 0.5, 1.0, 1.5, 2.0)
+    assert states.tolist() == [[0], [1], [2], [3], [4]]
+    assert actions.tolist() == [[0], [1], [2], [3], [4]]
+    assert rewards.tolist() == [[0], [1], [2], [3], [4]]
+    assert next_states.tolist() == [[0], [1], [2], [3], [4]]
+    assert dones.tolist() == [[False], [False], [False], [False], [False]]
+    assert log_probs.tolist() == [[0.0], [0.5], [1.0], [1.5], [2.0]]
