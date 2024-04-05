@@ -156,11 +156,13 @@ class RDTD3:
             + self.scale_s * diff_next_states_two
         )
 
-        critic_loss_total = critic_one_loss * weights + critic_two_loss * weights
+        critic_loss_total = (critic_one_loss * weights).mean() + (
+            critic_two_loss * weights
+        ).mean()
 
         # train critic
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
         ############################
 
