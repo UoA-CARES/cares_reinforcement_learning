@@ -102,14 +102,16 @@ class PERTD3:
         td_loss_one = (target_q_values_one - q_target).abs()
         td_loss_two = (target_q_values_two - q_target).abs()
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
+        critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
 
-        critic_loss_total = critic_loss_one * weights + critic_loss_two * weights
+        critic_loss_total = (critic_loss_one * weights).mean() + (
+            critic_loss_two * weights
+        ).mean()
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
         priorities = (
