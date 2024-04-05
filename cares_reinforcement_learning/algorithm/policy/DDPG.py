@@ -49,9 +49,12 @@ class DDPG:
         return action
 
     def train_policy(self, experiences):
-        states, actions, rewards, next_states, dones = experiences
-        batch_size = len(states)
         info = {}
+
+        states, actions, rewards, next_states, dones, indices, _ = experiences
+        info["indices"] = indices
+
+        batch_size = len(states)
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)

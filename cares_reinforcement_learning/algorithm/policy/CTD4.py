@@ -33,6 +33,7 @@ class CTD4:
 
         self.fusion_method = fusion_method
 
+        # TODO pull these out into configurations
         self.gamma = 0.99
         self.tau = 0.005
         self.learn_counter = 0
@@ -91,11 +92,15 @@ class CTD4:
         return fusion_mean, fusion_std
 
     def train_policy(self, experiences):
+        info = {}
+
         self.learn_counter += 1
         self.target_noise_scale *= self.noise_decay
         self.target_noise_scale = max(self.min_noise, self.target_noise_scale)
 
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, indices, _ = experiences
+        info["indices"] = indices
+
         batch_size = len(states)
 
         # Convert into tensor
@@ -280,6 +285,20 @@ class CTD4:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
+
+            info["actor_loss"] = actor_loss
+
+        # Building Dictionary
+        # TODO David fill in info here to match other methods
+        # info["q_target"] = q_target
+        # info["q_values_one"] = q_values_one
+        # info["q_values_two"] = q_values_two
+        # info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
+        # info["critic_loss_total"] = critic_loss_total
+        # info["critic_loss_one"] = critic_loss_one
+        # info["critic_loss_two"] = critic_loss_two
+
+        return info
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
