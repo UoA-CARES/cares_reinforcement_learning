@@ -102,6 +102,8 @@ class NaSATD3:
         return action
 
     def train_policy(self, experiences):
+        info = {}
+
         self.encoder.train()
         self.decoder.train()
         self.actor.train()
@@ -109,8 +111,9 @@ class NaSATD3:
 
         self.learn_counter += 1
 
-        # Note: for gripper the goal angle need to be passed here as well
-        states, actions, rewards, next_states, dones = experiences
+        states, actions, rewards, next_states, dones, indices, _ = experiences
+        info["indices"] = indices
+
         batch_size = len(states)
 
         # Convert into tensor
@@ -141,9 +144,9 @@ class NaSATD3:
 
         q_values_one, q_values_two = self.critic(states, actions)
 
-        critic_loss_1 = F.mse_loss(q_values_one, q_target)
-        critic_loss_2 = F.mse_loss(q_values_two, q_target)
-        critic_loss_total = critic_loss_1 + critic_loss_2
+        critic_loss_one = F.mse_loss(q_values_one, q_target)
+        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
         self.critic_optimizer.zero_grad()
@@ -210,6 +213,17 @@ class NaSATD3:
         # Update intrinsic models
         if self.intrinsic_on:
             self.train_predictive_model(states, actions, next_states)
+
+        # Building Dictionary
+        info["q_target"] = q_target
+        info["q_values_one"] = q_values_one
+        info["q_values_two"] = q_values_two
+        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
+        info["critic_loss_total"] = critic_loss_total
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+
+        return info
 
     def get_intrinsic_reward(self, state, action, next_state):
         with torch.no_grad():

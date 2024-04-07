@@ -1,5 +1,5 @@
 """
-Original Paper: https://arxiv.org/abs/1802.09477v3
+Original Paper: https://arxiv.org/abs/1511.05952
 """
 
 import copy
@@ -10,13 +10,14 @@ import torch
 import torch.nn.functional as F
 
 
-class TD3:
+class PERTD3:
     def __init__(
         self,
         actor_network,
         critic_network,
         gamma,
         tau,
+        alpha,
         action_num,
         actor_lr,
         critic_lr,
@@ -31,6 +32,7 @@ class TD3:
 
         self.gamma = gamma
         self.tau = tau
+        self.alpha = alpha
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -64,7 +66,7 @@ class TD3:
         self.learn_counter += 1
         info = {}
 
-        states, actions, rewards, next_states, dones, indices, _ = experiences
+        states, actions, rewards, next_states, dones, indices, weights = experiences
         info["indices"] = indices
 
         batch_size = len(states)
@@ -75,6 +77,7 @@ class TD3:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
@@ -96,14 +99,28 @@ class TD3:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
-        critic_loss_total = critic_loss_one + critic_loss_two
+        td_loss_one = (target_q_values_one - q_target).abs()
+        td_loss_two = (target_q_values_two - q_target).abs()
+
+        critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
+        critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
+
+        critic_loss_total = (critic_loss_one * weights).mean() + (
+            critic_loss_two * weights
+        ).mean()
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
+
+        priorities = (
+            torch.max(td_loss_one, td_loss_two)
+            .pow(self.alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
         if self.learn_counter % self.policy_update_freq == 0:
             # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
@@ -149,6 +166,7 @@ class TD3:
         info["critic_loss_total"] = critic_loss_total
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
+        info["priorities"] = priorities
 
         return info
 
