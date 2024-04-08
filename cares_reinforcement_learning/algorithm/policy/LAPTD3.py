@@ -69,12 +69,11 @@ class LAPTD3:
             x < self.min_priority, 0.5 * x.pow(2), self.min_priority * x
         ).mean()
 
-    def train_policy(self, experiences):
+    def train_policy(self, memory, batch_size):
         self.learn_counter += 1
-        info = {}
 
+        experiences = memory.sample(batch_size)
         states, actions, rewards, next_states, dones, indices, weights = experiences
-        info["indices"] = indices
 
         batch_size = len(states)
 
@@ -161,19 +160,7 @@ class LAPTD3:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-            info["actor_loss"] = actor_loss
-
-        # Building Dictionary
-        info["q_target"] = q_target
-        info["q_values_one"] = q_values_one
-        info["q_values_two"] = q_values_two
-        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
-        info["critic_loss_total"] = critic_loss_total
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["priorities"] = priorities
-
-        return info
+        memory.update_priorities(indices, priorities)
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
