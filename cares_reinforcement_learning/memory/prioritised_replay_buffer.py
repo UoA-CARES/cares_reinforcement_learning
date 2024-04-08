@@ -120,28 +120,19 @@ class PrioritizedReplayBuffer:
             weights.tolist(),
         )
 
-    def update_priority(self, info):
+    def update_priorities(self, indices, priorities):
         """
-        Update the priorities of the replay buffer based on the given information.
+        Update the priorities of the replay buffer at the given indices.
 
-        Args:
-            info (dict): A dictionary containing the following keys:
-                - "indices" (list): A list of indices corresponding to the samples in the replay buffer.
-                - "priorities" (torch.Tensor, optional): A tensor containing the new priorities for the samples.
-                  If not provided, default priorities of 1.0 are assigned to all samples.
+        Parameters:
+        - indices (array-like): The indices of the replay buffer to update.
+        - priorities (array-like): The new priorities to assign to the specified indices.
 
         Returns:
-            None
+        None
         """
-        ind = info["indices"]
-        priorities = (
-            info["priorities"]
-            if "priorities" in info
-            else torch.tensor([1.0] * len(info["indices"]))
-        )
-
         self.max_priority = max(priorities.max(), self.max_priority)
-        self.tree.batch_set(ind, priorities)
+        self.tree.batch_set(indices, priorities)
 
     def flush(self):
         """

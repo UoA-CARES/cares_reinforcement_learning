@@ -101,9 +101,7 @@ class NaSATD3:
         self.actor.train()
         return action
 
-    def train_policy(self, experiences):
-        info = {}
-
+    def train_policy(self, memory, batch_size):
         self.encoder.train()
         self.decoder.train()
         self.actor.train()
@@ -111,8 +109,8 @@ class NaSATD3:
 
         self.learn_counter += 1
 
-        states, actions, rewards, next_states, dones, indices, _ = experiences
-        info["indices"] = indices
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, _, _ = experiences
 
         batch_size = len(states)
 
@@ -213,17 +211,6 @@ class NaSATD3:
         # Update intrinsic models
         if self.intrinsic_on:
             self.train_predictive_model(states, actions, next_states)
-
-        # Building Dictionary
-        info["q_target"] = q_target
-        info["q_values_one"] = q_values_one
-        info["q_values_two"] = q_values_two
-        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
-        info["critic_loss_total"] = critic_loss_total
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-
-        return info
 
     def get_intrinsic_reward(self, state, action, next_state):
         with torch.no_grad():
