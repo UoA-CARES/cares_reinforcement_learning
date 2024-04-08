@@ -71,13 +71,12 @@ class RDTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, experience):
+    def train_policy(self, memory, batch_size):
         self.learn_counter += 1
-        info = {}
 
         # Sample replay buffer
-        states, actions, rewards, next_states, dones, indices, weights = experience
-        info["indices"] = indices
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
 
@@ -156,11 +155,13 @@ class RDTD3:
             + self.scale_s * diff_next_states_two
         )
 
-        critic_loss_total = critic_one_loss * weights + critic_two_loss * weights
+        critic_loss_total = (critic_one_loss * weights).mean() + (
+            critic_two_loss * weights
+        ).mean()
 
         # train critic
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
         ############################
 
@@ -203,8 +204,6 @@ class RDTD3:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-            info["actor_loss"] = actor_loss
-
         ################################################
         # Update Scales
         if self.learn_counter == 1:
@@ -225,16 +224,7 @@ class RDTD3:
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
 
-        info["q_target"] = q_target
-        info["q_values_one"] = output_one
-        info["q_values_two"] = output_two
-        info["q_values_min"] = torch.minimum(output_one, output_two)
-        info["critic_loss_total"] = critic_loss_total
-        info["critic_loss_one"] = critic_one_loss
-        info["critic_loss_two"] = critic_two_loss
-        info["priorities"] = priorities
-
-        return info
+        memory.update_priorities(indices, priorities)
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
