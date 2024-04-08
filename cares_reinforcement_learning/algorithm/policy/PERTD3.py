@@ -62,12 +62,11 @@ class PERTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, experiences):
+    def train_policy(self, memory, batch_size):
         self.learn_counter += 1
-        info = {}
 
+        experiences = memory.sample(batch_size)
         states, actions, rewards, next_states, dones, indices, weights = experiences
-        info["indices"] = indices
 
         batch_size = len(states)
 
@@ -102,14 +101,16 @@ class PERTD3:
         td_loss_one = (target_q_values_one - q_target).abs()
         td_loss_two = (target_q_values_two - q_target).abs()
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
+        critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
 
-        critic_loss_total = critic_loss_one * weights + critic_loss_two * weights
+        critic_loss_total = (critic_loss_one * weights).mean() + (
+            critic_loss_two * weights
+        ).mean()
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
         priorities = (
@@ -154,19 +155,7 @@ class PERTD3:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-            info["actor_loss"] = actor_loss
-
-        # Building Dictionary
-        info["q_target"] = q_target
-        info["q_values_one"] = q_values_one
-        info["q_values_two"] = q_values_two
-        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
-        info["critic_loss_total"] = critic_loss_total
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["priorities"] = priorities
-
-        return info
+        memory.update_priorities(indices, priorities)
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
