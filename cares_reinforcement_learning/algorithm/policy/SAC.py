@@ -86,12 +86,11 @@ class SAC:
     def alpha(self):
         return self.log_alpha.exp()
 
-    def train_policy(self, experiences):
+    def train_policy(self, memory, batch_size):
         self.learn_counter += 1
-        info = {}
 
-        states, actions, rewards, next_states, dones, indices, _ = experiences
-        info["indices"] = indices
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, _, _ = experiences
 
         batch_size = len(states)
 
@@ -153,17 +152,6 @@ class SAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
-
-        info["q_target"] = q_target
-        info["q_values_one"] = q_values_one
-        info["q_values_two"] = q_values_two
-        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
-        info["critic_loss_total"] = critic_loss_total
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["actor_loss"] = actor_loss
-
-        return info
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath

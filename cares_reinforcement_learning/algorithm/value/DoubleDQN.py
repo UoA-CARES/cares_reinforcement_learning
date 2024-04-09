@@ -35,9 +35,9 @@ class DoubleDQN:
         self.network.train()
         return action
 
-    def train_policy(self, experiences):
-        states, actions, rewards, next_states, dones = experiences
-        info = {}
+    def train_policy(self, memory, batch_size):
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, _, _ = experiences
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -69,12 +69,6 @@ class DoubleDQN:
             target_param.data.copy_(
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
-
-        info["q_target"] = q_target
-        info["q_values_min"] = q_value
-        info["network_loss"] = loss
-
-        return info
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath

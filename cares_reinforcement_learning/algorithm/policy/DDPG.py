@@ -48,11 +48,9 @@ class DDPG:
         self.actor_net.train()
         return action
 
-    def train_policy(self, experiences):
-        info = {}
-
+    def train_policy(self, memory, batch_size):
+        experiences = memory.sample(batch_size)
         states, actions, rewards, next_states, dones, indices, _ = experiences
-        info["indices"] = indices
 
         batch_size = len(states)
 
@@ -102,13 +100,6 @@ class DDPG:
             target_param.data.copy_(
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
-
-        info["actor_loss"] = actor_loss
-        info["critic_loss"] = critic_loss
-        info["q_values_min"] = q_values
-        info["q_values"] = q_values
-
-        return info
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
