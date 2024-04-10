@@ -90,6 +90,8 @@ class PrioritizedReplayBuffer:
         Returns:
             tuple: A tuple containing the sampled experiences and their corresponding indices.
         """
+        # If batch size is greater than size we need to limit it to just the data that exists
+        batch_size = min(batch_size, self.size)
         indices = np.random.randint(self.size, size=batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
@@ -113,7 +115,6 @@ class PrioritizedReplayBuffer:
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the importance weights for each sampled experience.
         """
-
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.size)
         indices = self.tree.sample(batch_size)
@@ -148,10 +149,13 @@ class PrioritizedReplayBuffer:
             and the corresponding reversed priorities.
 
         """
+        # If batch size is greater than size we need to limit it to just the data that exists
+        batch_size = min(batch_size, self.size)
+
         top_value = self.tree.levels[0][0]
 
         # Inverse based on paper for LA3PD - https://arxiv.org/abs/2209.00532
-        reversed_priorities = top_value / (self.tree.levels[-1][: self.ptr] + 1e-6)
+        reversed_priorities = top_value / (self.tree.levels[-1][: self.size] + 1e-6)
 
         inverse_tree = SumTree(self.max_capacity)
 

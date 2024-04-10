@@ -19,6 +19,7 @@ class LA3PTD3:
         tau,
         alpha,
         min_priority,
+        prioritized_fraction,
         action_num,
         actor_lr,
         critic_lr,
@@ -35,6 +36,7 @@ class LA3PTD3:
         self.tau = tau
         self.alpha = alpha
         self.min_priority = min_priority
+        self.prioritized_fraction = prioritized_fraction
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -64,30 +66,66 @@ class LA3PTD3:
         self.actor_net.train()
         return action
 
+    def prioritized_approximate_los(self, x):
+        return torch.where(
+            x.abs() < self.min_priority,
+            (self.min_priority**self.alpha) * 0.5 * x.pow(2),
+            self.min_priority * x.abs().pow(1.0 + self.alpha) / (1.0 + self.alpha),
+        ).mean()
+
     def huber(self, x):
         return torch.where(
             x < self.min_priority, 0.5 * x.pow(2), self.min_priority * x
         ).mean()
 
-    def train_policy(self, memory, batch_size):
-        self.learn_counter += 1
+    def _update_target_network(self):
+        # Update target network params
+        for target_param, param in zip(
+            self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
+        ):
+            target_param.data.copy_(
+                param.data * self.tau + target_param.data * (1.0 - self.tau)
+            )
 
-        experiences = memory.sample_priority(batch_size)
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        for target_param, param in zip(
+            self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
+        ):
+            target_param.data.copy_(
+                param.data * self.tau + target_param.data * (1.0 - self.tau)
+            )
 
-        batch_size = len(states)
+        for target_param, param in zip(
+            self.target_actor_net.parameters(), self.actor_net.parameters()
+        ):
+            target_param.data.copy_(
+                param.data * self.tau + target_param.data * (1.0 - self.tau)
+            )
 
+    def _train_actor(self, states):
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+
+        # Update Actor
+        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actor_loss = -actor_q_values.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+    def _train_critic(
+        self, states, actions, rewards, next_states, dones, uniform_sampling
+    ):
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards = rewards.unsqueeze(0).reshape(len(rewards), 1)
+        dones = dones.unsqueeze(0).reshape(len(dones), 1)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
@@ -105,13 +143,22 @@ class LA3PTD3:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        td_loss_one = (target_q_values_one - q_target).abs()
-        td_loss_two = (target_q_values_two - q_target).abs()
+        td_error_one = (q_values_one - q_target).abs()
+        td_error_two = (q_values_two - q_target).abs()
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
-
-        critic_loss_total = critic_loss_one * weights + critic_loss_two * weights
+        if uniform_sampling:
+            critic_loss_total = self.prioritized_approximate_los(
+                td_error_one
+            ) + self.prioritized_approximate_los(td_error_two)
+            critic_loss_total /= (
+                torch.max(td_error_one, td_error_two)
+                .clamp(min=self.min_priority)
+                .pow(self.alpha)
+                .mean()
+                .detach()
+            )
+        else:
+            critic_loss_total = self.huber(td_error_one) + self.huber(td_error_two)
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -119,48 +166,64 @@ class LA3PTD3:
         self.critic_net_optimiser.step()
 
         priorities = (
-            torch.max(td_loss_one, td_loss_two)
+            torch.max(td_error_one, td_error_two)
             .pow(self.alpha)
             .cpu()
             .data.numpy()
             .flatten()
         )
 
-        if self.learn_counter % self.policy_update_freq == 0:
-            # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
-            # actor_q_values = torch.minimum(actor_q_one, actor_q_two)
+        return priorities
 
-            # Update Actor
-            actor_q_values, _ = self.critic_net(states, self.actor_net(states))
-            actor_loss = -actor_q_values.mean()
+    def train_policy(self, memory, batch_size):
+        self.learn_counter += 1
 
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward()
-            self.actor_net_optimiser.step()
+        uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
+        priority_batch_size = int(batch_size * self.prioritized_fraction)
 
-            # Update target network params
-            for target_param, param in zip(
-                self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+        policy_update = self.learn_counter % self.policy_update_freq
 
-            for target_param, param in zip(
-                self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+        ######################### UNIFORM SAMPLING #########################
+        experiences = memory.sample_uniform(uniform_batch_size)
+        states, actions, rewards, next_states, dones, indices = experiences
 
-            for target_param, param in zip(
-                self.target_actor_net.parameters(), self.actor_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+        priorities = self._train_critic(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            uniform_sampling=True,
+        )
 
         memory.update_priorities(indices, priorities)
+
+        if policy_update:
+            self._train_actor(states)
+            self._update_target_network()
+
+        ######################### CRITIC PRIORITIZED SAMPLING #########################
+        experiences = memory.sample_priority(priority_batch_size)
+        states, actions, rewards, next_states, dones, indices, _ = experiences
+
+        priorities = self._train_critic(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            uniform_sampling=False,
+        )
+
+        memory.update_priorities(indices, priorities)
+
+        ######################### ACTOR PRIORITIZED SAMPLING #########################
+        if policy_update:
+            experiences = memory.sample_inverse_priority(priority_batch_size)
+            states, actions, rewards, next_states, dones, indices, _ = experiences
+
+            self._train_actor(states)
+            self._update_target_network()
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath

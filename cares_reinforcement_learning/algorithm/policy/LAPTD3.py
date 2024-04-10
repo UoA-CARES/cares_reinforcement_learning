@@ -72,7 +72,7 @@ class LAPTD3:
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
+        experiences = memory.sample_priority(batch_size)
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
@@ -105,13 +105,10 @@ class LAPTD3:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        td_loss_one = (target_q_values_one - q_target).abs()
-        td_loss_two = (target_q_values_two - q_target).abs()
+        td_error_one = (q_values_one - q_target).abs()
+        td_error_two = (q_values_two - q_target).abs()
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
-
-        critic_loss_total = self.huber(critic_loss_one) + self.huber(critic_loss_two)
+        critic_loss_total = self.huber(td_error_one) + self.huber(td_error_two)
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -119,7 +116,7 @@ class LAPTD3:
         self.critic_net_optimiser.step()
 
         priorities = (
-            torch.max(td_loss_one, td_loss_two)
+            torch.max(td_error_one, td_error_two)
             .pow(self.alpha)
             .cpu()
             .data.numpy()

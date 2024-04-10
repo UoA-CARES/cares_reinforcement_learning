@@ -92,7 +92,7 @@ class RDTD3:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # Get current Q estimates way2 (2)
+        # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
         q_value_two, reward_two, next_states_two = self._split_output(output_two)
