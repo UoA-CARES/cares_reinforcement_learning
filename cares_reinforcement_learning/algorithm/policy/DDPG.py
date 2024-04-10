@@ -49,8 +49,8 @@ class DDPG:
         return action
 
     def train_policy(self, memory, batch_size):
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, indices, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 

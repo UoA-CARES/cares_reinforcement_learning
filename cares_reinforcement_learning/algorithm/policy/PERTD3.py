@@ -65,7 +65,7 @@ class PERTD3:
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
+        experiences = memory.sample_priority(batch_size)
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)

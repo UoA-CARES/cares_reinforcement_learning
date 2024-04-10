@@ -109,8 +109,8 @@ class NaSATD3:
 
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 

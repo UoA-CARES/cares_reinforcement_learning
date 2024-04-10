@@ -36,11 +36,7 @@ class PrioritizedReplayBuffer:
         clear(): Clears the prioritized replay buffer.
     """
 
-    def __init__(
-        self,
-        max_capacity=int(1e6),
-        **priority_params,
-    ):
+    def __init__(self, max_capacity=int(1e6), **priority_params):
         self.priority_params = priority_params
 
         self.max_capacity = max_capacity
@@ -84,7 +80,27 @@ class PrioritizedReplayBuffer:
         self.ptr = (self.ptr + 1) % self.max_capacity
         self.size = min(self.size + 1, self.max_capacity)
 
-    def sample(self, batch_size):
+    def sample_uniform(self, batch_size):
+        """
+        Samples experiences uniformly from the buffer.
+
+        Args:
+            batch_size (int): The number of experiences to sample.
+
+        Returns:
+            tuple: A tuple containing the sampled experiences and their corresponding indices.
+        """
+        indices = np.random.randint(self.size, size=batch_size)
+
+        # Extracts the experiences at the desired indices from the buffer
+        experiences = []
+        for buffer in self.memory_buffers:
+            # NOTE: we convert back to a standard list here
+            experiences.append(buffer[indices].tolist())
+
+        return (*experiences, indices.tolist())
+
+    def sample_priority(self, batch_size):
         """
         Samples experiences from the prioritized replay buffer.
 
@@ -118,6 +134,41 @@ class PrioritizedReplayBuffer:
             *experiences,
             indices.tolist(),
             weights.tolist(),
+        )
+
+    def sample_inverse_priority(self, batch_size):
+        """
+        Samples experiences from the buffer based on inverse priorities.
+
+        Args:
+            batch_size (int): The number of experiences to sample.
+
+        Returns:
+            Tuple: A tuple containing the sampled experiences, indices of the sampled experiences,
+            and the corresponding reversed priorities.
+
+        """
+        top_value = self.tree.levels[0][0]
+
+        # Inverse based on paper for LA3PD - https://arxiv.org/abs/2209.00532
+        reversed_priorities = top_value / (self.tree.levels[-1][: self.ptr] + 1e-6)
+
+        inverse_tree = SumTree(self.max_capacity)
+
+        inverse_tree.batch_set(np.arange(self.ptr), reversed_priorities)
+
+        indices = inverse_tree.sample(batch_size)
+
+        # Extracts the experiences at the desired indices from the buffer
+        experiences = []
+        for buffer in self.memory_buffers:
+            # NOTE: we convert back to a standard list here
+            experiences.append(buffer[indices].tolist())
+
+        return (
+            *experiences,
+            indices.tolist(),
+            reversed_priorities[indices].tolist(),
         )
 
     def update_priorities(self, indices, priorities):

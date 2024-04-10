@@ -1,7 +1,44 @@
+import math
+
 import numpy as np
 
 
 class SumTree(object):
+    """
+    A sum tree data structure for storing replay priorities.
+
+    A sum tree is a complete binary tree whose leaves contain values called
+    priorities. Internal nodes maintain the sum of the priorities of all leaf
+    nodes in their subtree.
+
+    For capacity = 4, the tree may look like this:
+
+                +---+
+                |2.5|
+                +-+-+
+                    |
+            +-------+--------+
+            |                |
+        +-+-+            +-+-+
+        |1.5|            |1.0|
+        +-+-+            +-+-+
+            |                |
+        +----+----+      +----+----+
+        |         |      |         |
+    +-+-+     +-+-+  +-+-+     +-+-+
+    |0.5|     |1.0|  |0.5|     |0.5|
+    +---+     +---+  +---+     +---+
+
+    This is stored in a list of numpy arrays:
+    self.nodes = [ [2.5], [1.5, 1], [0.5, 1, 0.5, 0.5] ]
+
+    For conciseness, we allocate arrays as powers of two, and pad the excess
+    elements with zero values.
+
+    This is similar to the usual array-based representation of a complete binary
+    tree, but is a little more user-friendly.
+    """
+
     def __init__(self, max_size):
         self.levels = [np.zeros(1)]
         # Tree construction

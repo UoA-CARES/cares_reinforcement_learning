@@ -69,17 +69,10 @@ class LA3PTD3:
             x < self.min_priority, 0.5 * x.pow(2), self.min_priority * x
         ).mean()
 
-    def pal(self, x):
-        return torch.where(
-            x.abs() < self.min_priority,
-            (self.min_priority**self.alpha) * 0.5 * x.pow(2),
-            self.min_priority * x.abs().pow(1.0 + self.alpha) / (1.0 + self.alpha),
-        ).mean()
-
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
+        experiences = memory.sample_priority(batch_size)
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
