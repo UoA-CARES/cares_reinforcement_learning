@@ -184,3 +184,17 @@ class PERTD3Config(AlgorithmConfig):
 
     noise_scale: Optional[float] = 0.1
     noise_decay: Optional[float] = 1
+
+
+class LAPTD3Config(AlgorithmConfig):
+    algorithm: str = Field("LAPTD3", Literal=True)
+
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    alpha: Optional[float] = 0.6
+    min_priority: Optional[float] = 1.0
+
+    noise_scale: Optional[float] = 0.1
+    noise_decay: Optional[float] = 1
