@@ -161,21 +161,14 @@ class DynaSAC:
         info["actor_loss"] = actor_loss
         return info
 
-    def train_world_model(self, experiences):
-        """
-        Sample the buffer again for training the world model can reach higher rewards.
+    def train_world_model(self, memory, batch_size):
 
-        :param experiences:
-        """
-        (
-            states,
-            actions,
-            rewards,
-            next_states,
-            _,
-            next_actions,
-            next_rewards,
-        ) = experiences
+        experiences = memory.sample_consecutive(batch_size)
+
+        states, actions, rewards, next_states, _, next_actions, next_rewards = (
+            experiences
+        )
+
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
@@ -184,12 +177,8 @@ class DynaSAC:
             torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
         )
         next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
-        assert len(next_rewards.shape) == 2 and next_rewards.shape[1] == 1
-        assert len(next_states.shape) >= 2
-        # # Step 1 train the world model.
+
+        # Step 1 train the world model.
         self.world_model.train_world(
             states=states,
             actions=actions,
@@ -199,30 +188,20 @@ class DynaSAC:
             next_rewards=next_rewards,
         )
 
-    def train_policy(self, experiences):
-        """
-        Interface to training loop.
-
-        """
+    def train_policy(self, memory, batch_size):
         self.learn_counter += 1
-        (
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-        ) = experiences
+
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, _, _ = experiences
         self.batch_size = len(states)
+
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
-        assert len(next_states.shape) >= 2
+
         # Step 2 train as usual
         self._train_policy(
             states=states,
@@ -235,10 +214,6 @@ class DynaSAC:
         self._dyna_generate_and_train(next_states=next_states)
 
     def _dyna_generate_and_train(self, next_states):
-        """
-        Only off-policy Dyna will work.
-        :param next_states:
-        """
         pred_states = []
         pred_actions = []
         pred_rs = []
