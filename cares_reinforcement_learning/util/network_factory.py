@@ -333,7 +333,7 @@ def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import MAPERTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
