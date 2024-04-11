@@ -193,7 +193,7 @@ class LAPTD3Config(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.4
+    alpha: Optional[float] = 0.6
     min_priority: Optional[float] = 1.0
 
     noise_scale: Optional[float] = 0.1

@@ -1,3 +1,7 @@
+"""
+Original Paper: https://openreview.net/pdf?id=WuEiafqdy9H
+"""
+
 import copy
 import logging
 import os
@@ -172,26 +176,30 @@ class MAPERTD3:
         self.critic_net_optimiser.step()
 
         # calculate priority
-        numpy_td = torch.cat([diff_td_one, diff_td_two], -1)
-        numpy_td = torch.mean(numpy_td, 1)
-        numpy_td = numpy_td.view(-1, 1)
-        numpy_td = numpy_td[:, 0].detach().data.cpu().numpy()
+        diff_td_mean = torch.cat([diff_td_one, diff_td_two], -1)
+        diff_td_mean = torch.mean(diff_td_mean, 1)
+        diff_td_mean = diff_td_mean.reshape(-1, 1)
+        diff_td_mean = diff_td_mean[:, 0].detach().data.cpu().numpy()
 
-        numpy_r = torch.cat([diff_reward_one, diff_reward_two], -1)
-        numpy_r = torch.mean(numpy_r, 1)
-        numpy_r = numpy_r.view(-1, 1)
-        numpy_r = numpy_r[:, 0].detach().data.cpu().numpy()
+        diff_reward_mean = torch.cat([diff_reward_one, diff_reward_two], -1)
+        diff_reward_mean = torch.mean(diff_reward_mean, 1)
+        diff_reward_mean = diff_reward_mean.reshape(-1, 1)
+        diff_reward_mean = diff_reward_mean[:, 0].detach().data.cpu().numpy()
 
-        numpy_s = torch.cat([diff_next_states_one, diff_next_states_two], -1)
-        numpy_s = torch.mean(numpy_s, 1)
-        numpy_s = numpy_s.view(-1, 1)
-        numpy_s = numpy_s[:, 0].detach().data.cpu().numpy()
-        numpy_next_q_value = q_target[:, 0].detach().data.cpu().numpy()
+        diff_next_state_mean = torch.cat(
+            [diff_next_states_one, diff_next_states_two], -1
+        )
+        diff_next_state_mean = torch.mean(diff_next_state_mean, 1)
+        diff_next_state_mean = diff_next_state_mean.reshape(-1, 1)
+        diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
 
-        priorities = [
-            numpy_next_q_value,
-            numpy_td + self.scale_s * numpy_s + self.scale_r * numpy_r,
-        ]
+        priorities = np.array(
+            [
+                diff_td_mean
+                + self.scale_s * diff_next_state_mean
+                + self.scale_r * diff_reward_mean
+            ]
+        ).reshape(-1)
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
@@ -225,8 +233,8 @@ class MAPERTD3:
 
         # Update Scales
         if self.learn_counter == 1:
-            self.scale_r = np.mean(numpy_td) / (np.mean(numpy_s))
-            self.scale_s = np.mean(numpy_td) / (np.mean(numpy_s))
+            self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
+            self.scale_s = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
 
         memory.update_priorities(indices, priorities)
 
