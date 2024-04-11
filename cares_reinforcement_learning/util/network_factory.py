@@ -331,6 +331,28 @@ def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import MAPERTD3
+    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = MAPERTD3(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        alpha=config.alpha,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
         algorithm = config.algorithm
