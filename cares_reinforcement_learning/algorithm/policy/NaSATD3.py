@@ -101,7 +101,7 @@ class NaSATD3:
         self.actor.train()
         return action
 
-    def train_policy(self, experiences):
+    def train_policy(self, memory, batch_size):
         self.encoder.train()
         self.decoder.train()
         self.actor.train()
@@ -109,8 +109,9 @@ class NaSATD3:
 
         self.learn_counter += 1
 
-        # Note: for gripper the goal angle need to be passed here as well
-        states, actions, rewards, next_states, dones = experiences
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, _, _ = experiences
+
         batch_size = len(states)
 
         # Convert into tensor
@@ -141,9 +142,9 @@ class NaSATD3:
 
         q_values_one, q_values_two = self.critic(states, actions)
 
-        critic_loss_1 = F.mse_loss(q_values_one, q_target)
-        critic_loss_2 = F.mse_loss(q_values_two, q_target)
-        critic_loss_total = critic_loss_1 + critic_loss_2
+        critic_loss_one = F.mse_loss(q_values_one, q_target)
+        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
         self.critic_optimizer.zero_grad()

@@ -84,10 +84,11 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-    def train_policy(self, experience):
+    def train_policy(self, memory, batch_size=0):
         info = {}
 
-        states, actions, rewards, next_states, dones, log_probs = experience
+        experiences = memory.flush()
+        states, actions, rewards, next_states, dones, log_probs = experiences
 
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)

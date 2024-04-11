@@ -1,5 +1,5 @@
 """
-Original Paper: https://arxiv.org/abs/1802.09477v3
+Original Paper: https://arxiv.org/abs/2007.06049
 """
 
 import copy
@@ -10,13 +10,15 @@ import torch
 import torch.nn.functional as F
 
 
-class TD3:
+class LAPTD3:
     def __init__(
         self,
         actor_network,
         critic_network,
         gamma,
         tau,
+        alpha,
+        min_priority,
         action_num,
         actor_lr,
         critic_lr,
@@ -31,6 +33,8 @@ class TD3:
 
         self.gamma = gamma
         self.tau = tau
+        self.alpha = alpha
+        self.min_priority = min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -60,11 +64,16 @@ class TD3:
         self.actor_net.train()
         return action
 
+    def huber(self, x):
+        return torch.where(
+            x < self.min_priority, 0.5 * x.pow(2), self.min_priority * x
+        ).mean()
+
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
         experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
 
@@ -74,6 +83,7 @@ class TD3:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
@@ -95,14 +105,26 @@ class TD3:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
+        td_loss_one = (target_q_values_one - q_target).abs()
+        td_loss_two = (target_q_values_two - q_target).abs()
+
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
-        critic_loss_total = critic_loss_one + critic_loss_two
+
+        critic_loss_total = self.huber(critic_loss_one) + self.huber(critic_loss_two)
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
-        critic_loss_total.backward()
+        torch.mean(critic_loss_total).backward()
         self.critic_net_optimiser.step()
+
+        priorities = (
+            torch.max(td_loss_one, td_loss_two)
+            .pow(self.alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
         if self.learn_counter % self.policy_update_freq == 0:
             # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
@@ -137,6 +159,8 @@ class TD3:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
+
+        memory.update_priorities(indices, priorities)
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath

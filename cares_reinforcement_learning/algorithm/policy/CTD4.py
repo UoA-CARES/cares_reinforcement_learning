@@ -33,6 +33,7 @@ class CTD4:
 
         self.fusion_method = fusion_method
 
+        # TODO pull these out into configurations
         self.gamma = 0.99
         self.tau = 0.005
         self.learn_counter = 0
@@ -90,12 +91,15 @@ class CTD4:
         fusion_std = torch.sqrt(fusion_variance)
         return fusion_mean, fusion_std
 
-    def train_policy(self, experiences):
+    def train_policy(self, memory, batch_size):
         self.learn_counter += 1
+
         self.target_noise_scale *= self.noise_decay
         self.target_noise_scale = max(self.min_noise, self.target_noise_scale)
 
-        states, actions, rewards, next_states, dones = experiences
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, _, _ = experiences
+
         batch_size = len(states)
 
         # Convert into tensor

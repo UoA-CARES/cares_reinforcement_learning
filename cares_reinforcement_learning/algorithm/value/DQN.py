@@ -27,9 +27,11 @@ class DQN:
         self.network.train()
         return action
 
-    def train_policy(self, experiences):
-        states, actions, rewards, next_states, dones = experiences
+    def train_policy(self, memory, batch_size):
         info = {}
+
+        experiences = memory.sample(batch_size)
+        states, actions, rewards, next_states, dones, _, _ = experiences
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
