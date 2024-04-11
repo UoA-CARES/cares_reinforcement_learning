@@ -138,8 +138,6 @@ class RDTD3:
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        # calculate priority
-        #############################################
         diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
         diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
 
@@ -163,8 +161,8 @@ class RDTD3:
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
-        ############################
 
+        # calculate priority
         priorities = (
             torch.max(diff_reward_one, diff_reward_two)
             .clamp(min=self.min_priority)
@@ -221,6 +219,7 @@ class RDTD3:
             mean_state_err = torch.mean(state_err, 1)
             mean_state_err = mean_state_err.view(-1, 1)
             numpy_state_err = mean_state_err[:, 0].detach().data.cpu().numpy()
+
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
 
