@@ -201,7 +201,7 @@ class MAPERTD3:
             actor_q_values = torch.minimum(actor_q_one, actor_q_two)
             actor_val, _, _ = self._split_output(actor_q_values)
 
-            actor_loss = -actor_val.mean()
+            actor_loss = -(actor_val * weights).mean()
 
             # Optimize the actor
             self.actor_net_optimiser.zero_grad()
