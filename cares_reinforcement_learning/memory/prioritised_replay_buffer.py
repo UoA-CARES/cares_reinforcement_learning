@@ -42,7 +42,7 @@ class PrioritizedReplayBuffer:
 
         self.max_capacity = max_capacity
 
-        self.ptr = 0
+        # size is the current size of the buffer
         self.size = 0
 
         # Functionally is an array of buffers for each experience type
@@ -57,6 +57,10 @@ class PrioritizedReplayBuffer:
 
         # The SumTree is an efficient data structure for sampling based on priorities
         self.tree = SumTree(self.max_capacity)
+
+        # ptr is the location to add the next item into the tree - index for the SumTree
+        self.tree_pointer = 0
+
         self.max_priority = 1.0
         self.beta = 0.4
 
@@ -91,11 +95,11 @@ class PrioritizedReplayBuffer:
                 self.memory_buffers.append(memory)
 
             # This adds to the latest position in the buffer
-            self.memory_buffers[index][self.ptr] = exp
+            self.memory_buffers[index][self.tree_pointer] = exp
 
-        self.tree.set(self.ptr, self.max_priority)
+        self.tree.set(self.tree_pointer, self.max_priority)
 
-        self.ptr = (self.ptr + 1) % self.max_capacity
+        self.tree_pointer = (self.tree_pointer + 1) % self.max_capacity
         self.size = min(self.size + 1, self.max_capacity)
 
     def sample_uniform(self, batch_size):
@@ -181,7 +185,7 @@ class PrioritizedReplayBuffer:
 
         inverse_tree = SumTree(self.max_capacity)
 
-        inverse_tree.batch_set(np.arange(self.ptr), reversed_priorities)
+        inverse_tree.batch_set(np.arange(self.tree_pointer), reversed_priorities)
 
         indices = inverse_tree.sample(batch_size)
 
@@ -273,22 +277,15 @@ class PrioritizedReplayBuffer:
         return (*experiences, sampled_indices.tolist())
 
     def get_statistics(self):
-        """
-        Compute the statisitics for world model state normalization.
-        state, action, reward, next_state, done
-        Assumed Add sequence: (State, action, reward, next_state, next_action, next_reard)
-        :return: statistic tuple of the collected transitions.
-        """
-
-        states = np.array(self.memory_buffers[0][: self.ptr].tolist())
-        next_states = np.array(self.memory_buffers[3][: self.ptr].tolist())
-        delta = next_states - states
+        states = np.array(self.memory_buffers[0][: self.size].tolist())
+        next_states = np.array(self.memory_buffers[3][: self.size].tolist())
+        diff_states = next_states - states
 
         # Add a small number to avoid zeros.
         observation_mean = np.mean(states, axis=0) + 0.00001
         observation_std = np.std(states, axis=0) + 0.00001
-        delta_mean = np.mean(delta, axis=0) + 0.00001
-        delta_std = np.std(delta, axis=0) + 0.00001
+        delta_mean = np.mean(diff_states, axis=0) + 0.00001
+        delta_std = np.std(diff_states, axis=0) + 0.00001
 
         statistics = {
             "observation_mean": observation_mean,
@@ -304,7 +301,7 @@ class PrioritizedReplayBuffer:
 
         Resets the pointer, size, memory buffers, sum tree, max priority, and beta values.
         """
-        self.ptr = 0
+        self.tree_pointer = 0
         self.size = 0
         self.memory_buffers = []
 
