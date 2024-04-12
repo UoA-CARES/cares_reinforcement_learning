@@ -224,3 +224,20 @@ def test_sample_empty_buffer(memory_buffer):
     except ValueError:
         # Nothing in the buffer, so should receive not enough values to unpack
         assert True
+
+    try:
+        (
+            states_t1,
+            actions_t1,
+            rewards_t1,
+            next_states_t1,
+            dones_t1,
+            states_t2,
+            actions_t2,
+            rewards_t2,
+            next_states_t2,
+            dones_t2,
+            ind,
+        ) = memory_buffer.sample_consecutive(1)
+    except ValueError:
+        assert True
