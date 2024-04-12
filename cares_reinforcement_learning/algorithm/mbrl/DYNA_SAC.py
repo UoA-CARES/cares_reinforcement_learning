@@ -165,7 +165,8 @@ class DynaSAC:
 
         experiences = memory.sample_consecutive(batch_size)
 
-        states, actions, rewards, next_states, _, next_actions, next_rewards = (
+        (states, actions, rewards, next_states, _,
+         _, next_actions, next_rewards, _, _, _) = (
             experiences
         )
 
@@ -191,8 +192,8 @@ class DynaSAC:
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
         self.batch_size = len(states)
 
         # Convert into tensor
