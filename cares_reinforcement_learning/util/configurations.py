@@ -200,6 +200,20 @@ class LAPTD3Config(AlgorithmConfig):
     noise_decay: Optional[float] = 1
 
 
+class PALTD3Config(AlgorithmConfig):
+    algorithm: str = Field("PALTD3", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    alpha: Optional[float] = 0.4
+    min_priority: Optional[float] = 1.0
+
+    noise_scale: Optional[float] = 0.1
+    noise_decay: Optional[float] = 1
+
+
 class LA3PTD3Config(AlgorithmConfig):
     algorithm: str = Field("LA3PTD3", Literal=True)
 

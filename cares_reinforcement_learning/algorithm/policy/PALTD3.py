@@ -5,14 +5,13 @@ Original Paper: https://arxiv.org/abs/2007.06049
 import copy
 import logging
 import os
-
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as helpers
 
 
-class LAPTD3:
+class PALTD3:
     def __init__(
         self,
         actor_network,
@@ -69,8 +68,8 @@ class LAPTD3:
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
-        experiences = memory.sample_priority(batch_size)
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 
@@ -80,7 +79,6 @@ class LAPTD3:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
@@ -105,22 +103,25 @@ class LAPTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_lose_one = helpers.huber(td_error_one, self.min_priority)
-        huber_lose_two = helpers.huber(td_error_two, self.min_priority)
-        critic_loss_total = huber_lose_one + huber_lose_two
+        pal_loss_one = helpers.prioritized_approximate_loss(
+            td_error_one, self.min_priority, self.alpha
+        )
+        pal_loss_two = helpers.prioritized_approximate_loss(
+            td_error_two, self.min_priority, self.alpha
+        )
+        critic_loss_total = pal_loss_one + pal_loss_two
+        critic_loss_total /= (
+            torch.max(td_error_one, td_error_two)
+            .clamp(min=self.min_priority)
+            .pow(self.alpha)
+            .mean()
+            .detach()
+        )
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
-
-        priorities = (
-            torch.max(td_error_one, td_error_two)
-            .pow(self.alpha)
-            .cpu()
-            .data.numpy()
-            .flatten()
-        )
 
         if self.learn_counter % self.policy_update_freq == 0:
             # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
@@ -155,8 +156,6 @@ class LAPTD3:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
-
-        memory.update_priorities(indices, priorities)
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
