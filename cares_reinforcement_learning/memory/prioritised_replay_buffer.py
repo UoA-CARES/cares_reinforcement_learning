@@ -9,32 +9,32 @@ class PrioritizedReplayBuffer:
     """
     A prioritized replay buffer implementation for reinforcement learning.
 
-    This buffer stores experiences and samples them based on their priorities.
-    Experiences can be added to the buffer and sampled with different probabilities
-    based on their priorities. The buffer also supports updating the priorities
-    of the stored experiences.
+    This buffer stores experiences and allows for efficient sampling based on priorities.
+    Experiences are stored in the order: state, action, reward, next_state, done, ...
 
     Args:
-        max_capacity (int): The maximum capacity of the replay buffer.
+        max_capacity (int): The maximum capacity of the buffer.
         **priority_params: Additional parameters for priority calculation.
 
     Attributes:
         priority_params (dict): Additional parameters for priority calculation.
-        max_capacity (int): The maximum capacity of the replay buffer.
-        ptr (int): The current position in the buffer.
-        size (int): The current size of the buffer.
-        memory_buffers (list): List of memory buffers for each experience type.
-        tree (SumTree): The sum tree data structure for priority calculation.
+        max_capacity (int): The maximum capacity of the buffer.
+        current_size (int): The current size of the buffer.
+        memory_buffers (list): An array of buffers for each experience type.
+        tree (SumTree): The SumTree data structure for efficient sampling based on priorities.
+        tree_pointer (int): The location to add the next item into the tree.
         max_priority (float): The maximum priority value in the buffer.
-        beta (float): The beta value for importance weight calculation.
+        beta (float): The beta parameter for importance weight calculation.
 
     Methods:
         __len__(): Returns the current size of the buffer.
-        add(*experience): Adds a single experience to the prioritized replay buffer.
-        sample(batch_size): Samples experiences from the prioritized replay buffer.
-        update_priority(info): Update the priorities of the replay buffer based on the given information.
+        add(state, action, reward, next_state, done, *extra): Adds a single experience to the buffer.
+        sample_uniform(batch_size): Samples experiences uniformly from the buffer.
+        sample_priority(batch_size): Samples experiences from the buffer based on priorities.
+        sample_inverse_priority(batch_size): Samples experiences from the buffer based on inverse priorities.
+        update_priorities(indices, priorities): Updates the priorities of the buffer at the given indices.
         flush(): Flushes the memory buffers and returns the experiences in order.
-        clear(): Clears the prioritized replay buffer.
+        sample_consecutive(batch_size): Randomly samples consecutive experiences from the memory buffer.
     """
 
     def __init__(self, max_capacity=int(1e6), **priority_params):
@@ -43,7 +43,7 @@ class PrioritizedReplayBuffer:
         self.max_capacity = max_capacity
 
         # size is the current size of the buffer
-        self.size = 0
+        self.current_size = 0
 
         # Functionally is an array of buffers for each experience type
         self.memory_buffers = []
@@ -57,15 +57,20 @@ class PrioritizedReplayBuffer:
 
         # The SumTree is an efficient data structure for sampling based on priorities
         self.tree = SumTree(self.max_capacity)
-
-        # ptr is the location to add the next item into the tree - index for the SumTree
+        # The location to add the next item into the tree - index for the SumTree
         self.tree_pointer = 0
 
         self.max_priority = 1.0
         self.beta = 0.4
 
     def __len__(self):
-        return self.size
+        """
+        Returns the current size of the buffer.
+
+        Returns:
+            int: The current size of the buffer.
+        """
+        return self.current_size
 
     def add(self, state, action, reward, next_state, done, *extra):
         """
@@ -100,7 +105,7 @@ class PrioritizedReplayBuffer:
         self.tree.set(self.tree_pointer, self.max_priority)
 
         self.tree_pointer = (self.tree_pointer + 1) % self.max_capacity
-        self.size = min(self.size + 1, self.max_capacity)
+        self.current_size = min(self.current_size + 1, self.max_capacity)
 
     def sample_uniform(self, batch_size):
         """
@@ -115,8 +120,8 @@ class PrioritizedReplayBuffer:
                 - The indices represent the indices of the sampled experiences in the buffer.
         """
         # If batch size is greater than size we need to limit it to just the data that exists
-        batch_size = min(batch_size, self.size)
-        indices = np.random.randint(self.size, size=batch_size)
+        batch_size = min(batch_size, self.current_size)
+        indices = np.random.randint(self.current_size, size=batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []
@@ -140,7 +145,7 @@ class PrioritizedReplayBuffer:
                 - The weights represent the importance weights for each sampled experience.
         """
         # If batch size is greater than size we need to limit it to just the data that exists
-        batch_size = min(batch_size, self.size)
+        batch_size = min(batch_size, self.current_size)
         indices = self.tree.sample(batch_size)
 
         weights = self.tree.levels[-1][indices] ** -self.beta
@@ -176,12 +181,14 @@ class PrioritizedReplayBuffer:
 
         """
         # If batch size is greater than size we need to limit it to just the data that exists
-        batch_size = min(batch_size, self.size)
+        batch_size = min(batch_size, self.current_size)
 
         top_value = self.tree.levels[0][0]
 
         # Inverse based on paper for LA3PD - https://arxiv.org/abs/2209.00532
-        reversed_priorities = top_value / (self.tree.levels[-1][: self.size] + 1e-6)
+        reversed_priorities = top_value / (
+            self.tree.levels[-1][: self.current_size] + 1e-6
+        )
 
         inverse_tree = SumTree(self.max_capacity)
 
@@ -225,7 +232,7 @@ class PrioritizedReplayBuffer:
         experiences = []
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[0 : self.size].tolist())
+            experiences.append(buffer[0 : self.current_size].tolist())
         self.clear()
         return experiences
 
@@ -243,9 +250,9 @@ class PrioritizedReplayBuffer:
 
         """
         # If batch size is greater than size we need to limit it to just the data that exists
-        batch_size = min(batch_size, self.size)
+        batch_size = min(batch_size, self.current_size)
 
-        candididate_indices = list(range(self.size - 1))
+        candididate_indices = list(range(self.current_size - 1))
 
         # A list of candidate indices includes all indices.
         sampled_indices = []  # randomly sampled indices that is okay.
@@ -268,7 +275,7 @@ class PrioritizedReplayBuffer:
             # NOTE: we convert back to a standard list here
             experiences.append(buffer[sampled_indices].tolist())
 
-        next_sampled_indices = np.array([x + 1 for x in sampled_indices])
+        next_sampled_indices = sampled_indices + 1
 
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
@@ -277,8 +284,18 @@ class PrioritizedReplayBuffer:
         return (*experiences, sampled_indices.tolist())
 
     def get_statistics(self):
-        states = np.array(self.memory_buffers[0][: self.size].tolist())
-        next_states = np.array(self.memory_buffers[3][: self.size].tolist())
+        """
+        Calculate statistics of the replay buffer.
+
+        Returns:
+            statistics (dict): A dictionary containing the following statistics:
+                - observation_mean: Mean of the observations in the replay buffer.
+                - observation_std: Standard deviation of the observations in the replay buffer.
+                - delta_mean: Mean of the differences between consecutive observations.
+                - delta_std: Standard deviation of the differences between consecutive observations.
+        """
+        states = np.array(self.memory_buffers[0][: self.current_size].tolist())
+        next_states = np.array(self.memory_buffers[3][: self.current_size].tolist())
         diff_states = next_states - states
 
         # Add a small number to avoid zeros.
@@ -302,7 +319,7 @@ class PrioritizedReplayBuffer:
         Resets the pointer, size, memory buffers, sum tree, max priority, and beta values.
         """
         self.tree_pointer = 0
-        self.size = 0
+        self.current_size = 0
         self.memory_buffers = []
 
         self.tree = SumTree(self.max_capacity)
