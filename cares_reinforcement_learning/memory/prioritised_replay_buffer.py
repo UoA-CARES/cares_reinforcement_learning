@@ -47,12 +47,13 @@ class PrioritizedReplayBuffer:
 
         # Functionally is an array of buffers for each experience type
         self.memory_buffers = []
-        # state = []
-        # action = []
-        # reward = []
-        # next_state = []
-        # done = []
-        # ... etc for extra data e.g. log_prob = []
+        # 0 state = []
+        # 1 action = []
+        # 2 reward = []
+        # 3 next_state = []
+        # 4 done = []
+        # 5 ... = [] e.g. log_prob = []
+        # n ... = []
 
         # The SumTree is an efficient data structure for sampling based on priorities
         self.tree = SumTree(self.max_capacity)
@@ -106,6 +107,8 @@ class PrioritizedReplayBuffer:
 
         Returns:
             tuple: A tuple containing the sampled experiences and their corresponding indices.
+                - Experiences are returned in the order: state, action, reward, next_state, done, ...
+                - The indices represent the indices of the sampled experiences in the buffer.
         """
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.size)
@@ -128,7 +131,7 @@ class PrioritizedReplayBuffer:
 
         Returns:
             Tuple: A tuple containing the sampled experiences, indices, and weights.
-                - Experiences are expected to be stored in the order: state, action, reward, next_state, done, ...
+                - Experiences are returned in the order: state, action, reward, next_state, done, ...
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the importance weights for each sampled experience.
         """
@@ -162,8 +165,10 @@ class PrioritizedReplayBuffer:
             batch_size (int): The number of experiences to sample.
 
         Returns:
-            Tuple: A tuple containing the sampled experiences, indices of the sampled experiences,
-            and the corresponding reversed priorities.
+            Tuple: A tuple containing the sampled experiences, indices, and weights.
+                - Experiences are returned in the order: state, action, reward, next_state, done, ...
+                - The indices represent the indices of the sampled experiences in the buffer.
+                - The weights represent the inverse importance weights for each sampled experience.
 
         """
         # If batch size is greater than size we need to limit it to just the data that exists
@@ -221,42 +226,51 @@ class PrioritizedReplayBuffer:
         return experiences
 
     def sample_consecutive(self, batch_size):
+        """
+        Randomly samples consecutive experiences from the memory buffer.
+
+        Args:
+            batch_size (int): The number of consecutive experiences to sample.
+
+        Returns:
+            tuple: A tuple containing the sampled experiences_t and experiences_t+1 and their corresponding indices.
+                - Experiences are returned in the order: state_i, action_i, reward_i, next_state_i, done_i, ..._i, state_i+1, action_i+1, reward_i+1, next_state_i+1, done_i+1, ..._+i
+                - The indices represent the indices of the sampled experiences in the buffer.
+
+        """
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.size)
 
-        candididate_indices = list(range(self.size))
+        candididate_indices = list(range(self.size - 1))
 
         # A list of candidate indices includes all indices.
         sampled_indices = []  # randomly sampled indices that is okay.
         # In this way, the sampling time depends on the batch size rather than buffer size.
-        first_sample = True  # Not check duplicate for first time sample.
+
+        # Add in only experiences that are not done and not already sampled.
         while len(sampled_indices) < batch_size:
             # Sample size based on how many still needed.
             idxs = random.sample(candididate_indices, batch_size - len(sampled_indices))
             for i in idxs:
-                # Check if it is already sampled.
-                already_sampled = False
-                # Only check if it is not first time in the while loop.
-                if not first_sample:
-                    # compare with each item in the sampled.
-                    for j in sampled_indices:
-                        if j == i:
-                            already_sampled = True
-                if (self.memory_buffers[4][i] is False) and (not already_sampled):
+                # Check the experience is not done and not already sampled.
+                done = self.memory_buffers[4][i]
+                if (not done) and (i not in sampled_indices):
                     sampled_indices.append(i)
 
-            first_sample = False
+        sampled_indices = np.array(sampled_indices)
 
         experiences = []
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[np.array(sampled_indices)].tolist())
+            experiences.append(buffer[sampled_indices].tolist())
 
-        next_sampled_indices = [x + 1 for x in sampled_indices]
-        next_sampled_indices = np.array(next_sampled_indices)
-        experiences.append(self.memory_buffers[1][next_sampled_indices].tolist())
-        experiences.append(self.memory_buffers[2][next_sampled_indices].tolist())
-        return experiences
+        next_sampled_indices = np.array([x + 1 for x in sampled_indices])
+
+        for buffer in self.memory_buffers:
+            # NOTE: we convert back to a standard list here
+            experiences.append(buffer[next_sampled_indices].tolist())
+
+        return (*experiences, sampled_indices.tolist())
 
     def get_statistics(self):
         """
