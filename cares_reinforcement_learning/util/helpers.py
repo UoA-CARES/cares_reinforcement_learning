@@ -116,3 +116,15 @@ def compare_models(model_1, model_2):
                     f"Models are not equal. {key_item_1[0]} is not equal to {key_item_2[0]}"
                 )
     return models_differ == 0
+
+
+def prioritized_approximate_loss(x, min_priority, alpha):
+    return torch.where(
+        x.abs() < min_priority,
+        (min_priority**alpha) * 0.5 * x.pow(2),
+        min_priority * x.abs().pow(1.0 + alpha) / (1.0 + alpha),
+    ).mean()
+
+
+def huber(x, min_priority):
+    return torch.where(x < min_priority, 0.5 * x.pow(2), min_priority * x).mean()

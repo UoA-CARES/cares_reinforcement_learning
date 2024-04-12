@@ -5,9 +5,11 @@ Original Paper: https://arxiv.org/abs/2209.00532
 import copy
 import logging
 import os
+
 import numpy as np
 import torch
-import torch.nn.functional as F
+
+import cares_reinforcement_learning.util.helpers as helpers
 
 
 class LA3PTD3:
@@ -65,18 +67,6 @@ class LA3PTD3:
                 action = np.clip(action, -1, 1)
         self.actor_net.train()
         return action
-
-    def prioritized_approximate_los(self, x):
-        return torch.where(
-            x.abs() < self.min_priority,
-            (self.min_priority**self.alpha) * 0.5 * x.pow(2),
-            self.min_priority * x.abs().pow(1.0 + self.alpha) / (1.0 + self.alpha),
-        ).mean()
-
-    def huber(self, x):
-        return torch.where(
-            x < self.min_priority, 0.5 * x.pow(2), self.min_priority * x
-        ).mean()
 
     def _update_target_network(self):
         # Update target network params
@@ -147,9 +137,13 @@ class LA3PTD3:
         td_error_two = (q_values_two - q_target).abs()
 
         if uniform_sampling:
-            critic_loss_total = self.prioritized_approximate_los(
-                td_error_one
-            ) + self.prioritized_approximate_los(td_error_two)
+            pal_loss_one = helpers.prioritized_approximate_loss(
+                td_error_one, self.min_priority, self.alpha
+            )
+            pal_loss_two = helpers.prioritized_approximate_loss(
+                td_error_two, self.min_priority, self.alpha
+            )
+            critic_loss_total = pal_loss_one + pal_loss_two
             critic_loss_total /= (
                 torch.max(td_error_one, td_error_two)
                 .clamp(min=self.min_priority)
@@ -158,7 +152,9 @@ class LA3PTD3:
                 .detach()
             )
         else:
-            critic_loss_total = self.huber(td_error_one) + self.huber(td_error_two)
+            huber_lose_one = helpers.huber(td_error_one, self.min_priority)
+            huber_lose_two = helpers.huber(td_error_two, self.min_priority)
+            critic_loss_total = huber_lose_one + huber_lose_two
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()

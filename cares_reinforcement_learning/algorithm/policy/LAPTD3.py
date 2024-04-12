@@ -5,9 +5,11 @@ Original Paper: https://arxiv.org/abs/2007.06049
 import copy
 import logging
 import os
+
 import numpy as np
 import torch
-import torch.nn.functional as F
+
+import cares_reinforcement_learning.util.helpers as helpers
 
 
 class LAPTD3:
@@ -64,11 +66,6 @@ class LAPTD3:
         self.actor_net.train()
         return action
 
-    def huber(self, x):
-        return torch.where(
-            x < self.min_priority, 0.5 * x.pow(2), self.min_priority * x
-        ).mean()
-
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
@@ -108,7 +105,9 @@ class LAPTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        critic_loss_total = self.huber(td_error_one) + self.huber(td_error_two)
+        huber_lose_one = helpers.huber(td_error_one, self.min_priority)
+        huber_lose_two = helpers.huber(td_error_two, self.min_priority)
+        critic_loss_total = huber_lose_one + huber_lose_two
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
