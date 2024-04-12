@@ -36,9 +36,9 @@ class PrioritizedReplayBuffer:
     """
 
     def __init__(
-            self,
-            max_capacity=int(1e6),
-            **priority_params,
+        self,
+        max_capacity=int(1e6),
+        **priority_params,
     ):
         self.priority_params = priority_params
 
@@ -143,7 +143,7 @@ class PrioritizedReplayBuffer:
         experiences = []
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[0: self.size].tolist())
+            experiences.append(buffer[0 : self.size].tolist())
         self.clear()
         return experiences
 
@@ -220,8 +220,8 @@ class PrioritizedReplayBuffer:
         :return: statistic tuple of the collected transitions.
         """
 
-        states = np.array(self.memory_buffers[0][:self.ptr].tolist())
-        next_states = np.array(self.memory_buffers[3][:self.ptr].tolist())
+        states = np.array(self.memory_buffers[0][: self.ptr].tolist())
+        next_states = np.array(self.memory_buffers[3][: self.ptr].tolist())
         delta = next_states - states
 
         # Add a small number to avoid zeros.
