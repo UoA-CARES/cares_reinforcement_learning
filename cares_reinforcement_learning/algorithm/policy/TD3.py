@@ -63,8 +63,8 @@ class TD3:
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 

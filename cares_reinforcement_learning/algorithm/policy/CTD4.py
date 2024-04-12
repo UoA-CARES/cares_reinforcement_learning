@@ -97,8 +97,8 @@ class CTD4:
         self.target_noise_scale *= self.noise_decay
         self.target_noise_scale = max(self.min_noise, self.target_noise_scale)
 
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 

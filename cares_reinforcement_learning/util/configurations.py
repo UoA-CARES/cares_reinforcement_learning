@@ -163,8 +163,8 @@ class CTD4Config(AlgorithmConfig):
 class RDTD3Config(AlgorithmConfig):
     algorithm: str = Field("RDTD3", Literal=True)
 
-    actor_lr: Optional[float] = 1e-4
-    critic_lr: Optional[float] = 1e-3
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.7
@@ -176,8 +176,8 @@ class RDTD3Config(AlgorithmConfig):
 class PERTD3Config(AlgorithmConfig):
     algorithm: str = Field("PERTD3", Literal=True)
 
-    actor_lr: Optional[float] = 1e-4
-    critic_lr: Optional[float] = 1e-3
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.6
@@ -189,12 +189,27 @@ class PERTD3Config(AlgorithmConfig):
 class LAPTD3Config(AlgorithmConfig):
     algorithm: str = Field("LAPTD3", Literal=True)
 
-    actor_lr: Optional[float] = 1e-4
-    critic_lr: Optional[float] = 1e-3
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.6
     min_priority: Optional[float] = 1.0
+
+    noise_scale: Optional[float] = 0.1
+    noise_decay: Optional[float] = 1
+
+
+class LA3PTD3Config(AlgorithmConfig):
+    algorithm: str = Field("LA3PTD3", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    alpha: Optional[float] = 0.4
+    min_priority: Optional[float] = 1.0
+    prioritized_fraction: Optional[float] = 0.5
 
     noise_scale: Optional[float] = 0.1
     noise_decay: Optional[float] = 1
