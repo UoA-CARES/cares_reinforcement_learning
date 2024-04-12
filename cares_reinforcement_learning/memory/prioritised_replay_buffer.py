@@ -44,8 +44,16 @@ class PrioritizedReplayBuffer:
         self.ptr = 0
         self.size = 0
 
+        # Functionally is an array of buffers for each experience type
         self.memory_buffers = []
+        # state = []
+        # action = []
+        # reward = []
+        # next_state = []
+        # done = []
+        # ... etc for extra data e.g. log_prob = []
 
+        # The SumTree is an efficient data structure for sampling based on priorities
         self.tree = SumTree(self.max_capacity)
         self.max_priority = 1.0
         self.beta = 0.4
@@ -53,18 +61,26 @@ class PrioritizedReplayBuffer:
     def __len__(self):
         return self.size
 
-    def add(self, *experience):
+    def add(self, state, action, reward, next_state, done, *extra):
         """
         Adds a single experience to the prioritized replay buffer.
 
         Data is expected to be stored in the order: state, action, reward, next_state, done, ...
 
         Args:
-            *experience: Variable number of experiences to be added. Each experience can be a single value or an array-like object.
+            state: The current state of the environment.
+            action: The action taken in the current state.
+            reward: The reward received for taking the action.
+            next_state: The next state of the environment after taking the action.
+            done: A flag indicating whether the episode is done after taking the action.
+            *extra: Extra is a variable list of extra experience data to be added (e.g. log_prob).
+
         Returns:
             None
         """
-        # Iteratre over the list of experiences (state, action, reward, next_state, done, ...) and add them to the buffer
+        experience = [state, action, reward, next_state, done, *extra]
+
+        # Iterate over the list of experiences (state, action, reward, next_state, done, ...) and add them to the buffer
         for index, exp in enumerate(experience):
             # Dynamically create the full memory size on first experience
             if index >= len(self.memory_buffers):
@@ -202,6 +218,46 @@ class PrioritizedReplayBuffer:
             experiences.append(buffer[0 : self.size].tolist())
         self.clear()
         return experiences
+
+    def sample_consecutive(self, batch_size):
+        # max_length = len(self.buffer) - 1
+        # candi_indices = list(range(max_length))
+        # batch_size = min(batch_size, max_length)
+        # # A list of candidate indices includes all indices.
+        # sampled_indices = []  # randomly sampled indices that is okay.
+        # # In this way, the sampling time depends on the batch size rather than buffer size.
+        # first_sample = True  # Not check duplicate for first time sample.
+        # while True:
+        #     # Sample size based on how many still needed.
+        #     idxs = np.random.randint(candi_indices, batch_size - len(sampled_indices))
+        #     for i in idxs:
+        #         # Check if it is already sampled.
+        #         already_sampled = False
+        #         # Only check if it is not first time in the while loop.
+        #         if not first_sample:
+        #             # compare with each item in the sampled.
+        #             for j in sampled_indices:
+        #                 if j == i:
+        #                     already_sampled = True
+        #         if (self.buffer[i][4] is False) and (not already_sampled):
+        #             sampled_indices.append(i)
+        #         if len(sampled_indices) == batch_size:
+        #             break
+        #     first_sample = False
+        #     if len(sampled_indices) == batch_size:
+        #         break
+        # # Form the sampled data batch
+        # experience_batch = [
+        #     self.buffer[i]
+        #     + (
+        #         self.buffer[i + 1][1],
+        #         self.buffer[i + 1][2],
+        #     )
+        #     for i in sampled_indices
+        # ]
+        # transposed_batch = zip(*experience_batch)
+        # return transposed_batch
+        return []
 
     def clear(self):
         """
