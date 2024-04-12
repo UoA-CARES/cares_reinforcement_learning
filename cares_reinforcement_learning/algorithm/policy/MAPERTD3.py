@@ -1,3 +1,7 @@
+"""
+Original Paper: https://openreview.net/pdf?id=WuEiafqdy9H
+"""
+
 import copy
 import logging
 import os
@@ -8,7 +12,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 
 
-class RDTD3:
+class MAPERTD3:
     def __init__(
         self,
         actor_network,
@@ -39,7 +43,7 @@ class RDTD3:
         self.action_num = action_num
         self.device = device
 
-        # RD-PER parameters
+        # MAPER-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
         self.min_priority = 1
@@ -76,20 +80,24 @@ class RDTD3:
 
         # Sample replay buffer
         experiences = memory.sample_priority(batch_size)
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        states, actions, predicted_rewards, next_states, dones, indices, weights = (
+            experiences
+        )
 
         batch_size = len(states)
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        predicted_rewards = torch.FloatTensor(np.asarray(predicted_rewards)).to(
+            self.device
+        )
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        predicted_rewards = predicted_rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # Get current Q estimates
@@ -98,10 +106,10 @@ class RDTD3:
         q_value_two, reward_two, next_states_two = self._split_output(output_two)
 
         diff_reward_one = 0.5 * torch.pow(
-            reward_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+            reward_one.reshape(-1, 1) - predicted_rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
         diff_reward_two = 0.5 * torch.pow(
-            reward_two.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+            reward_two.reshape(-1, 1) - predicted_rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
 
         diff_next_states_one = 0.5 * torch.mean(
@@ -134,9 +142,14 @@ class RDTD3:
             )
             next_values_one, _, _ = self._split_output(target_q_values_one)
             next_values_two, _, _ = self._split_output(target_q_values_two)
+
             target_q_values = torch.min(next_values_one, next_values_two).reshape(-1, 1)
 
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            predicted_rewards = (
+                (reward_one.reshape(-1, 1) + reward_two.reshape(-1, 1)) / 2
+            ).reshape(-1, 1)
+
+            q_target = predicted_rewards + self.gamma * (1 - dones) * target_q_values
 
         diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
         diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
@@ -163,14 +176,30 @@ class RDTD3:
         self.critic_net_optimiser.step()
 
         # calculate priority
-        priorities = (
-            torch.max(diff_reward_one, diff_reward_two)
-            .clamp(min=self.min_priority)
-            .pow(self.alpha)
-            .cpu()
-            .data.numpy()
-            .flatten()
+        diff_td_mean = torch.cat([diff_td_one, diff_td_two], -1)
+        diff_td_mean = torch.mean(diff_td_mean, 1)
+        diff_td_mean = diff_td_mean.reshape(-1, 1)
+        diff_td_mean = diff_td_mean[:, 0].detach().data.cpu().numpy()
+
+        diff_reward_mean = torch.cat([diff_reward_one, diff_reward_two], -1)
+        diff_reward_mean = torch.mean(diff_reward_mean, 1)
+        diff_reward_mean = diff_reward_mean.reshape(-1, 1)
+        diff_reward_mean = diff_reward_mean[:, 0].detach().data.cpu().numpy()
+
+        diff_next_state_mean = torch.cat(
+            [diff_next_states_one, diff_next_states_two], -1
         )
+        diff_next_state_mean = torch.mean(diff_next_state_mean, 1)
+        diff_next_state_mean = diff_next_state_mean.reshape(-1, 1)
+        diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
+
+        priorities = np.array(
+            [
+                diff_td_mean
+                + self.scale_s * diff_next_state_mean
+                + self.scale_r * diff_reward_mean
+            ]
+        ).reshape(-1)
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
@@ -180,7 +209,7 @@ class RDTD3:
             actor_q_values = torch.minimum(actor_q_one, actor_q_two)
             actor_val, _, _ = self._split_output(actor_q_values)
 
-            actor_loss = -actor_val.mean()
+            actor_loss = -(actor_val * weights).mean()
 
             # Optimize the actor
             self.actor_net_optimiser.zero_grad()
@@ -202,26 +231,10 @@ class RDTD3:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-        ################################################
         # Update Scales
         if self.learn_counter == 1:
-            td_err = torch.cat([diff_td_one, diff_td_two], -1)
-            mean_td_err = torch.mean(td_err, 1)
-            mean_td_err = mean_td_err.view(-1, 1)
-            numpy_td_err = mean_td_err[:, 0].detach().data.cpu().numpy()
-
-            reward_err = torch.cat([diff_reward_one, diff_reward_two], -1)
-            mean_reward_err = torch.mean(reward_err, 1)
-            mean_reward_err = mean_reward_err.view(-1, 1)
-            numpy_reward_err = mean_reward_err[:, 0].detach().data.cpu().numpy()
-
-            state_err = torch.cat([diff_next_states_one, diff_next_states_two], -1)
-            mean_state_err = torch.mean(state_err, 1)
-            mean_state_err = mean_state_err.view(-1, 1)
-            numpy_state_err = mean_state_err[:, 0].detach().data.cpu().numpy()
-
-            self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
-            self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
+            self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
+            self.scale_s = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
 
         memory.update_priorities(indices, priorities)
 
