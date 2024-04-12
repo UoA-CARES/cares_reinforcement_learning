@@ -36,8 +36,8 @@ class DoubleDQN:
         return action
 
     def train_policy(self, memory, batch_size):
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
