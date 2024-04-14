@@ -165,10 +165,19 @@ class DynaSAC:
 
         experiences = memory.sample_consecutive(batch_size)
 
-        (states, actions, rewards, next_states, _,
-         _, next_actions, next_rewards, _, _, _) = (
-            experiences
-        )
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            _,
+            _,
+            next_actions,
+            next_rewards,
+            _,
+            _,
+            _,
+        ) = experiences
 
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
