@@ -23,7 +23,7 @@ class TrainingConfig(SubscriptableClass):
     G: Optional[int] = 1
 
     # for training the world model in MBRL.
-    G_model: Optional[float] = 1.0
+    G_model: Optional[int] = 1
 
     buffer_size: Optional[int] = 1000000
     batch_size: Optional[int] = 256
@@ -108,7 +108,7 @@ class SACConfig(AlgorithmConfig):
 
 
 class DYNAConfig(AlgorithmConfig):
-    algorithm: str = Field("DYNA", Literal=True)
+    algorithm: str = Field("MBRL_DYNA", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 
