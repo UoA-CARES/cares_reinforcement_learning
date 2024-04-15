@@ -10,3 +10,4 @@ from .LA3PTD3 import LA3PTD3
 from .LAPTD3 import LAPTD3
 from .MAPERTD3 import MAPERTD3
 from .PALTD3 import PALTD3
+from .REDQ import REDQ

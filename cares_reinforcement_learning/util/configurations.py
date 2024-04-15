@@ -151,7 +151,7 @@ class CTD4Config(AlgorithmConfig):
     critic_lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    ensemble_size: Optional[int] = 2
+    ensemble_size: Optional[int] = 3
 
     min_noise: Optional[float] = 0.0
     noise_decay: Optional[float] = 0.999999
@@ -240,3 +240,14 @@ class MAPERTD3Config(AlgorithmConfig):
 
     noise_scale: Optional[float] = 0.1
     noise_decay: Optional[float] = 1
+
+
+class REDQConfig(AlgorithmConfig):
+    algorithm: str = Field("REDQ", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    ensemble_size: Optional[int] = 10
+    num_sample_critics: Optional[int] = 2
