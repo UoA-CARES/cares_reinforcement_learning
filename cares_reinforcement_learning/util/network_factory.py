@@ -119,9 +119,6 @@ def create_DynaSAC(observation_size, action_num, config: DynaSACConfig):
 
 
 def create_SAC(observation_size, action_num, config: AlgorithmConfig):
-    """
-    Create an SAC agent.
-    """
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
@@ -371,6 +368,29 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
+def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import REDQ
+    from cares_reinforcement_learning.networks.REDQ import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = REDQ(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        ensemble_size=config.ensemble_size,
+        num_sample_critics=config.num_sample_critics,
+        action_num=action_num,
         device=device,
     )
     return agent
