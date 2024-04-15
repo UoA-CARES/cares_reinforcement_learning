@@ -151,7 +151,7 @@ class CTD4Config(AlgorithmConfig):
     critic_lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    ensemble_size: Optional[int] = 2
+    ensemble_size: Optional[int] = 3
 
     min_noise: Optional[float] = 0.0
     noise_decay: Optional[float] = 0.999999
