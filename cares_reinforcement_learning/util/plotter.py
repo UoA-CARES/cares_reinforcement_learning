@@ -50,7 +50,7 @@ def plot_data(
         alpha=0.4,
     )
 
-    plt.legend(fontsize="15", loc="upper left")
+    plt.legend(fontsize="15", loc="lower right")
 
     # Resize the plotted figure. Pixel = DPI * Inch. PLT Default DPI: 100.
     fig = plt.gcf()
@@ -173,6 +173,8 @@ def parse_args():
     )
     parser.add_argument("-w", "--window_size", type=int, default=1)
 
+    parser.add_argument("-p", "--param_tag", type=str, default="")
+
     # converts into a dictionary
     return vars(parser.parse_args())
 
@@ -182,12 +184,14 @@ def main():
 
     directory = args["save_directory"]
     window_size = args["window_size"]
+    param_tag = args["param_tag"]
 
     eval_plot_frames = []
     labels = []
     title = "Undefined Task"
 
     for data_directory in args["data_path"]:
+        logging.info(f"Processing Data for {data_directory}")
         result_directories = glob(f"{data_directory}/*")
 
         average_train_data = pd.DataFrame()
@@ -206,7 +210,12 @@ def main():
             alg_config = json.load(file)
 
         algorithm = alg_config["algorithm"]
-        labels.append(algorithm)
+
+        param = str(alg_config[param_tag]) if param_tag in alg_config else ""
+        param += str(train_config[param_tag]) if param_tag in train_config else ""
+        param = f"_{param_tag}_{param}" if param else ""
+        label = algorithm + param
+        labels.append(label)
         task = env_config["task"]
         title = task
 
