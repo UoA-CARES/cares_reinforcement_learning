@@ -19,27 +19,40 @@ class EnvironmentConfig(SubscriptableClass):
 
 class TrainingConfig(SubscriptableClass):
     seeds: List[int] = [10]
-    # for general agent training.
-    G: Optional[int] = 1
-    # for training the world model in MBRL.
-    G_model: Optional[int] = 1
-
-    buffer_size: Optional[int] = 1000000
-    batch_size: Optional[int] = 256
-
-    max_steps_exploration: Optional[int] = 1000
-    max_steps_training: Optional[int] = 1000000
-
-    number_steps_per_evaluation: Optional[int] = 10000
-    number_eval_episodes: Optional[int] = 10
-    number_steps_per_train_policy: Optional[int] = 1
 
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
 
 
 class AlgorithmConfig(SubscriptableClass):
+    """
+    Configuration class for the algorithm.
+
+    These attributes are common to all algorithms. They can be overridden by the specific algorithm configuration.
+
+    Attributes:
+        algorithm (str): Name of the algorithm to be used.
+        G (Optional[int]): Updates per step UTD-raio, for the actor and critic.
+        G_model (Optional[int]): Updates per step UTD-ratio for MBRL.
+        buffer_size (Optional[int]): Size of the memory buffer.
+        batch_size (Optional[int]): Size of the training batch.
+        max_steps_exploration (Optional[int]): Maximum number of steps for exploration.
+        max_steps_training (Optional[int]): Maximum number of steps for training.
+        number_steps_per_evaluation (Optional[int]): Number of steps per evaluation.
+        number_eval_episodes (Optional[int]): Number of evaluation episodes.
+        number_steps_per_train_policy (Optional[int]): Number of steps per updating the training policy.
+    """
+
     algorithm: str = Field(description="Name of the algorithm to be used")
+    G: Optional[int] = 1
+    G_model: Optional[int] = 1
+    buffer_size: Optional[int] = 1000000
+    batch_size: Optional[int] = 256
+    max_steps_exploration: Optional[int] = 1000
+    max_steps_training: Optional[int] = 1000000
+    number_steps_per_evaluation: Optional[int] = 10000
+    number_eval_episodes: Optional[int] = 10
+    number_steps_per_train_policy: Optional[int] = 1
 
 
 class DQNConfig(AlgorithmConfig):
