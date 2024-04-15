@@ -263,3 +263,5 @@ class REDQConfig(AlgorithmConfig):
     tau: Optional[float] = 0.005
     ensemble_size: Optional[int] = 10
     num_sample_critics: Optional[int] = 2
+
+    G: Optional[int] = 20
