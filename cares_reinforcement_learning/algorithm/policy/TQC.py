@@ -1,6 +1,6 @@
 """
 Original Paper: https://arxiv.org/abs/1812.05905
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+Code based on: https://github.com/SamsungLabs/tqc_pytorch
 
 This code runs automatic entropy tuning
 """
