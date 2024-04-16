@@ -140,7 +140,12 @@ def quantile_huber_loss_f(quantiles, samples):
     )
 
     n_quantiles = quantiles.shape[2]
-    tau = torch.arange(n_quantiles).float() / n_quantiles + 1 / 2 / n_quantiles
+
+    tau = (
+        torch.arange(n_quantiles, device=pairwise_delta.get_device()).float()
+        / n_quantiles
+        + 1 / 2 / n_quantiles
+    )
     loss = (
         torch.abs(tau[None, None, :, None] - (pairwise_delta < 0).float()) * huber_loss
     ).mean()

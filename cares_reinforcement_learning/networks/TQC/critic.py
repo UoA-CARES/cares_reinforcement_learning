@@ -1,0 +1,27 @@
+import torch
+from torch import nn
+
+from cares_reinforcement_learning.networks.TQC import Mlp
+
+
+class Critic(nn.Module):
+    def __init__(self, observation_size, num_actions, num_quantiles, num_critics):
+        super().__init__()
+
+        self.q_networks = []
+        self.num_quantiles = num_quantiles
+        self.num_critics = num_critics
+
+        for i in range(self.num_critics):
+            critic_net = Mlp(
+                observation_size + num_actions, [512, 512, 512], self.num_quantiles
+            )
+            self.add_module(f"qf{i}", critic_net)
+            self.q_networks.append(critic_net)
+
+    def forward(self, state, action):
+        network_input = torch.cat((state, action), dim=1)
+        quantiles = torch.stack(
+            tuple(critic(network_input) for critic in self.q_networks), dim=1
+        )
+        return quantiles

@@ -15,8 +15,8 @@ class Mlp(nn.Module):
             in_size = next_size
         self.last_fc = nn.Linear(in_size, output_size)
 
-    def forward(self, input):
-        h = input
+    def forward(self, state):
+        h = state
         for fc in self.fcs:
             h = F.relu(fc(h))
         output = self.last_fc(h)

@@ -265,3 +265,16 @@ class REDQConfig(AlgorithmConfig):
     num_sample_critics: Optional[int] = 2
 
     G: Optional[int] = 20
+
+
+class TQCConfig(AlgorithmConfig):
+    algorithm: str = Field("TQC", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    top_quantiles_to_drop: Optional[int] = 2
+    num_quantiles: Optional[int] = 25
+    num_nets: Optional[int] = 5

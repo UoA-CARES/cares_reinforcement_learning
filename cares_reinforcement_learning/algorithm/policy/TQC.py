@@ -43,7 +43,9 @@ class TQC:
         self.tau = tau
         self.top_quantiles_to_drop = top_quantiles_to_drop
 
-        self.quantiles_total = self.critic_net.n_quantiles * self.critic_net.n_nets
+        self.quantiles_total = (
+            self.critic_net.num_quantiles * self.critic_net.num_critics
+        )
 
         self.learn_counter = 0
         self.policy_update_freq = 1
@@ -67,8 +69,8 @@ class TQC:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
-        # note that when evaluating this algorithm we need to select mu as action
-        # so _, _, action = self.actor_net.sample(state_tensor)
+        # note that when evaluating this algorithm we need to select tanh(mean) as action
+        # so _, _, action = self.actor_net(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
@@ -78,13 +80,13 @@ class TQC:
                     action,
                     _,
                     _,
-                ) = self.actor_net.sample(state_tensor)
+                ) = self.actor_net(state_tensor)
             else:
                 (
                     _,
                     _,
                     action,
-                ) = self.actor_net.sample(state_tensor)
+                ) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -113,7 +115,7 @@ class TQC:
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
-            next_actions, next_log_pi = self.actor_net.sample(next_states)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             # compute and cut quantiles at the next state
             # batch x nets x quantiles
@@ -139,7 +141,7 @@ class TQC:
         self.critic_net_optimiser.step()
 
         # --- Policy and alpha loss ---
-        new_action, log_pi = self.actor_net(states)
+        new_action, log_pi, _ = self.actor_net(states)
 
         mean_qf_pi = self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
         actor_loss = (self.alpha * log_pi - mean_qf_pi).mean()

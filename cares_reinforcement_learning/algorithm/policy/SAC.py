@@ -61,7 +61,7 @@ class SAC:
     # pylint: disable-next=unused-argument
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
         # note that when evaluating this algorithm we need to select mu as action
-        # so _, _, action = self.actor_net.sample(state_tensor)
+        # so _, _, action = self.actor_net(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
@@ -71,13 +71,13 @@ class SAC:
                     action,
                     _,
                     _,
-                ) = self.actor_net.sample(state_tensor)
+                ) = self.actor_net(state_tensor)
             else:
                 (
                     _,
                     _,
                     action,
-                ) = self.actor_net.sample(state_tensor)
+                ) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -106,7 +106,7 @@ class SAC:
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -128,7 +128,7 @@ class SAC:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        pi, log_pi, _ = self.actor_net.sample(states)
+        pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
