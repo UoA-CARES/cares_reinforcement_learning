@@ -43,6 +43,7 @@ class RDTD3:
         self.scale_r = 1.0
         self.scale_s = 1.0
         self.min_priority = 1
+
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 

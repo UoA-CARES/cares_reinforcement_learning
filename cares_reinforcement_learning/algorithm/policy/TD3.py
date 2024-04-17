@@ -1,5 +1,7 @@
 """
 Original Paper: https://arxiv.org/abs/1802.09477v3
+
+Original code: https://github.com/sfujim/TD3
 """
 
 import copy
@@ -31,6 +33,10 @@ class TD3:
 
         self.gamma = gamma
         self.tau = tau
+
+        # TODO replace these into the code
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
 
         self.learn_counter = 0
         self.policy_update_freq = 2
