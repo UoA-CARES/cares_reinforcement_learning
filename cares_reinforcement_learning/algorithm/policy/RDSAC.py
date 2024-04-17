@@ -15,7 +15,7 @@ class RDSAC:
         critic_network,
         gamma,
         tau,
-        per_alpha,
+        alpha,
         action_num,
         actor_lr,
         critic_lr,
@@ -32,7 +32,7 @@ class RDSAC:
 
         self.gamma = gamma
         self.tau = tau
-        self.per_alpha = per_alpha
+        self.per_alpha = alpha
 
         self.learn_counter = 0
         self.policy_update_freq = 1

@@ -408,7 +408,7 @@ def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
-        per_alpha=config.per_alpha,
+        alpha=config.alpha,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
@@ -416,7 +416,7 @@ def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
-def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
+def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import RDSAC
     from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
 
