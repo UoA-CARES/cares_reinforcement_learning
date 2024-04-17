@@ -16,7 +16,7 @@ class Critic(nn.Module):
             critic_net = MLP(
                 observation_size + num_actions, [512, 512, 512], self.num_quantiles
             )
-            self.add_module(f"qf{i}", critic_net)
+            self.add_module(f"critic_net_{i}", critic_net)
             self.q_networks.append(critic_net)
 
     def forward(self, state, action):
