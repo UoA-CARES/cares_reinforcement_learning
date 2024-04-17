@@ -12,3 +12,4 @@ from .MAPERTD3 import MAPERTD3
 from .PALTD3 import PALTD3
 from .REDQ import REDQ
 from .PERSAC import PERSAC
+from .RDSAC import RDSAC

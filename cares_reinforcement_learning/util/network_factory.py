@@ -415,6 +415,27 @@ def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
         device=device,
     )
     return agent
+
+def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import RDSAC
+    from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = RDSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        alpha=config.alpha,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
         algorithm = config.algorithm
