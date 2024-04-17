@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.TQC import Mlp
+from cares_reinforcement_learning.util.common import MLP
 
 
 class Critic(nn.Module):
@@ -13,7 +13,7 @@ class Critic(nn.Module):
         self.num_critics = num_critics
 
         for i in range(self.num_critics):
-            critic_net = Mlp(
+            critic_net = MLP(
                 observation_size + num_actions, [512, 512, 512], self.num_quantiles
             )
             self.add_module(f"qf{i}", critic_net)

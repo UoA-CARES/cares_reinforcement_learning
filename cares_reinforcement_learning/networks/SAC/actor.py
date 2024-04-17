@@ -1,45 +1,8 @@
 import torch
-from torch import distributions as pyd
 from torch import nn
-from torch.distributions.transformed_distribution import TransformedDistribution
-from torch.distributions.transforms import TanhTransform
 from torch.nn import functional as F
 
-
-class SACTanhTransform(TanhTransform):
-    def __init__(self, cache_size=1):
-        super().__init__(cache_size=cache_size)
-
-    @staticmethod
-    def atanh(x):
-        return 0.5 * (x.log1p() - (-x).log1p())
-
-    def __eq__(self, other):
-        return isinstance(other, SACTanhTransform)
-
-    def _inverse(self, y):
-        # We do not clamp to the boundary here as it may degrade the performance of certain algorithms.
-        # one should use `cache_size=1` instead
-        return self.atanh(y)
-
-
-# These methods are not required for the purposes of SAC and are thus intentionally ignored
-# pylint: disable=abstract-method
-class SquashedNormal(TransformedDistribution):
-    def __init__(self, loc, scale):
-        self.loc = loc
-        self.scale = scale
-        self.base_dist = pyd.Normal(loc, scale)
-
-        transforms = [SACTanhTransform()]
-        super().__init__(self.base_dist, transforms, validate_args=False)
-
-    @property
-    def mean(self):
-        mu = self.loc
-        for tr in self.transforms:
-            mu = tr(mu)
-        return mu
+from cares_reinforcement_learning.util.common import SquashedNormal
 
 
 class Actor(nn.Module):
@@ -50,12 +13,12 @@ class Actor(nn.Module):
         super().__init__()
         self.hidden_size = [256, 256]
         self.log_std_bounds = [-20, 2]
+
         # Two hidden layers, 256 on each
         self.linear1 = nn.Linear(state_dim, self.hidden_size[0])
         self.linear2 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
         self.mean_linear = nn.Linear(self.hidden_size[1], action_dim)
         self.log_std_linear = nn.Linear(self.hidden_size[1], action_dim)
-        # self.apply(weight_init)
 
     def forward(self, state):
         x = F.relu(self.linear1(state))

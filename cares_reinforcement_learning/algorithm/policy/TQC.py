@@ -11,7 +11,6 @@ import os
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
 from cares_reinforcement_learning.util import helpers as hlp
 
