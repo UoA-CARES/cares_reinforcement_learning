@@ -251,3 +251,17 @@ class REDQConfig(AlgorithmConfig):
     tau: Optional[float] = 0.005
     ensemble_size: Optional[int] = 10
     num_sample_critics: Optional[int] = 2
+    
+class PERSACConfig(AlgorithmConfig):
+    algorithm: str = Field("PERSAC", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    per_alpha: Optional[float] = 0.6
+
+    #noise_scale: Optional[float] = 0.1
+    #noise_decay: Optional[float] = 1
+
+
