@@ -118,8 +118,8 @@ class SACConfig(AlgorithmConfig):
     tau: Optional[float] = 0.005
 
 
-class DYNAConfig(AlgorithmConfig):
-    algorithm: str = Field("MBRL_DYNA", Literal=True)
+class DynaSACConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 

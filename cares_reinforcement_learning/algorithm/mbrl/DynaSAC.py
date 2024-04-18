@@ -90,9 +90,9 @@ class DynaSAC:
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if evaluation is False:
-                (action, _, _) = self.actor_net.sample(state_tensor)
+                (action, _, _) = self.actor_net(state_tensor)
             else:
-                (_, _, action) = self.actor_net.sample(state_tensor)
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -104,7 +104,7 @@ class DynaSAC:
         """
         info = {}
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_one, target_q_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -125,7 +125,7 @@ class DynaSAC:
         self.critic_net_optimiser.step()
 
         ##################     Update the Actor Second     ####################
-        pi, first_log_p, _ = self.actor_net.sample(states)
+        pi, first_log_p, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
         actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
@@ -165,9 +165,19 @@ class DynaSAC:
 
         experiences = memory.sample_consecutive(batch_size)
 
-        states, actions, rewards, next_states, _, next_actions, next_rewards = (
-            experiences
-        )
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            _,
+            _,
+            next_actions,
+            next_rewards,
+            _,
+            _,
+            _,
+        ) = experiences
 
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -191,8 +201,8 @@ class DynaSAC:
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
         self.batch_size = len(states)
 
         # Convert into tensor
