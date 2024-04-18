@@ -80,7 +80,7 @@ class MAPERTD3:
 
         # Sample replay buffer
         experiences = memory.sample_priority(batch_size)
-        states, actions, predicted_rewards, next_states, dones, indices, weights = (
+        states, actions, rewards, next_states, dones, indices, weights = (
             experiences
         )
 
@@ -89,27 +89,25 @@ class MAPERTD3:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        predicted_rewards = torch.FloatTensor(np.asarray(predicted_rewards)).to(
-            self.device
-        )
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
-        predicted_rewards = predicted_rewards.unsqueeze(0).reshape(batch_size, 1)
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
-        q_value_one, reward_one, next_states_one = self._split_output(output_one)
-        q_value_two, reward_two, next_states_two = self._split_output(output_two)
+        q_value_one, predicted_reward_one, next_states_one = self._split_output(output_one)
+        q_value_two, predicted_reward_two, next_states_two = self._split_output(output_two)
 
         diff_reward_one = 0.5 * torch.pow(
-            reward_one.reshape(-1, 1) - predicted_rewards.reshape(-1, 1), 2.0
+            predicted_reward_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
         diff_reward_two = 0.5 * torch.pow(
-            reward_two.reshape(-1, 1) - predicted_rewards.reshape(-1, 1), 2.0
+            predicted_reward_two.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
 
         diff_next_states_one = 0.5 * torch.mean(
@@ -146,7 +144,7 @@ class MAPERTD3:
             target_q_values = torch.min(next_values_one, next_values_two).reshape(-1, 1)
 
             predicted_rewards = (
-                (reward_one.reshape(-1, 1) + reward_two.reshape(-1, 1)) / 2
+                (predicted_reward_one.reshape(-1, 1) + predicted_reward_two.reshape(-1, 1)) / 2
             ).reshape(-1, 1)
 
             q_target = predicted_rewards + self.gamma * (1 - dones) * target_q_values
