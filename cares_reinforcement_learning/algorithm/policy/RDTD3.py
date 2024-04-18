@@ -134,7 +134,7 @@ class RDTD3:
             )
             next_values_one, _, _ = self._split_output(target_q_values_one)
             next_values_two, _, _ = self._split_output(target_q_values_two)
-            target_q_values = torch.min(next_values_one, next_values_two).reshape(-1, 1)
+            target_q_values = torch.minimum(next_values_one, next_values_two).reshape(-1, 1)
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
