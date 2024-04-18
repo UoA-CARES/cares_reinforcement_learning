@@ -7,7 +7,7 @@ Each Critic output a normal distribution
 import copy
 import logging
 import os
-from typing import Tuple
+from typing import List, Literal, Tuple
 
 import numpy as np
 import torch
@@ -26,7 +26,7 @@ class CTD4:
         ensemble_size: int,
         actor_lr: float,
         critic_lr: float,
-        fusion_method: str,
+        fusion_method: Literal["kalman", "average", "minimum"],
         device: torch.device,
     ):
 
@@ -40,7 +40,7 @@ class CTD4:
         self.ensemble_size = ensemble_size
         self.ensemble_critics = torch.nn.ModuleList()
 
-        critics = [critic_network for _ in range(self.ensemble_size)]
+        critics = [copy.deepcopy(critic_network) for _ in range(self.ensemble_size)]
         self.ensemble_critics.extend(critics)
         self.ensemble_critics.to(self.device)
 
@@ -106,6 +106,54 @@ class CTD4:
         fusion_std = torch.sqrt(fusion_variance)
         return fusion_mean, fusion_std
 
+    def _kalman(
+        self, u_set: List[torch.Tensor], std_set: List[torch.Tensor]
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Kalman fusion
+        for i in range(len(u_set) - 1):
+            if i == 0:
+                x_1, std_1 = u_set[i], std_set[i]
+                x_2, std_2 = u_set[i + 1], std_set[i + 1]
+                fusion_u, fusion_std = self._fusion_kalman(std_1, x_1, std_2, x_2)
+            else:
+                x_2, std_2 = u_set[i + 1], std_set[i + 1]
+                fusion_u, fusion_std = self._fusion_kalman(
+                    fusion_std, fusion_u, std_2, x_2
+                )
+        return fusion_u, fusion_std
+
+    def _average(
+        self, u_set: List[torch.Tensor], std_set: List[torch.Tensor], batch_size: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        # Average value among the critic predictions:
+        fusion_u = (
+            torch.mean(torch.concat(u_set, dim=1), dim=1)
+            .unsqueeze(0)
+            .reshape(batch_size, 1)
+        )
+        fusion_std = (
+            torch.mean(torch.concat(std_set, dim=1), dim=1)
+            .unsqueeze(0)
+            .reshape(batch_size, 1)
+        )
+        return fusion_u, fusion_std
+
+    def _minimum(
+        self, u_set: List[torch.Tensor], std_set: List[torch.Tensor], batch_size: int
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        fusion_min = torch.min(torch.concat(u_set, dim=1), dim=1)
+        fusion_u = fusion_min.values.unsqueeze(0).reshape(batch_size, 1)
+        # # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
+        std_concat = torch.concat(std_set, dim=1)
+        fusion_std = (
+            torch.stack(
+                [std_concat[i, fusion_min.indices[i]] for i in range(len(std_concat))]
+            )
+            .unsqueeze(0)
+            .reshape(batch_size, 1)
+        )
+        return fusion_u, fusion_std
+
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
@@ -147,52 +195,11 @@ class CTD4:
                 std_set.append(std)
 
             if self.fusion_method == "kalman":
-                # # -------- Key part here -------------- #
-                # Kalman Filter
-                for i in range(len(u_set) - 1):
-                    if i == 0:
-                        x_1, std_1 = u_set[i], std_set[i]
-                        x_2, std_2 = u_set[i + 1], std_set[i + 1]
-                        fusion_u, fusion_std = self._fusion_kalman(
-                            std_1, x_1, std_2, x_2
-                        )
-                    else:
-                        x_2, std_2 = u_set[i + 1], std_set[i + 1]
-                        fusion_u, fusion_std = self._fusion_kalman(
-                            fusion_std, fusion_u, std_2, x_2
-                        )
-                # -----------------------------------------#
+                fusion_u, fusion_std = self._kalman(u_set, std_set)
             elif self.fusion_method == "average":
-                # -----------------------------------------#
-                # Average value among the critic predictions:
-                fusion_u = (
-                    torch.mean(torch.concat(u_set, dim=1), dim=1)
-                    .unsqueeze(0)
-                    .reshape(batch_size, 1)
-                )
-                fusion_std = (
-                    torch.mean(torch.concat(std_set, dim=1), dim=1)
-                    .unsqueeze(0)
-                    .reshape(batch_size, 1)
-                )
-                # -----------------------------------------#
-
+                fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
             elif self.fusion_method == "minimum":
-                # -----------------------------------------#
-                fusion_min = torch.min(torch.concat(u_set, dim=1), dim=1)
-                fusion_u = fusion_min.values.unsqueeze(0).reshape(batch_size, 1)
-                # # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
-                std_concat = torch.concat(std_set, dim=1)
-                fusion_std = (
-                    torch.stack(
-                        [
-                            std_concat[i, fusion_min.indices[i]]
-                            for i in range(len(std_concat))
-                        ]
-                    )
-                    .unsqueeze(0)
-                    .reshape(batch_size, 1)
-                )
+                fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
 
             # Create the target distribution = aX+b
             u_target = rewards + self.gamma * fusion_u * (1 - dones)

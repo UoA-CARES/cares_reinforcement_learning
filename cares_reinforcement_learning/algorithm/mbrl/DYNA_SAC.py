@@ -1,6 +1,8 @@
 """
 Sutton, Richard S. "Dyna, an integrated architecture for learning, planning, and reacting."
 
+Original Paper: https://dl.acm.org/doi/abs/10.1145/122344.122377
+
 This code runs automatic entropy tuning
 """
 
@@ -12,63 +14,59 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
-class DynaSAC:
-    """
-    Use the Soft Actor Critic as the Actor Critic framework.
 
-    """
-
+class DYNASAC:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        world_network,
-        gamma,
-        tau,
-        action_num,
-        actor_lr,
-        critic_lr,
-        alpha_lr,
-        num_samples,
-        horizon,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        world_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        alpha_lr: float,
+        num_samples: int,
+        horizon: int,
+        device: torch.device,
     ):
         self.type = "mbrl"
-        # Switches
+        self.device = device
+
+        # this may be called policy_net in other implementations
+        self.actor_net = actor_network.to(self.device)
+        # this may be called soft_q_net in other implementations
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
+
+        self.gamma = gamma
+        self.tau = tau
+
         self.num_samples = num_samples
         self.horizon = horizon
         self.action_num = action_num
-        # Other Variables
-        self.gamma = gamma
-        self.tau = tau
-        self.device = device
-        self.batch_size = None
 
-        # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(device)
-        # this may be called soft_q_net in other implementations
-        self.critic_net = critic_network.to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.learn_counter = 0
+        self.policy_update_freq = 1
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
-        self.log_alpha.requires_grad = True
-        self.target_entropy = -action_num
-
-        # optimizer
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=critic_lr
         )
+
+        # Set to initial alpha to 1.0 according to other baselines.
+        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
+        self.log_alpha.requires_grad = True
+        self.target_entropy = -action_num
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
         # World model
         self.world_model = world_network
-        self.learn_counter = 0
-        self.policy_update_freq = 1
 
     @property
     def _alpha(self):
@@ -102,7 +100,6 @@ class DynaSAC:
         Train the policy with Model-Based Value Expansion. A family of MBRL.
 
         """
-        info = {}
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
             target_q_one, target_q_two = self.target_critic_net(
@@ -151,18 +148,7 @@ class DynaSAC:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-        info["q_target"] = q_target
-        info["q_values_one"] = q_values_one
-        info["q_values_two"] = q_values_two
-        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
-        info["critic_loss_total"] = critic_loss_total
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["actor_loss"] = actor_loss
-        return info
-
     def train_world_model(self, memory, batch_size):
-
         experiences = memory.sample_consecutive(batch_size)
 
         states, actions, rewards, next_states, _, next_actions, next_rewards = (
@@ -193,7 +179,6 @@ class DynaSAC:
 
         experiences = memory.sample(batch_size)
         states, actions, rewards, next_states, dones, _, _ = experiences
-        self.batch_size = len(states)
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)

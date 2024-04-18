@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 
-from cares_reinforcement_learning.util.sum_tree import SumTree
+from cares_reinforcement_learning.memory import SumTree
 
 
 class PrioritizedReplayBuffer:

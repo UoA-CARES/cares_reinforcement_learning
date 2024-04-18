@@ -4,10 +4,7 @@ import sys
 
 import torch
 
-from cares_reinforcement_learning.util.configurations import (
-    AlgorithmConfig,
-    DYNAConfig,
-)
+from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 
 # Disable these as this is a deliberate use of dynamic imports
@@ -80,13 +77,8 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_MBRL_DYNA(observation_size, action_num, config: DYNAConfig):
-    """
-    Create networks for model-based SAC agent. The Actor and Critic is same.
-    An extra world model is added.
-
-    """
-    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
+def create_DYNASAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.mbrl import DYNASAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
 
@@ -99,11 +91,11 @@ def create_MBRL_DYNA(observation_size, action_num, config: DYNAConfig):
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
-        device=device,
         lr=config.world_model_lr,
+        device=device,
     )
 
-    agent = DynaSAC(
+    agent = DYNASAC(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
@@ -112,10 +104,10 @@ def create_MBRL_DYNA(observation_size, action_num, config: DYNAConfig):
         gamma=config.gamma,
         tau=config.tau,
         action_num=action_num,
-        device=device,
         alpha_lr=config.alpha_lr,
         horizon=config.horizon,
         num_samples=config.num_samples,
+        device=device,
     )
     return agent
 

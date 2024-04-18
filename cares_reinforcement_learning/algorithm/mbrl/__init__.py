@@ -1,1 +1,1 @@
-from .DYNA_SAC import DynaSAC
+from .DYNA_SAC import DYNASAC
