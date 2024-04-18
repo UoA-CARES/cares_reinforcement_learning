@@ -72,6 +72,8 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
         gamma=config.gamma,
+        updates_per_iteration=config.updates_per_iteration,
+        eps_clip=config.eps_clip,
         action_num=action_num,
         device=device,
     )
@@ -133,6 +135,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
         critic_lr=config.critic_lr,
         gamma=config.gamma,
         tau=config.tau,
+        reward_scale=config.reward_scale,
         action_num=action_num,
         device=device,
     )
@@ -203,9 +206,15 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
+        ensemble_size=config.ensemble_size,
         action_num=action_num,
         latent_size=config.latent_size,
         intrinsic_on=config.intrinsic_on,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        encoder_lr=config.encoder_lr,
+        decoder_lr=config.decoder_lr,
+        epm_lr=config.epm_lr,
         device=device,
     )
     return agent
@@ -225,13 +234,14 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     agent = CTD4(
         actor_network=actor,
         critic_network=critic,
-        observation_size=observation_size,
         action_num=action_num,
-        device=device,
+        gamma=config.gamma,
+        tau=config.tau,
         ensemble_size=config.ensemble_size,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
         fusion_method=config.fusion_method,
+        device=device,
     )
 
     return agent
@@ -251,6 +261,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
         gamma=config.gamma,
         tau=config.tau,
         alpha=config.alpha,
+        min_priority=config.min_priority,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,

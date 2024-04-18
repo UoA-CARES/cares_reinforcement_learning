@@ -1,51 +1,56 @@
 import copy
 import logging
 import os
+from typing import Tuple
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 
 class RDTD3:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        alpha,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        alpha: float,
+        min_priority: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
 
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+
+        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
 
         self.gamma = gamma
         self.tau = tau
         self.alpha = alpha
 
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
+
         self.learn_counter = 0
         self.policy_update_freq = 2
 
         self.action_num = action_num
-        self.device = device
 
         # RD-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
-        self.min_priority = 1
-
-        self.noise_clip = 0.5
-        self.policy_noise = 0.2
+        self.min_priority = min_priority
 
         self.actor_net_optimiser = optim.Adam(self.actor_net.parameters(), lr=actor_lr)
 
@@ -53,10 +58,14 @@ class RDTD3:
             self.critic_net.parameters(), lr=critic_lr
         )
 
-    def _split_output(self, target):
+    def _split_output(
+        self, target: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -72,7 +81,7 @@ class RDTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         # Sample replay buffer
@@ -226,7 +235,7 @@ class RDTD3:
 
         memory.update_priorities(indices, priorities)
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -237,7 +246,7 @@ class RDTD3:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))

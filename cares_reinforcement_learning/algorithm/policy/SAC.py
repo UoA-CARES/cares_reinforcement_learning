@@ -13,18 +13,21 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 
 class SAC:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        reward_scale: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
         self.actor_net = actor_network.to(
@@ -37,6 +40,7 @@ class SAC:
 
         self.gamma = gamma
         self.tau = tau
+        self.reward_scale = reward_scale
 
         self.learn_counter = 0
         self.policy_update_freq = 1
@@ -59,7 +63,9 @@ class SAC:
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
 
     # pylint: disable-next=unused-argument
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         # so _, _, action = self.actor_net(state_tensor)
         self.actor_net.eval()
@@ -83,10 +89,10 @@ class SAC:
         return action
 
     @property
-    def alpha(self):
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -115,7 +121,9 @@ class SAC:
                 - self.alpha * next_log_pi
             )
 
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            q_target = (
+                rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
+            )
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
@@ -153,7 +161,7 @@ class SAC:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -164,7 +172,7 @@ class SAC:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
