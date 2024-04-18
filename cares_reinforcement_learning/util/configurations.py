@@ -135,8 +135,8 @@ class SACConfig(AlgorithmConfig):
     reward_scale: Optional[float] = 1.0
 
 
-class DYNASACConfig(AlgorithmConfig):
-    algorithm: str = Field("DYNASAC", Literal=True)
+class DynaSACConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 

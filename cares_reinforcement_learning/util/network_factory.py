@@ -77,8 +77,13 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_DYNASAC(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.algorithm.mbrl import DYNASAC
+def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
 
@@ -95,7 +100,7 @@ def create_DYNASAC(observation_size, action_num, config: AlgorithmConfig):
         device=device,
     )
 
-    agent = DYNASAC(
+    agent = DynaSAC(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
