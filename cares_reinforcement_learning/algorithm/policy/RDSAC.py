@@ -56,7 +56,7 @@ class RDSAC:
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
+        init_temperature = 1.0 #0.01
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
@@ -149,12 +149,12 @@ class RDSAC:
             )
             next_values_one, _, _ = self._split_output(target_q_values_one)
             next_values_two, _, _ = self._split_output(target_q_values_two)
-            target_q_values = (
-                torch.minimum(next_values_one, next_values_two)
-                - self.alpha * next_log_pi
-            )
+            min_next_target = torch.minimum(next_values_one, next_values_two).reshape(-1, 1)
+            target_q_values = min_next_target - self.alpha * next_log_pi
+            
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            
 
         diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
         diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
@@ -195,9 +195,11 @@ class RDSAC:
 
         pi, log_pi, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        qf_pi_one, _, _ = self._split_output(qf1_pi)
+        qf_pi_two, _, _ = self._split_output(qf2_pi)
+        min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        actor_loss = torch.mean(((self.alpha * log_pi) - min_qf_pi)*weights)
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
@@ -217,27 +219,7 @@ class RDSAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
-        ################################################
-        # Update Scales
-        if self.learn_counter == 1:
-            td_err = torch.cat([diff_td_one, diff_td_two], -1)
-            mean_td_err = torch.mean(td_err, 1)
-            mean_td_err = mean_td_err.view(-1, 1)
-            numpy_td_err = mean_td_err[:, 0].detach().data.cpu().numpy()
-
-            reward_err = torch.cat([diff_reward_one, diff_reward_two], -1)
-            mean_reward_err = torch.mean(reward_err, 1)
-            mean_reward_err = mean_reward_err.view(-1, 1)
-            numpy_reward_err = mean_reward_err[:, 0].detach().data.cpu().numpy()
-
-            state_err = torch.cat([diff_next_states_one, diff_next_states_two], -1)
-            mean_state_err = torch.mean(state_err, 1)
-            mean_state_err = mean_state_err.view(-1, 1)
-            numpy_state_err = mean_state_err[:, 0].detach().data.cpu().numpy()
-
-            self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
-            self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
-
+       
 
 
     def save_models(self, filename, filepath="models"):
