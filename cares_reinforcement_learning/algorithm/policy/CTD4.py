@@ -19,11 +19,10 @@ class CTD4:
     def __init__(
         self,
         actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        ensemble_critics: torch.nn.ModuleList,
         gamma: float,
         tau: float,
         action_num: int,
-        ensemble_size: int,
         actor_lr: float,
         critic_lr: float,
         fusion_method: Literal["kalman", "average", "minimum"],
@@ -36,15 +35,7 @@ class CTD4:
         self.actor_net = actor_network.to(self.device)
         self.target_actor_net = copy.deepcopy(self.actor_net)
 
-        # ------------- Ensemble of critics ------------------#
-        self.ensemble_size = ensemble_size
-        self.ensemble_critics = torch.nn.ModuleList()
-
-        critics = [copy.deepcopy(critic_network) for _ in range(self.ensemble_size)]
-        self.ensemble_critics.extend(critics)
-        self.ensemble_critics.to(self.device)
-
-        # ------------- Ensemble of target critics ------------------#
+        self.ensemble_critics = ensemble_critics.to(self.device)
         self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics)
 
         self.gamma = gamma
@@ -70,10 +61,8 @@ class CTD4:
 
         self.lr_ensemble_critic = critic_lr
         self.ensemble_critics_optimizers = [
-            torch.optim.Adam(
-                self.ensemble_critics[i].parameters(), lr=self.lr_ensemble_critic
-            )
-            for i in range(self.ensemble_size)
+            torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
+            for critic_net in self.ensemble_critics
         ]
         # -----------------------------------------#
 

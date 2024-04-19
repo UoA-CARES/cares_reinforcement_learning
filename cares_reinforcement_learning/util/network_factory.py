@@ -224,17 +224,22 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
         DistributedCritic as Critic,
     )
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    ensemble_critics = torch.nn.ModuleList()
+    critics = [
+        Critic(observation_size, action_num) for _ in range(config.ensemble_size)
+    ]
+    ensemble_critics.extend(critics)
+
+    actor = Actor(observation_size, action_num)
+
     agent = CTD4(
         actor_network=actor,
-        critic_network=critic,
+        ensemble_critics=ensemble_critics,
         action_num=action_num,
         gamma=config.gamma,
         tau=config.tau,
-        ensemble_size=config.ensemble_size,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
         fusion_method=config.fusion_method,
