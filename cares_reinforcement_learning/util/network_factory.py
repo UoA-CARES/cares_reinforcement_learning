@@ -221,16 +221,14 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import CTD4
     from cares_reinforcement_learning.networks.CTD4 import (
         Actor,
-        DistributedCritic as Critic,
+        EnsembleCritic,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    ensemble_critics = torch.nn.ModuleList()
-    critics = [
-        Critic(observation_size, action_num) for _ in range(config.ensemble_size)
-    ]
-    ensemble_critics.extend(critics)
+    ensemble_critics = EnsembleCritic(
+        config.ensemble_size, observation_size, action_num
+    )
 
     actor = Actor(observation_size, action_num)
 

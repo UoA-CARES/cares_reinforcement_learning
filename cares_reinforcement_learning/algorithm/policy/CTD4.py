@@ -1,7 +1,9 @@
 """
 CTD4
 Continues Distributed TD3
-Each Critic output a normal distribution
+Each Critic outputs a normal distribution
+
+Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/1fce6fcde5183bafe4efce0aa30fc59f630a8429/cares_reinforcement_learning/algorithm/policy/CTD4.py
 """
 
 import copy
