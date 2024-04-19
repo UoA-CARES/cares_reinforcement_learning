@@ -100,7 +100,7 @@ natsort  ├─ policy/
 
 `networks`: contains standard neural networks that can be used with each algortihm
 
-`util/`: contains common utility classes
+`util`: contains common utility classes
 
 ## Supported Algorithms
 | Algorithm      | Action Space |
