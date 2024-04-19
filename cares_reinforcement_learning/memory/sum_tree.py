@@ -39,7 +39,7 @@ class SumTree(object):
     tree, but is a little more user-friendly.
     """
 
-    def __init__(self, max_size):
+    def __init__(self, max_size: int):
         self.levels = [np.zeros(1)]
         # Tree construction
         # Double the number of nodes at each level
@@ -48,10 +48,20 @@ class SumTree(object):
             level_size *= 2
             self.levels.append(np.zeros(level_size))
 
-    # Batch binary search through sum tree
-    # Sample a priority between 0 and the max priority
-    # and then search the tree for the corresponding index
-    def sample(self, batch_size):
+    def sample(self, batch_size: int) -> list[int]:
+        """
+        Samples indices from the sum tree based on a given batch size.
+
+        Batch binary search through sum tree.
+
+        Sample a priority between 0 and the max priority and then search the tree for the corresponding index
+
+        Args:
+            batch_size (int): The number of indices to sample.
+
+        Returns:
+            numpy.ndarray: An array of sampled indices.
+        """
         value = np.random.uniform(0, self.levels[0][0], size=batch_size)
         ind = np.zeros(batch_size, dtype=int)
 
@@ -68,14 +78,35 @@ class SumTree(object):
 
         return ind
 
-    def set(self, ind, new_priority):
+    def set(self, ind: int, new_priority: float) -> None:
+        """
+        Set the priority of a node at a given index.
+
+        Args:
+            ind (int): The index of the node.
+            new_priority (float): The new priority value.
+
+        Returns:
+            None
+        """
         priority_diff = new_priority - self.levels[-1][ind]
 
         for nodes in self.levels[::-1]:
             np.add.at(nodes, ind, priority_diff)
             ind //= 2
 
-    def batch_set(self, ind, new_priority):
+    def batch_set(self, ind: list[int], new_priority: list[float]) -> None:
+        """
+        Batch update the priorities of multiple nodes in the sum tree.
+
+        Args:
+            ind (list[int]): The indices of the nodes to update.
+            new_priority (list[float]): The new priorities to assign to the nodes.
+
+        Returns:
+            None
+        """
+
         # Confirm we don't increment a node twice
         ind, unique_ind = np.unique(ind, return_index=True)
         priority_diff = new_priority[unique_ind] - self.levels[-1][ind]

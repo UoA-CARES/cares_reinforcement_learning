@@ -5,7 +5,9 @@ from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
 class MemoryFactory:
-    def create_memory(self, buffer_size, **priority_params):
+    def create_memory(
+        self, buffer_size: int, **priority_params
+    ) -> PrioritizedReplayBuffer:
         return PrioritizedReplayBuffer(
             max_capacity=buffer_size,
             priority_params=priority_params,
