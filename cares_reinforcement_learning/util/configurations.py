@@ -284,4 +284,14 @@ class MAPERSACConfig(AlgorithmConfig):
     tau: Optional[float] = 0.02
     alpha: Optional[float] = 0.7
 
+class LAPSACConfig(AlgorithmConfig):
+    algorithm: str = Field("LAPSAC", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    alpha: Optional[float] = 0.6
+    min_priority: Optional[float] = 1.0
+
 
