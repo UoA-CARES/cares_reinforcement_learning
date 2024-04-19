@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 from torch import nn
 
@@ -29,7 +27,7 @@ class DistributedCritic(nn.Module):
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         obs_action = torch.cat([state, action], dim=1)
         u = self.mean_layer(obs_action)
         std = self.std_layer(obs_action) + 1e-6

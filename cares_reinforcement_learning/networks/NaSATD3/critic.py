@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 from torch import nn
 
@@ -37,7 +35,7 @@ class Critic(nn.Module):
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor, detach_encoder: bool = False
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         z_vector = self.encoder_net(state, detach=detach_encoder)
         obs_action = torch.cat([z_vector, action], dim=1)
         q1 = self.Q1(obs_action)

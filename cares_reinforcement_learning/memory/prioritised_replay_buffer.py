@@ -139,7 +139,7 @@ class PrioritizedReplayBuffer:
             batch_size (int): The number of experiences to sample.
 
         Returns:
-            Tuple: A tuple containing the sampled experiences, indices, and weights.
+            tuple: A tuple containing the sampled experiences, indices, and weights.
                 - Experiences are returned in the order: state, action, reward, next_state, done, ...
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the importance weights for each sampled experience.
@@ -174,7 +174,7 @@ class PrioritizedReplayBuffer:
             batch_size (int): The number of experiences to sample.
 
         Returns:
-            Tuple: A tuple containing the sampled experiences, indices, and weights.
+            tuple: A tuple containing the sampled experiences, indices, and weights.
                 - Experiences are returned in the order: state, action, reward, next_state, done, ...
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the inverse importance weights for each sampled experience.

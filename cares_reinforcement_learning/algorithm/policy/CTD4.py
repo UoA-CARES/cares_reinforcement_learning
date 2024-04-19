@@ -9,7 +9,7 @@ Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learni
 import copy
 import logging
 import os
-from typing import List, Literal, Tuple
+from typing import Literal
 
 import numpy as np
 import torch
@@ -89,7 +89,7 @@ class CTD4:
         mean_1: torch.Tensor,
         std_2: torch.Tensor,
         mean_2: torch.Tensor,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         kalman_gain = (std_1**2) / (std_1**2 + std_2**2)
         fusion_mean = mean_1 + kalman_gain * (mean_2 - mean_1)
         fusion_variance = (1 - kalman_gain) * (std_1**2)
@@ -97,8 +97,8 @@ class CTD4:
         return fusion_mean, fusion_std
 
     def _kalman(
-        self, u_set: List[torch.Tensor], std_set: List[torch.Tensor]
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self, u_set: list[torch.Tensor], std_set: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         # Kalman fusion
         for i in range(len(u_set) - 1):
             if i == 0:
@@ -113,8 +113,8 @@ class CTD4:
         return fusion_u, fusion_std
 
     def _average(
-        self, u_set: List[torch.Tensor], std_set: List[torch.Tensor], batch_size: int
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self, u_set: list[torch.Tensor], std_set: list[torch.Tensor], batch_size: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         # Average value among the critic predictions:
         fusion_u = (
             torch.mean(torch.concat(u_set, dim=1), dim=1)
@@ -129,8 +129,8 @@ class CTD4:
         return fusion_u, fusion_std
 
     def _minimum(
-        self, u_set: List[torch.Tensor], std_set: List[torch.Tensor], batch_size: int
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        self, u_set: list[torch.Tensor], std_set: list[torch.Tensor], batch_size: int
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         fusion_min = torch.min(torch.concat(u_set, dim=1), dim=1)
         fusion_u = fusion_min.values.unsqueeze(0).reshape(batch_size, 1)
         # # This corresponds to the std of the min U index. That is; the min cannot be got between the stds

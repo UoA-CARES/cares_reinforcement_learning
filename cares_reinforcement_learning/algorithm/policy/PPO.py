@@ -10,7 +10,6 @@ Code based on:
 
 import logging
 import os
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -55,7 +54,7 @@ class PPO:
 
     def select_action_from_policy(
         self, state: torch.Tensor
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[np.ndarray, np.ndarray]:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -77,7 +76,7 @@ class PPO:
 
     def _evaluate_policy(
         self, state: torch.Tensor, action: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         v = self.critic_net(state).squeeze()  # shape 5000
         mean = self.actor_net(state)  # shape, 5000, 1
         dist = MultivariateNormal(mean, self.cov_mat)

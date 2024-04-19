@@ -1,7 +1,6 @@
 import copy
 import logging
 import os
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -60,7 +59,7 @@ class RDTD3:
 
     def _split_output(
         self, target: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
     def select_action_from_policy(

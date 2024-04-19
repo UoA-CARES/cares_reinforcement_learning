@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -25,7 +23,7 @@ class Critic(nn.Module):
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         obs_action = torch.cat([state, action], dim=1)
 
         output_1 = F.relu(self.h_linear_1(obs_action))

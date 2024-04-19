@@ -1,5 +1,3 @@
-from typing import List
-
 import torch
 from torch import nn
 
@@ -16,5 +14,5 @@ class EnsembleCritic(nn.ModuleList):
         ]
         self.extend(critics)
 
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> List[torch.Tensor]:
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> list[torch.Tensor]:
         return [critic(state, action) for critic in self]

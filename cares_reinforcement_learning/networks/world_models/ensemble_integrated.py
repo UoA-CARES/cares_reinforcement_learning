@@ -2,7 +2,6 @@ import logging
 import math
 import random
 import sys
-from typing import Tuple
 
 import numpy as np
 import torch
@@ -193,7 +192,7 @@ class EnsembleWorldReward:
 
     def pred_next_states(
         self, observation: torch.Tensor, actions: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Predict the next state based on current state and action, using an
         ensemble of world models. The world model is probablisitic. It is

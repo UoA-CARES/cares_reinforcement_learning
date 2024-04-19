@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 import torch.nn.functional as F
 import torch.utils
@@ -41,7 +39,7 @@ class SimpleDynamics(nn.Module):
 
     def forward(
         self, observation: torch.Tensor, actions: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward the inputs throught the network.
 

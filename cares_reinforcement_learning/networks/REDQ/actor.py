@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -24,7 +22,7 @@ class Actor(nn.Module):
 
     def forward(
         self, state: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         mu = self.mean_linear(x)
