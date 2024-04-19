@@ -126,7 +126,7 @@ natsort  ├─ policy/
 ## In progress
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
-| D4PG   | Continuous               |
+
  
 
 
