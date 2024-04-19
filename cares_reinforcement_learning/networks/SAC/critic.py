@@ -1,10 +1,12 @@
+from typing import Tuple
+
 import torch
 from torch import nn
 from torch.nn import functional as F
 
 
 class Critic(nn.Module):
-    def __init__(self, observation_size, num_actions):
+    def __init__(self, observation_size: int, num_actions: int):
         super().__init__()
 
         self.hidden_size = [256, 256]
@@ -21,7 +23,9 @@ class Critic(nn.Module):
         self.h_linear_22 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
         self.h_linear_32 = nn.Linear(self.hidden_size[1], 1)
 
-    def forward(self, state, action):
+    def forward(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
         obs_action = torch.cat([state, action], dim=1)
 
         q1 = F.relu(self.h_linear_1(obs_action))

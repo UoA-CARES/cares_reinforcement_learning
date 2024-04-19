@@ -83,17 +83,9 @@ class REDQ:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                (
-                    action,
-                    _,
-                    _,
-                ) = self.actor_net.sample(state_tensor)
+                (action, _, _) = self.actor_net(state_tensor)
             else:
-                (
-                    _,
-                    _,
-                    action,
-                ) = self.actor_net.sample(state_tensor)
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -127,7 +119,7 @@ class REDQ:
         )
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one = self.target_ensemble_critics[idx[0]](
                 next_states, next_actions
@@ -156,7 +148,7 @@ class REDQ:
             critic_loss_total.backward()
             critic_net_optimiser.step()
 
-        pi, log_pi, _ = self.actor_net.sample(states)
+        pi, log_pi, _ = self.actor_net(states)
 
         qf1_pi = self.target_ensemble_critics[idx[0]](states, pi)
         qf2_pi = self.target_ensemble_critics[idx[1]](states, pi)

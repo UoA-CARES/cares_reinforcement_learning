@@ -1,8 +1,9 @@
+import torch
 from torch import nn
 
 
 class Actor(nn.Module):
-    def __init__(self, observation_size, action_num):
+    def __init__(self, observation_size: int, action_num: int):
         super().__init__()
 
         self.hidden_size = [256, 256]
@@ -16,6 +17,6 @@ class Actor(nn.Module):
             nn.Tanh(),
         )
 
-    def forward(self, state):
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         output = self.act_net(state)
         return output

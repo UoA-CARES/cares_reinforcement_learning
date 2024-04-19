@@ -66,7 +66,6 @@ class CTD4:
             torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
             for critic_net in self.ensemble_critics
         ]
-        # -----------------------------------------#
 
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
