@@ -227,7 +227,7 @@ class MAPERSAC:
         self.actor_net_optimiser.step()
 
         # update the temperature
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        alpha_loss = (-weights * self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
