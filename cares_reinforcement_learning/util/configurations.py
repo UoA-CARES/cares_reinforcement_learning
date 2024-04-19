@@ -234,7 +234,7 @@ class MAPERTD3Config(AlgorithmConfig):
 
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.99
+    gamma: Optional[float] = 0.98
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.7
 
@@ -265,7 +265,7 @@ class PERSACConfig(AlgorithmConfig):
     #noise_decay: Optional[float] = 1
     
 class RDSACConfig(AlgorithmConfig):
-    algorithm: str = Field("PERSAC", Literal=True)
+    algorithm: str = Field("RDSAC", Literal=True)
 
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
@@ -275,5 +275,13 @@ class RDSACConfig(AlgorithmConfig):
 
     #noise_scale: Optional[float] = 0.1
     #noise_decay: Optional[float] = 1
+class MAPERSACConfig(AlgorithmConfig):
+    algorithm: str = Field("MAPERSAC", Literal=True)
+
+    actor_lr: Optional[float] = 7.3e-4
+    critic_lr: Optional[float] = 7.3e-4
+    gamma: Optional[float] = 0.98
+    tau: Optional[float] = 0.02
+    alpha: Optional[float] = 0.7
 
 
