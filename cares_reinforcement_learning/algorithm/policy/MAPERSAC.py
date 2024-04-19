@@ -154,11 +154,8 @@ class MAPERSAC:
             )
             next_values_one, _, _ = self._split_output(target_q_values_one)
             next_values_two, _, _ = self._split_output(target_q_values_two)
-
-            target_q_values = (
-                torch.minimum(next_values_one, next_values_two)
-                - self.alpha * next_log_pi
-            )
+            min_next_target = torch.minimum(next_values_one, next_values_two).reshape(-1, 1)
+            target_q_values = min_next_target - self.alpha * next_log_pi
 
             predicted_rewards = (
                 (predicted_reward_one.reshape(-1, 1) + predicted_reward_two.reshape(-1, 1)) / 2
@@ -218,9 +215,11 @@ class MAPERSAC:
         
         pi, log_pi, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        qf_pi_one, _, _ = self._split_output(qf1_pi)
+        qf_pi_two, _, _ = self._split_output(qf2_pi)
+        min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        actor_loss = torch.mean((torch.exp(self.log_alpha).detach() * log_pi - min_qf_pi) * weights)
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
