@@ -2,7 +2,7 @@ import random
 
 import numpy as np
 
-from cares_reinforcement_learning.util.sum_tree import SumTree
+from cares_reinforcement_learning.memory import SumTree
 
 
 class PrioritizedReplayBuffer:
@@ -37,7 +37,7 @@ class PrioritizedReplayBuffer:
         sample_consecutive(batch_size): Randomly samples consecutive experiences from the memory buffer.
     """
 
-    def __init__(self, max_capacity=int(1e6), **priority_params):
+    def __init__(self, max_capacity: int = int(1e6), **priority_params):
         self.priority_params = priority_params
 
         self.max_capacity = max_capacity
@@ -63,7 +63,7 @@ class PrioritizedReplayBuffer:
         self.max_priority = 1.0
         self.beta = 0.4
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Returns the current size of the buffer.
 
@@ -72,7 +72,7 @@ class PrioritizedReplayBuffer:
         """
         return self.current_size
 
-    def add(self, state, action, reward, next_state, done, *extra):
+    def add(self, state, action, reward, next_state, done, *extra) -> None:
         """
         Adds a single experience to the prioritized replay buffer.
 
@@ -107,7 +107,7 @@ class PrioritizedReplayBuffer:
         self.tree_pointer = (self.tree_pointer + 1) % self.max_capacity
         self.current_size = min(self.current_size + 1, self.max_capacity)
 
-    def sample_uniform(self, batch_size):
+    def sample_uniform(self, batch_size: int) -> tuple:
         """
         Samples experiences uniformly from the buffer.
 
@@ -131,7 +131,7 @@ class PrioritizedReplayBuffer:
 
         return (*experiences, indices.tolist())
 
-    def sample_priority(self, batch_size):
+    def sample_priority(self, batch_size: int) -> tuple:
         """
         Samples experiences from the prioritized replay buffer.
 
@@ -139,7 +139,7 @@ class PrioritizedReplayBuffer:
             batch_size (int): The number of experiences to sample.
 
         Returns:
-            Tuple: A tuple containing the sampled experiences, indices, and weights.
+            tuple: A tuple containing the sampled experiences, indices, and weights.
                 - Experiences are returned in the order: state, action, reward, next_state, done, ...
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the importance weights for each sampled experience.
@@ -166,7 +166,7 @@ class PrioritizedReplayBuffer:
             weights.tolist(),
         )
 
-    def sample_inverse_priority(self, batch_size):
+    def sample_inverse_priority(self, batch_size: int) -> tuple:
         """
         Samples experiences from the buffer based on inverse priorities.
 
@@ -174,7 +174,7 @@ class PrioritizedReplayBuffer:
             batch_size (int): The number of experiences to sample.
 
         Returns:
-            Tuple: A tuple containing the sampled experiences, indices, and weights.
+            tuple: A tuple containing the sampled experiences, indices, and weights.
                 - Experiences are returned in the order: state, action, reward, next_state, done, ...
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the inverse importance weights for each sampled experience.
@@ -208,7 +208,7 @@ class PrioritizedReplayBuffer:
             reversed_priorities[indices].tolist(),
         )
 
-    def update_priorities(self, indices, priorities):
+    def update_priorities(self, indices: list[int], priorities: list[float]) -> None:
         """
         Update the priorities of the replay buffer at the given indices.
 
@@ -222,7 +222,7 @@ class PrioritizedReplayBuffer:
         self.max_priority = max(priorities.max(), self.max_priority)
         self.tree.batch_set(indices, priorities)
 
-    def flush(self):
+    def flush(self) -> list[tuple]:
         """
         Flushes the memory buffers and returns the experiences in order.
 
@@ -236,7 +236,7 @@ class PrioritizedReplayBuffer:
         self.clear()
         return experiences
 
-    def sample_consecutive(self, batch_size):
+    def sample_consecutive(self, batch_size: int) -> tuple:
         """
         Randomly samples consecutive experiences from the memory buffer.
 
@@ -283,7 +283,7 @@ class PrioritizedReplayBuffer:
 
         return (*experiences, sampled_indices.tolist())
 
-    def get_statistics(self):
+    def get_statistics(self) -> dict[str, np.ndarray]:
         """
         Calculate statistics of the replay buffer.
 
@@ -312,7 +312,7 @@ class PrioritizedReplayBuffer:
         }
         return statistics
 
-    def clear(self):
+    def clear(self) -> None:
         """
         Clears the prioritised replay buffer.
 

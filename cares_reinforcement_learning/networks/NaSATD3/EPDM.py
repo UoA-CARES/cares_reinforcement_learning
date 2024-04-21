@@ -13,7 +13,7 @@ from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import 
 
 # pylint: disable-next=invalid-name
 class EPDM(nn.Module):
-    def __init__(self, latent_size, num_actions):
+    def __init__(self, latent_size: int, num_actions: int):
         super().__init__()
 
         self.input_dim = latent_size + num_actions
@@ -32,7 +32,7 @@ class EPDM(nn.Module):
 
         self.apply(weight_init)
 
-    def forward(self, state, action):
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         x = torch.cat([state, action], dim=1)
         out = self.prediction_net(x)
         return out

@@ -11,6 +11,8 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 
 class MAPERTD3:
     def __init__(
@@ -25,30 +27,31 @@ class MAPERTD3:
         critic_lr,
         device,
     ):
-
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+
+        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
 
         self.gamma = gamma
         self.tau = tau
         self.alpha = alpha
 
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
+
         self.learn_counter = 0
         self.policy_update_freq = 2
 
         self.action_num = action_num
-        self.device = device
 
         # MAPER-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
         self.min_priority = 1
-        self.noise_clip = 0.5
-        self.policy_noise = 0.2
 
         self.actor_net_optimiser = optim.Adam(self.actor_net.parameters(), lr=actor_lr)
 
@@ -59,7 +62,9 @@ class MAPERTD3:
     def _split_output(self, target):
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -75,29 +80,25 @@ class MAPERTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         # Sample replay buffer
         experiences = memory.sample_priority(batch_size)
-        states, actions, predicted_rewards, next_states, dones, indices, weights = (
-            experiences
-        )
+        states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        predicted_rewards = torch.FloatTensor(np.asarray(predicted_rewards)).to(
-            self.device
-        )
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
-        predicted_rewards = predicted_rewards.unsqueeze(0).reshape(batch_size, 1)
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # Get current Q estimates
@@ -106,10 +107,10 @@ class MAPERTD3:
         q_value_two, reward_two, next_states_two = self._split_output(output_two)
 
         diff_reward_one = 0.5 * torch.pow(
-            reward_one.reshape(-1, 1) - predicted_rewards.reshape(-1, 1), 2.0
+            reward_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
         diff_reward_two = 0.5 * torch.pow(
-            reward_two.reshape(-1, 1) - predicted_rewards.reshape(-1, 1), 2.0
+            reward_two.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
 
         diff_next_states_one = 0.5 * torch.mean(
@@ -145,11 +146,11 @@ class MAPERTD3:
 
             target_q_values = torch.min(next_values_one, next_values_two).reshape(-1, 1)
 
-            predicted_rewards = (
+            rewards = (
                 (reward_one.reshape(-1, 1) + reward_two.reshape(-1, 1)) / 2
             ).reshape(-1, 1)
 
-            q_target = predicted_rewards + self.gamma * (1 - dones) * target_q_values
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
         diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
@@ -238,7 +239,7 @@ class MAPERTD3:
 
         memory.update_priorities(indices, priorities)
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -249,7 +250,7 @@ class MAPERTD3:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))

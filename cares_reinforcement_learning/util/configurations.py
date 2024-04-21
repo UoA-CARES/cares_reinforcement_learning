@@ -18,11 +18,20 @@ class EnvironmentConfig(SubscriptableClass):
 
 
 class TrainingConfig(SubscriptableClass):
-    seeds: List[int] = [10]
+    """
+    Configuration class for training.
 
+    Attributes:
+        seeds (List[int]): List of random seeds for reproducibility. Default is [10].
+        plot_frequency (Optional[int]): Frequency at which to plot training progress. Default is 100.
+        checkpoint_frequency (Optional[int]): Frequency at which to save model checkpoints. Default is 100.
+        number_steps_per_evaluation (Optional[int]): Number of steps per evaluation. Default is 10000.
+        number_eval_episodes (Optional[int]): Number of episodes to evaluate during training. Default is 10.
+    """
+
+    seeds: List[int] = [10]
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
-
     number_steps_per_evaluation: Optional[int] = 10000
     number_eval_episodes: Optional[int] = 10
 
@@ -52,6 +61,10 @@ class AlgorithmConfig(SubscriptableClass):
     max_steps_exploration: Optional[int] = 1000
     max_steps_training: Optional[int] = 1000000
     number_steps_per_train_policy: Optional[int] = 1
+
+    min_noise: Optional[float] = 0.0
+    noise_scale: Optional[float] = 0.1
+    noise_decay: Optional[float] = 1.0
 
 
 class DQNConfig(AlgorithmConfig):
@@ -88,6 +101,9 @@ class PPOConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 1e-3
 
     gamma: Optional[float] = 0.99
+    eps_clip: Optional[float] = 0.2
+    updates_per_iteration: Optional[int] = 10
+
     max_steps_per_batch: Optional[int] = 5000
 
 
@@ -116,6 +132,7 @@ class SACConfig(AlgorithmConfig):
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
 
 
 class DynaSACConfig(AlgorithmConfig):
@@ -137,23 +154,20 @@ class DynaSACConfig(AlgorithmConfig):
 
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)
-    # actor_lr: Optional[float] = 1e-4
-    # critic_lr: Optional[float] = 1e-3
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+
+    encoder_lr: Optional[float] = 1e-3
+    decoder_lr: Optional[float] = 1e-3
+
+    epm_lr: Optional[float] = 1e-4
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+    ensemble_size: Optional[int] = 3
 
     latent_size: Optional[int] = 200
     intrinsic_on: Optional[int] = 1
-
-    # lr_actor   = 1e-4
-    # lr_critic  = 1e-3
-
-    # lr_encoder = 1e-3
-    # lr_decoder = 1e-3
-
-    # lr_epm      = 1e-4
-    # w_decay_epm = 1e-3
 
 
 class CTD4Config(AlgorithmConfig):
@@ -180,9 +194,7 @@ class RDTD3Config(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.7
-
-    noise_scale: Optional[float] = 0.1
-    noise_decay: Optional[float] = 1
+    min_priority: Optional[float] = 1.0
 
 
 class PERTD3Config(AlgorithmConfig):
@@ -193,9 +205,6 @@ class PERTD3Config(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.6
-
-    noise_scale: Optional[float] = 0.1
-    noise_decay: Optional[float] = 1
 
 
 class LAPTD3Config(AlgorithmConfig):
@@ -208,9 +217,6 @@ class LAPTD3Config(AlgorithmConfig):
     alpha: Optional[float] = 0.6
     min_priority: Optional[float] = 1.0
 
-    noise_scale: Optional[float] = 0.1
-    noise_decay: Optional[float] = 1
-
 
 class PALTD3Config(AlgorithmConfig):
     algorithm: str = Field("PALTD3", Literal=True)
@@ -221,9 +227,6 @@ class PALTD3Config(AlgorithmConfig):
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.4
     min_priority: Optional[float] = 1.0
-
-    noise_scale: Optional[float] = 0.1
-    noise_decay: Optional[float] = 1
 
 
 class LA3PTD3Config(AlgorithmConfig):
@@ -237,9 +240,6 @@ class LA3PTD3Config(AlgorithmConfig):
     min_priority: Optional[float] = 1.0
     prioritized_fraction: Optional[float] = 0.5
 
-    noise_scale: Optional[float] = 0.1
-    noise_decay: Optional[float] = 1
-
 
 class MAPERTD3Config(AlgorithmConfig):
     algorithm: str = Field("MAPERTD3", Literal=True)
@@ -249,9 +249,6 @@ class MAPERTD3Config(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     alpha: Optional[float] = 0.7
-
-    noise_scale: Optional[float] = 0.1
-    noise_decay: Optional[float] = 1
 
 
 class REDQConfig(AlgorithmConfig):

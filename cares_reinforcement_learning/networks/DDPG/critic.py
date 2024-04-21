@@ -4,7 +4,7 @@ from torch import nn
 
 
 class Critic(nn.Module):
-    def __init__(self, observation_size, num_actions):
+    def __init__(self, observation_size: int, num_actions: int):
         super().__init__()
 
         self.hidden_size = [1024, 1024]
@@ -14,7 +14,7 @@ class Critic(nn.Module):
         self.h_linear_2 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
         self.h_linear_3 = nn.Linear(self.hidden_size[1], 1)
 
-    def forward(self, state, action):
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         obs_action = torch.cat([state, action], dim=1)
 
         q1 = F.relu(self.h_linear_1(obs_action))

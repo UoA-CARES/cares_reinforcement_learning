@@ -1,8 +1,9 @@
+import torch
 from torch import nn
 
 
 class DuelingNetwork(nn.Module):
-    def __init__(self, observation_space_size, action_num):
+    def __init__(self, observation_space_size: int, action_num: int):
         super().__init__()
         self.input_dim = observation_space_size
         self.output_dim = action_num
@@ -19,7 +20,7 @@ class DuelingNetwork(nn.Module):
             nn.Linear(1024, 1024), nn.ReLU(), nn.Linear(1024, self.output_dim)
         )
 
-    def forward(self, state):
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         features = self.feature_layer(state)
         values = self.value_stream(features)
         advantages = self.advantage_stream(features)

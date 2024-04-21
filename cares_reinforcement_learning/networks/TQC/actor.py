@@ -9,7 +9,7 @@ class Actor(nn.Module):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim: int, action_dim: int):
         super().__init__()
         self.hidden_size = [256, 256]
         self.log_std_bounds = [-20, 2]
@@ -20,7 +20,9 @@ class Actor(nn.Module):
         self.mean_linear = nn.Linear(self.hidden_size[1], action_dim)
         self.log_std_linear = nn.Linear(self.hidden_size[1], action_dim)
 
-    def forward(self, state):
+    def forward(
+        self, state: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = F.relu(self.linear1(state))
         x = F.relu(self.linear2(x))
         mu = self.mean_linear(x)

@@ -10,33 +10,40 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as helpers
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
 class LA3PTD3:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        alpha,
-        min_priority,
-        prioritized_fraction,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        alpha: float,
+        min_priority: float,
+        prioritized_fraction: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)  # .to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net)  # .to(device)
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+
+        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
 
         self.gamma = gamma
         self.tau = tau
         self.alpha = alpha
+
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
+
         self.min_priority = min_priority
         self.prioritized_fraction = prioritized_fraction
 
@@ -44,7 +51,6 @@ class LA3PTD3:
         self.policy_update_freq = 2
 
         self.action_num = action_num
-        self.device = device
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -53,7 +59,9 @@ class LA3PTD3:
             self.critic_net.parameters(), lr=critic_lr
         )
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -68,7 +76,7 @@ class LA3PTD3:
         self.actor_net.train()
         return action
 
-    def _update_target_network(self):
+    def _update_target_network(self) -> None:
         # Update target network params
         for target_param, param in zip(
             self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
@@ -91,7 +99,7 @@ class LA3PTD3:
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
 
-    def _train_actor(self, states):
+    def _train_actor(self, states: np.ndarray) -> None:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
@@ -104,8 +112,14 @@ class LA3PTD3:
         self.actor_net_optimiser.step()
 
     def _train_critic(
-        self, states, actions, rewards, next_states, dones, uniform_sampling
-    ):
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        next_states: np.ndarray,
+        dones: np.ndarray,
+        uniform_sampling: bool,
+    ) -> np.ndarray:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -119,8 +133,8 @@ class LA3PTD3:
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
-            target_noise = 0.2 * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -0.5, 0.5)
+            target_noise = self.policy_noise * torch.randn_like(next_actions)
+            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -171,7 +185,7 @@ class LA3PTD3:
 
         return priorities
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -221,7 +235,7 @@ class LA3PTD3:
             self._train_actor(states)
             self._update_target_network()
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -232,7 +246,7 @@ class LA3PTD3:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))

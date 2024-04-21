@@ -1,5 +1,3 @@
-from typing import List
-
 from torch import distributions as pyd
 from torch import nn
 from torch.distributions.transformed_distribution import TransformedDistribution
@@ -9,7 +7,7 @@ from torch.nn import functional as F
 
 # Standard Multilayer Perceptron (MLP) network
 class MLP(nn.Module):
-    def __init__(self, input_size: int, hidden_sizes: List[int], output_size: int):
+    def __init__(self, input_size: int, hidden_sizes: list[int], output_size: int):
         super().__init__()
 
         self.fully_connected_layers = []
