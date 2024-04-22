@@ -406,6 +406,29 @@ def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_TQC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import TQC
+    from cares_reinforcement_learning.networks.TQC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num, config.num_quantiles, config.num_nets)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = TQC(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        top_quantiles_to_drop=config.top_quantiles_to_drop,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
+
 def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PERSAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
