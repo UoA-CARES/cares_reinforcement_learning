@@ -55,9 +55,7 @@ class AlgorithmConfig(SubscriptableClass):
 
     algorithm: str = Field(description="Name of the algorithm to be used")
     G: Optional[int] = 1
-    # for training the world model in MBRL.
     G_model: Optional[float] = 1
-
     buffer_size: Optional[int] = 1000000
     batch_size: Optional[int] = 256
     max_steps_exploration: Optional[int] = 1000
@@ -131,7 +129,7 @@ class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
-
+    alpha_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
