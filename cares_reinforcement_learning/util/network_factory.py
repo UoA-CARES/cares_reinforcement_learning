@@ -121,7 +121,7 @@ def create_DynaSAC(observation_size, action_num, config: DynaSACConfig):
     return agent
 
 
-def create_MBRL_DYNA_Reweight(observation_size, action_num, config: DYNAConfig):
+def create_DynaSAC_Reweight(observation_size, action_num, config: DynaSACConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
