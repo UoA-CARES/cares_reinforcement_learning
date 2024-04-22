@@ -206,11 +206,15 @@ class MAPERSAC:
         diff_next_state_mean = diff_next_state_mean.reshape(-1, 1)
         diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
 
+        # calculate priority
         priorities = np.array(
             [
-                diff_td_mean
-                + self.scale_s * diff_next_state_mean
-                + self.scale_r * diff_reward_mean
+                (
+                    diff_td_mean
+                    + self.scale_s * diff_next_state_mean
+                    + self.scale_r * diff_reward_mean
+                )
+                ** self.per_alpha
             ]
         ).reshape(-1)
 

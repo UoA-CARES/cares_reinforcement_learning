@@ -21,7 +21,7 @@ class MAPERTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha,
+        per_alpha: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
@@ -38,7 +38,7 @@ class MAPERTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+        self.per_alpha = per_alpha
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -203,14 +203,16 @@ class MAPERTD3:
         diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
 
         # calculate priority
-        priorities = (
-            torch.max(critic_one_loss, critic_two_loss)
-            .clamp(min=self.min_priority)
-            .pow(self.alpha)
-            .cpu()
-            .data.numpy()
-            .flatten()
-        )
+        priorities = np.array(
+            [
+                (
+                    diff_td_mean
+                    + self.scale_s * diff_next_state_mean
+                    + self.scale_r * diff_reward_mean
+                )
+                ** self.per_alpha
+            ]
+        ).reshape(-1)
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor

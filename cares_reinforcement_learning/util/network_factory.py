@@ -375,6 +375,7 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
+        per_alpha=config.per_alpha,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,

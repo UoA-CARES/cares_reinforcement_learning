@@ -241,15 +241,6 @@ class LA3PTD3Config(AlgorithmConfig):
     prioritized_fraction: Optional[float] = 0.5
 
 
-class MAPERTD3Config(AlgorithmConfig):
-    algorithm: str = Field("MAPERTD3", Literal=True)
-
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.98
-    tau: Optional[float] = 0.005
-
-
 class REDQConfig(AlgorithmConfig):
     algorithm: str = Field("REDQ", Literal=True)
     actor_lr: Optional[float] = 3e-4
@@ -292,6 +283,16 @@ class RDSACConfig(AlgorithmConfig):
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    per_alpha: Optional[float] = 0.7
+
+
+class MAPERTD3Config(AlgorithmConfig):
+    algorithm: str = Field("MAPERTD3", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.98
     tau: Optional[float] = 0.005
     per_alpha: Optional[float] = 0.7
 
