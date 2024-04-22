@@ -20,7 +20,8 @@ class SimpleReward(nn.Module):
         self.num_actions = num_actions
         self.linear1 = nn.Linear(observation_size + num_actions, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
-        self.linear3 = nn.Linear(hidden_size, 1)
+        self.mean = nn.Linear(hidden_size, 1)
+        self.var = nn.Linear(hidden_size, 1)
         self.apply(weight_init)
 
     def forward(
@@ -45,7 +46,10 @@ class SimpleReward(nn.Module):
         x = F.relu(x)
         x = self.linear2(x)
         x = F.relu(x)
-        x = self.linear3(x)
+        rwd_mean = self.mean(x)
+        rwd_var = self.var(x)
+        logvar = torch.tanh(rwd_var)
+        rwd_var = torch.exp(logvar)
         if normalized:
-            x = F.sigmoid(x)
-        return x
+            rwd_mean = F.sigmoid(rwd_mean)
+        return rwd_mean, rwd_var

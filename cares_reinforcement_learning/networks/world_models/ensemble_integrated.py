@@ -104,8 +104,11 @@ class IntegratedWorldModel:
         model_loss = F.gaussian_nll_loss(
             input=normalized_mean, target=delta_targets_normalized, var=normalized_var
         ).mean()
-        pred_rewards = self.reward_network.forward(pred_next_state, next_actions)
-        all_loss = F.mse_loss(pred_rewards, next_rewards) + model_loss.mean()
+
+        rwd_mean, rwd_var = self.reward_network.forward(pred_next_state, next_actions)
+        rwd_loss = F.gaussian_nll_loss(input=rwd_mean, target=next_rewards, var=rwd_var)
+        all_loss = rwd_loss + model_loss.mean()
+
         # Update
         self.all_optimizer.zero_grad()
         all_loss.backward()
@@ -183,11 +186,15 @@ class EnsembleWorldReward:
         """
         rewards = []
         for model in self.models:
-            pred_rewards = model.reward_network.forward(observation, actions)
+            pred_rewards, _ = model.reward_network.forward(observation, actions)
             rewards.append(pred_rewards)
         # Use average
         rewards = torch.stack(rewards)
-        reward = torch.min(rewards, dim=0).values  # Pessimetic
+
+        rand_ind = random.randint(0, rewards.shape[0]) - 1
+        reward = rewards[rand_ind]
+
+        # reward = torch.min(rewards, dim=0).values  # Pessimetic
         return reward, rewards
 
     def pred_next_states(
@@ -232,6 +239,7 @@ class EnsembleWorldReward:
         if len(not_nans) == 0:
             logging.info("Predicting all Nans")
             sys.exit()
+        # Random Take next state.
         rand_ind = random.randint(0, len(not_nans) - 1)
         prediction = predictions_means[not_nans[rand_ind]]
         # next = current + delta
