@@ -202,13 +202,15 @@ class MAPERTD3:
         diff_next_state_mean = diff_next_state_mean.reshape(-1, 1)
         diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
 
-        priorities = np.array(
-            [
-                diff_td_mean
-                + self.scale_s * diff_next_state_mean
-                + self.scale_r * diff_reward_mean
-            ]
-        ).reshape(-1)
+        # calculate priority
+        priorities = (
+            torch.max(critic_one_loss, critic_two_loss)
+            .clamp(min=self.min_priority)
+            .pow(self.alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
