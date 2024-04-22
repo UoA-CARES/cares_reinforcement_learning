@@ -55,7 +55,7 @@ class MAPERSAC:
         self.critic_net_optimiser = optim.Adam(
             self.critic_net.parameters(), lr=critic_lr
         )
-        
+
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
@@ -65,7 +65,6 @@ class MAPERSAC:
     def _split_output(self, target):
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    
     def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
         # note that when evaluating this algorithm we need to select mu as action
         # so _, _, action = self.actor_net.sample(state_tensor)
@@ -93,15 +92,12 @@ class MAPERSAC:
     def alpha(self):
         return self.log_alpha.exp()
 
-
     def train_policy(self, memory, batch_size):
         self.learn_counter += 1
 
         # Sample replay buffer
         experiences = memory.sample_priority(batch_size)
-        states, actions, rewards, next_states, dones, indices, weights = (
-            experiences
-        )
+        states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
 
@@ -119,8 +115,12 @@ class MAPERSAC:
 
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
-        q_value_one, predicted_reward_one, next_states_one = self._split_output(output_one)
-        q_value_two, predicted_reward_two, next_states_two = self._split_output(output_two)
+        q_value_one, predicted_reward_one, next_states_one = self._split_output(
+            output_one
+        )
+        q_value_two, predicted_reward_two, next_states_two = self._split_output(
+            output_two
+        )
 
         diff_reward_one = 0.5 * torch.pow(
             predicted_reward_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
@@ -154,11 +154,17 @@ class MAPERSAC:
             )
             next_values_one, _, _ = self._split_output(target_q_values_one)
             next_values_two, _, _ = self._split_output(target_q_values_two)
-            min_next_target = torch.minimum(next_values_one, next_values_two).reshape(-1, 1)
+            min_next_target = torch.minimum(next_values_one, next_values_two).reshape(
+                -1, 1
+            )
             target_q_values = min_next_target - self.alpha * next_log_pi
 
             predicted_rewards = (
-                (predicted_reward_one.reshape(-1, 1) + predicted_reward_two.reshape(-1, 1)) / 2
+                (
+                    predicted_reward_one.reshape(-1, 1)
+                    + predicted_reward_two.reshape(-1, 1)
+                )
+                / 2
             ).reshape(-1, 1)
 
             q_target = predicted_rewards + self.gamma * (1 - dones) * target_q_values
@@ -212,22 +218,27 @@ class MAPERSAC:
                 + self.scale_r * diff_reward_mean
             ]
         ).reshape(-1)
-        
+
         pi, log_pi, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         qf_pi_one, _, _ = self._split_output(qf1_pi)
         qf_pi_two, _, _ = self._split_output(qf2_pi)
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
-        actor_loss = torch.mean((torch.exp(self.log_alpha).detach() * log_pi - min_qf_pi) * weights)
+        actor_loss = torch.mean(
+            (torch.exp(self.log_alpha).detach() * log_pi - min_qf_pi) * weights
+        )
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        # update the temperature
-        alpha_loss = (-weights * self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        # Update the temperature
+        alpha_loss = (
+            -weights * self.log_alpha * (log_pi + self.target_entropy).detach()
+        ).mean()
+
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
@@ -239,7 +250,7 @@ class MAPERSAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
-                
+
         # Update Scales
         if self.learn_counter == 1:
             self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))

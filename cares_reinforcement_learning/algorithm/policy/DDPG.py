@@ -1,29 +1,38 @@
+"""
+Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
+"""
+
 import copy
 import logging
 import os
+from typing import Optional
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 
 class DDPG:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+
+        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
 
         self.gamma = gamma
         self.tau = tau
@@ -35,10 +44,13 @@ class DDPG:
             self.critic_net.parameters(), lr=critic_lr
         )
 
-        self.device = device
-
     # pylint: disable-next=unused-argument
-    def select_action_from_policy(self, state, evaluation=None, noise_scale=0):
+    def select_action_from_policy(
+        self,
+        state: np.ndarray,
+        evaluation: Optional[bool] = False,
+        noise_scale: float = 0,
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
@@ -48,7 +60,7 @@ class DDPG:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
@@ -101,7 +113,7 @@ class DDPG:
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -112,7 +124,7 @@ class DDPG:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))

@@ -7,7 +7,7 @@ from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import 
 
 
 class Decoder(nn.Module):
-    def __init__(self, latent_dim, k=9):
+    def __init__(self, latent_dim: int, k: int = 9):
         super().__init__()
         self.num_filters = 32
         self.latent_dim = latent_dim
@@ -48,7 +48,7 @@ class Decoder(nn.Module):
 
         self.apply(weight_init)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = torch.relu(self.fc_1(x))
         x = x.view(-1, 32, 35, 35)
         x = self.deconvs(x)

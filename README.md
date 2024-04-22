@@ -100,23 +100,33 @@ natsort  ├─ policy/
 
 `networks`: contains standard neural networks that can be used with each algortihm
 
-`util/`: contains common utility classes
+`util`: contains common utility classes
 
 ## Supported Algorithms
-| Algorithm      | Action Space | On/Off Policy |
-| ----------- | ----------- |----------- |
-| DQN      | Discrete       | Off Policy       | 
-| DoubleDQN   | Discrete        | Off Policy |
-| DuelingDQN   | Discrete        | Off Policy |
-| DDPG   | Continuous        | Off Policy |
-| TD3   | Continuous        | Off Policy |
-| SAC   | Continuous        | Off Policy       |
-| PPO      | Continuous       | On Policy       | 
+| Algorithm      | Action Space |
+| ----------- | ----------- |
+| DQN      | Discrete              | 
+| DoubleDQN   | Discrete         |
+| DuelingDQN   | Discrete         |
+| DDPG   | Continuous         |
+| PPO      | Continuous       |
+| TD3   | Continuous         |
+| PALTD3   | Continuous               |
+| PERTD3   | Continuous               |
+| LAPTD3   | Continuous               |
+| LA3PTD3   | Continuous               |
+| MAPERTD3   | Continuous               |
+| RDTD3   | Continuous               |
+| NaSATD3   | Continuous               |
+| CTD4   | Continuous               |
+| SAC   | Continuous               |
+| REDQ   | Continuous               |
+| TQC   | Continuous               |
 
 ## In progress
 | Algorithm      | Action Space |  On/Off Policy |
 | ----------- | ----------- | ----------- |
-| D4PG   | Continuous        | Off Policy       |
+
  
 
 

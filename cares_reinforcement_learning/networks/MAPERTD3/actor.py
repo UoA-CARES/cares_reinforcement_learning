@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class Actor(nn.Module):
-    def __init__(self, observation_size, num_actions):
+    def __init__(self, observation_size: int, num_actions: int):
         super(Actor, self).__init__()
 
         self.hidden_size = [1024, 1024]
@@ -19,7 +19,7 @@ class Actor(nn.Module):
             in_features=self.hidden_size[1], out_features=num_actions
         )
 
-    def forward(self, state):
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         x = F.relu(self.h_linear_1(state))
         x = F.relu(self.h_linear_2(x))
         x = torch.tanh(self.h_linear_3(x))

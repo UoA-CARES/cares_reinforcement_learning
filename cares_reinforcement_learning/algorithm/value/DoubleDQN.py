@@ -1,4 +1,6 @@
 """
+Original Paper: https://arxiv.org/abs/1509.06461
+
 code based on: https://github.com/dxyang/DQN_pytorch
 """
 
@@ -10,22 +12,32 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 
 class DoubleDQN:
-    def __init__(self, network, gamma, tau, network_lr, device):
+    def __init__(
+        self,
+        network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        network_lr: float,
+        device: torch.device,
+    ):
         self.type = "value"
-        self.network = network.to(device)
-        self.target_network = copy.deepcopy(self.network).to(device)
+        self.device = device
+
+        self.network = network.to(self.device)
+        self.target_network = copy.deepcopy(self.network).to(self.device)
 
         self.gamma = gamma
         self.tau = tau
-        self.device = device
 
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=network_lr
         )
 
-    def select_action_from_policy(self, state):
+    def select_action_from_policy(self, state: np.ndarray) -> int:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -35,7 +47,7 @@ class DoubleDQN:
         self.network.train()
         return action
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
@@ -70,7 +82,7 @@ class DoubleDQN:
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -80,7 +92,7 @@ class DoubleDQN:
         torch.save(self.network.state_dict(), f"{path}/{filename}_network.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.network.load_state_dict(torch.load(f"{path}/{filename}_network.pht"))

@@ -14,3 +14,4 @@ from .REDQ import REDQ
 from .PERSAC import PERSAC
 from .RDSAC import RDSAC
 from .MAPERSAC import MAPERSAC
+from .TQC import TQC
