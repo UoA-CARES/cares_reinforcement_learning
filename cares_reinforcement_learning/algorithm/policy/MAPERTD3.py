@@ -21,6 +21,7 @@ class MAPERTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
+        alpha,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
@@ -37,6 +38,7 @@ class MAPERTD3:
 
         self.gamma = gamma
         self.tau = tau
+        self.alpha = alpha
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
