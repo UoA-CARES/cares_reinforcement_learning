@@ -27,6 +27,7 @@ class SAC:
         action_num: int,
         actor_lr: float,
         critic_lr: float,
+        alpha_lr: float,
         device: torch.device,
     ):
         self.type = "policy"
@@ -59,7 +60,7 @@ class SAC:
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
