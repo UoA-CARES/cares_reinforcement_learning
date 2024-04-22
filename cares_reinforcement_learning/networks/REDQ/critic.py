@@ -1,13 +1,13 @@
 import torch
-import torch.nn.functional as F
 from torch import nn
+from torch.nn import functional as F
 
 
 class Critic(nn.Module):
     def __init__(self, observation_size: int, num_actions: int):
         super().__init__()
 
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = [256, 256]
 
         # Q1 architecture
         self.h_linear_1 = nn.Linear(observation_size + num_actions, self.hidden_size[0])

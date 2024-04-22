@@ -10,30 +10,42 @@ import torch.nn.functional as F
 from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 # TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
-
-logging.basicConfig(level=logging.INFO)
 
 
 class NaSATD3:
     def __init__(
         self,
-        encoder_network,
-        decoder_network,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        action_num,
-        latent_size,
-        intrinsic_on,
-        device,
+        encoder_network: nn.Module,
+        decoder_network: nn.Module,
+        actor_network: nn.Module,
+        critic_network: nn.Module,
+        gamma: float,
+        tau: float,
+        ensemble_size: int,
+        action_num: int,
+        latent_size: int,
+        intrinsic_on: bool,
+        actor_lr: float,
+        critic_lr: float,
+        encoder_lr: float,
+        decoder_lr: float,
+        epm_lr: float,
+        device: str,
     ):
         self.type = "policy"
+        self.device = device
+
         self.gamma = gamma
         self.tau = tau
-        self.ensemble_size = 3  # TODO move to parameters?
+
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
+
+        self.ensemble_size = ensemble_size
         self.latent_size = latent_size
         self.intrinsic_on = intrinsic_on
 
@@ -41,52 +53,58 @@ class NaSATD3:
         self.policy_update_freq = 2
 
         self.action_num = action_num
-        self.device = device
 
         self.encoder = encoder_network.to(device)
         self.decoder = decoder_network.to(device)
         self.actor = actor_network.to(device)
         self.critic = critic_network.to(device)
 
-        self.actor_target = copy.deepcopy(self.actor).to(device)
-        self.critic_target = copy.deepcopy(self.critic).to(device)
+        self.actor_target = copy.deepcopy(self.actor)
+        self.critic_target = copy.deepcopy(self.critic)
 
         # Necessary for make the same encoder in the whole algorithm
         self.actor_target.encoder_net = self.encoder
         self.critic_target.encoder_net = self.encoder
 
-        self.epm = nn.ModuleList()
+        self.ensemble_predictive_model = nn.ModuleList()
         networks = [
             EPDM(self.latent_size, self.action_num) for _ in range(self.ensemble_size)
         ]
-        self.epm.extend(networks)
-        self.epm.to(self.device)
+        self.ensemble_predictive_model.extend(networks)
+        self.ensemble_predictive_model.to(self.device)
 
-        # TODO move these to parameters through NaSATD3Config
-        lr_actor = 1e-4
-        lr_critic = 1e-3
-        self.actor_optimizer = torch.optim.Adam(self.actor.parameters(), lr=lr_actor)
-        self.critic_optimizer = torch.optim.Adam(self.critic.parameters(), lr=lr_critic)
+        self.actor_lr = actor_lr
+        self.critic_lr = critic_lr
+        self.actor_optimizer = torch.optim.Adam(
+            self.actor.parameters(), lr=self.actor_lr
+        )
+        self.critic_optimizer = torch.optim.Adam(
+            self.critic.parameters(), lr=self.critic_lr
+        )
 
-        lr_encoder = 1e-4
-        lr_decoder = 1e-4
+        self.encoder_lr = encoder_lr
         self.encoder_optimizer = torch.optim.Adam(
-            self.encoder.parameters(), lr=lr_encoder
-        )
-        self.decoder_optimizer = torch.optim.Adam(
-            self.decoder.parameters(), lr=lr_decoder, weight_decay=1e-7
+            self.encoder.parameters(), lr=self.encoder_lr
         )
 
-        lr_epm = 1e-4
-        w_decay_epm = 1e-3
+        self.decoder_lr = decoder_lr
+        self.decoder_optimizer = torch.optim.Adam(
+            self.decoder.parameters(), lr=self.decoder_lr, weight_decay=1e-7
+        )
+
+        self.epm_lr = epm_lr
         self.epm_optimizers = [
             torch.optim.Adam(
-                self.epm[i].parameters(), lr=lr_epm, weight_decay=w_decay_epm
+                self.ensemble_predictive_model[i].parameters(),
+                lr=self.epm_lr,
+                weight_decay=1e-3,
             )
             for i in range(self.ensemble_size)
         ]
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+    ) -> np.ndarray:
         self.actor.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -94,14 +112,16 @@ class NaSATD3:
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
-                # this is part the TD3 too, add noise to the action
+                action += noise_scale * np.random.randn(
+                    self.action_num
+                )  # this is part the TD3 too, add noise to the action
                 noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
                 action = action + noise
                 action = np.clip(action, -1, 1)
         self.actor.train()
         return action
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.encoder.train()
         self.decoder.train()
         self.actor.train()
@@ -109,8 +129,8 @@ class NaSATD3:
 
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 
@@ -128,8 +148,8 @@ class NaSATD3:
 
         with torch.no_grad():
             next_actions = self.actor_target(next_states)
-            target_noise = 0.2 * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -0.5, 0.5)
+            target_noise = self.policy_noise * torch.randn_like(next_actions)
+            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -212,7 +232,9 @@ class NaSATD3:
         if self.intrinsic_on:
             self.train_predictive_model(states, actions, next_states)
 
-    def get_intrinsic_reward(self, state, action, next_state):
+    def get_intrinsic_reward(
+        self, state: np.ndarray, action: np.ndarray, next_state: np.ndarray
+    ) -> float:
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -234,13 +256,18 @@ class NaSATD3:
 
         return reward_surprise + reward_novelty
 
-    def get_surprise_rate(self, state_tensor, action_tensor, next_state_tensor):
+    def get_surprise_rate(
+        self,
+        state_tensor: torch.Tensor,
+        action_tensor: torch.Tensor,
+        next_state_tensor: torch.Tensor,
+    ) -> float:
         with torch.no_grad():
             latent_state = self.encoder(state_tensor, detach=True)
             latent_next_state = self.encoder(next_state_tensor, detach=True)
 
             predict_vector_set = []
-            for network in self.epm:
+            for network in self.ensemble_predictive_model:
                 network.eval()
                 predicted_vector = network(latent_state, action_tensor)
                 predict_vector_set.append(predicted_vector.detach().cpu().numpy())
@@ -250,15 +277,16 @@ class NaSATD3:
             mse = (np.square(z_next_latent_prediction - z_next_latent_true)).mean()
         return mse
 
-    def get_novelty_rate(self, state_tensor_img):
+    def get_novelty_rate(self, state_tensor_img: torch.Tensor) -> float:
         with torch.no_grad():
             z_vector = self.encoder(state_tensor_img)
-            rec_img = self.decoder(
-                z_vector
-            )  # rec_img is a stack of k images --> (1, k , 84 ,84), [0~255]
 
-            original_stack_imgs = state_tensor_img.cpu().numpy()[0]  # --> (k , 84 ,84)
-            reconstruction_stack = rec_img.cpu().numpy()[0]  # --> (k , 84 ,84)
+            # rec_img is a stack of k images --> (1, k , 84 ,84), [0~255]
+            rec_img = self.decoder(z_vector)
+
+            # --> (k , 84 ,84)
+            original_stack_imgs = state_tensor_img.cpu().numpy()[0]
+            reconstruction_stack = rec_img.cpu().numpy()[0]
 
         target_images = original_stack_imgs / 255
         ssim_index_total = ssim(
@@ -272,18 +300,17 @@ class NaSATD3:
 
         return novelty_rate
 
-    def train_predictive_model(self, states, actions, next_states):
-        # states, actions, next_states = experiences
-
-        # states      = torch.FloatTensor(np.asarray(states)).to(self.device)
-        # actions     = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        # next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+    def train_predictive_model(
+        self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
+    ) -> None:
 
         with torch.no_grad():
             latent_state = self.encoder(states, detach=True)
             latent_next_state = self.encoder(next_states, detach=True)
 
-        for predictive_network, optimizer in zip(self.epm, self.epm_optimizers):
+        for predictive_network, optimizer in zip(
+            self.ensemble_predictive_model, self.epm_optimizers
+        ):
             predictive_network.train()
             # Get the deterministic prediction of each model
             prediction_vector = predictive_network(latent_state, actions)
@@ -294,7 +321,7 @@ class NaSATD3:
             loss.backward()
             optimizer.step()
 
-    def get_reconstruction_for_evaluation(self, state):
+    def get_reconstruction_for_evaluation(self, state: np.ndarray) -> np.ndarray:
         self.encoder.eval()
         self.decoder.eval()
         with torch.no_grad():
@@ -314,7 +341,7 @@ class NaSATD3:
 
         return original_img, rec_img
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -324,10 +351,13 @@ class NaSATD3:
         torch.save(self.critic.state_dict(), f"{path}/{filename}_critic.pht")
         torch.save(self.encoder.state_dict(), f"{path}/{filename}_encoder.pht")
         torch.save(self.decoder.state_dict(), f"{path}/{filename}_decoder.pht")
-        torch.save(self.epm.state_dict(), f"{path}/{filename}_ensemble.pht")
+        torch.save(
+            self.ensemble_predictive_model.state_dict(),
+            f"{path}/{filename}_ensemble.pht",
+        )
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         self.actor.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
         self.critic.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))

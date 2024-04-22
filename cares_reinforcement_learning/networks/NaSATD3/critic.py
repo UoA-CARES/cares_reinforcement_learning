@@ -7,7 +7,7 @@ from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import 
 
 
 class Critic(nn.Module):
-    def __init__(self, latent_size, num_actions, encoder):
+    def __init__(self, latent_size: int, num_actions: int, encoder: nn.Module):
         super().__init__()
 
         self.encoder_net = encoder
@@ -33,7 +33,9 @@ class Critic(nn.Module):
 
         self.apply(weight_init)
 
-    def forward(self, state, action, detach_encoder=False):
+    def forward(
+        self, state: torch.Tensor, action: torch.Tensor, detach_encoder: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         z_vector = self.encoder_net(state, detach=detach_encoder)
         obs_action = torch.cat([z_vector, action], dim=1)
         q1 = self.Q1(obs_action)

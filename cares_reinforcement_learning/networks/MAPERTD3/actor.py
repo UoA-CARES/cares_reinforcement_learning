@@ -1,11 +1,11 @@
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-from torch import nn
 
 
 class Actor(nn.Module):
     def __init__(self, observation_size: int, num_actions: int):
-        super().__init__()
+        super(Actor, self).__init__()
 
         self.hidden_size = [1024, 1024]
 

@@ -1,8 +1,5 @@
 """
-Original Paper: https://arxiv.org/abs/1812.05905
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
-
-This code runs automatic entropy tuning
+Original Paper: https://arxiv.org/pdf/2101.05982.pdf
 """
 
 import copy
@@ -16,44 +13,58 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
-class SAC:
+class REDQ:
     def __init__(
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        reward_scale: float,
+        ensemble_size: int,
+        num_sample_critics: int,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
         device: torch.device,
     ):
         self.type = "policy"
-        self.device = device
-
-        # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(device)
-
-        # this may be called soft_q_net in other implementations
-        self.critic_net = critic_network.to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
-
         self.gamma = gamma
         self.tau = tau
-        self.reward_scale = reward_scale
 
         self.learn_counter = 0
         self.policy_update_freq = 1
 
+        self.device = device
+
         self.target_entropy = -action_num
 
+        self.num_sample_critics = num_sample_critics
+
+        # this may be called policy_net in other implementations
+        self.actor_net = actor_network.to(device)
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
         )
-        self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
-        )
+
+        # ------------- Ensemble of critics ------------------#
+        self.ensemble_size = ensemble_size
+        self.ensemble_critics = torch.nn.ModuleList()
+
+        critics = [critic_network for _ in range(self.ensemble_size)]
+        self.ensemble_critics.extend(critics)
+        self.ensemble_critics.to(device)
+
+        # Ensemble of target critics
+        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(device)
+
+        lr_ensemble_critic = critic_lr
+        self.ensemble_critics_optimizers = [
+            torch.optim.Adam(
+                self.ensemble_critics[i].parameters(), lr=lr_ensemble_critic
+            )
+            for i in range(self.ensemble_size)
+        ]
+        # -----------------------------------------#
 
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
@@ -66,12 +77,13 @@ class SAC:
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
+        # so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                (action, _, _) = self.actor_net.sample(state_tensor)
+                (action, _, _) = self.actor_net(state_tensor)
             else:
                 (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
@@ -79,7 +91,7 @@ class SAC:
         return action
 
     @property
-    def alpha(self) -> torch.Tensor:
+    def alpha(self) -> float:
         return self.log_alpha.exp()
 
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
@@ -101,33 +113,46 @@ class SAC:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        # replace=False so that not picking the same idx twice
+        idx = np.random.choice(
+            self.ensemble_size, self.num_sample_critics, replace=False
+        )
+
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
-            target_q_values_one, target_q_values_two = self.target_critic_net(
+
+            target_q_values_one = self.target_ensemble_critics[idx[0]](
                 next_states, next_actions
             )
+
+            target_q_values_two = self.target_ensemble_critics[idx[1]](
+                next_states, next_actions
+            )
+
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * next_log_pi
             )
 
-            q_target = (
-                rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
-            )
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+        for critic_net, critic_net_optimiser in zip(
+            self.ensemble_critics, self.ensemble_critics_optimizers
+        ):
+            q_values = critic_net(states, actions)
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
-        critic_loss_total = critic_loss_one + critic_loss_two
+            critic_loss_total = 0.5 * F.mse_loss(q_values, q_target)
 
-        # Update the Critic
-        self.critic_net_optimiser.zero_grad()
-        critic_loss_total.backward()
-        self.critic_net_optimiser.step()
+            # Update the Critic
+            critic_net_optimiser.zero_grad()
+            critic_loss_total.backward()
+            critic_net_optimiser.step()
 
         pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
+
+        qf1_pi = self.target_ensemble_critics[idx[0]](states, pi)
+        qf2_pi = self.target_ensemble_critics[idx[1]](states, pi)
+
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
@@ -144,12 +169,16 @@ class SAC:
         self.log_alpha_optimizer.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
-            for target_param, param in zip(
-                self.target_critic_net.parameters(), self.critic_net.parameters()
+            # Update ensemble of target critics
+            for critic_net, target_critic_net in zip(
+                self.ensemble_critics, self.target_ensemble_critics
             ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+                for target_param, param in zip(
+                    target_critic_net.parameters(), critic_net.parameters()
+                ):
+                    target_param.data.copy_(
+                        param.data * self.tau + target_param.data * (1.0 - self.tau)
+                    )
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
@@ -159,12 +188,16 @@ class SAC:
             os.makedirs(path)
 
         torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(
+            self.ensemble_critics.state_dict(), f"{path}/{filename}_ensemble.pht"
+        )
         logging.info("models has been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
+    def load_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
+        actor_path = f"{path}/{filename}_actor.pht"
+        ensemble_path = f"{path}/{filename}_ensemble.pht"
 
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(actor_path))
+        self.ensemble_critics.load_state_dict(torch.load(ensemble_path))
         logging.info("models has been loaded...")

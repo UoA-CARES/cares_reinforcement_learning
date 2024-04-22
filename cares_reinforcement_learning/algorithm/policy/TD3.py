@@ -1,5 +1,7 @@
 """
 Original Paper: https://arxiv.org/abs/1802.09477v3
+
+Original code: https://github.com/sfujim/TD3
 """
 
 import copy
@@ -9,34 +11,40 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 
 class TD3:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)  # .to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net)  # .to(device)
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+
+        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
 
         self.gamma = gamma
         self.tau = tau
+
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
 
         self.learn_counter = 0
         self.policy_update_freq = 2
 
         self.action_num = action_num
-        self.device = device
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -45,7 +53,9 @@ class TD3:
             self.critic_net.parameters(), lr=critic_lr
         )
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -60,11 +70,11 @@ class TD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 
@@ -81,8 +91,8 @@ class TD3:
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
-            target_noise = 0.2 * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -0.5, 0.5)
+            target_noise = self.policy_noise * torch.randn_like(next_actions)
+            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -138,7 +148,7 @@ class TD3:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -149,7 +159,7 @@ class TD3:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))

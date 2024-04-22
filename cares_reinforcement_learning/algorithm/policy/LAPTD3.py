@@ -5,42 +5,50 @@ Original Paper: https://arxiv.org/abs/2007.06049
 import copy
 import logging
 import os
+
 import numpy as np
 import torch
-import torch.nn.functional as F
+
+import cares_reinforcement_learning.util.helpers as helpers
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
 class LAPTD3:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        alpha,
-        min_priority,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        alpha: float,
+        min_priority: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)  # .to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net)  # .to(device)
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+
+        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
 
         self.gamma = gamma
         self.tau = tau
         self.alpha = alpha
+
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
+
         self.min_priority = min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 2
 
         self.action_num = action_num
-        self.device = device
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -49,7 +57,9 @@ class LAPTD3:
             self.critic_net.parameters(), lr=critic_lr
         )
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -64,15 +74,10 @@ class LAPTD3:
         self.actor_net.train()
         return action
 
-    def huber(self, x):
-        return torch.where(
-            x < self.min_priority, 0.5 * x.pow(2), self.min_priority * x
-        ).mean()
-
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
-        experiences = memory.sample(batch_size)
+        experiences = memory.sample_priority(batch_size)
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
@@ -91,8 +96,8 @@ class LAPTD3:
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
-            target_noise = 0.2 * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -0.5, 0.5)
+            target_noise = self.policy_noise * torch.randn_like(next_actions)
+            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -105,13 +110,12 @@ class LAPTD3:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        td_loss_one = (target_q_values_one - q_target).abs()
-        td_loss_two = (target_q_values_two - q_target).abs()
+        td_error_one = (q_values_one - q_target).abs()
+        td_error_two = (q_values_two - q_target).abs()
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
-
-        critic_loss_total = self.huber(critic_loss_one) + self.huber(critic_loss_two)
+        huber_lose_one = helpers.huber(td_error_one, self.min_priority)
+        huber_lose_two = helpers.huber(td_error_two, self.min_priority)
+        critic_loss_total = huber_lose_one + huber_lose_two
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -119,7 +123,7 @@ class LAPTD3:
         self.critic_net_optimiser.step()
 
         priorities = (
-            torch.max(td_loss_one, td_loss_two)
+            torch.max(td_error_one, td_error_two)
             .pow(self.alpha)
             .cpu()
             .data.numpy()

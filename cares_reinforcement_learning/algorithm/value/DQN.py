@@ -1,3 +1,7 @@
+"""
+Original Paper: https://arxiv.org/abs/1312.5602
+"""
+
 import logging
 import os
 
@@ -6,8 +10,17 @@ import torch
 import torch.nn.functional as F
 
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
+
 class DQN:
-    def __init__(self, network, gamma, network_lr, device):
+    def __init__(
+        self,
+        network: torch.nn.Module,
+        gamma: float,
+        network_lr: float,
+        device: torch.device,
+    ):
         self.type = "value"
         self.network = network.to(device)
         self.device = device
@@ -27,11 +40,9 @@ class DQN:
         self.network.train()
         return action
 
-    def train_policy(self, memory, batch_size):
-        info = {}
-
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -55,13 +66,7 @@ class DQN:
         loss.backward()
         self.network_optimiser.step()
 
-        info["q_target"] = q_target
-        info["q_values_min"] = best_q_values
-        info["network_loss"] = loss
-
-        return info
-
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -71,7 +76,7 @@ class DQN:
         torch.save(self.network.state_dict(), f"{path}/{filename}_network.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.network.load_state_dict(torch.load(f"{path}/{filename}_network.pht"))
