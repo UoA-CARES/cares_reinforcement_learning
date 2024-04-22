@@ -74,9 +74,9 @@ class RDSAC:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                (action, _, _) = self.actor_net.sample(state_tensor)
+                (action, _, _) = self.actor_net(state_tensor)
             else:
-                (_, _, action) = self.actor_net.sample(state_tensor)
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -136,7 +136,7 @@ class RDSAC:
         diff_next_states_two = diff_next_states_two.reshape(-1, 1)
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -185,7 +185,7 @@ class RDSAC:
 
         memory.update_priorities(indices, priorities)
 
-        pi, log_pi, _ = self.actor_net.sample(states)
+        pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         qf_pi_one, _, _ = self._split_output(qf1_pi)
         qf_pi_two, _, _ = self._split_output(qf2_pi)
