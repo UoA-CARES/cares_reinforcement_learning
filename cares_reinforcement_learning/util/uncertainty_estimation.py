@@ -21,6 +21,7 @@ def sampling(pred_means, pred_vars):
         [10])
     sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
         [10])
+
     samples = torch.cat((sample1, sample2, sample3, sample4, sample5))
     # Samples = [5 * 10, 10 predictions, 11 state dims]
     # print(samples.shape)
