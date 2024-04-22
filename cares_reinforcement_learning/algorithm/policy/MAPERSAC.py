@@ -214,7 +214,6 @@ class MAPERSAC:
                     + self.scale_s * diff_next_state_mean
                     + self.scale_r * diff_reward_mean
                 )
-                ** self.per_alpha
             ]
         ).reshape(-1)
 
