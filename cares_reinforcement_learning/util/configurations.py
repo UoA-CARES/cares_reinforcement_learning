@@ -135,6 +135,23 @@ class SACConfig(AlgorithmConfig):
     reward_scale: Optional[float] = 1.0
 
 
+class DynaSAC_ReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_Reweight", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    horizon: Optional[int] = 3
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+
 class DynaSACConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: Optional[float] = 3e-4

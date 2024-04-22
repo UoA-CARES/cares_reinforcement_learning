@@ -1,6 +1,8 @@
 """
 Sutton, Richard S. "Dyna, an integrated architecture for learning, planning, and reacting."
 
+Original Paper: https://dl.acm.org/doi/abs/10.1145/122344.122377
+
 This code runs automatic entropy tuning
 """
 
@@ -11,100 +13,94 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 from cares_reinforcement_learning.util import sampling
 
+
 class DynaSAC_Reweight:
-    """
-    Use the Soft Actor Critic as the Actor Critic framework.
-
-    """
-
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        world_network,
-        gamma,
-        tau,
-        action_num,
-        actor_lr,
-        critic_lr,
-        alpha_lr,
-        num_samples,
-        horizon,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        world_network: object,
+        gamma: float,
+        tau: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        alpha_lr: float,
+        num_samples: int,
+        horizon: int,
+        device: torch.device,
     ):
         self.type = "mbrl"
-        # Switches
+        self.device = device
+
+        # this may be called policy_net in other implementations
+        self.actor_net = actor_network.to(self.device)
+        # this may be called soft_q_net in other implementations
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
+
+        self.gamma = gamma
+        self.tau = tau
+
         self.num_samples = num_samples
         self.horizon = horizon
         self.action_num = action_num
-        # Other Variables
-        self.gamma = gamma
-        self.tau = tau
-        self.device = device
-        self.batch_size = None
 
-        # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(device)
-        # this may be called soft_q_net in other implementations
-        self.critic_net = critic_network.to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.learn_counter = 0
+        self.policy_update_freq = 1
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
-        self.log_alpha.requires_grad = True
-        self.target_entropy = -action_num
-
-        # optimizer
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=critic_lr
         )
+
+        # Set to initial alpha to 1.0 according to other baselines.
+        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
+        self.log_alpha.requires_grad = True
+        self.target_entropy = -action_num
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
         # World model
         self.world_model = world_network
-        self.learn_counter = 0
-        self.policy_update_freq = 1
 
     @property
-    def _alpha(self):
-        """
-        A variatble decide to what extend entropy shoud be valued.
-        """
+    def _alpha(self) -> float:
         return self.log_alpha.exp()
 
     # pylint: disable-next=unused-argument to keep the same interface
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
-        """
-        Select a action for executing. It is the only channel that an agent
-        will communicate the the actual environment.
-
-        """
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as
-        # action so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if evaluation is False:
-                (action, _, _) = self.actor_net.sample(state_tensor)
+                (action, _, _) = self.actor_net(state_tensor)
             else:
-                (_, _, action) = self.actor_net.sample(state_tensor)
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
 
-    def _train_policy(self, states, actions, rewards, next_states, dones, weights):
-        """
-        Train the policy with Model-Based Value Expansion. A family of MBRL.
-
-        """
-        info = {}
+    def _train_policy(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+        weights: torch.Tensor,
+    ) -> None:
+        ##################     Update the Critic First     ####################
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net.sample(next_states)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_one, target_q_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -112,22 +108,22 @@ class DynaSAC_Reweight:
                 torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
-        q_target = q_target.detach()
-        assert (len(q_target.shape) == 2) and (q_target.shape[1] == 1)
 
         q_values_one, q_values_two = self.critic_net(states, actions)
-        critic_loss_one = 0.5 * ((q_values_one - q_target) * weights).pow(2).mean()
-        critic_loss_two = 0.5 * ((q_values_two - q_target) * weights).pow(2).mean()
+        critic_loss_one = 0.5 * (weights * (q_values_one - q_target).pow(2)).mean()
+        critic_loss_two = 0.5 * (weights * (q_values_two - q_target).pow(2)).mean()
+
         # critic_loss_one = F.mse_loss(q_values_one, q_target)
         # critic_loss_two = F.mse_loss(q_values_two, q_target)
         critic_loss_total = critic_loss_one + critic_loss_two
+
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
         ##################     Update the Actor Second     ####################
-        pi, first_log_p, _ = self.actor_net.sample(states)
+        pi, first_log_p, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
         actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
@@ -137,10 +133,11 @@ class DynaSAC_Reweight:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        # update the temperature
+        # Update the temperature
         alpha_loss = -(
             self.log_alpha * (first_log_p + self.target_entropy).detach()
         ).mean()
+
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
@@ -153,31 +150,25 @@ class DynaSAC_Reweight:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-        info["q_target"] = q_target
-        info["q_values_one"] = q_values_one
-        info["q_values_two"] = q_values_two
-        info["q_values_min"] = torch.minimum(q_values_one, q_values_two)
-        info["critic_loss_total"] = critic_loss_total
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["actor_loss"] = actor_loss
-        return info
+    def train_world_model(
+        self, memory: PrioritizedReplayBuffer, batch_size: int
+    ) -> None:
+        experiences = memory.sample_consecutive(batch_size)
 
-    def train_world_model(self, experiences):
-        """
-        Sample the buffer again for training the world model can reach higher rewards.
-
-        :param experiences:
-        """
         (
             states,
             actions,
             rewards,
             next_states,
             _,
+            _,
             next_actions,
             next_rewards,
+            _,
+            _,
+            _,
         ) = experiences
+
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
@@ -186,13 +177,8 @@ class DynaSAC_Reweight:
             torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
         )
         next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
-        assert len(next_rewards.shape) == 2 and next_rewards.shape[1] == 1
-        assert len(next_states.shape) >= 2
 
-        # # Step 1 train the world model.
+        # Step 1 train the world model.
         self.world_model.train_world(
             states=states,
             actions=actions,
@@ -200,33 +186,20 @@ class DynaSAC_Reweight:
             next_states=next_states,
             next_actions=next_actions,
             next_rewards=next_rewards,
-
         )
 
-    def train_policy(self, experiences):
-        """
-        Interface to training loop.
-
-        """
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
-        (
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-        ) = experiences
-        self.batch_size = len(states)
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2 and rewards.shape[1] == 1
-        assert len(next_states.shape) >= 2
         full_weights = torch.ones(rewards.shape).to(self.device)
         # Step 2 train as usual
         self._train_policy(
@@ -259,12 +232,12 @@ class DynaSAC_Reweight:
             pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                 pred_state, pred_acts
             )
+
             uncert = sampling(pred_means=pred_mean, pred_vars=pred_var)
             uncert = 1.5 - uncert
             uncert = uncert.unsqueeze(dim=1).to(self.device)
-            
-            pred_uncerts.append(uncert)
 
+            pred_uncerts.append(uncert)
             pred_reward, _ = self.world_model.pred_rewards(pred_state, pred_acts)
             pred_states.append(pred_state)
             pred_actions.append(pred_acts.detach())
@@ -283,17 +256,10 @@ class DynaSAC_Reweight:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
         )
 
-    def set_statistics(self, stats):
-        """
-        Set and update the statatistics (means and stds) for MBRL to normalize the states.
-
-        """
+    def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
 
-    def save_models(self, filename, filepath="models"):
-        """
-        Save the intrim actor critics.
-        """
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
         if not dir_exists:
@@ -302,10 +268,7 @@ class DynaSAC_Reweight:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pth")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
-        """
-        Load trained networks
-        """
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pth"))
         self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pth"))
