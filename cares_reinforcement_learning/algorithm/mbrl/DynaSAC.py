@@ -22,7 +22,7 @@ class DynaSAC:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        world_network: torch.nn.Module,
+        world_network: object,
         gamma: float,
         tau: float,
         action_num: int,
