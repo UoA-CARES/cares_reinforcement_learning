@@ -11,36 +11,38 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+
 
 class MAPERSAC:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        alpha,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        per_alpha: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
 
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.actor_net = actor_network.to(self.device)
+
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
 
         self.gamma = gamma
         self.tau = tau
-        self.per_alpha = alpha
+        self.per_alpha = per_alpha
 
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.device = device
         self.target_entropy = -action_num
 
         # MAPER-PER parameters
@@ -65,7 +67,9 @@ class MAPERSAC:
     def _split_output(self, target):
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         # so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
@@ -89,10 +93,10 @@ class MAPERSAC:
         return action
 
     @property
-    def alpha(self):
+    def alpha(self) -> float:
         return self.log_alpha.exp()
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         # Sample replay buffer
@@ -258,7 +262,7 @@ class MAPERSAC:
 
         memory.update_priorities(indices, priorities)
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -269,7 +273,7 @@ class MAPERSAC:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))

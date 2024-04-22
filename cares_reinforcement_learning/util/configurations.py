@@ -248,7 +248,6 @@ class MAPERTD3Config(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.98
     tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.7
 
 
 class REDQConfig(AlgorithmConfig):
@@ -279,7 +278,7 @@ class RDSACConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.7
+    per_alpha: Optional[float] = 0.7
 
 
 class MAPERSACConfig(AlgorithmConfig):
@@ -289,4 +288,4 @@ class MAPERSACConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 7.3e-4
     gamma: Optional[float] = 0.98
     tau: Optional[float] = 0.02
-    alpha: Optional[float] = 0.7
+    per_alpha: Optional[float] = 0.7

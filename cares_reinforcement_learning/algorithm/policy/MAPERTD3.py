@@ -17,15 +17,14 @@ from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 class MAPERTD3:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        alpha,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
         self.device = device
@@ -38,7 +37,6 @@ class MAPERTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2

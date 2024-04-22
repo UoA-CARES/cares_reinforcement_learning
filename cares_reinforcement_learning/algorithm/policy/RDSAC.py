@@ -1,52 +1,50 @@
-
-
 import copy
 import logging
 import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F
+
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
 class RDSAC:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        alpha,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        per_alpha: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
-        self.actor_net = actor_network.to(
-            device
-        )  # this may be called policy_net in other implementations
-        self.critic_net = critic_network.to(
-            device
-        )  # this may be called soft_q_net in other implementations
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.device = device
+
+        # this may be called policy_net in other implementations
+        self.actor_net = actor_network.to(self.device)
+
+        # this may be called soft_q_net in other implementations
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
 
         self.gamma = gamma
         self.tau = tau
-        self.per_alpha = alpha
+        self.per_alpha = per_alpha
 
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.device = device
-
         self.target_entropy = -action_num
-        
-         # RD-PER parameters
+
+        # RD-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
         self.min_priority = 1
-        self.noise_clip = 0.5
-        self.policy_noise = 0.2
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -56,43 +54,38 @@ class RDSAC:
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0 #0.01
+        init_temperature = 1.0  # 0.01
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
-    
-    def _split_output(self, target):
+
+    def _split_output(
+        self, target: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
     # pylint: disable-next=unused-argument
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0):
+    def select_action_from_policy(
+        self, state: list[float], evaluation: bool = False, noise_scale: float = 0
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
-        # so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                (
-                    action,
-                    _,
-                    _,
-                ) = self.actor_net.sample(state_tensor)
+                (action, _, _) = self.actor_net.sample(state_tensor)
             else:
-                (
-                    _,
-                    _,
-                    action,
-                ) = self.actor_net.sample(state_tensor)
+                (_, _, action) = self.actor_net.sample(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
 
     @property
-    def alpha(self):
+    def alpha(self) -> float:
         return self.log_alpha.exp()
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)
@@ -111,7 +104,7 @@ class RDSAC:
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
-        
+
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
@@ -149,12 +142,12 @@ class RDSAC:
             )
             next_values_one, _, _ = self._split_output(target_q_values_one)
             next_values_two, _, _ = self._split_output(target_q_values_two)
-            min_next_target = torch.minimum(next_values_one, next_values_two).reshape(-1, 1)
+            min_next_target = torch.minimum(next_values_one, next_values_two).reshape(
+                -1, 1
+            )
             target_q_values = min_next_target - self.alpha * next_log_pi
-            
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
-            
 
         diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
         diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
@@ -191,7 +184,6 @@ class RDSAC:
         )
 
         memory.update_priorities(indices, priorities)
-        
 
         pi, log_pi, _ = self.actor_net.sample(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
@@ -199,7 +191,7 @@ class RDSAC:
         qf_pi_two, _, _ = self._split_output(qf2_pi)
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
-        actor_loss = torch.mean(((self.alpha * log_pi) - min_qf_pi)*weights)
+        actor_loss = torch.mean(((self.alpha * log_pi) - min_qf_pi) * weights)
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
@@ -219,10 +211,8 @@ class RDSAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
-       
 
-
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -233,7 +223,7 @@ class RDSAC:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
