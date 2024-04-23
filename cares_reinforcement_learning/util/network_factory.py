@@ -4,11 +4,7 @@ import sys
 
 import torch
 
-from cares_reinforcement_learning.util.configurations import (
-    AlgorithmConfig,
-    DynaSACConfig,
-    SACConfig,
-)
+from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 
 # Disable these as this is a deliberate use of dynamic imports
@@ -121,7 +117,7 @@ def create_DynaSAC(observation_size, action_num, config: DynaSACConfig):
     return agent
 
 
-def create_DynaSAC_Reweight(observation_size, action_num, config: DynaSACConfig):
+def create_DynaSAC_Reweight(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
@@ -161,10 +157,7 @@ def create_DynaSAC_Reweight(observation_size, action_num, config: DynaSACConfig)
     return agent
 
 
-def create_SAC(observation_size, action_num, config: SACConfig):
-    """
-    Create an SAC agent.
-    """
+def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
