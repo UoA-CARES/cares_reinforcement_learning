@@ -70,7 +70,7 @@ class LA3PSAC:
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
-    
+
     @property
     def alpha(self):
         return self.log_alpha.exp()
@@ -105,22 +105,24 @@ class LA3PSAC:
         # Update Actor
         next_actions, next_log_pi, _ = self.actor_net.sample(states)
         target_q_values_one, target_q_values_two = self.target_critic_net(
-                states, next_actions
-            )
+            states, next_actions
+        )
         min_q_values = torch.minimum(target_q_values_one, target_q_values_two)
-        actor_loss = ((self.alpha * next_log_pi) -min_q_values).mean()
-        
+        actor_loss = ((self.alpha * next_log_pi) - min_q_values).mean()
+
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
-        
+
         # update the temperature
-        alpha_loss = -(self.log_alpha * (next_log_pi + self.target_entropy).detach()).mean()
+        alpha_loss = -(
+            self.log_alpha * (next_log_pi + self.target_entropy).detach()
+        ).mean()
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
-        
+
     def _train_critic(
         self, states, actions, rewards, next_states, dones, uniform_sampling
     ):
