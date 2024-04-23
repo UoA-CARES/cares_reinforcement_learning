@@ -305,7 +305,8 @@ class MAPERSACConfig(AlgorithmConfig):
     gamma: Optional[float] = 0.98
     tau: Optional[float] = 0.02
     per_alpha: Optional[float] = 0.7
-    
+
+
 class LA3PSACConfig(AlgorithmConfig):
     algorithm: str = Field("LA3PSAC", Literal=True)
 
