@@ -28,15 +28,17 @@ class LA3PSAC:
         device,
     ):
         self.type = "policy"
+        self.device = device
+        
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)  # .to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net)  # .to(device)
 
         self.gamma = gamma
         self.tau = tau
         self.per_alpha = per_alpha
+        
         self.min_priority = min_priority
         self.prioritized_fraction = prioritized_fraction
 
@@ -44,7 +46,7 @@ class LA3PSAC:
         self.policy_update_freq = 1
 
         self.target_entropy = -action_num
-        self.device = device
+        
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -78,32 +80,19 @@ class LA3PSAC:
     def _update_target_network(self):
         # Update target network params
         for target_param, param in zip(
-            self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
+            self.target_critic_net.parameters(), self.critic_net.parameters()
         ):
             target_param.data.copy_(
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
-
-        for target_param, param in zip(
-            self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
-
-        for target_param, param in zip(
-            self.target_actor_net.parameters(), self.actor_net.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
+      
 
     def _train_actor(self, states):
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         # Update Actor
-        next_actions, next_log_pi, _ = self.actor_net.sample(states)
+        next_actions, next_log_pi, _ = self.actor_net(states)
         target_q_values_one, target_q_values_two = self.target_critic_net(
             states, next_actions
         )
@@ -212,9 +201,12 @@ class LA3PSAC:
         )
 
         memory.update_priorities(indices, priorities)
+        
+        #Train Actor
+        self._train_actor(states)
+        
 
         if policy_update:
-            self._train_actor(states)
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
@@ -231,14 +223,14 @@ class LA3PSAC:
         )
 
         memory.update_priorities(indices, priorities)
+        if policy_update:
+            self._update_target_network()
 
         ######################### ACTOR PRIORITIZED SAMPLING #########################
-        if policy_update:
-            experiences = memory.sample_inverse_priority(priority_batch_size)
-            states, actions, rewards, next_states, dones, indices, _ = experiences
+        experiences = memory.sample_inverse_priority(priority_batch_size)
+        states, actions, rewards, next_states, dones, indices, _ = experiences
 
-            self._train_actor(states)
-            self._update_target_network()
+        self._train_actor(states)
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath
