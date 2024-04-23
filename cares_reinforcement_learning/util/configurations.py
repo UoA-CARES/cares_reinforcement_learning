@@ -55,7 +55,7 @@ class AlgorithmConfig(SubscriptableClass):
 
     algorithm: str = Field(description="Name of the algorithm to be used")
     G: Optional[int] = 1
-    G_model: Optional[float] = 1
+    G_model: Optional[int] = 1
     buffer_size: Optional[int] = 1000000
     batch_size: Optional[int] = 256
     max_steps_exploration: Optional[int] = 1000
