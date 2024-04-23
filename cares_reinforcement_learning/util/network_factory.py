@@ -495,6 +495,7 @@ def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
+
 def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PSAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
