@@ -29,7 +29,7 @@ class LA3PSAC:
     ):
         self.type = "policy"
         self.device = device
-        
+
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
@@ -38,7 +38,7 @@ class LA3PSAC:
         self.gamma = gamma
         self.tau = tau
         self.per_alpha = per_alpha
-        
+
         self.min_priority = min_priority
         self.prioritized_fraction = prioritized_fraction
 
@@ -46,7 +46,6 @@ class LA3PSAC:
         self.policy_update_freq = 1
 
         self.target_entropy = -action_num
-        
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -85,7 +84,6 @@ class LA3PSAC:
             target_param.data.copy_(
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
-      
 
     def _train_actor(self, states):
         # Convert into tensor
@@ -201,10 +199,9 @@ class LA3PSAC:
         )
 
         memory.update_priorities(indices, priorities)
-        
-        #Train Actor
+
+        # Train Actor
         self._train_actor(states)
-        
 
         if policy_update:
             self._update_target_network()
