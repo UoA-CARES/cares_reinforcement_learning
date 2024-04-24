@@ -37,8 +37,11 @@ class PrioritizedReplayBuffer:
         sample_consecutive(batch_size): Randomly samples consecutive experiences from the memory buffer.
     """
 
-    def __init__(self, max_capacity: int = int(1e6), **priority_params):
+    def __init__(
+        self, max_capacity: int = int(1e6), alpha: float = 1.0, **priority_params
+    ):
         self.priority_params = priority_params
+        self.alpha = alpha
 
         self.max_capacity = max_capacity
 
@@ -56,7 +59,7 @@ class PrioritizedReplayBuffer:
         # n ... = []
 
         # The SumTree is an efficient data structure for sampling based on priorities
-        self.tree = SumTree(self.max_capacity)
+        self.sum_tree = SumTree(self.max_capacity)
         # The location to add the next item into the tree - index for the SumTree
         self.tree_pointer = 0
 
@@ -102,7 +105,8 @@ class PrioritizedReplayBuffer:
             # This adds to the latest position in the buffer
             self.memory_buffers[index][self.tree_pointer] = exp
 
-        self.tree.set(self.tree_pointer, self.max_priority)
+        new_priority = self.max_priority**self.alpha
+        self.sum_tree.set(self.tree_pointer, new_priority)
 
         self.tree_pointer = (self.tree_pointer + 1) % self.max_capacity
         self.current_size = min(self.current_size + 1, self.max_capacity)
@@ -131,12 +135,17 @@ class PrioritizedReplayBuffer:
 
         return (*experiences, indices.tolist())
 
-    def sample_priority(self, batch_size: int) -> tuple:
+    def sample_priority(self, batch_size: int, stratified: bool = True) -> tuple:
         """
         Samples experiences from the prioritized replay buffer.
 
+        PER Paper: https://arxiv.org/pdf/1511.05952.pdf
+
+        Stratifed vs Simple: https://www.sagepub.com/sites/default/files/upm-binaries/40803_5.pdf
+
         Args:
             batch_size (int): The number of experiences to sample.
+            stratified (bool): Whether to use stratified priority sampling.
 
         Returns:
             tuple: A tuple containing the sampled experiences, indices, and weights.
@@ -146,12 +155,37 @@ class PrioritizedReplayBuffer:
         """
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
-        indices = self.tree.sample(batch_size)
 
-        weights = self.tree.levels[-1][indices] ** -self.beta
+        if stratified:
+            indices = self.sum_tree.sample_stratified(batch_size)
+        else:
+            indices = self.sum_tree.sample_simple(batch_size)
+
+        max_value = self.sum_tree.levels[0][0]
+
+        priorities = self.sum_tree.levels[-1][indices]
+
+        # We define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
+        # where p_i > 0 is the priority of transition i. (Section 3.3)
+        probabilities = priorities / max_value
+
+        # The estimation of the expected value with stochastic updates relies on those updates corresponding
+        # to the same distribution as its expectation. Prioritized replay introduces bias because it changes this
+        # distribution in an uncontrolled fashion, and therefore changes the solution that the estimates will
+        # converge to (even if the policy and state distribution are fixed). We can correct this bias by using
+        # importance-sampling (IS) weights w_i = (1/N * 1/P(i))^β that fully compensates for the non-uniform
+        # probabilities P(i) if β = 1. These weights can be folded into the Q-learning update by using w_i * δ_i
+        # instead of δ_i (this is thus weighted IS, not ordinary IS, see e.g. Mahmood et al., 2014).
+        # For stability reasons, we always normalize weights by 1/maxi wi so that they only scale the
+        # update downwards (Section 3.4, first paragraph)
+        weights = (probabilities * self.current_size) ** (-self.beta)
         weights /= weights.max()
 
-        # Prevents priorities from being zero
+        # We therefore exploit the flexibility of annealing the amount of importance-sampling
+        # correction over time, by defining a schedule on the exponent β that reaches 1 only at the end of
+        # learning. In practice, we linearly anneal β from its initial value β0 to 1. Note that the choice of this
+        # hyperparameter interacts with choice of prioritization exponent α; increasing both simultaneously
+        # prioritizes sampling more aggressively at the same time as correcting for it more strongly.
         self.beta = min(self.beta + 2e-7, 1)
 
         # Extracts the experiences at the desired indices from the buffer
@@ -183,18 +217,18 @@ class PrioritizedReplayBuffer:
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
-        top_value = self.tree.levels[0][0]
+        top_value = self.sum_tree.levels[0][0]
 
         # Inverse based on paper for LA3PD - https://arxiv.org/abs/2209.00532
         reversed_priorities = top_value / (
-            self.tree.levels[-1][: self.current_size] + 1e-6
+            self.sum_tree.levels[-1][: self.current_size] + 1e-6
         )
 
         inverse_tree = SumTree(self.max_capacity)
 
         inverse_tree.batch_set(np.arange(self.tree_pointer), reversed_priorities)
 
-        indices = inverse_tree.sample(batch_size)
+        indices = inverse_tree.sample_stratified(batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []
@@ -219,8 +253,9 @@ class PrioritizedReplayBuffer:
         Returns:
         None
         """
+        # TODO add **self.alpha -> remove from algorithm and add here
         self.max_priority = max(priorities.max(), self.max_priority)
-        self.tree.batch_set(indices, priorities)
+        self.sum_tree.batch_set(indices, priorities)
 
     def flush(self) -> list[tuple]:
         """
@@ -322,6 +357,6 @@ class PrioritizedReplayBuffer:
         self.current_size = 0
         self.memory_buffers = []
 
-        self.tree = SumTree(self.max_capacity)
+        self.sum_tree = SumTree(self.max_capacity)
         self.max_priority = 1.0
         self.beta = 0.4
