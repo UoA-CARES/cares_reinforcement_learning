@@ -54,6 +54,7 @@ class EnsembleWorldAndOneReward:
 
         # Bring all reward prediction and dynamic rediction networks to device.
         self.device = device
+        self.reward_network.to(self.device)
         for model in self.models:
             model.to(device)
 
