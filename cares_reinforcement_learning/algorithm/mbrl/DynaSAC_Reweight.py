@@ -17,13 +17,20 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 from cares_reinforcement_learning.util import sampling
 
+from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
+    EnsembleWorldReward,
+)
+from cares_reinforcement_learning.networks.world_models.ensemble_world import (
+    EnsembleWorldAndOneReward,
+)
+
 
 class DynaSAC_Reweight:
     def __init__(
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        world_network: object,
+        world_network: EnsembleWorldAndOneReward,
         gamma: float,
         tau: float,
         action_num: int,
@@ -153,39 +160,53 @@ class DynaSAC_Reweight:
     def train_world_model(
         self, memory: PrioritizedReplayBuffer, batch_size: int
     ) -> None:
-        experiences = memory.sample_consecutive(batch_size)
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, _, _ = experiences
 
-        (
-            states,
-            actions,
-            rewards,
-            next_states,
-            _,
-            _,
-            next_actions,
-            next_rewards,
-            _,
-            _,
-            _,
-        ) = experiences
+        # experiences = memory.sample_consecutive(batch_size)
+        #
+        # (
+        #     states,
+        #     actions,
+        #     rewards,
+        #     next_states,
+        #     _,
+        #     _,
+        #     next_actions,
+        #     next_rewards,
+        #     _,
+        #     _,
+        #     _,
+        # ) = experiences
 
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        next_rewards = (
-            torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
-        )
-        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
+        # next_rewards = (
+        #     torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
+        # )
+        # next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
 
-        # Step 1 train the world model.
+        # # Step 1 train the world model.
+        # self.world_model.train_world(
+        #     states=states,
+        #     actions=actions,
+        #     rewards=rewards,
+        #     next_states=next_states,
+        #     next_actions=next_actions,
+        #     next_rewards=next_rewards,
+        # )
+
         self.world_model.train_world(
             states=states,
             actions=actions,
-            rewards=rewards,
             next_states=next_states,
-            next_actions=next_actions,
-            next_rewards=next_rewards,
+        )
+        self.world_model.train_reward(
+            states=states,
+            actions=actions,
+            rewards=rewards,
         )
 
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
@@ -229,6 +250,7 @@ class DynaSAC_Reweight:
             # This part is controversial. But random actions is empirically better.
             rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
             pred_acts = torch.FloatTensor(rand_acts).to(self.device)
+
             pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                 pred_state, pred_acts
             )
@@ -238,7 +260,8 @@ class DynaSAC_Reweight:
             uncert = uncert.unsqueeze(dim=1).to(self.device)
 
             pred_uncerts.append(uncert)
-            pred_reward, _ = self.world_model.pred_rewards(pred_state, pred_acts)
+            pred_reward = self.world_model.pred_rewards(pred_state, pred_acts)
+
             pred_states.append(pred_state)
             pred_actions.append(pred_acts.detach())
             pred_rs.append(pred_reward.detach())

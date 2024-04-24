@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.util.helpers import weight_init
 
 
-class SimpleReward(nn.Module):
+class ProbabilityReward(nn.Module):
     def __init__(self, observation_size: int, num_actions: int, hidden_size: int):
         """
         Note, This reward function is limited to 0 ~ 1 for dm_control.
@@ -20,7 +20,8 @@ class SimpleReward(nn.Module):
         self.num_actions = num_actions
         self.linear1 = nn.Linear(observation_size + num_actions, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
-        self.linear3 = nn.Linear(hidden_size, 1)
+        self.mean = nn.Linear(hidden_size, 1)
+        self.var = nn.Linear(hidden_size, 1)
         self.apply(weight_init)
 
     def forward(
@@ -45,7 +46,10 @@ class SimpleReward(nn.Module):
         x = F.relu(x)
         x = self.linear2(x)
         x = F.relu(x)
-        rwd_mean = self.linear3(x)
+        rwd_mean = self.mean(x)
+        rwd_var = self.var(x)
+        logvar = torch.tanh(rwd_var)
+        rwd_var = torch.exp(logvar)
         if normalized:
             rwd_mean = F.sigmoid(rwd_mean)
-        return rwd_mean
+        return rwd_mean, rwd_var

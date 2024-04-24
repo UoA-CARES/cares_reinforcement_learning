@@ -15,6 +15,10 @@ from cares_reinforcement_learning.networks.world_models.simple_dynamics import (
 from cares_reinforcement_learning.networks.world_models.simple_rewards import (
     SimpleReward,
 )
+# from cares_reinforcement_learning.networks.world_models.probability_rewards import (
+#     ProbabilityReward,
+# )
+
 from cares_reinforcement_learning.util.helpers import normalize_observation_delta
 
 
@@ -105,8 +109,9 @@ class IntegratedWorldModel:
             input=normalized_mean, target=delta_targets_normalized, var=normalized_var
         ).mean()
 
-        rwd_mean, rwd_var = self.reward_network.forward(pred_next_state, next_actions)
-        rwd_loss = F.gaussian_nll_loss(input=rwd_mean, target=next_rewards, var=rwd_var)
+        rwd_mean = self.reward_network.forward(pred_next_state, next_actions)
+        # rwd_loss = F.gaussian_nll_loss(input=rwd_mean, target=next_rewards, var=rwd_var)
+        rwd_loss = F.mse_loss(rwd_mean, next_rewards)
         all_loss = rwd_loss + model_loss.mean()
 
         # Update
@@ -186,7 +191,7 @@ class EnsembleWorldReward:
         """
         rewards = []
         for model in self.models:
-            pred_rewards, _ = model.reward_network.forward(observation, actions)
+            pred_rewards = model.reward_network.forward(observation, actions)
             rewards.append(pred_rewards)
         # Use average
         rewards = torch.stack(rewards)

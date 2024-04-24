@@ -86,13 +86,14 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldReward(
+    world_model = EnsembleWorldAndOneReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
@@ -126,13 +127,14 @@ def create_DynaSAC_Reweight(observation_size, action_num, config: AlgorithmConfi
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_Reweight
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldReward(
+    world_model = EnsembleWorldAndOneReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
