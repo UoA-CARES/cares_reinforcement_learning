@@ -1,4 +1,4 @@
-import math
+import random
 
 import numpy as np
 
@@ -48,6 +48,24 @@ class SumTree(object):
             level_size *= 2
             self.levels.append(np.zeros(level_size))
 
+    def sample_value(self, query_value: int = None) -> int:
+        """Samples an element from the sum tree.
+
+        Each element has probability p_i / sum_j p_j of being picked, where p_i is
+        the (positive) value associated with node i (possibly unnormalized).
+
+        Args:
+            query_value: float in [0, 1], used as the random value to select a sample.
+            If None, will select one randomly in [0, 1).
+
+        Returns:
+            int, a random element from the sum tree.
+        """
+        # Sample a value in range [0, R), where R is the value stored at the root.
+        query_value = random.random() if query_value is None else query_value
+        query_value *= self.levels[0][0]
+        return self._retrieve([query_value])[0]
+
     def sample(self, batch_size: int) -> list[int]:
         """
         Samples indices from the sum tree based on a given batch size.
@@ -62,19 +80,50 @@ class SumTree(object):
         Returns:
             numpy.ndarray: An array of sampled indices.
         """
-        value = np.random.uniform(0, self.levels[0][0], size=batch_size)
-        ind = np.zeros(batch_size, dtype=int)
+        values = np.random.uniform(0, self.levels[0][0], size=batch_size)
+        return self._retrieve(values)
 
+    def sample_stratified(self, batch_size):
+        """Performs stratified sampling using the sum tree.
+
+        Let R be the value at the root (total value of sum tree). This method will
+        divide [0, R) into batch_size segments, pick a random number from each of
+        those segments, and use that random number to sample from the sum_tree. This
+        is as specified in Schaul et al. (2015).
+
+        Args:
+            batch_size: int, the number of strata to use.
+
+        Returns:
+            list of batch_size elements sampled from the sum tree.
+        """
+
+        bounds = np.linspace(0.0, 1.0, batch_size + 1)
+
+        segments = [(bounds[i], bounds[i + 1]) for i in range(batch_size)]
+
+        query_values = [
+            random.uniform(x[0], x[1]) * self.levels[0][0] for x in segments
+        ]
+
+        # return [self.sample_value(query_value=x) for x in query_values]
+        return self._retrieve(query_values)
+
+    def _retrieve(self, values):
+        ind = np.zeros(len(values), dtype=int)
         for nodes in self.levels[1:]:
             ind *= 2
             left_sum = nodes[ind]
+            # right_sum = nodes[ind + 1]
 
-            is_greater = np.greater(value, left_sum)
+            is_greater = np.greater(values, left_sum)
+
             # If value > left_sum -> go right (+1), else go left (+0)
             ind += is_greater
+
             # If we go right, we only need to consider the values in the right tree
             # so we subtract the sum of values in the left tree
-            value -= left_sum * is_greater
+            values -= left_sum * is_greater
 
         return ind
 
