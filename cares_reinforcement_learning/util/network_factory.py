@@ -130,6 +130,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
         gamma=config.gamma,
         tau=config.tau,
         reward_scale=config.reward_scale,
