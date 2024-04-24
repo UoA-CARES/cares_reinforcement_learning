@@ -155,6 +155,7 @@ class PrioritizedReplayBuffer:
         """
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
+
         if stratified:
             indices = self.sum_tree.sample_stratified(batch_size)
         else:
@@ -180,7 +181,11 @@ class PrioritizedReplayBuffer:
         weights = (probabilities * self.current_size) ** (-self.beta)
         weights /= weights.max()
 
-        # Prevents priorities from being zero
+        # We therefore exploit the flexibility of annealing the amount of importance-sampling
+        # correction over time, by defining a schedule on the exponent β that reaches 1 only at the end of
+        # learning. In practice, we linearly anneal β from its initial value β0 to 1. Note that the choice of this
+        # hyperparameter interacts with choice of prioritization exponent α; increasing both simultaneously
+        # prioritizes sampling more aggressively at the same time as correcting for it more strongly.
         self.beta = min(self.beta + 2e-7, 1)
 
         # Extracts the experiences at the desired indices from the buffer
