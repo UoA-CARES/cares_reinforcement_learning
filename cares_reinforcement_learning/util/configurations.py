@@ -305,3 +305,15 @@ class MAPERSACConfig(AlgorithmConfig):
     gamma: Optional[float] = 0.98
     tau: Optional[float] = 0.02
     per_alpha: Optional[float] = 0.7
+
+
+class LA3PSACConfig(AlgorithmConfig):
+    algorithm: str = Field("LA3PSAC", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    per_alpha: Optional[float] = 0.6
+    min_priority: Optional[float] = 1.0
+    prioritized_fraction: Optional[float] = 0.5

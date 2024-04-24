@@ -496,6 +496,30 @@ def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import LA3PSAC
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = LA3PSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        prioritized_fraction=config.prioritized_fraction,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
         algorithm = config.algorithm
