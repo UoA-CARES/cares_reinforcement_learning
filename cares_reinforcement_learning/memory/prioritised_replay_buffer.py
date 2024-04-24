@@ -139,7 +139,7 @@ class PrioritizedReplayBuffer:
         """
         Samples experiences from the prioritized replay buffer.
 
-        # PER Paper: https://arxiv.org/pdf/1511.05952.pdf
+        PER Paper: https://arxiv.org/pdf/1511.05952.pdf
 
         Stratifed vs Simple: https://www.sagepub.com/sites/default/files/upm-binaries/40803_5.pdf
 
@@ -158,7 +158,7 @@ class PrioritizedReplayBuffer:
         if stratified:
             indices = self.sum_tree.sample_stratified(batch_size)
         else:
-            indices = self.sum_tree.sample(batch_size)
+            indices = self.sum_tree.sample_simple(batch_size)
 
         max_value = self.sum_tree.levels[0][0]
 
@@ -248,7 +248,7 @@ class PrioritizedReplayBuffer:
         Returns:
         None
         """
-        # TODO add **self.alpha
+        # TODO add **self.alpha -> remove from algorithm and add here
         self.max_priority = max(priorities.max(), self.max_priority)
         self.sum_tree.batch_set(indices, priorities)
 

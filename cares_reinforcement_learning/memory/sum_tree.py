@@ -66,7 +66,7 @@ class SumTree(object):
         query_value *= self.levels[0][0]
         return self._retrieve([query_value])[0]
 
-    def sample(self, batch_size: int) -> list[int]:
+    def sample_simple(self, batch_size: int) -> list[int]:
         """
         Samples indices from the sum tree based on a given batch size.
 
@@ -83,13 +83,15 @@ class SumTree(object):
         values = np.random.uniform(0, self.levels[0][0], size=batch_size)
         return self._retrieve(values)
 
-    def sample_stratified(self, batch_size):
+    def sample_stratified(self, batch_size: int) -> list[int]:
         """Performs stratified sampling using the sum tree.
 
         Let R be the value at the root (total value of sum tree). This method will
         divide [0, R) into batch_size segments, pick a random number from each of
         those segments, and use that random number to sample from the sum_tree. This
         is as specified in Schaul et al. (2015).
+
+        PER Paper: https://arxiv.org/pdf/1511.05952.pdf
 
         Args:
             batch_size: int, the number of strata to use.
@@ -105,11 +107,19 @@ class SumTree(object):
         query_values = [
             random.uniform(x[0], x[1]) * self.levels[0][0] for x in segments
         ]
-
-        # return [self.sample_value(query_value=x) for x in query_values]
         return self._retrieve(query_values)
 
-    def _retrieve(self, values):
+    def _retrieve(self, values: np.ndarray) -> list[int]:
+        """
+        Retrieves the indices of the values in the sum tree that correspond to the given array of values.
+
+        Args:
+            values (np.ndarray): The array of values for which to retrieve the indices.
+
+        Returns:
+            list[int]: The indices of the values in the sum tree.
+
+        """
         ind = np.zeros(len(values), dtype=int)
         for nodes in self.levels[1:]:
             ind *= 2

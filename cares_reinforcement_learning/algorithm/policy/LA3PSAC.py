@@ -10,22 +10,23 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as helpers
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
 class LA3PSAC:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        per_alpha,
-        min_priority,
-        prioritized_fraction,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        gamma: float,
+        tau: float,
+        per_alpha: float,
+        min_priority: float,
+        prioritized_fraction: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        device: torch.device,
     ):
         self.type = "policy"
         self.device = device
@@ -58,7 +59,9 @@ class LA3PSAC:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.0):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.0
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
@@ -73,10 +76,10 @@ class LA3PSAC:
         return action
 
     @property
-    def alpha(self):
+    def alpha(self) -> float:
         return self.log_alpha.exp()
 
-    def _update_target_network(self):
+    def _update_target_network(self) -> None:
         # Update target network params
         for target_param, param in zip(
             self.target_critic_net.parameters(), self.critic_net.parameters()
@@ -85,7 +88,7 @@ class LA3PSAC:
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
 
-    def _train_actor(self, states):
+    def _train_actor(self, states: np.ndarray) -> None:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
@@ -111,8 +114,14 @@ class LA3PSAC:
         self.log_alpha_optimizer.step()
 
     def _train_critic(
-        self, states, actions, rewards, next_states, dones, uniform_sampling
-    ):
+        self,
+        states: np.ndarray,
+        actions: np.ndarray,
+        rewards: np.ndarray,
+        next_states: np.ndarray,
+        dones: np.ndarray,
+        uniform_sampling: bool,
+    ) -> np.ndarray:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -177,7 +186,7 @@ class LA3PSAC:
 
         return priorities
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -229,7 +238,7 @@ class LA3PSAC:
 
         self._train_actor(states)
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -240,7 +249,7 @@ class LA3PSAC:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
