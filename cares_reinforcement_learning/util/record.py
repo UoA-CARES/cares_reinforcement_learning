@@ -75,6 +75,7 @@ class Record:
         self.video = cv2.VideoWriter(
             video_name, cv2.VideoWriter_fourcc(*"mp4v"), fps, (width, height)
         )
+        self.log_video(frame)
 
     def stop_video(self):
         self.video.release()

@@ -15,6 +15,9 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
+    EnsembleWorldReward,
+)
 
 
 class DynaSAC:
@@ -22,7 +25,7 @@ class DynaSAC:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        world_network: torch.nn.Module,
+        world_network: EnsembleWorldReward,
         gamma: float,
         tau: float,
         action_num: int,
