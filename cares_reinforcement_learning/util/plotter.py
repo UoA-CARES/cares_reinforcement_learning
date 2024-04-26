@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 from glob import glob
 
 import matplotlib.pyplot as plt
@@ -50,7 +51,7 @@ def plot_data(
         alpha=0.4,
     )
 
-    plt.legend(fontsize="15", loc="lower right")
+    plt.legend(fontsize="15", loc="upper left")
 
     # Resize the plotted figure. Pixel = DPI * Inch. PLT Default DPI: 100.
     fig = plt.gcf()
@@ -190,8 +191,10 @@ def main():
     labels = []
     title = "Undefined Task"
 
-    for data_directory in args["data_path"]:
-        logging.info(f"Processing Data for {data_directory}")
+    for d, data_directory in enumerate(args["data_path"]):
+        logging.info(
+            f"Processing {d+1}/{len(args['data_path'])} Data for {data_directory}"
+        )
         result_directories = glob(f"{data_directory}/*")
 
         average_train_data = pd.DataFrame()
@@ -223,6 +226,12 @@ def main():
             logging.info(
                 f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}"
             )
+
+            if "train.csv" not in os.listdir(f"{result_directory}/data"):
+                logging.warning(
+                    f"Skipping {result_directory} as it does not have train.csv"
+                )
+                continue
 
             train_data = pd.read_csv(f"{result_directory}/data/train.csv")
             eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
