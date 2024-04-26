@@ -38,8 +38,8 @@ class LA3PSAC:
 
         self.gamma = gamma
         self.tau = tau
-        self.per_alpha = per_alpha
 
+        self.per_alpha = per_alpha
         self.min_priority = min_priority
         self.prioritized_fraction = prioritized_fraction
 
@@ -152,16 +152,16 @@ class LA3PSAC:
 
         if uniform_sampling:
             pal_loss_one = helpers.prioritized_approximate_loss(
-                td_error_one, self.min_priority, self.alpha
+                td_error_one, self.min_priority, self.per_alpha
             )
             pal_loss_two = helpers.prioritized_approximate_loss(
-                td_error_two, self.min_priority, self.alpha
+                td_error_two, self.min_priority, self.per_alpha
             )
             critic_loss_total = pal_loss_one + pal_loss_two
             critic_loss_total /= (
                 torch.max(td_error_one, td_error_two)
                 .clamp(min=self.min_priority)
-                .pow(self.alpha)
+                .pow(self.per_alpha)
                 .mean()
                 .detach()
             )
@@ -178,7 +178,7 @@ class LA3PSAC:
         priorities = (
             torch.max(td_error_one, td_error_two)
             .clamp(min=self.min_priority)
-            .pow(self.alpha)
+            .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()
@@ -216,7 +216,9 @@ class LA3PSAC:
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
-        experiences = memory.sample_priority(priority_batch_size)
+        experiences = memory.sample_priority(
+            batch_size, sampling="simple", prioritisation="LAP"
+        )
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
         priorities = self._train_critic(

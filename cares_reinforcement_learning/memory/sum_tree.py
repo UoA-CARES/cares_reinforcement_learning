@@ -105,7 +105,8 @@ class SumTree(object):
         segments = [(bounds[i], bounds[i + 1]) for i in range(batch_size)]
 
         query_values = [
-            random.uniform(x[0], x[1]) * self.levels[0][0] for x in segments
+            random.uniform(segment[0], segment[1]) * self.levels[0][0]
+            for segment in segments
         ]
         return self._retrieve(query_values)
 

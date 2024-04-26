@@ -17,7 +17,7 @@ class RDTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha: float,
+        per_alpha: float,
         min_priority: float,
         action_num: int,
         actor_lr: float,
@@ -36,7 +36,9 @@ class RDTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+
+        self.per_alpha = per_alpha
+        self.min_priority = min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -49,7 +51,6 @@ class RDTD3:
         # RD-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
-        self.min_priority = min_priority
 
         self.actor_net_optimiser = optim.Adam(self.actor_net.parameters(), lr=actor_lr)
 
@@ -177,7 +178,7 @@ class RDTD3:
         priorities = (
             torch.max(diff_reward_one, diff_reward_two)
             .clamp(min=self.min_priority)
-            .pow(self.alpha)
+            .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()

@@ -177,13 +177,11 @@ class RDSAC:
         priorities = (
             torch.max(diff_reward_one, diff_reward_two)
             .clamp(min=self.min_priority)
-            .pow(self.alpha)
+            .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()
         )
-
-        memory.update_priorities(indices, priorities)
 
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
@@ -211,6 +209,8 @@ class RDSAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
+
+        memory.update_priorities(indices, priorities)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

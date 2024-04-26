@@ -19,7 +19,8 @@ class PERTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha: float,
+        per_alpha: float,
+        min_priority: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
@@ -34,7 +35,9 @@ class PERTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+
+        self.per_alpha = per_alpha
+        self.min_priroity = min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -119,9 +122,11 @@ class PERTD3:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
+        # Update the Priorities
         priorities = (
             torch.max(td_error_one, td_error_two)
-            .pow(self.alpha)
+            .clamp(self.min_priroity)
+            .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()

@@ -55,6 +55,7 @@ class SAC:
             self.critic_net.parameters(), lr=critic_lr
         )
 
+        # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
@@ -137,10 +138,13 @@ class SAC:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        # update the temperature
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        # update the temperature (alpha)
+        temperature_loss = -(
+            self.log_alpha * (log_pi + self.target_entropy).detach()
+        ).mean()
+
         self.log_alpha_optimizer.zero_grad()
-        alpha_loss.backward()
+        temperature_loss.backward()
         self.log_alpha_optimizer.step()
 
         if self.learn_counter % self.policy_update_freq == 0:

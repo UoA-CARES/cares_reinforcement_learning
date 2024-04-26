@@ -20,7 +20,7 @@ class LAPTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha: float,
+        per_alpha: float,
         min_priority: float,
         action_num: int,
         actor_lr: float,
@@ -38,12 +38,12 @@ class LAPTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+
+        self.per_alpha = per_alpha
+        self.min_priority = min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
-
-        self.min_priority = min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -77,7 +77,9 @@ class LAPTD3:
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
-        experiences = memory.sample_priority(batch_size)
+        experiences = memory.sample_priority(
+            batch_size, sampling="simple", prioritisation="LAP"
+        )
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
@@ -124,7 +126,8 @@ class LAPTD3:
 
         priorities = (
             torch.max(td_error_one, td_error_two)
-            .pow(self.alpha)
+            .clamp(self.min_priority)
+            .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()

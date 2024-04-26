@@ -20,7 +20,7 @@ class LA3PTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha: float,
+        per_alpha: float,
         min_priority: float,
         prioritized_fraction: float,
         action_num: int,
@@ -39,13 +39,13 @@ class LA3PTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+
+        self.per_alpha = per_alpha
+        self.min_priority = min_priority
+        self.prioritized_fraction = prioritized_fraction
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
-
-        self.min_priority = min_priority
-        self.prioritized_fraction = prioritized_fraction
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -150,18 +150,20 @@ class LA3PTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
+        # Handle per alpha here or not...
         if uniform_sampling:
             pal_loss_one = helpers.prioritized_approximate_loss(
-                td_error_one, self.min_priority, self.alpha
+                td_error_one, self.min_priority, self.per_alpha
             )
             pal_loss_two = helpers.prioritized_approximate_loss(
-                td_error_two, self.min_priority, self.alpha
+                td_error_two, self.min_priority, self.per_alpha
             )
             critic_loss_total = pal_loss_one + pal_loss_two
+
             critic_loss_total /= (
                 torch.max(td_error_one, td_error_two)
                 .clamp(min=self.min_priority)
-                .pow(self.alpha)
+                .pow(self.per_alpha)
                 .mean()
                 .detach()
             )
@@ -177,7 +179,8 @@ class LA3PTD3:
 
         priorities = (
             torch.max(td_error_one, td_error_two)
-            .pow(self.alpha)
+            .clamp(self.min_priority)
+            .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()
@@ -213,7 +216,9 @@ class LA3PTD3:
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
-        experiences = memory.sample_priority(priority_batch_size)
+        experiences = memory.sample_priority(
+            batch_size, sampling="simple", prioritisation="LAP"
+        )
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
         priorities = self._train_critic(

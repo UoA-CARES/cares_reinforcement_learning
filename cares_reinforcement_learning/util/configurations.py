@@ -66,6 +66,8 @@ class AlgorithmConfig(SubscriptableClass):
     noise_scale: Optional[float] = 0.1
     noise_decay: Optional[float] = 1.0
 
+    # Determines how much prioritization is used, α = 0 corresponding to the uniform case
+
 
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
@@ -170,77 +172,6 @@ class NaSATD3Config(AlgorithmConfig):
     intrinsic_on: Optional[int] = 1
 
 
-class CTD4Config(AlgorithmConfig):
-    algorithm: str = Field("CTD4", Literal=True)
-
-    actor_lr: Optional[float] = 1e-4
-    critic_lr: Optional[float] = 1e-3
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    ensemble_size: Optional[int] = 3
-
-    min_noise: Optional[float] = 0.0
-    noise_decay: Optional[float] = 0.999999
-    noise_scale: Optional[float] = 0.1
-
-    fusion_method: Optional[str] = "kalman"  # kalman, minimum, average
-
-
-class RDTD3Config(AlgorithmConfig):
-    algorithm: str = Field("RDTD3", Literal=True)
-
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.7
-    min_priority: Optional[float] = 1.0
-
-
-class PERTD3Config(AlgorithmConfig):
-    algorithm: str = Field("PERTD3", Literal=True)
-
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.6
-
-
-class LAPTD3Config(AlgorithmConfig):
-    algorithm: str = Field("LAPTD3", Literal=True)
-
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.6
-    min_priority: Optional[float] = 1.0
-
-
-class PALTD3Config(AlgorithmConfig):
-    algorithm: str = Field("PALTD3", Literal=True)
-
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.4
-    min_priority: Optional[float] = 1.0
-
-
-class LA3PTD3Config(AlgorithmConfig):
-    algorithm: str = Field("LA3PTD3", Literal=True)
-
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.4
-    min_priority: Optional[float] = 1.0
-    prioritized_fraction: Optional[float] = 0.5
-
-
 class REDQConfig(AlgorithmConfig):
     algorithm: str = Field("REDQ", Literal=True)
     actor_lr: Optional[float] = 3e-4
@@ -267,6 +198,35 @@ class TQCConfig(AlgorithmConfig):
     num_nets: Optional[int] = 5
 
 
+class CTD4Config(AlgorithmConfig):
+    algorithm: str = Field("CTD4", Literal=True)
+
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    ensemble_size: Optional[int] = 3
+
+    min_noise: Optional[float] = 0.0
+    noise_decay: Optional[float] = 0.999999
+    noise_scale: Optional[float] = 0.1
+
+    fusion_method: Optional[str] = "kalman"  # kalman, minimum, average
+
+
+class PERTD3Config(AlgorithmConfig):
+    algorithm: str = Field("PERTD3", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.6
+    min_priority: Optional[float] = 1e-6
+
+
 class PERSACConfig(AlgorithmConfig):
     algorithm: str = Field("PERSAC", Literal=True)
 
@@ -274,37 +234,50 @@ class PERSACConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    alpha: Optional[float] = 0.6
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.6
+    min_priority: Optional[float] = 1e-6
 
 
-class RDSACConfig(AlgorithmConfig):
-    algorithm: str = Field("RDSAC", Literal=True)
+class LAPTD3Config(AlgorithmConfig):
+    algorithm: str = Field("LAPTD3", Literal=True)
 
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    per_alpha: Optional[float] = 0.7
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.4
+    min_priority: Optional[float] = 1.0
 
 
-class MAPERTD3Config(AlgorithmConfig):
-    algorithm: str = Field("MAPERTD3", Literal=True)
+class PALTD3Config(AlgorithmConfig):
+    algorithm: str = Field("PALTD3", Literal=True)
 
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
-    gamma: Optional[float] = 0.98
+    gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-    per_alpha: Optional[float] = 0.7
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.6
+    min_priority: Optional[float] = 1.0
 
 
-class MAPERSACConfig(AlgorithmConfig):
-    algorithm: str = Field("MAPERSAC", Literal=True)
+class LA3PTD3Config(AlgorithmConfig):
+    algorithm: str = Field("LA3PTD3", Literal=True)
 
-    actor_lr: Optional[float] = 7.3e-4
-    critic_lr: Optional[float] = 7.3e-4
-    gamma: Optional[float] = 0.98
-    tau: Optional[float] = 0.02
-    per_alpha: Optional[float] = 0.7
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.6
+    min_priority: Optional[float] = 1.0
+    prioritized_fraction: Optional[float] = 0.5
 
 
 class LA3PSACConfig(AlgorithmConfig):
@@ -314,6 +287,60 @@ class LA3PSACConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+
+    beta: Optional[float] = 0.4
     per_alpha: Optional[float] = 0.6
     min_priority: Optional[float] = 1.0
     prioritized_fraction: Optional[float] = 0.5
+
+
+class MAPERTD3Config(AlgorithmConfig):
+    algorithm: str = Field("MAPERTD3", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.98
+    tau: Optional[float] = 0.005
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.7
+    min_priority: Optional[float] = 1e-6
+
+
+class MAPERSACConfig(AlgorithmConfig):
+    algorithm: str = Field("MAPERSAC", Literal=True)
+
+    actor_lr: Optional[float] = 7.3e-4
+    critic_lr: Optional[float] = 7.3e-4
+    gamma: Optional[float] = 0.98
+    tau: Optional[float] = 0.02
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.7
+    min_priority: Optional[float] = 1e-6
+
+
+class RDTD3Config(AlgorithmConfig):
+    algorithm: str = Field("RDTD3", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.7
+    min_priority: Optional[float] = 1.0
+
+
+class RDSACConfig(AlgorithmConfig):
+    algorithm: str = Field("RDSAC", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    beta: Optional[float] = 0.4
+    per_alpha: Optional[float] = 0.7
+    min_priority: Optional[float] = 1.0

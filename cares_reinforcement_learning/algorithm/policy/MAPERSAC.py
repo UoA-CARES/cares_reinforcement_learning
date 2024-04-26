@@ -22,6 +22,7 @@ class MAPERSAC:
         gamma: float,
         tau: float,
         per_alpha: float,
+        min_priority: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
@@ -38,7 +39,9 @@ class MAPERSAC:
 
         self.gamma = gamma
         self.tau = tau
+
         self.per_alpha = per_alpha
+        self.min_priority = min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 1
@@ -48,7 +51,7 @@ class MAPERSAC:
         # MAPER-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
-        self.min_priority = 1
+
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
@@ -216,6 +219,9 @@ class MAPERSAC:
                 )
             ]
         ).reshape(-1)
+
+        priorities.clip(min=self.min_priority)
+        priorities = priorities**self.per_alpha
 
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)

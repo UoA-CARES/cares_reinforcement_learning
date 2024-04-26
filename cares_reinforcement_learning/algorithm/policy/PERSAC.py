@@ -16,7 +16,8 @@ class PERSAC:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha: float,
+        per_alpha: float,
+        min_priroity: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
@@ -34,7 +35,9 @@ class PERSAC:
 
         self.gamma = gamma
         self.tau = tau
-        self.per_alpha = alpha
+
+        self.per_alpha = per_alpha
+        self.min_priroity = min_priroity
 
         self.learn_counter = 0
         self.policy_update_freq = 1
@@ -72,7 +75,7 @@ class PERSAC:
         return action
 
     @property
-    def alpha(self) -> float:
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
@@ -123,16 +126,6 @@ class PERSAC:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        # Update the Priorities
-        priorities = (
-            torch.max(td_error_one, td_error_two)
-            .pow(self.per_alpha)
-            .cpu()
-            .data.numpy()
-            .flatten()
-        )
-        memory.update_priorities(indices, priorities)
-
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
@@ -150,6 +143,16 @@ class PERSAC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
+        # Update the Priorities
+        priorities = (
+            torch.max(td_error_one, td_error_two)
+            .clamp(self.min_priroity)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
+
         if self.learn_counter % self.policy_update_freq == 0:
             for target_param, param in zip(
                 self.target_critic_net.parameters(), self.critic_net.parameters()
@@ -157,6 +160,8 @@ class PERSAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
+
+        memory.update_priorities(indices, priorities)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

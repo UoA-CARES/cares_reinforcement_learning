@@ -22,6 +22,7 @@ class MAPERTD3:
         gamma: float,
         tau: float,
         per_alpha: float,
+        min_priority: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
@@ -38,7 +39,9 @@ class MAPERTD3:
 
         self.gamma = gamma
         self.tau = tau
+
         self.per_alpha = per_alpha
+        self.min_priority = min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -51,7 +54,6 @@ class MAPERTD3:
         # MAPER-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
-        self.min_priority = 1
 
         self.actor_net_optimiser = optim.Adam(self.actor_net.parameters(), lr=actor_lr)
 
@@ -212,6 +214,9 @@ class MAPERTD3:
                 )
             ]
         ).reshape(-1)
+
+        priorities.clip(min=self.min_priority)
+        priorities = priorities**self.per_alpha
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor

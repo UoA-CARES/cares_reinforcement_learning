@@ -38,11 +38,13 @@ class PrioritizedReplayBuffer:
     """
 
     def __init__(
-        self, max_capacity: int = int(1e6), alpha: float = 1.0, **priority_params
+        self,
+        max_capacity: int = int(1e6),
+        min_priority: float = 1e-4,
+        beta: float = 0.4,
+        d_beta: float = 6e-7,
+        **priority_params,
     ):
-        self.priority_params = priority_params
-        self.alpha = alpha
-
         self.max_capacity = max_capacity
 
         # size is the current size of the buffer
@@ -63,8 +65,16 @@ class PrioritizedReplayBuffer:
         # The location to add the next item into the tree - index for the SumTree
         self.tree_pointer = 0
 
-        self.max_priority = 1.0
-        self.beta = 0.4
+        # Minimum priroity (aka epsilon), prevents zero probabilities
+        self.min_priority = min_priority
+
+        # Determines the amount of importance-sampling correction, b = 1 fully compensate for the non-uniform probabilities
+        self.init_beta = beta
+        self.beta = self.init_beta
+        self.d_beta = d_beta
+
+        # Current max priority, init as min priority
+        self.max_priority = self.min_priority
 
     def __len__(self) -> int:
         """
@@ -105,7 +115,7 @@ class PrioritizedReplayBuffer:
             # This adds to the latest position in the buffer
             self.memory_buffers[index][self.tree_pointer] = exp
 
-        new_priority = self.max_priority**self.alpha
+        new_priority = self.max_priority
         self.sum_tree.set(self.tree_pointer, new_priority)
 
         self.tree_pointer = (self.tree_pointer + 1) % self.max_capacity
@@ -135,11 +145,70 @@ class PrioritizedReplayBuffer:
 
         return (*experiences, indices.tolist())
 
-    def sample_priority(self, batch_size: int, stratified: bool = True) -> tuple:
+    # IS
+    def _importance_sampling_prioritised_weights(
+        self, indices: list[int]
+    ) -> np.ndarray:
         """
-        Samples experiences from the prioritized replay buffer.
+        Calculates the importance-sampling weights for prioritized replay.
 
         PER Paper: https://arxiv.org/pdf/1511.05952.pdf
+
+        Args:
+            indices (list[int]): A list of indices representing the transitions to calculate weights for.
+
+        Returns:
+            np.ndarray: An array of importance-sampling weights.
+
+        Notes:
+            - The importance-sampling weights are used to compensate for the non-uniform probabilities of sampling transitions.
+            - The weights are calculated using the formula w_i = (1/N * 1/P(i))^β, where N is the current size of the replay buffer,
+              P(i) is the priority of transition i, and β is a hyperparameter.
+            - The weights are then normalized by dividing them by the maximum weight to ensure stability.
+
+        References:
+            - Section 3.3: Prioritized Experience Replay, Schaul et al., 2015
+            - Section 3.4: Prioritized Experience Replay, Schaul et al., 2015
+        """
+
+        max_value = self.sum_tree.levels[0][0]
+
+        priorities = self.sum_tree.levels[-1][indices]
+
+        probabilities = priorities / max_value
+
+        weights = (probabilities * self.current_size) ** (-self.beta)
+        weights /= weights.max()
+
+        return weights
+
+    def _loss_adjusted_prioritised_weights(self, indices: list[int]) -> np.ndarray:
+        """
+        Calculates the loss-adjusted prioritised (LAP) weights for the given indices.
+
+        LAP (PAL) Paper: https://arxiv.org/abs/2007.06049
+
+        Args:
+            indices (list[int]): The indices of the samples in the replay buffer.
+
+        Returns:
+            np.ndarray: The loss-adjusted prioritised (LAP) weights.
+        """
+
+        weights = self.sum_tree.levels[-1][indices] ** -self.beta
+
+        weights /= weights.max()
+
+        return weights
+
+    def sample_priority(
+        self,
+        batch_size: int,
+        sampling: str = "stratified",
+        prioritisation: str = "IS",
+    ) -> tuple:
+        """
+        Samples experiences from the prioritized replay buffer.
 
         Stratifed vs Simple: https://www.sagepub.com/sites/default/files/upm-binaries/40803_5.pdf
 
@@ -156,37 +225,26 @@ class PrioritizedReplayBuffer:
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
-        if stratified:
+        if sampling == "simple":
+            indices = self.sum_tree.sample_simple(batch_size)
+        elif sampling == "stratified":
             indices = self.sum_tree.sample_stratified(batch_size)
         else:
-            indices = self.sum_tree.sample_simple(batch_size)
+            raise ValueError(f"Unkown sampling scheme: {sampling}")
 
-        max_value = self.sum_tree.levels[0][0]
-
-        priorities = self.sum_tree.levels[-1][indices]
-
-        # We define the probability of sampling transition i as P(i) = p_i^α / \sum_{k} p_k^α
-        # where p_i > 0 is the priority of transition i. (Section 3.3)
-        probabilities = priorities / max_value
-
-        # The estimation of the expected value with stochastic updates relies on those updates corresponding
-        # to the same distribution as its expectation. Prioritized replay introduces bias because it changes this
-        # distribution in an uncontrolled fashion, and therefore changes the solution that the estimates will
-        # converge to (even if the policy and state distribution are fixed). We can correct this bias by using
-        # importance-sampling (IS) weights w_i = (1/N * 1/P(i))^β that fully compensates for the non-uniform
-        # probabilities P(i) if β = 1. These weights can be folded into the Q-learning update by using w_i * δ_i
-        # instead of δ_i (this is thus weighted IS, not ordinary IS, see e.g. Mahmood et al., 2014).
-        # For stability reasons, we always normalize weights by 1/maxi wi so that they only scale the
-        # update downwards (Section 3.4, first paragraph)
-        weights = (probabilities * self.current_size) ** (-self.beta)
-        weights /= weights.max()
+        if prioritisation == "IS":
+            weights = self._importance_sampling_prioritised_weights(indices)
+        elif prioritisation == "LAP":
+            weights = self._loss_adjusted_prioritised_weights(indices)
+        else:
+            raise ValueError(f"Unkown prioritisation scheme: {prioritisation}")
 
         # We therefore exploit the flexibility of annealing the amount of importance-sampling
         # correction over time, by defining a schedule on the exponent β that reaches 1 only at the end of
         # learning. In practice, we linearly anneal β from its initial value β0 to 1. Note that the choice of this
         # hyperparameter interacts with choice of prioritization exponent α; increasing both simultaneously
         # prioritizes sampling more aggressively at the same time as correcting for it more strongly.
-        self.beta = min(self.beta + 2e-7, 1)
+        self.beta = min(self.beta + self.d_beta, 1)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []
@@ -226,7 +284,7 @@ class PrioritizedReplayBuffer:
 
         inverse_tree = SumTree(self.max_capacity)
 
-        inverse_tree.batch_set(np.arange(self.tree_pointer), reversed_priorities)
+        inverse_tree.batch_set(np.arange(self.current_size), reversed_priorities)
 
         indices = inverse_tree.sample_stratified(batch_size)
 
@@ -253,7 +311,9 @@ class PrioritizedReplayBuffer:
         Returns:
         None
         """
-        # TODO add **self.alpha -> remove from algorithm and add here
+        # Add epislon to avoid zero probabilities and apply alpha to the priorities
+        priorities = priorities + self.min_priority
+
         self.max_priority = max(priorities.max(), self.max_priority)
         self.sum_tree.batch_set(indices, priorities)
 
@@ -358,5 +418,5 @@ class PrioritizedReplayBuffer:
         self.memory_buffers = []
 
         self.sum_tree = SumTree(self.max_capacity)
-        self.max_priority = 1.0
-        self.beta = 0.4
+        self.max_priority = self.min_priority
+        self.beta = self.init_beta
