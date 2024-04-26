@@ -37,7 +37,7 @@ class PERTD3:
         self.tau = tau
 
         self.per_alpha = per_alpha
-        self.min_priroity = min_priority
+        self.min_priority = min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -125,7 +125,7 @@ class PERTD3:
         # Update the Priorities
         priorities = (
             torch.max(td_error_one, td_error_two)
-            .clamp(self.min_priroity)
+            .clamp(self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()

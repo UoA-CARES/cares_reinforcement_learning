@@ -286,7 +286,7 @@ class PrioritizedReplayBuffer:
 
         inverse_tree.batch_set(np.arange(self.current_size), reversed_priorities)
 
-        indices = inverse_tree.sample_stratified(batch_size)
+        indices = inverse_tree.sample_simple(batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []
@@ -311,9 +311,6 @@ class PrioritizedReplayBuffer:
         Returns:
         None
         """
-        # Add epislon to avoid zero probabilities and apply alpha to the priorities
-        priorities = priorities + self.min_priority
-
         self.max_priority = max(priorities.max(), self.max_priority)
         self.sum_tree.batch_set(indices, priorities)
 

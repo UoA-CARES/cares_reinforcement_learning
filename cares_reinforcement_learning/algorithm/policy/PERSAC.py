@@ -17,7 +17,7 @@ class PERSAC:
         gamma: float,
         tau: float,
         per_alpha: float,
-        min_priroity: float,
+        min_priority: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
@@ -37,7 +37,7 @@ class PERSAC:
         self.tau = tau
 
         self.per_alpha = per_alpha
-        self.min_priroity = min_priroity
+        self.min_priority = min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 1
@@ -146,7 +146,7 @@ class PERSAC:
         # Update the Priorities
         priorities = (
             torch.max(td_error_one, td_error_two)
-            .clamp(self.min_priroity)
+            .clamp(self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()

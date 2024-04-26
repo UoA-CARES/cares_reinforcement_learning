@@ -275,7 +275,7 @@ class LA3PTD3Config(AlgorithmConfig):
     tau: Optional[float] = 0.005
 
     beta: Optional[float] = 0.4
-    per_alpha: Optional[float] = 0.6
+    per_alpha: Optional[float] = 0.4
     min_priority: Optional[float] = 1.0
     prioritized_fraction: Optional[float] = 0.5
 
@@ -289,7 +289,7 @@ class LA3PSACConfig(AlgorithmConfig):
     tau: Optional[float] = 0.005
 
     beta: Optional[float] = 0.4
-    per_alpha: Optional[float] = 0.6
+    per_alpha: Optional[float] = 0.4
     min_priority: Optional[float] = 1.0
     prioritized_fraction: Optional[float] = 0.5
 
