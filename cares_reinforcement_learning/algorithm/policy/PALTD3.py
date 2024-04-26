@@ -76,9 +76,7 @@ class PALTD3:
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
-        experiences = memory.sample_priority(
-            batch_size, sampling="simple", prioritisation="LAP"
-        )
+        experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
