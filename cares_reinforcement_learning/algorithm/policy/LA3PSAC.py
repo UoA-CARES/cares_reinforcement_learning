@@ -135,6 +135,7 @@ class LA3PSAC:
 
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
+            
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
