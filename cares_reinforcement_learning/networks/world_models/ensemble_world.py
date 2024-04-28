@@ -73,8 +73,8 @@ class EnsembleWorldAndOneReward:
         for model in self.models:
             model.statistics = statistics
 
-    def pred_rewards(self, observation: torch.Tensor, actions: torch.Tensor):
-        pred_rewards = self.reward_network(observation, actions)
+    def pred_rewards(self, observation: torch.Tensor):
+        pred_rewards = self.reward_network(observation)
         return pred_rewards
 
     def pred_next_states(
@@ -148,18 +148,18 @@ class EnsembleWorldAndOneReward:
 
     def train_reward(
             self,
-            states: torch.Tensor,
+            next_states: torch.Tensor,
             actions: torch.Tensor,
             rewards: torch.Tensor,
     ) -> None:
-        assert len(states.shape) >= 2
+        assert len(next_states.shape) >= 2
         assert len(actions.shape) == 2
         assert (
-                states.shape[1] + actions.shape[1]
+                next_states.shape[1] + actions.shape[1]
                 == self.num_actions + self.observation_size
         )
         self.reward_optimizer.zero_grad()
-        rwd_mean = self.reward_network.forward(states, actions)
+        rwd_mean = self.reward_network.forward(next_states)
         reward_loss = F.mse_loss(rwd_mean, rewards)
         reward_loss.backward()
         self.reward_optimizer.step()

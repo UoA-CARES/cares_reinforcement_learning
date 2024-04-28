@@ -243,7 +243,7 @@ class DynaSAC:
             pred_next_state, _, _, _ = self.world_model.pred_next_states(
                 pred_state, pred_acts
             )
-            pred_reward = self.world_model.pred_rewards(pred_state, pred_acts)
+            pred_reward = self.world_model.pred_rewards(pred_next_state)
             pred_states.append(pred_state)
             pred_actions.append(pred_acts.detach())
             pred_rs.append(pred_reward.detach())
