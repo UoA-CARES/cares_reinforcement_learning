@@ -140,12 +140,10 @@ class SAC:
         self.actor_net_optimiser.step()
 
         # update the temperature (alpha)
-        temperature_loss = -(
-            self.log_alpha * (log_pi + self.target_entropy).detach()
-        ).mean()
+        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
 
         self.log_alpha_optimizer.zero_grad()
-        temperature_loss.backward()
+        alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
         if self.learn_counter % self.policy_update_freq == 0:

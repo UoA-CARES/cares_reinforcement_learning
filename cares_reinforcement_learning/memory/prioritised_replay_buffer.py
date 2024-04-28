@@ -277,6 +277,7 @@ class PrioritizedReplayBuffer:
 
         top_value = self.sum_tree.levels[0][0]
 
+        # TODO add inverse (1 - prob into SumTree instead)
         # Inverse based on paper for LA3PD - https://arxiv.org/abs/2209.00532
         reversed_priorities = top_value / (
             self.sum_tree.levels[-1][: self.current_size] + 1e-6
