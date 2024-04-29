@@ -199,7 +199,6 @@ class DynaSAC:
         )
         self.world_model.train_reward(
             next_states=next_states,
-            actions=actions,
             rewards=rewards,
         )
 

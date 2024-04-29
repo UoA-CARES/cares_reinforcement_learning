@@ -149,15 +149,14 @@ class EnsembleWorldAndOneReward:
     def train_reward(
             self,
             next_states: torch.Tensor,
-            actions: torch.Tensor,
             rewards: torch.Tensor,
     ) -> None:
         assert len(next_states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert (
-                next_states.shape[1] + actions.shape[1]
-                == self.num_actions + self.observation_size
-        )
+        # assert len(actions.shape) == 2
+        # assert (
+        #         next_states.shape[1] + actions.shape[1]
+        #         == self.num_actions + self.observation_size
+        # )
         self.reward_optimizer.zero_grad()
         rwd_mean = self.reward_network.forward(next_states)
         reward_loss = F.mse_loss(rwd_mean, rewards)

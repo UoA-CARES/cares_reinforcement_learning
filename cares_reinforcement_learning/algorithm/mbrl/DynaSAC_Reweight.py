@@ -126,7 +126,6 @@ class DynaSAC_Reweight:
 
         total_loss_after_one = torch.sum(reweighted_l1_loss_one)
         total_loss_after_two = torch.sum(reweighted_l1_loss_two)
-
         total_loss_one = torch.sum(l1_loss_one)
         total_loss_two = torch.sum(l1_loss_two)
 
@@ -224,7 +223,6 @@ class DynaSAC_Reweight:
         )
         self.world_model.train_reward(
             next_states=next_states,
-            actions=actions,
             rewards=rewards,
         )
 
