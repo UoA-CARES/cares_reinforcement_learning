@@ -247,40 +247,41 @@ class DynaSAC_Reweight:
         pred_rs = []
         pred_n_states = []
         pred_uncerts = []
-        pred_state = next_states
-        for _ in range(self.horizon):
-            pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
-            # This part is controversial. But random actions is empirically better.
-            rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
-            pred_acts = torch.FloatTensor(rand_acts).to(self.device)
+        with torch.no_grad():
+            pred_state = next_states
+            for _ in range(self.horizon):
+                pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
+                # This part is controversial. But random actions is empirically better.
+                rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
+                pred_acts = torch.FloatTensor(rand_acts).to(self.device)
 
-            pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
-                pred_state, pred_acts
+                pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
+                    pred_state, pred_acts
+                )
+
+                uncert = self.sampling(pred_means=pred_mean, pred_vars=pred_var)
+                uncert = 1.5 - uncert
+                uncert = uncert.unsqueeze(dim=1).to(self.device)
+
+                pred_uncerts.append(uncert)
+                pred_reward = self.world_model.pred_rewards(pred_next_state)
+
+                pred_states.append(pred_state)
+                pred_actions.append(pred_acts.detach())
+                pred_rs.append(pred_reward.detach())
+                pred_n_states.append(pred_next_state.detach())
+                pred_state = pred_next_state.detach()
+            pred_states = torch.vstack(pred_states)
+            pred_actions = torch.vstack(pred_actions)
+            pred_rs = torch.vstack(pred_rs)
+            pred_n_states = torch.vstack(pred_n_states)
+            pred_weights = torch.vstack(pred_uncerts)
+            # Pay attention to here! It is dones in the Cares RL Code!
+            pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
+            # states, actions, rewards, next_states, not_dones
+            self._train_policy(
+                pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
             )
-
-            uncert = self.sampling(pred_means=pred_mean, pred_vars=pred_var)
-            uncert = 1.5 - uncert
-            uncert = uncert.unsqueeze(dim=1).to(self.device)
-
-            pred_uncerts.append(uncert)
-            pred_reward = self.world_model.pred_rewards(pred_next_state)
-
-            pred_states.append(pred_state)
-            pred_actions.append(pred_acts.detach())
-            pred_rs.append(pred_reward.detach())
-            pred_n_states.append(pred_next_state.detach())
-            pred_state = pred_next_state.detach()
-        pred_states = torch.vstack(pred_states)
-        pred_actions = torch.vstack(pred_actions)
-        pred_rs = torch.vstack(pred_rs)
-        pred_n_states = torch.vstack(pred_n_states)
-        pred_weights = torch.vstack(pred_uncerts)
-        # Pay attention to here! It is dones in the Cares RL Code!
-        pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
-        # states, actions, rewards, next_states, not_dones
-        self._train_policy(
-            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
-        )
 
     def sampling(self, pred_means, pred_vars):
         """
@@ -290,40 +291,31 @@ class DynaSAC_Reweight:
         :param pred_vars:
         :return:
         """
-        # 5 models, each sampled 10 times = 50,
-        sample1 = torch.distributions.Normal(pred_means[0], pred_vars[0]).sample(
-            [10])
-        rwd_sample1 = self.world_model.pred_rewards(sample1)
+        with torch.no_grad():
+            # 5 models, each sampled 10 times = 50,
+            sample1 = torch.distributions.Normal(pred_means[0], pred_vars[0]).sample(
+                [10])
+            sample2 = torch.distributions.Normal(pred_means[1], pred_vars[1]).sample(
+                [10])
+            sample3 = torch.distributions.Normal(pred_means[2], pred_vars[2]).sample(
+                [10])
+            sample4 = torch.distributions.Normal(pred_means[3], pred_vars[3]).sample(
+                [10])
+            sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
+                [10])
+            samples = torch.cat((sample1, sample2, sample3, sample4, sample5))
+            # samples = torch.cat((sample1, sample2, sample3, sample4, sample5))
+            # Samples = [5 * 10, 10 predictions, 11 state dims]
+            # print(samples.shape)
+            stds = torch.var(samples, dim=0)
+            # print(stds.shape)
+            # [10 predictions, 11 state dims]
+            total_stds = torch.mean(stds, dim=1)
+            # Clip for sigmoid
+            # total_stds[total_stds < 0.2] = 0.0
+            # total_stds[total_stds > 4.0] = 4.0
 
-        sample2 = torch.distributions.Normal(pred_means[1], pred_vars[1]).sample(
-            [10])
-        rwd_sample2 =  self.world_model.pred_rewards(sample2)
-
-        sample3 = torch.distributions.Normal(pred_means[2], pred_vars[2]).sample(
-            [10])
-        rwd_sample3 = self.world_model.pred_rewards(sample3)
-
-        sample4 = torch.distributions.Normal(pred_means[3], pred_vars[3]).sample(
-            [10])
-        rwd_sample4 = self.world_model.pred_rewards(sample4)
-
-        sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
-            [10])
-        rwd_sample5 = self.world_model.pred_rewards(sample5)
-
-        samples = torch.cat((rwd_sample1, rwd_sample2, rwd_sample3, rwd_sample4, rwd_sample5))
-        # samples = torch.cat((sample1, sample2, sample3, sample4, sample5))
-        # Samples = [5 * 10, 10 predictions, 11 state dims]
-        # print(samples.shape)
-        stds = torch.var(samples, dim=0)
-        # print(stds.shape)
-        # [10 predictions, 11 state dims]
-        total_stds = torch.mean(stds, dim=1)
-        # Clip for sigmoid
-        # total_stds[total_stds < 0.2] = 0.0
-        # total_stds[total_stds > 4.0] = 4.0
-
-        total_stds = F.sigmoid(total_stds)  # 0.5 - 1.0
+            total_stds = F.sigmoid(total_stds)  # 0.5 - 1.0
         # total_stds = 1 / total_stds
         # total_stds = total_stds / torch.mean(total_stds)  # if very uncertain,
         # high std, encouraged.
