@@ -1,5 +1,7 @@
 """
 Original Paper: https://arxiv.org/abs/2209.00532
+
+https://github.com/h-yamani/RD-PER-baselines/blob/main/LA3P/LA3P/Code/SAC/LA3P_SAC.py
 """
 
 import copy
@@ -217,9 +219,7 @@ class LA3PSAC:
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
-        experiences = memory.sample_priority(
-            batch_size, sampling="simple", prioritisation="LAP"
-        )
+        experiences = memory.sample_priority(batch_size, sampling="simple")
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
         priorities = self._train_critic(

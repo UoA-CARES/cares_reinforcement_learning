@@ -1,5 +1,7 @@
 """
 Original Paper: https://openreview.net/pdf?id=WuEiafqdy9H
+
+https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithms/td3/matd3.py
 """
 
 import copy
@@ -86,7 +88,9 @@ class MAPERTD3:
         self.learn_counter += 1
 
         # Sample replay buffer
-        experiences = memory.sample_priority(batch_size)
+        experiences = memory.sample_priority(
+            batch_size, sampling="stratified", weight_normalisation="population"
+        )
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
@@ -112,13 +116,16 @@ class MAPERTD3:
             output_two
         )
 
+        # Difference in rewards
         diff_reward_one = 0.5 * torch.pow(
             predicted_reward_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
+
         diff_reward_two = 0.5 * torch.pow(
             predicted_reward_two.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
 
+        # Difference in next states
         diff_next_states_one = 0.5 * torch.mean(
             torch.pow(
                 next_states_one - next_states,

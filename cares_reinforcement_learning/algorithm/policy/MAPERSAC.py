@@ -1,5 +1,7 @@
 """
 Original Paper: https://openreview.net/pdf?id=WuEiafqdy9H
+
+https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithms/sac/masac.py
 """
 
 import copy
@@ -26,6 +28,7 @@ class MAPERSAC:
         action_num: int,
         actor_lr: float,
         critic_lr: float,
+        alpha_lr: float,
         device: torch.device,
     ):
 
@@ -65,7 +68,7 @@ class MAPERSAC:
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
     def _split_output(self, target):
         return target[:, 0], target[:, 1], target[:, 2:]
@@ -94,7 +97,9 @@ class MAPERSAC:
         self.learn_counter += 1
 
         # Sample replay buffer
-        experiences = memory.sample_priority(batch_size)
+        experiences = memory.sample_priority(
+            batch_size, sampling="stratified", weight_normalisation="population"
+        )
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)

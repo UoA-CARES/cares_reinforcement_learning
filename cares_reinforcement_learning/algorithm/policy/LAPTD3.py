@@ -77,10 +77,8 @@ class LAPTD3:
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
-        experiences = memory.sample_priority(
-            batch_size, sampling="simple", prioritisation="LAP"
-        )
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        experiences = memory.sample_priority(batch_size, sampling="simple")
+        states, actions, rewards, next_states, dones, indices, _ = experiences
 
         batch_size = len(states)
 
@@ -90,7 +88,6 @@ class LAPTD3:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)

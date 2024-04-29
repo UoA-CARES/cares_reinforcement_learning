@@ -1,3 +1,10 @@
+"""
+Example Implemtnations:
+https://github.com/Howuhh/prioritized_experience_replay/blob/main/memory/buffer.py
+https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
+
+"""
+
 import random
 
 import numpy as np
@@ -73,8 +80,8 @@ class PrioritizedReplayBuffer:
         self.beta = self.init_beta
         self.d_beta = d_beta
 
-        # Current max priority, init as min priority
-        self.max_priority = self.min_priority
+        # Current max priority
+        self.max_priority = 1.0
 
     def __len__(self) -> int:
         """
@@ -145,17 +152,17 @@ class PrioritizedReplayBuffer:
 
         return (*experiences, indices.tolist())
 
-    # IS
     def _importance_sampling_prioritised_weights(
-        self, indices: list[int]
+        self, indices: list[int], weight_normalisation="batch"
     ) -> np.ndarray:
         """
-        Calculates the importance-sampling weights for prioritized replay.
+        Calculates the importance-sampling weights for prioritized replay and prioritises based on population max.
 
         PER Paper: https://arxiv.org/pdf/1511.05952.pdf
 
         Args:
             indices (list[int]): A list of indices representing the transitions to calculate weights for.
+            weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
             np.ndarray: An array of importance-sampling weights.
@@ -165,39 +172,27 @@ class PrioritizedReplayBuffer:
             - The weights are calculated using the formula w_i = (1/N * 1/P(i))^β, where N is the current size of the replay buffer,
               P(i) is the priority of transition i, and β is a hyperparameter.
             - The weights are then normalized by dividing them by the maximum weight to ensure stability.
-
-        References:
-            - Section 3.3: Prioritized Experience Replay, Schaul et al., 2015
-            - Section 3.4: Prioritized Experience Replay, Schaul et al., 2015
         """
 
         max_value = self.sum_tree.levels[0][0]
 
         priorities = self.sum_tree.levels[-1][indices]
-
         probabilities = priorities / max_value
 
         weights = (probabilities * self.current_size) ** (-self.beta)
-        weights /= weights.max()
 
-        return weights
+        # Batch normalisation is the default and normalises the weights by the maximum weight in the batch
+        if weight_normalisation == "batch":
+            max_weight = weights.max()
+        # Population normalisation normalises the weights by the maximum weight in the population (buffer)
+        elif weight_normalisation == "population":
+            p_min = (
+                self.sum_tree.levels[-1][: self.current_size].min()
+                / self.sum_tree.levels[0][0]
+            )
+            max_weight = (p_min * self.current_size) ** (-self.beta)
 
-    def _loss_adjusted_prioritised_weights(self, indices: list[int]) -> np.ndarray:
-        """
-        Calculates the loss-adjusted prioritised (LAP) weights for the given indices.
-
-        LAP (PAL) Paper: https://arxiv.org/abs/2007.06049
-
-        Args:
-            indices (list[int]): The indices of the samples in the replay buffer.
-
-        Returns:
-            np.ndarray: The loss-adjusted prioritised (LAP) weights.
-        """
-
-        weights = self.sum_tree.levels[-1][indices] ** -self.beta
-
-        weights /= weights.max()
+        weights /= max_weight
 
         return weights
 
@@ -205,7 +200,7 @@ class PrioritizedReplayBuffer:
         self,
         batch_size: int,
         sampling: str = "stratified",
-        prioritisation: str = "IS",
+        weight_normalisation: str = "batch",
     ) -> tuple:
         """
         Samples experiences from the prioritized replay buffer.
@@ -215,6 +210,7 @@ class PrioritizedReplayBuffer:
         Args:
             batch_size (int): The number of experiences to sample.
             stratified (bool): Whether to use stratified priority sampling.
+            weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
             tuple: A tuple containing the sampled experiences, indices, and weights.
@@ -232,12 +228,9 @@ class PrioritizedReplayBuffer:
         else:
             raise ValueError(f"Unkown sampling scheme: {sampling}")
 
-        if prioritisation == "IS":
-            weights = self._importance_sampling_prioritised_weights(indices)
-        elif prioritisation == "LAP":
-            weights = self._loss_adjusted_prioritised_weights(indices)
-        else:
-            raise ValueError(f"Unkown prioritisation scheme: {prioritisation}")
+        weights = self._importance_sampling_prioritised_weights(
+            indices, weight_normalisation=weight_normalisation
+        )
 
         # We therefore exploit the flexibility of annealing the amount of importance-sampling
         # correction over time, by defining a schedule on the exponent β that reaches 1 only at the end of
