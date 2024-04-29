@@ -121,22 +121,8 @@ class DynaSAC_Reweight:
         l1_loss_one = q_values_one - q_target
         l1_loss_two = q_values_two - q_target
 
-        reweighted_l1_loss_one = weights * l1_loss_one
-        reweighted_l1_loss_two = weights * l1_loss_two
-
-        total_loss_after_one = torch.sum(reweighted_l1_loss_one)
-        total_loss_after_two = torch.sum(reweighted_l1_loss_two)
-        total_loss_one = torch.sum(l1_loss_one)
-        total_loss_two = torch.sum(l1_loss_two)
-
-        ratio_one = total_loss_one / total_loss_after_one
-        ratio_two = total_loss_two / total_loss_after_two
-
-        reweighted_l1_loss_one = reweighted_l1_loss_one * ratio_one
-        reweighted_l1_loss_two = reweighted_l1_loss_two * ratio_two
-
-        critic_loss_one = 0.5 * (reweighted_l1_loss_one.pow(2)).mean()
-        critic_loss_two = 0.5 * (reweighted_l1_loss_two.pow(2)).mean()
+        critic_loss_one = 0.5 * (l1_loss_one.pow(2) * weights).mean()
+        critic_loss_two = 0.5 * (l1_loss_two.pow(2) * weights).mean()
 
         # critic_loss_one = F.mse_loss(q_values_one, q_target)
         # critic_loss_two = F.mse_loss(q_values_two, q_target)
