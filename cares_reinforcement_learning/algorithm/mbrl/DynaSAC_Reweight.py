@@ -117,8 +117,27 @@ class DynaSAC_Reweight:
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         q_values_one, q_values_two = self.critic_net(states, actions)
-        critic_loss_one = 0.5 * (weights * (q_values_one - q_target).pow(2)).mean()
-        critic_loss_two = 0.5 * (weights * (q_values_two - q_target).pow(2)).mean()
+
+        l1_loss_one = q_values_one - q_target
+        l1_loss_two = q_values_two - q_target
+
+        reweighted_l1_loss_one = weights * l1_loss_one
+        reweighted_l1_loss_two = weights * l1_loss_two
+
+        total_loss_after_one = torch.sum(reweighted_l1_loss_one)
+        total_loss_after_two = torch.sum(reweighted_l1_loss_two)
+
+        total_loss_one = torch.sum(l1_loss_one)
+        total_loss_two = torch.sum(l1_loss_two)
+
+        ratio_one = total_loss_one / total_loss_after_one
+        ratio_two = total_loss_two / total_loss_after_two
+
+        reweighted_l1_loss_one = reweighted_l1_loss_one * ratio_one
+        reweighted_l1_loss_two = reweighted_l1_loss_two * ratio_two
+
+        critic_loss_one = 0.5 * (reweighted_l1_loss_one.pow(2)).mean()
+        critic_loss_two = 0.5 * (reweighted_l1_loss_two.pow(2)).mean()
 
         # critic_loss_one = F.mse_loss(q_values_one, q_target)
         # critic_loss_two = F.mse_loss(q_values_two, q_target)
@@ -317,8 +336,8 @@ class DynaSAC_Reweight:
         # [10 predictions, 11 state dims]
         total_stds = torch.mean(stds, dim=1)
         # Clip for sigmoid
-        total_stds[total_stds < 0.2] = 0.0
-        total_stds[total_stds > 4.0] = 4.0
+        # total_stds[total_stds < 0.2] = 0.0
+        # total_stds[total_stds > 4.0] = 4.0
 
         total_stds = F.sigmoid(total_stds)  # 0.5 - 1.0
         # total_stds = 1 / total_stds
