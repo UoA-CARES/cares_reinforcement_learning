@@ -298,9 +298,7 @@ class LA3PSACConfig(AlgorithmConfig):
 class MAPERTD3Config(AlgorithmConfig):
     algorithm: str = Field("MAPERTD3", Literal=True)
 
-    max_steps_exploration: Optional[int] = 10000
-
-    batch_size: Optional[int] = 100
+    max_steps_exploration: Optional[int] = 1000
 
     actor_lr: Optional[float] = 1e-3
     critic_lr: Optional[float] = 1e-3
@@ -311,8 +309,8 @@ class MAPERTD3Config(AlgorithmConfig):
     per_alpha: Optional[float] = 0.7
     min_priority: Optional[float] = 1e-6
 
-    G: Optional[int] = 64
-    number_steps_per_train_policy: Optional[int] = 64
+    G: Optional[int] = 1
+    number_steps_per_train_policy: Optional[int] = 1
 
 
 class MAPERSACConfig(AlgorithmConfig):

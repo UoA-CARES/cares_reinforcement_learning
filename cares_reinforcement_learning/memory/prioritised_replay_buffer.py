@@ -237,7 +237,7 @@ class PrioritizedReplayBuffer:
         # learning. In practice, we linearly anneal β from its initial value β0 to 1. Note that the choice of this
         # hyperparameter interacts with choice of prioritization exponent α; increasing both simultaneously
         # prioritizes sampling more aggressively at the same time as correcting for it more strongly.
-        self.beta = min(self.beta + self.d_beta, 1)
+        self.beta = min(self.beta + self.d_beta, 1.0)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []
