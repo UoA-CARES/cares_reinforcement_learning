@@ -1,3 +1,4 @@
+import math
 import random
 
 import numpy as np
@@ -174,3 +175,72 @@ class SumTree(object):
         for nodes in self.levels[::-1]:
             np.add.at(nodes, ind, priority_diff)
             ind //= 2
+
+    def batch_set_v2(
+        self,
+        ind,
+        new_priority,
+    ):
+        max_ind_value = ind[-1]
+
+        if len(ind) % 2 == 0:
+            loop_counter = len(self.levels[::-1])
+
+            for i in range(loop_counter):
+                if i == 0:
+                    self.levels[::-1][i][: len(new_priority)] = new_priority
+
+                    max_ind_value //= 2
+
+                else:
+                    check_cond_1 = max_ind_value + 1
+
+                    if i == 1:
+                        len_priorities = len(new_priority)
+                    else:
+                        len_priorities = len(self.levels[::-1][i - 1][0:dummy])
+
+                    if math.ceil(len_priorities / 2) == check_cond_1:
+                        if i == 1:
+                            self.levels[::-1][i][:check_cond_1] = new_priority[
+                                0:len_priorities:2
+                            ]
+                        else:
+                            self.levels[::-1][i][:check_cond_1] = self.levels[::-1][
+                                i - 1
+                            ][0:dummy][0:len_priorities:2]
+                    else:
+                        if i == 1:
+                            self.levels[::-1][i][: check_cond_1 - 1] = new_priority[
+                                0:len_priorities:2
+                            ]
+                        else:
+                            self.levels[::-1][i][: check_cond_1 - 1] = self.levels[
+                                ::-1
+                            ][i - 1][0:dummy][0:len_priorities:2]
+
+                    if math.floor(len_priorities / 2) == check_cond_1:
+                        if i == 1:
+                            self.levels[::-1][i][:check_cond_1] += new_priority[
+                                1:len_priorities:2
+                            ]
+                        else:
+                            self.levels[::-1][i][:check_cond_1] += self.levels[::-1][
+                                i - 1
+                            ][0:dummy][1:len_priorities:2]
+                    else:
+                        if i == 1:
+                            self.levels[::-1][i][: check_cond_1 - 1] += new_priority[
+                                1:len_priorities:2
+                            ]
+                        else:
+                            self.levels[::-1][i][: check_cond_1 - 1] += self.levels[
+                                ::-1
+                            ][i - 1][0:dummy][1:len_priorities:2]
+
+                    dummy = len_priorities // 2
+
+                    if dummy == 1 or dummy == 0:
+                        dummy = 2
+
+                    max_ind_value //= 2

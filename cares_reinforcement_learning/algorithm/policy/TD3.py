@@ -99,6 +99,7 @@ class TD3:
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values

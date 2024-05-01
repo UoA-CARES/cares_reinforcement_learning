@@ -263,7 +263,7 @@ class PALTD3Config(AlgorithmConfig):
     tau: Optional[float] = 0.005
 
     beta: Optional[float] = 0.4
-    per_alpha: Optional[float] = 0.6
+    per_alpha: Optional[float] = 0.4
     min_priority: Optional[float] = 1.0
 
 
@@ -300,6 +300,8 @@ class MAPERTD3Config(AlgorithmConfig):
 
     max_steps_exploration: Optional[int] = 1000
 
+    batch_size: Optional[int] = 100
+
     actor_lr: Optional[float] = 1e-3
     critic_lr: Optional[float] = 1e-3
     gamma: Optional[float] = 0.98
@@ -309,8 +311,8 @@ class MAPERTD3Config(AlgorithmConfig):
     per_alpha: Optional[float] = 0.7
     min_priority: Optional[float] = 1e-6
 
-    G: Optional[int] = 1
-    number_steps_per_train_policy: Optional[int] = 1
+    G: Optional[int] = 64
+    number_steps_per_train_policy: Optional[int] = 64
 
 
 class MAPERSACConfig(AlgorithmConfig):

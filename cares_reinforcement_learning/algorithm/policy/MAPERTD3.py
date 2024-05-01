@@ -106,9 +106,10 @@ class MAPERTD3:
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
         # Get current Q estimates
-        output_one, output_two = self.critic_net(states.detach(), actions.detach())
+        output_one, output_two = self.critic_net(states, actions)
         q_value_one, predicted_reward_one, next_states_one = self._split_output(
             output_one
         )
@@ -155,7 +156,9 @@ class MAPERTD3:
             next_values_one, _, _ = self._split_output(target_q_values_one)
             next_values_two, _, _ = self._split_output(target_q_values_two)
 
-            target_q_values = torch.min(next_values_one, next_values_two).reshape(-1, 1)
+            target_q_values = torch.minimum(
+                next_values_one.reshape(-1, 1), next_values_two.reshape(-1, 1)
+            )
 
             predicted_rewards = (
                 (
@@ -182,8 +185,8 @@ class MAPERTD3:
             + self.scale_s * diff_next_states_two
         )
 
-        critic_loss_total = (critic_one_loss * weights).mean() + (
-            critic_two_loss * weights
+        critic_loss_total = (critic_one_loss * weights.detach()).mean() + (
+            critic_two_loss * weights.detach()
         ).mean()
 
         # train critic

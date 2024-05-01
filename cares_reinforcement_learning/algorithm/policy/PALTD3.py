@@ -118,6 +118,7 @@ class PALTD3:
             td_error_two, self.min_priority, self.per_alpha
         )
         critic_loss_total = pal_loss_one + pal_loss_two
+
         critic_loss_total /= (
             torch.max(td_error_one, td_error_two)
             .clamp(min=self.min_priority)
@@ -132,9 +133,6 @@ class PALTD3:
         self.critic_net_optimiser.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
-            # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
-            # actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-
             # Update Actor
             actor_q_values, _ = self.critic_net(states, self.actor_net(states))
             actor_loss = -actor_q_values.mean()

@@ -91,6 +91,7 @@ class PERTD3:
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
@@ -113,6 +114,7 @@ class PERTD3:
 
         critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
         critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
+
         critic_loss_total = (critic_loss_one * weights).mean() + (
             critic_loss_two * weights
         ).mean()

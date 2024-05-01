@@ -6,7 +6,7 @@ class Critic(nn.Module):
     def __init__(self, observation_size: int, num_actions: int):
         super().__init__()
 
-        self.hidden_size = [400, 300]
+        self.hidden_size = [256, 256]
 
         # Q1 architecture
         # pylint: disable-next=invalid-name

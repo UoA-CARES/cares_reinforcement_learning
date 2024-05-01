@@ -69,6 +69,8 @@ class PrioritizedReplayBuffer:
 
         # The SumTree is an efficient data structure for sampling based on priorities
         self.sum_tree = SumTree(self.max_capacity)
+        self.inverse_tree = SumTree(self.max_capacity)
+
         # The location to add the next item into the tree - index for the SumTree
         self.tree_pointer = 0
 
@@ -276,11 +278,9 @@ class PrioritizedReplayBuffer:
             self.sum_tree.levels[-1][: self.current_size] + 1e-6
         )
 
-        inverse_tree = SumTree(self.max_capacity)
+        self.inverse_tree.batch_set(np.arange(self.current_size), reversed_priorities)
 
-        inverse_tree.batch_set(np.arange(self.current_size), reversed_priorities)
-
-        indices = inverse_tree.sample_simple(batch_size)
+        indices = self.inverse_tree.sample_simple(batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []

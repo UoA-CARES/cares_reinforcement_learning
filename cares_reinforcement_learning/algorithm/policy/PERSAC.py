@@ -97,6 +97,7 @@ class PERSAC:
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
