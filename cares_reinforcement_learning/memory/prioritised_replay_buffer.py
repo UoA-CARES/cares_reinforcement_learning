@@ -278,7 +278,9 @@ class PrioritizedReplayBuffer:
             self.sum_tree.levels[-1][: self.current_size] + 1e-6
         )
 
-        self.inverse_tree.batch_set(np.arange(self.current_size), reversed_priorities)
+        self.inverse_tree.batch_set_v2(
+            np.arange(self.current_size), reversed_priorities
+        )
 
         indices = self.inverse_tree.sample_simple(batch_size)
 
