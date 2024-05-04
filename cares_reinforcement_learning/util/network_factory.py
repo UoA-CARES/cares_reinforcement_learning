@@ -515,6 +515,7 @@ def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
+        reward_scale=config.reward_scale,
         per_alpha=config.per_alpha,
         min_priority=config.min_priority,
         prioritized_fraction=config.prioritized_fraction,

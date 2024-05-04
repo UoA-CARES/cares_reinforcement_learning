@@ -1,5 +1,5 @@
 matplotlib==3.6.2
-numpy==1.23.5
+numpy==1.26.4
 opencv-contrib-python==4.6.0.66
 pandas==1.5.2
 pydantic==1.10.13

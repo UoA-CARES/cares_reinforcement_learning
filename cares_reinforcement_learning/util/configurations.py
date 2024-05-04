@@ -288,6 +288,7 @@ class LA3PSACConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 5.0
 
     beta: Optional[float] = 0.4
     per_alpha: Optional[float] = 0.4

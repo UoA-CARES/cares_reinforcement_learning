@@ -22,6 +22,7 @@ class LA3PSAC:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
+        reward_scale: float,
         per_alpha: float,
         min_priority: float,
         prioritized_fraction: float,
@@ -40,6 +41,7 @@ class LA3PSAC:
 
         self.gamma = gamma
         self.tau = tau
+        self.reward_scale = reward_scale
 
         self.per_alpha = per_alpha
         self.min_priority = min_priority
@@ -146,7 +148,9 @@ class LA3PSAC:
                 - self.alpha * next_log_pi
             )
 
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            q_target = (
+                rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
+            )
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 

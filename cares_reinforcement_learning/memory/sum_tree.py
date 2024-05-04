@@ -173,6 +173,7 @@ class SumTree(object):
         priority_diff = new_priority[unique_ind] - self.levels[-1][ind]
 
         for nodes in self.levels[::-1]:
+            # Huge speed improvement utilising += over numpy's add.at
             np.add.at(nodes, ind, priority_diff)
             ind //= 2
 
