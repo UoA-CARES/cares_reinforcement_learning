@@ -223,7 +223,7 @@ class LA3PSAC:
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
-        experiences = memory.sample_priority(batch_size, sampling="simple")
+        experiences = memory.sample_priority(priority_batch_size, sampling="simple")
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
         priorities = self._train_critic(
@@ -236,6 +236,7 @@ class LA3PSAC:
         )
 
         memory.update_priorities(indices, priorities)
+
         if policy_update:
             self._update_target_network()
 

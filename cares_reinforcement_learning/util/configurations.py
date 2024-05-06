@@ -144,6 +144,8 @@ class DynaSACConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
 
     alpha_lr: Optional[float] = 3e-4
+
+    # TODO this bool doesn't work as expected - needs to be int 1/0
     use_bounded_active: Optional[bool] = False
     num_models: Optional[int] = 5
 
