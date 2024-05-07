@@ -176,7 +176,7 @@ class LA3PTD3:
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
         priorities = (

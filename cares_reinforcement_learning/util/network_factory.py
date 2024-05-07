@@ -522,6 +522,7 @@ def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
         device=device,
     )
     return agent

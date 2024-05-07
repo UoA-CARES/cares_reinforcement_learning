@@ -29,6 +29,7 @@ class LA3PSAC:
         action_num: int,
         actor_lr: float,
         critic_lr: float,
+        alpha_lr: float,
         device: torch.device,
     ):
         self.type = "policy"
@@ -61,7 +62,7 @@ class LA3PSAC:
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.0
@@ -71,10 +72,10 @@ class LA3PSAC:
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            if evaluation is False:
-                (action, _, _) = self.actor_net(state_tensor)
-            else:
+            if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
+            else:
+                (action, _, _) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -179,7 +180,7 @@ class LA3PSAC:
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
         priorities = (

@@ -288,6 +288,7 @@ class LA3PSACConfig(AlgorithmConfig):
 
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 5.0

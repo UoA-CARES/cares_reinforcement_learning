@@ -72,10 +72,10 @@ class SAC:
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            if evaluation is False:
-                (action, _, _) = self.actor_net(state_tensor)
-            else:
+            if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
+            else:
+                (action, _, _) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
