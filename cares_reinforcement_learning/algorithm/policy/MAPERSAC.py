@@ -215,18 +215,19 @@ class MAPERSAC:
         diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
 
         # calculate priority
-        priorities = np.array(
-            [
-                (
-                    diff_td_mean
-                    + self.scale_s * diff_next_state_mean
-                    + self.scale_r * diff_reward_mean
-                )
-            ]
-        ).reshape(-1)
-
-        priorities.clip(min=self.min_priority)
-        priorities = priorities**self.per_alpha
+        priorities = (
+            diff_td_mean
+            + self.scale_s * diff_next_state_mean
+            + self.scale_r * diff_reward_mean
+        )
+        priorities = torch.Tensor(priorities)
+        priorities = (
+            priorities.clamp(min=self.min_priority)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
