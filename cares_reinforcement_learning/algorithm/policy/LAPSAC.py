@@ -10,6 +10,7 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as helpers
+from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
 class LAPSAC:
@@ -61,7 +62,9 @@ class LAPSAC:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
-    def select_action_from_policy(self, state, evaluation=False, noise_scale=0.1):
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
@@ -75,10 +78,10 @@ class LAPSAC:
         return action
 
     @property
-    def alpha(self):
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def train_policy(self, memory, batch_size):
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)
@@ -161,7 +164,7 @@ class LAPSAC:
 
         memory.update_priorities(indices, priorities)
 
-    def save_models(self, filename, filepath="models"):
+    def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         dir_exists = os.path.exists(path)
 
@@ -172,7 +175,7 @@ class LAPSAC:
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
