@@ -256,6 +256,20 @@ class LAPTD3Config(AlgorithmConfig):
     min_priority: Optional[float] = 1.0
 
 
+class LAPSACConfig(AlgorithmConfig):
+    algorithm: str = Field("LAPSAC", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    per_alpha: Optional[float] = 0.6
+    reward_scale: Optional[float] = 1.0
+    min_priority: Optional[float] = 1.0
+
+
 class PALTD3Config(AlgorithmConfig):
     algorithm: str = Field("PALTD3", Literal=True)
 

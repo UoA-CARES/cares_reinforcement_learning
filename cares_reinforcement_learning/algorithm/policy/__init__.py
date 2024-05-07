@@ -8,6 +8,7 @@ from .RDTD3 import RDTD3
 from .PERTD3 import PERTD3
 from .LA3PTD3 import LA3PTD3
 from .LAPTD3 import LAPTD3
+from .LAPSAC import LAPSAC
 from .MAPERTD3 import MAPERTD3
 from .PALTD3 import PALTD3
 from .REDQ import REDQ
