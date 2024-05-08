@@ -20,7 +20,7 @@ class LAPTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha: float,
+        per_alpha: float,
         min_priority: float,
         action_num: int,
         actor_lr: float,
@@ -38,12 +38,12 @@ class LAPTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+
+        self.per_alpha = per_alpha
+        self.min_priority = min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
-
-        self.min_priority = min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -77,8 +77,8 @@ class LAPTD3:
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
-        experiences = memory.sample_priority(batch_size)
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        experiences = memory.sample_priority(batch_size, sampling="simple")
+        states, actions, rewards, next_states, dones, indices, _ = experiences
 
         batch_size = len(states)
 
@@ -88,7 +88,6 @@ class LAPTD3:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
@@ -124,7 +123,8 @@ class LAPTD3:
 
         priorities = (
             torch.max(td_error_one, td_error_two)
-            .pow(self.alpha)
+            .clamp(min=self.min_priority)
+            .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()

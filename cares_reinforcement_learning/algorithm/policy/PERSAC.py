@@ -1,10 +1,7 @@
-"""
-Original Paper: https://arxiv.org/abs/1511.05952
-"""
-
 import copy
 import logging
 import os
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -12,7 +9,7 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
-class PERTD3:
+class PERSAC:
     def __init__(
         self,
         actor_network: torch.nn.Module,
@@ -27,11 +24,14 @@ class PERTD3:
         device: torch.device,
     ):
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
+        self.device = device
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)
-        self.target_critic_net = copy.deepcopy(self.critic_net)
+        # this may be called policy_net in other implementations
+        self.actor_net = actor_network.to(self.device)
+
+        # this may be called soft_q_net in other implementations
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
 
         self.gamma = gamma
         self.tau = tau
@@ -39,14 +39,10 @@ class PERTD3:
         self.per_alpha = per_alpha
         self.min_priority = min_priority
 
-        self.noise_clip = 0.5
-        self.policy_noise = 0.2
-
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = 1
 
-        self.action_num = action_num
-        self.device = device
+        self.target_entropy = -action_num
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -55,22 +51,32 @@ class PERTD3:
             self.critic_net.parameters(), lr=critic_lr
         )
 
+        # Set to initial alpha to 1.0 according to other baselines.
+        init_temperature = 1.0
+        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+        self.log_alpha.requires_grad = True
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
+
+    # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            action = self.actor_net(state_tensor)
+            state_tensor = torch.FloatTensor(state)
+            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            if evaluation is False:
+                (action, _, _) = self.actor_net(state_tensor)
+            else:
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
-            if not evaluation:
-                # this is part the TD3 too, add noise to the action
-                noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
-                action = action + noise
-                action = np.clip(action, -1, 1)
         self.actor_net.train()
         return action
+
+    @property
+    def alpha(self) -> torch.Tensor:
+        return self.log_alpha.exp()
 
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
@@ -88,22 +94,20 @@ class PERTD3:
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
-        # Reshape to batch_size
+        # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
         weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
-            next_actions = self.target_actor_net(next_states)
-            target_noise = self.policy_noise * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
-            next_actions = next_actions + target_noise
-            next_actions = torch.clamp(next_actions, min=-1, max=1)
-
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
-            target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
+            target_q_values = (
+                torch.minimum(target_q_values_one, target_q_values_two)
+                - self.alpha * next_log_pi
+            )
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -114,7 +118,6 @@ class PERTD3:
 
         critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
         critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
-
         critic_loss_total = (critic_loss_one * weights).mean() + (
             critic_loss_two * weights
         ).mean()
@@ -123,6 +126,23 @@ class PERTD3:
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
+
+        pi, log_pi, _ = self.actor_net(states)
+        qf1_pi, qf2_pi = self.critic_net(states, pi)
+        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+
+        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+
+        # Update the Actor
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+        # update the temperature
+        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        self.log_alpha_optimizer.zero_grad()
+        alpha_loss.backward()
+        self.log_alpha_optimizer.step()
 
         # Update the Priorities
         priorities = (
@@ -135,34 +155,8 @@ class PERTD3:
         )
 
         if self.learn_counter % self.policy_update_freq == 0:
-            # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
-            # actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-
-            # Update Actor
-            actor_q_values, _ = self.critic_net(states, self.actor_net(states))
-            actor_loss = -actor_q_values.mean()
-
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward()
-            self.actor_net_optimiser.step()
-
-            # Update target network params
             for target_param, param in zip(
-                self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_actor_net.parameters(), self.actor_net.parameters()
+                self.target_critic_net.parameters(), self.critic_net.parameters()
             ):
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)

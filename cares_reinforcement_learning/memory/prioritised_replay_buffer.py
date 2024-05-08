@@ -1,3 +1,10 @@
+"""
+Example Implemtnations:
+https://github.com/Howuhh/prioritized_experience_replay/blob/main/memory/buffer.py
+https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
+
+"""
+
 import random
 
 import numpy as np
@@ -37,9 +44,14 @@ class PrioritizedReplayBuffer:
         sample_consecutive(batch_size): Randomly samples consecutive experiences from the memory buffer.
     """
 
-    def __init__(self, max_capacity: int = int(1e6), **priority_params):
-        self.priority_params = priority_params
-
+    def __init__(
+        self,
+        max_capacity: int = int(1e6),
+        min_priority: float = 1e-4,
+        beta: float = 0.4,
+        d_beta: float = 6e-7,
+        **priority_params,
+    ):
         self.max_capacity = max_capacity
 
         # size is the current size of the buffer
@@ -56,12 +68,22 @@ class PrioritizedReplayBuffer:
         # n ... = []
 
         # The SumTree is an efficient data structure for sampling based on priorities
-        self.tree = SumTree(self.max_capacity)
+        self.sum_tree = SumTree(self.max_capacity)
+        self.inverse_tree = SumTree(self.max_capacity)
+
         # The location to add the next item into the tree - index for the SumTree
         self.tree_pointer = 0
 
+        # Minimum priroity (aka epsilon), prevents zero probabilities
+        self.min_priority = min_priority
+
+        # Determines the amount of importance-sampling correction, b = 1 fully compensate for the non-uniform probabilities
+        self.init_beta = beta
+        self.beta = self.init_beta
+        self.d_beta = d_beta
+
+        # Current max priority
         self.max_priority = 1.0
-        self.beta = 0.4
 
     def __len__(self) -> int:
         """
@@ -102,7 +124,8 @@ class PrioritizedReplayBuffer:
             # This adds to the latest position in the buffer
             self.memory_buffers[index][self.tree_pointer] = exp
 
-        self.tree.set(self.tree_pointer, self.max_priority)
+        new_priority = self.max_priority
+        self.sum_tree.set(self.tree_pointer, new_priority)
 
         self.tree_pointer = (self.tree_pointer + 1) % self.max_capacity
         self.current_size = min(self.current_size + 1, self.max_capacity)
@@ -131,12 +154,65 @@ class PrioritizedReplayBuffer:
 
         return (*experiences, indices.tolist())
 
-    def sample_priority(self, batch_size: int) -> tuple:
+    def _importance_sampling_prioritised_weights(
+        self, indices: list[int], weight_normalisation="batch"
+    ) -> np.ndarray:
+        """
+        Calculates the importance-sampling weights for prioritized replay and prioritises based on population max.
+
+        PER Paper: https://arxiv.org/pdf/1511.05952.pdf
+
+        Args:
+            indices (list[int]): A list of indices representing the transitions to calculate weights for.
+            weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
+
+        Returns:
+            np.ndarray: An array of importance-sampling weights.
+
+        Notes:
+            - The importance-sampling weights are used to compensate for the non-uniform probabilities of sampling transitions.
+            - The weights are calculated using the formula w_i = (1/N * 1/P(i))^β, where N is the current size of the replay buffer,
+              P(i) is the priority of transition i, and β is a hyperparameter.
+            - The weights are then normalized by dividing them by the maximum weight to ensure stability.
+        """
+
+        max_value = self.sum_tree.levels[0][0]
+
+        priorities = self.sum_tree.levels[-1][indices]
+        probabilities = priorities / max_value
+
+        weights = (probabilities * self.current_size) ** (-self.beta)
+
+        # Batch normalisation is the default and normalises the weights by the maximum weight in the batch
+        if weight_normalisation == "batch":
+            max_weight = weights.max()
+        # Population normalisation normalises the weights by the maximum weight in the population (buffer)
+        elif weight_normalisation == "population":
+            p_min = (
+                self.sum_tree.levels[-1][: self.current_size].min()
+                / self.sum_tree.levels[0][0]
+            )
+            max_weight = (p_min * self.current_size) ** (-self.beta)
+
+        weights /= max_weight
+
+        return weights
+
+    def sample_priority(
+        self,
+        batch_size: int,
+        sampling: str = "stratified",
+        weight_normalisation: str = "batch",
+    ) -> tuple:
         """
         Samples experiences from the prioritized replay buffer.
 
+        Stratifed vs Simple: https://www.sagepub.com/sites/default/files/upm-binaries/40803_5.pdf
+
         Args:
             batch_size (int): The number of experiences to sample.
+            stratified (bool): Whether to use stratified priority sampling.
+            weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
             tuple: A tuple containing the sampled experiences, indices, and weights.
@@ -146,13 +222,24 @@ class PrioritizedReplayBuffer:
         """
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
-        indices = self.tree.sample(batch_size)
 
-        weights = self.tree.levels[-1][indices] ** -self.beta
-        weights /= weights.max()
+        if sampling == "simple":
+            indices = self.sum_tree.sample_simple(batch_size)
+        elif sampling == "stratified":
+            indices = self.sum_tree.sample_stratified(batch_size)
+        else:
+            raise ValueError(f"Unkown sampling scheme: {sampling}")
 
-        # Prevents priorities from being zero
-        self.beta = min(self.beta + 2e-7, 1)
+        weights = self._importance_sampling_prioritised_weights(
+            indices, weight_normalisation=weight_normalisation
+        )
+
+        # We therefore exploit the flexibility of annealing the amount of importance-sampling
+        # correction over time, by defining a schedule on the exponent β that reaches 1 only at the end of
+        # learning. In practice, we linearly anneal β from its initial value β0 to 1. Note that the choice of this
+        # hyperparameter interacts with choice of prioritization exponent α; increasing both simultaneously
+        # prioritizes sampling more aggressively at the same time as correcting for it more strongly.
+        self.beta = min(self.beta + self.d_beta, 1.0)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []
@@ -183,18 +270,17 @@ class PrioritizedReplayBuffer:
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
-        top_value = self.tree.levels[0][0]
+        top_value = self.sum_tree.levels[0][0]
 
+        # TODO add inverse (1 - prob into SumTree instead)
         # Inverse based on paper for LA3PD - https://arxiv.org/abs/2209.00532
         reversed_priorities = top_value / (
-            self.tree.levels[-1][: self.current_size] + 1e-6
+            self.sum_tree.levels[-1][: self.current_size] + 1e-6
         )
 
-        inverse_tree = SumTree(self.max_capacity)
+        self.inverse_tree.batch_set(np.arange(self.current_size), reversed_priorities)
 
-        inverse_tree.batch_set(np.arange(self.tree_pointer), reversed_priorities)
-
-        indices = inverse_tree.sample(batch_size)
+        indices = self.inverse_tree.sample_simple(batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
         experiences = []
@@ -220,7 +306,7 @@ class PrioritizedReplayBuffer:
         None
         """
         self.max_priority = max(priorities.max(), self.max_priority)
-        self.tree.batch_set(indices, priorities)
+        self.sum_tree.batch_set(indices, priorities)
 
     def flush(self) -> list[tuple]:
         """
@@ -322,6 +408,6 @@ class PrioritizedReplayBuffer:
         self.current_size = 0
         self.memory_buffers = []
 
-        self.tree = SumTree(self.max_capacity)
-        self.max_priority = 1.0
-        self.beta = 0.4
+        self.sum_tree = SumTree(self.max_capacity)
+        self.max_priority = self.min_priority
+        self.beta = self.init_beta

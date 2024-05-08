@@ -261,7 +261,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
-        alpha=config.alpha,
+        per_alpha=config.per_alpha,
         min_priority=config.min_priority,
         action_num=action_num,
         actor_lr=config.actor_lr,
@@ -284,7 +284,8 @@ def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
-        alpha=config.alpha,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
@@ -306,11 +307,36 @@ def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
-        alpha=config.alpha,
+        per_alpha=config.per_alpha,
         min_priority=config.min_priority,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
+def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import LAPSAC
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = LAPSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        reward_scale=config.reward_scale,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
         device=device,
     )
     return agent
@@ -329,32 +355,8 @@ def create_PALTD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
-        alpha=config.alpha,
+        per_alpha=config.per_alpha,
         min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        device=device,
-    )
-    return agent
-
-
-def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.algorithm.policy import LA3PTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
-
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = LA3PTD3(
-        actor_network=actor,
-        critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        alpha=config.alpha,
-        min_priority=config.min_priority,
-        prioritized_fraction=config.prioritized_fraction,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
@@ -376,7 +378,8 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
-        alpha=config.alpha,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
@@ -426,6 +429,125 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
         tau=config.tau,
         top_quantiles_to_drop=config.top_quantiles_to_drop,
         action_num=action_num,
+        device=device,
+    )
+    return agent
+
+
+def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import PERSAC
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = PERSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
+def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import RDSAC
+    from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = RDSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
+def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import MAPERSAC
+    from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = MAPERSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
+        device=device,
+    )
+    return agent
+
+
+def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import LA3PTD3
+    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = LA3PTD3(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        prioritized_fraction=config.prioritized_fraction,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
+def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import LA3PSAC
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = LA3PSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        reward_scale=config.reward_scale,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        prioritized_fraction=config.prioritized_fraction,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
         device=device,
     )
     return agent

@@ -11,23 +11,21 @@ class Actor(nn.Module):
 
     def __init__(self, observation_size: int, num_actions: int):
         super().__init__()
-        self.hidden_size = [256, 256]
+        self.hidden_size = [400, 300]
         self.log_std_bounds = [-20, 2]
 
-        self.act_net = nn.Sequential(
-            nn.Linear(observation_size, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
-        )
-
+        # Two hidden layers, 256 on each
+        self.linear1 = nn.Linear(observation_size, self.hidden_size[0])
+        self.linear2 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
         self.mean_linear = nn.Linear(self.hidden_size[1], num_actions)
         self.log_std_linear = nn.Linear(self.hidden_size[1], num_actions)
+        # self.apply(weight_init)
 
     def forward(
         self, state: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x = self.act_net(state)
+        x = F.relu(self.linear1(state))
+        x = F.relu(self.linear2(x))
         mu = self.mean_linear(x)
         log_std = self.log_std_linear(x)
 

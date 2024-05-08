@@ -1,6 +1,7 @@
 import argparse
 import json
 import logging
+import os
 from glob import glob
 
 import matplotlib.pyplot as plt
@@ -50,7 +51,7 @@ def plot_data(
         alpha=0.4,
     )
 
-    plt.legend(fontsize="15", loc="lower right")
+    plt.legend(fontsize="15", loc="upper left")
 
     # Resize the plotted figure. Pixel = DPI * Inch. PLT Default DPI: 100.
     fig = plt.gcf()
@@ -175,8 +176,12 @@ def parse_args():
 
     parser.add_argument("-p", "--param_tag", type=str, default="")
 
+    parser.add_argument("-ps", "--plot_seeds", type=int, default=0)
+
     # converts into a dictionary
-    return vars(parser.parse_args())
+    args = vars(parser.parse_args())
+    args["plot_seeds"] = True if args["plot_seeds"] == 1 else False
+    return args
 
 
 def main():
@@ -190,8 +195,10 @@ def main():
     labels = []
     title = "Undefined Task"
 
-    for data_directory in args["data_path"]:
-        logging.info(f"Processing Data for {data_directory}")
+    for d, data_directory in enumerate(args["data_path"]):
+        logging.info(
+            f"Processing {d+1}/{len(args['data_path'])} Data for {data_directory}"
+        )
         result_directories = glob(f"{data_directory}/*")
 
         average_train_data = pd.DataFrame()
@@ -219,10 +226,18 @@ def main():
         task = env_config["task"]
         title = task
 
+        seed_plot_frames = []
+        seed_label = []
         for i, result_directory in enumerate(result_directories):
             logging.info(
                 f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}"
             )
+
+            if "train.csv" not in os.listdir(f"{result_directory}/data"):
+                logging.warning(
+                    f"Skipping {result_directory} as it does not have train.csv"
+                )
+                continue
 
             train_data = pd.read_csv(f"{result_directory}/data/train.csv")
             eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
@@ -232,6 +247,23 @@ def main():
             )
             average_eval_data = pd.concat(
                 [average_eval_data, eval_data], ignore_index=True
+            )
+
+            if args["plot_seeds"]:
+                seed_label.append(f"{label}_{i}")
+                seed_plot_frame = prepare_eval_plot_frame(eval_data)
+                seed_plot_frames.append(seed_plot_frame)
+
+        if args["plot_seeds"]:
+            plot_comparisons(
+                seed_plot_frames,
+                f"{title}",
+                seed_label,
+                "Steps",
+                "Average Reward",
+                directory,
+                f"{title}-{algorithm}-eval",
+                False,
             )
 
         eval_plot_frame = prepare_eval_plot_frame(average_eval_data)

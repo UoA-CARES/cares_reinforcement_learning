@@ -19,7 +19,7 @@ class PALTD3:
         critic_network: torch.nn.Module,
         gamma: float,
         tau: float,
-        alpha: float,
+        per_alpha: float,
         min_priority: float,
         action_num: int,
         actor_lr: float,
@@ -37,7 +37,8 @@ class PALTD3:
 
         self.gamma = gamma
         self.tau = tau
-        self.alpha = alpha
+
+        self.per_alpha = per_alpha
         self.min_priority = min_priority
 
         self.noise_clip = 0.5
@@ -111,16 +112,17 @@ class PALTD3:
         td_error_two = (q_values_two - q_target).abs()
 
         pal_loss_one = helpers.prioritized_approximate_loss(
-            td_error_one, self.min_priority, self.alpha
+            td_error_one, self.min_priority, self.per_alpha
         )
         pal_loss_two = helpers.prioritized_approximate_loss(
-            td_error_two, self.min_priority, self.alpha
+            td_error_two, self.min_priority, self.per_alpha
         )
         critic_loss_total = pal_loss_one + pal_loss_two
+
         critic_loss_total /= (
             torch.max(td_error_one, td_error_two)
             .clamp(min=self.min_priority)
-            .pow(self.alpha)
+            .pow(self.per_alpha)
             .mean()
             .detach()
         )
@@ -131,9 +133,6 @@ class PALTD3:
         self.critic_net_optimiser.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
-            # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
-            # actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-
             # Update Actor
             actor_q_values, _ = self.critic_net(states, self.actor_net(states))
             actor_loss = -actor_q_values.mean()
