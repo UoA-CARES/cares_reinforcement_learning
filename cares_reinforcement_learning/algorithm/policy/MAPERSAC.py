@@ -115,6 +115,7 @@ class MAPERSAC:
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        # weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())

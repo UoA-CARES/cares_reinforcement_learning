@@ -123,7 +123,7 @@ class LAPTD3:
 
         priorities = (
             torch.max(td_error_one, td_error_two)
-            .clamp(self.min_priority)
+            .clamp(min=self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()
