@@ -3,7 +3,7 @@ import torch
 from torch import nn
 
 
-def flatten(w, k=3, s=1, p=0, m=True):
+def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     """
     Returns the right size of the flattened tensor after convolutional transformation
     :param w: width of image
@@ -20,19 +20,24 @@ def flatten(w, k=3, s=1, p=0, m=True):
     return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
 
 
-def weight_init(m):
-    """Custom weight init for Conv2D and Linear layers."""
-    if isinstance(m, nn.Linear):
-        nn.init.orthogonal_(m.weight.data)
-        m.bias.data.fill_(0.0)
+# TODO Consider moving to helpers.py?
+def weight_init(module: nn.Module) -> None:
+    """
+    Custom weight init for Conv2D and Linear layers
 
-    elif isinstance(m, (nn.Conv2d, nn.ConvTranspose2d)):
-        assert m.weight.size(2) == m.weight.size(3)
-        m.weight.data.fill_(0.0)
-        m.bias.data.fill_(0.0)
-        mid = m.weight.size(2) // 2
+    delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
+    """
+    if isinstance(module, nn.Linear):
+        nn.init.orthogonal_(module.weight.data)
+        module.bias.data.fill_(0.0)
+
+    elif isinstance(module, (nn.Conv2d, nn.ConvTranspose2d)):
+        assert module.weight.size(2) == module.weight.size(3)
+        module.weight.data.fill_(0.0)
+        module.bias.data.fill_(0.0)
+        mid = module.weight.size(2) // 2
         gain = nn.init.calculate_gain("relu")
-        nn.init.orthogonal_(m.weight.data[:, :, mid, mid], gain)
+        nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
 
 
 def create_autoencoder(
@@ -42,7 +47,19 @@ def create_autoencoder(
     num_filters: int = 32,
     kernel_size: int = 3,
 ) -> tuple[nn.Module, nn.Module]:
+    """
+    Creates an image based autoencoder model consisting of an encoder and a decoder pair.
 
+    Args:
+        observation_size (tuple[int]): The size of the input image observations.
+        latent_dim (int): The dimension of the latent space.
+        num_layers (int, optional): The number of layers in the encoder and decoder. Defaults to 4.
+        num_filters (int, optional): The number of filters in each layer. Defaults to 32.
+        kernel_size (int, optional): The size of the convolutional kernel. Defaults to 3.
+
+    Returns:
+        tuple[nn.Module, nn.Module]: A tuple containing the encoder and decoder modules.
+    """
     encoder = Encoder(
         observation_size, latent_dim, num_layers, num_filters, kernel_size
     )
