@@ -319,7 +319,7 @@ class LA3PSACConfig(AlgorithmConfig):
 class MAPERTD3Config(AlgorithmConfig):
     algorithm: str = Field("MAPERTD3", Literal=True)
 
-    max_steps_exploration: Optional[int] = 1000
+    max_steps_exploration: Optional[int] = 10000
 
     batch_size: Optional[int] = 100
 
@@ -338,6 +338,8 @@ class MAPERTD3Config(AlgorithmConfig):
 
 class MAPERSACConfig(AlgorithmConfig):
     algorithm: str = Field("MAPERSAC", Literal=True)
+
+    max_steps_exploration: Optional[int] = 10000
 
     actor_lr: Optional[float] = 7.3e-4
     critic_lr: Optional[float] = 7.3e-4

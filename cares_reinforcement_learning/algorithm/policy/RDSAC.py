@@ -99,11 +99,12 @@ class RDSAC:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
+        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
