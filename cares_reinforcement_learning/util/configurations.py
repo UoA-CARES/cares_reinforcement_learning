@@ -66,7 +66,10 @@ class AlgorithmConfig(SubscriptableClass):
     noise_scale: Optional[float] = 0.1
     noise_decay: Optional[float] = 1.0
 
+    image_observation: Optional[int] = 0
+
     # Determines how much prioritization is used, α = 0 corresponding to the uniform case
+    # per_alpha
 
 
 class DQNConfig(AlgorithmConfig):
