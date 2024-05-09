@@ -175,9 +175,8 @@ class NaSATD3:
         z_vector = self.encoder(states)
         rec_obs = self.decoder(z_vector)
 
-        target_images = (
-            states / 255
-        )  # this because the states are [0-255] and the predictions are [0-1]
+        # this because the states are [0-255] and the predictions are [0-1]
+        target_images = states / 255
         rec_loss = F.mse_loss(target_images, rec_obs)
 
         latent_loss = (

@@ -58,6 +58,135 @@ class NatureCNN(nn.Module):
         return output
 
 
+class Encoder(nn.Module):
+    def __init__(
+        self,
+        observation_size: tuple[int],
+        latent_dim: int,
+        num_layers: int = 4,
+        num_filters: int = 32,
+    ):
+        super().__init__()
+
+        self.latent_dim = latent_dim
+        self.num_layers = num_layers
+        self.num_filters = num_filters
+
+        self.cov_net = nn.ModuleList(
+            [nn.Conv2d(observation_size[0], self.num_filters, kernel_size=3, stride=2)]
+        )
+        for _ in range(self.num_layers - 1):
+            self.cov_net.append(
+                nn.Conv2d(self.num_filters, self.num_filters, kernel_size=3, stride=1)
+            )
+
+        with torch.no_grad():
+            dummy_image = torch.zeros([1, *observation_size])
+            n_flatten = self._forward_conv(torch.FloatTensor(dummy_image)).shape[1]
+
+        self.fc = nn.Linear(n_flatten, self.latent_dim)
+        self.ln = nn.LayerNorm(self.latent_dim)
+
+        self.apply(weight_init)
+
+    def _forward_conv(self, x: torch.Tensor) -> torch.Tensor:
+        conv = torch.relu(self.cov_net[0](x))
+        for i in range(1, self.num_layers):
+            conv = torch.relu(self.cov_net[i](conv))
+        h = torch.flatten(conv, start_dim=1)
+        return h
+
+    def forward(self, obs: torch.Tensor, detach: bool = False) -> torch.Tensor:
+        h = self._forward_conv(obs)
+        h_fc = self.fc(h)
+        h_norm = self.ln(h_fc)
+        out = torch.tanh(h_norm)
+        if detach:
+            out = out.detach()
+        return out
+
+
+class Decoder(nn.Module):
+    def __init__(
+        self,
+        observation_size: tuple[int],
+        latent_dim: int,
+        n_flatten: int,
+        num_layers: int = 4,
+        num_filters: int = 32,
+    ):
+        super().__init__()
+
+        self.latent_dim = latent_dim
+
+        self.num_layers = num_layers
+        self.num_filters = num_filters
+
+        # resolve 39200
+        self.fc_1 = nn.Linear(self.latent_dim, n_flatten)
+
+        self.deconvs = nn.ModuleList()
+
+        for _ in range(self.num_layers - 1):
+            self.deconvs.append(
+                nn.ConvTranspose2d(
+                    in_channels=self.num_filters,
+                    out_channels=self.num_filters,
+                    kernel_size=3,
+                    stride=1,
+                )
+            )
+
+        self.deconvs.append(
+            nn.ConvTranspose2d(
+                in_channels=self.num_filters,
+                out_channels=observation_size[0],
+                kernel_size=3,
+                stride=2,
+                output_padding=1,
+            )
+        )
+        # nn.Sequential(
+        #     nn.ConvTranspose2d(
+        #         in_channels=self.num_filters,
+        #         out_channels=self.num_filters,
+        #         kernel_size=3,
+        #         stride=1,
+        #     ),
+        #     nn.ReLU(),
+        #     nn.ConvTranspose2d(
+        #         in_channels=self.num_filters,
+        #         out_channels=self.num_filters,
+        #         kernel_size=3,
+        #         stride=1,
+        #     ),
+        #     nn.ReLU(),
+        #     nn.ConvTranspose2d(
+        #         in_channels=self.num_filters,
+        #         out_channels=self.num_filters,
+        #         kernel_size=3,
+        #         stride=1,
+        #     ),
+        #     nn.ReLU(),
+        #     nn.ConvTranspose2d(
+        #         in_channels=self.num_filters,
+        #         out_channels=observation_size[0],
+        #         kernel_size=3,
+        #         stride=2,
+        #         output_padding=1,
+        #     ),
+        #     nn.Sigmoid(),
+        # )
+
+        self.apply(weight_init)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = torch.relu(self.fc_1(x))
+        x = x.view(-1, 32, 35, 35)
+        x = self.deconvs(x)
+        return x
+
+
 # Stable version of the Tanh transform - overriden to avoid NaN values through atanh in pytorch
 class StableTanhTransform(TanhTransform):
     def __init__(self, cache_size=1):
