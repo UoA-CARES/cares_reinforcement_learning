@@ -337,7 +337,7 @@ class MAPERSACConfig(AlgorithmConfig):
     algorithm: str = Field("MAPERSAC", Literal=True)
 
     max_steps_exploration: Optional[int] = 10000
-    
+
     actor_lr: Optional[float] = 7.3e-4
     critic_lr: Optional[float] = 7.3e-4
     alpha_lr: Optional[float] = 7.3e-4
