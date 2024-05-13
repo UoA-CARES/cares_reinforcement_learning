@@ -139,10 +139,10 @@ class SACAE:
 
         # Update the Critic
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            next_actions, next_log_pi, _ = self.actor_net(next_states_normalised)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states, next_actions
+                next_states_normalised, next_actions
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
