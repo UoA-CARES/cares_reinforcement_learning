@@ -218,6 +218,8 @@ class SACAE:
 
         torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.encoder_net.state_dict(), f"{path}/{filename}_encoder.pht")
+        torch.save(self.decoder_net.state_dict(), f"{path}/{filename}_decoder.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
@@ -225,4 +227,6 @@ class SACAE:
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
         self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.encoder_net.load_state_dict(torch.load(f"{path}/{filename}_encoder.pht"))
+        self.decoder_net.load_state_dict(torch.load(f"{path}/{filename}_decoder.pht"))
         logging.info("models has been loaded...")
