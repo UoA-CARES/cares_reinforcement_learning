@@ -1,7 +1,7 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 
+from cares_reinforcement_learning.networks.encoders.autoencoder import Encoder
 from cares_reinforcement_learning.util.common import SquashedNormal
 
 
@@ -9,13 +9,16 @@ class Actor(nn.Module):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
-    def __init__(self, observation_size: int, num_actions: int):
+    def __init__(self, encoder: Encoder, num_actions: int):
         super().__init__()
+
+        self.encoder = encoder
+
         self.hidden_size = [1024, 1024]
         self.log_std_bounds = [-10, 2]
 
         self.act_net = nn.Sequential(
-            nn.Linear(observation_size, self.hidden_size[0]),
+            nn.Linear(self.encoder.latent_dim, self.hidden_size[0]),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
@@ -25,9 +28,12 @@ class Actor(nn.Module):
         self.log_std_linear = nn.Linear(self.hidden_size[1], num_actions)
 
     def forward(
-        self, state: torch.Tensor
+        self, state: torch.Tensor, detach_encoder: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x = self.act_net(state)
+
+        state_latent = self.encoder(state, detach=detach_encoder)
+
+        x = self.act_net(state_latent)
         mu = self.mean_linear(x)
         log_std = self.log_std_linear(x)
 

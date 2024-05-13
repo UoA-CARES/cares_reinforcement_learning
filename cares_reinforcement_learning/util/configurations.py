@@ -189,6 +189,9 @@ class DynaSACConfig(AlgorithmConfig):
 
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)
+
+    image_observation: Optional[int] = 1
+
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
 

@@ -145,13 +145,12 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
     import cares_reinforcement_learning.networks.encoders.autoencoder as ae
 
-    # 50 LATENT SIZE
     encoder, decoder = ae.create_autoencoder(
         observation_size=observation_size, latent_dim=config.latent_size
     )
 
-    actor = Actor(config.latent_size, action_num)
-    critic = Critic(config.latent_size, action_num)
+    actor = Actor(encoder, action_num)
+    critic = Critic(encoder, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = SACAE(

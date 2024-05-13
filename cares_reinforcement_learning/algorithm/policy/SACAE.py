@@ -14,6 +14,7 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 class SACAE:
@@ -48,6 +49,8 @@ class SACAE:
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
+        self.encoder_net_orig = copy.deepcopy(encoder_network).to(device)
+
         self.encoder_net = encoder_network.to(device)
         self.encoder_tau = encoder_tau
 
@@ -62,7 +65,8 @@ class SACAE:
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.target_entropy = -action_num
+        # set target entropy to -|A|
+        self.target_entropy = -np.prod(action_num)
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -98,11 +102,10 @@ class SACAE:
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             state_tensor = state_tensor / 255
 
-            latent_state = self.encoder_net(state_tensor)
             if evaluation:
-                (_, _, action) = self.actor_net(latent_state)
+                (_, _, action) = self.actor_net(state_tensor)
             else:
-                (action, _, _) = self.actor_net(latent_state)
+                (action, _, _) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -136,11 +139,10 @@ class SACAE:
 
         # Update the Critic
         with torch.no_grad():
-            next_states_latent = self.encoder_net(next_states_normalised)
-            next_actions, next_log_pi, _ = self.actor_net(next_states_latent)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states_latent, next_actions
+                next_states, next_actions
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
@@ -151,8 +153,7 @@ class SACAE:
                 rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
             )
 
-        states_latent = self.encoder_net(states_normalised)
-        q_values_one, q_values_two = self.critic_net(states_latent, actions)
+        q_values_one, q_values_two = self.critic_net(states, actions)
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
@@ -163,9 +164,8 @@ class SACAE:
         self.critic_net_optimiser.step()
 
         # Update the Actor
-        states_latent = self.encoder_net(states_normalised, detach=True)
-        pi, log_pi, _ = self.actor_net(states_latent)
-        qf1_pi, qf2_pi = self.critic_net(states_latent, pi)
+        pi, log_pi, _ = self.actor_net(states_normalised, detach_encoder=True)
+        qf1_pi, qf2_pi = self.critic_net(states_normalised, pi, detach_encoder=True)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
@@ -182,6 +182,9 @@ class SACAE:
         self.log_alpha_optimizer.step()
 
         if self.learn_counter % self.policy_update_freq == 0:
+
+            # Update the target networks - Soft Update
+            # TODO only update Q1 and Q2 not the encoder/decoder
             for target_param, param in zip(
                 self.target_critic_net.parameters(), self.critic_net.parameters()
             ):
@@ -191,9 +194,9 @@ class SACAE:
 
         if self.learn_counter % self.decoder_update_freq == 0:
             states_latent = self.encoder_net(states_normalised)
-            rec_obs = self.decoder_net(states_latent)
+            rec_observations = self.decoder_net(states_latent)
 
-            rec_loss = F.mse_loss(rec_obs, states_normalised)
+            rec_loss = F.mse_loss(states_normalised, rec_observations)
 
             # add L2 penalty on latent representation
             # see https://arxiv.org/pdf/1903.12436.pdf

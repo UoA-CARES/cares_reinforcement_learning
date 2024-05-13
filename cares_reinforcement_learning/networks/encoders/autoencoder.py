@@ -132,12 +132,15 @@ class Encoder(nn.Module):
     def forward(self, obs: torch.Tensor, detach: bool = False) -> torch.Tensor:
         h = self._forward_conv(obs)
 
+        # SAC AE detaches at the CNN layer
+        if detach:
+            h = h.detach()
+
         h_fc = self.fc(h)
         h_norm = self.ln(h_fc)
         latent_obs = torch.tanh(h_norm)
 
-        if detach:
-            latent_obs = latent_obs.detach()
+        # NaSATD3 detatches the encoder output
 
         return latent_obs
 
