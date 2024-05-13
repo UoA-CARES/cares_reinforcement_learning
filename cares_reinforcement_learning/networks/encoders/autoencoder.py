@@ -3,6 +3,11 @@ import torch
 from torch import nn
 
 
+def tie_weights(src, trg):
+    trg.weight = src.weight
+    trg.bias = src.bias
+
+
 def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     """
     Returns the right size of the flattened tensor after convolutional transformation
@@ -18,26 +23,6 @@ def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     self.fc1 = nn.Linear(r*r*128, 1024)
     """
     return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
-
-
-# TODO Consider moving to helpers.py?
-def weight_init(module: nn.Module) -> None:
-    """
-    Custom weight init for Conv2D and Linear layers
-
-    delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
-    """
-    if isinstance(module, nn.Linear):
-        nn.init.orthogonal_(module.weight.data)
-        module.bias.data.fill_(0.0)
-
-    elif isinstance(module, (nn.Conv2d, nn.ConvTranspose2d)):
-        assert module.weight.size(2) == module.weight.size(3)
-        module.weight.data.fill_(0.0)
-        module.bias.data.fill_(0.0)
-        mid = module.weight.size(2) // 2
-        gain = nn.init.calculate_gain("relu")
-        nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
 
 
 def create_autoencoder(
@@ -91,7 +76,7 @@ class Encoder(nn.Module):
         self.num_filters = num_filters
         self.kernel_size = kernel_size
 
-        self.cov_net = nn.ModuleList(
+        self.convs = nn.ModuleList(
             [
                 nn.Conv2d(
                     observation_size[0],
@@ -105,7 +90,7 @@ class Encoder(nn.Module):
         self.out_dim = flatten(observation_size[1], k=self.kernel_size, s=2)
 
         for _ in range(self.num_layers - 1):
-            self.cov_net.append(
+            self.convs.append(
                 nn.Conv2d(
                     self.num_filters,
                     self.num_filters,
@@ -120,12 +105,15 @@ class Encoder(nn.Module):
         self.fc = nn.Linear(self.n_flatten, self.latent_dim)
         self.ln = nn.LayerNorm(self.latent_dim)
 
-        self.apply(weight_init)
+    def copy_conv_weights_from(self, source):
+        # Only tie conv layers
+        for i in range(self.num_layers):
+            tie_weights(src=source.convs[i], trg=self.convs[i])
 
     def _forward_conv(self, x: torch.Tensor) -> torch.Tensor:
-        conv = torch.relu(self.cov_net[0](x))
+        conv = torch.relu(self.convs[0](x))
         for i in range(1, self.num_layers):
-            conv = torch.relu(self.cov_net[i](conv))
+            conv = torch.relu(self.convs[i](conv))
         h = torch.flatten(conv, start_dim=1)
         return h
 
@@ -189,8 +177,6 @@ class Decoder(nn.Module):
                 output_padding=1,
             )
         )
-
-        self.apply(weight_init)
 
     def forward(self, latent_obs: torch.Tensor) -> torch.Tensor:
         h_fc = self.fc(latent_obs)

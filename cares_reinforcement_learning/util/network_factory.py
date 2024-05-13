@@ -1,3 +1,4 @@
+import copy
 import inspect
 import logging
 import sys
@@ -5,7 +6,6 @@ import sys
 import torch
 
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -141,22 +141,24 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
+    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
     from cares_reinforcement_learning.algorithm.policy import SACAE
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
-    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
 
     encoder, decoder = ae.create_autoencoder(
         observation_size=observation_size, latent_dim=config.latent_size
     )
 
-    actor = Actor(encoder, action_num)
-    critic = Critic(encoder, action_num)
+    actor_encoder = copy.deepcopy(encoder)
+    critic_encoder = copy.deepcopy(encoder)
+
+    actor = Actor(actor_encoder, action_num)
+    critic = Critic(critic_encoder, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = SACAE(
         actor_network=actor,
         critic_network=critic,
-        encoder_network=encoder,
         decoder_network=decoder,
         gamma=config.gamma,
         tau=config.tau,
@@ -200,9 +202,9 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import (
         Actor,
-        Critic,
         CNNActor,
         CNNCritic,
+        Critic,
     )
 
     if config.image_observation:
@@ -265,10 +267,7 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import CTD4
-    from cares_reinforcement_learning.networks.CTD4 import (
-        Actor,
-        EnsembleCritic,
-    )
+    from cares_reinforcement_learning.networks.CTD4 import Actor, EnsembleCritic
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

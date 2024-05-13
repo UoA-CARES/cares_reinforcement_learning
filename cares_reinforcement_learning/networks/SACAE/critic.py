@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.encoders.autoencoder import Encoder
 
 
@@ -29,6 +30,8 @@ class Critic(nn.Module):
             nn.ReLU(),
             nn.Linear(self.hidden_size[1], 1),
         )
+
+        self.apply(hlp.weight_init)
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor, detach_encoder: bool = False

@@ -20,18 +20,23 @@ def plot_reward_curve(data_reward):
     plt.show()
 
 
-def weight_init(m):
+def weight_init(module: torch.nn.Module) -> None:
     """
-    Initialize the world model with orthogonal initializer for diversity.
-    It works better than Xavier, which is commented.
+    Custom weight init for Conv2D and Linear layers
 
-    Keyword arguments:
-        m -- the layer to be initialized.
+    delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
     """
-    if isinstance(m, torch.nn.Linear):
-        #     torch.nn.init.xavier_uniform_(m.weight)
-        torch.nn.init.orthogonal_(m.weight.data)
-        m.bias.data.fill_(0.0)
+    if isinstance(module, torch.nn.Linear):
+        torch.nn.init.orthogonal_(module.weight.data)
+        module.bias.data.fill_(0.0)
+
+    elif isinstance(module, (torch.nn.Conv2d, torch.nn.ConvTranspose2d)):
+        assert module.weight.size(2) == module.weight.size(3)
+        module.weight.data.fill_(0.0)
+        module.bias.data.fill_(0.0)
+        mid = module.weight.size(2) // 2
+        gain = torch.nn.init.calculate_gain("relu")
+        torch.nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
 
 
 def normalize_observation(observation, statistics):

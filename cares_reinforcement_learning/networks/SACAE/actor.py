@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.encoders.autoencoder import Encoder
 from cares_reinforcement_learning.util.common import SquashedNormal
 
@@ -26,6 +27,8 @@ class Actor(nn.Module):
 
         self.mean_linear = nn.Linear(self.hidden_size[1], num_actions)
         self.log_std_linear = nn.Linear(self.hidden_size[1], num_actions)
+
+        self.apply(hlp.weight_init)
 
     def forward(
         self, state: torch.Tensor, detach_encoder: bool = False

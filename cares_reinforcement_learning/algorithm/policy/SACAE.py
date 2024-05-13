@@ -14,7 +14,6 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
-import cares_reinforcement_learning.util.helpers as hlp
 
 
 class SACAE:
@@ -22,7 +21,6 @@ class SACAE:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        encoder_network: torch.nn.Module,
         decoder_network: torch.nn.Module,
         gamma: float,
         tau: float,
@@ -49,9 +47,9 @@ class SACAE:
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
-        self.encoder_net_orig = copy.deepcopy(encoder_network).to(device)
+        # tie the encoder weights
+        self.actor_net.encoder.copy_conv_weights_from(self.critic_net.encoder)
 
-        self.encoder_net = encoder_network.to(device)
         self.encoder_tau = encoder_tau
 
         self.decoder_net = decoder_network.to(device)
@@ -76,7 +74,7 @@ class SACAE:
         )
 
         self.encoder_net_optimiser = torch.optim.Adam(
-            self.encoder_net.parameters(), lr=encoder_lr
+            self.critic_net.encoder.parameters(), lr=encoder_lr
         )
         self.decoder_net_optimiser = torch.optim.Adam(
             self.decoder_net.parameters(),
@@ -193,7 +191,7 @@ class SACAE:
                 )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            states_latent = self.encoder_net(states_normalised)
+            states_latent = self.critic_net.encoder(states_normalised)
             rec_observations = self.decoder_net(states_latent)
 
             rec_loss = F.mse_loss(states_normalised, rec_observations)
@@ -218,7 +216,6 @@ class SACAE:
 
         torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
-        torch.save(self.encoder_net.state_dict(), f"{path}/{filename}_encoder.pht")
         torch.save(self.decoder_net.state_dict(), f"{path}/{filename}_decoder.pht")
         logging.info("models has been saved...")
 
@@ -227,6 +224,5 @@ class SACAE:
 
         self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
         self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
-        self.encoder_net.load_state_dict(torch.load(f"{path}/{filename}_encoder.pht"))
         self.decoder_net.load_state_dict(torch.load(f"{path}/{filename}_decoder.pht"))
         logging.info("models has been loaded...")
