@@ -16,17 +16,25 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
-class SAC:
+class SACAE:
     def __init__(
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
+        encoder_network: torch.nn.Module,
+        decoder_network: torch.nn.Module,
         gamma: float,
         tau: float,
         reward_scale: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
+        encoder_lr: float,
+        encoder_tau: float,
+        decoder_lr: float,
+        decoder_latent_lambda: float,
+        decoder_weight_decay: float,
+        decoder_update_freq: int,
         alpha_lr: float,
         device: torch.device,
     ):
@@ -39,6 +47,13 @@ class SAC:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+
+        self.encoder_net = encoder_network.to(device)
+        self.encoder_tau = encoder_tau
+
+        self.decoder_net = decoder_network.to(device)
+        self.decoder_latent_lambda = decoder_latent_lambda
+        self.decoder_update_freq = decoder_update_freq
 
         self.gamma = gamma
         self.tau = tau
@@ -56,9 +71,18 @@ class SAC:
             self.critic_net.parameters(), lr=critic_lr
         )
 
+        self.encoder_net_optimiser = torch.optim.Adam(
+            self.encoder_net.parameters(), lr=encoder_lr
+        )
+        self.decoder_net_optimiser = torch.optim.Adam(
+            self.decoder_net.parameters(),
+            lr=decoder_lr,
+            weight_decay=decoder_weight_decay,
+        )
+
         # Temperature (alpha) for the entropy loss
-        # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
+        # Set to initial alpha to 0.1 according to other baselines.
+        init_temperature = 0.1
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
@@ -72,10 +96,13 @@ class SAC:
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = state_tensor / 255
+
+            latent_state = self.encoder_net(state_tensor)
             if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
+                (_, _, action) = self.actor_net(latent_state)
             else:
-                (action, _, _) = self.actor_net(state_tensor)
+                (action, _, _) = self.actor_net(latent_state)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -103,10 +130,17 @@ class SAC:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        # Normalise states and next_states
+        states_normalised = states / 255
+        next_states_normalised = next_states / 255
+
+        # Update the Critic
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            next_states_latent = self.encoder_net(next_states_normalised)
+            next_actions, next_log_pi, _ = self.actor_net(next_states_latent)
+
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states, next_actions
+                next_states_latent, next_actions
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
@@ -117,29 +151,30 @@ class SAC:
                 rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
             )
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+        states_latent = self.encoder_net(states_normalised)
+        q_values_one, q_values_two = self.critic_net(states_latent, actions)
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
         critic_loss_total = critic_loss_one + critic_loss_two
 
-        # Update the Critic
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        # Update the Actor
+        states_latent = self.encoder_net(states_normalised, detach=True)
+        pi, log_pi, _ = self.actor_net(states_latent)
+        qf1_pi, qf2_pi = self.critic_net(states_latent, pi)
 
+        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
-        # Update the Actor
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        # update the temperature (alpha)
+        # Update the temperature (alpha)
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
 
         self.log_alpha_optimizer.zero_grad()
@@ -153,6 +188,23 @@ class SAC:
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
+
+        if self.learn_counter % self.decoder_update_freq == 0:
+            states_latent = self.encoder_net(states_normalised)
+            rec_obs = self.decoder_net(states_latent)
+
+            rec_loss = F.mse_loss(rec_obs, states_normalised)
+
+            # add L2 penalty on latent representation
+            # see https://arxiv.org/pdf/1903.12436.pdf
+            latent_loss = (0.5 * states_latent.pow(2).sum(1)).mean()
+
+            loss = rec_loss + self.decoder_latent_lambda * latent_loss
+            self.encoder_net_optimiser.zero_grad()
+            self.decoder_net_optimiser.zero_grad()
+            loss.backward()
+            self.encoder_net_optimiser.step()
+            self.decoder_net_optimiser.step()
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
