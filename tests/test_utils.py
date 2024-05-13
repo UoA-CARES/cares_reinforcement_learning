@@ -17,7 +17,12 @@ def test_network_factory():
             algorithm_configurations[name] = cls
 
     for algorithm, config in algorithm_configurations.items():
-        network = factory.create_network(10, 2, config())
+        config = config()
+        observation_size = (9, 84, 84) if config.image_observation else 10
+        action_num = 2
+        network = factory.create_network(
+            observation_size=observation_size, action_num=action_num, config=config
+        )
         assert network is not None, f"{algorithm} was not created successfully"
 
 

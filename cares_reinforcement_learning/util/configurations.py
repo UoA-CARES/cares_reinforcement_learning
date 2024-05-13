@@ -144,6 +144,7 @@ class SACConfig(AlgorithmConfig):
 class SACAEConfig(AlgorithmConfig):
     algorithm: str = Field("SACAE", Literal=True)
 
+    image_observation: Optional[int] = 1
     batch_size: Optional[int] = 128
 
     actor_lr: Optional[float] = 1e-3
