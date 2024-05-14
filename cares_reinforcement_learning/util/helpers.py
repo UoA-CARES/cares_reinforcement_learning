@@ -14,10 +14,20 @@ def set_seed(seed):
     random.seed(seed)
 
 
-def plot_reward_curve(data_reward):
-    data = pd.DataFrame.from_dict(data_reward)
-    data.plot(x="step", y="episode_reward", title="Reward Curve")
-    plt.show()
+def soft_update_params(net, target_net, tau):
+    """
+    Soft updates the parameters of a neural network by blending them with the parameters of a target network.
+
+    Args:
+        net (torch.nn.Module): The neural network whose parameters will be updated.
+        target_net (torch.nn.Module): The target neural network whose parameters will be blended with the `net` parameters.
+        tau (float): The blending factor. The updated parameters will be a weighted average of the `net` parameters and the `target_net` parameters.
+
+    Returns:
+        None
+    """
+    for param, target_param in zip(net.parameters(), target_net.parameters()):
+        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
 
 def weight_init(module: torch.nn.Module) -> None:

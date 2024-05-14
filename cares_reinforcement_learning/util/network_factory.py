@@ -228,6 +228,42 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
+    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    from cares_reinforcement_learning.algorithm.policy import TD3AE
+    from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
+
+    encoder, decoder = ae.create_autoencoder(
+        observation_size=observation_size, latent_dim=config.latent_size
+    )
+
+    actor_encoder = copy.deepcopy(encoder)
+    critic_encoder = copy.deepcopy(encoder)
+
+    actor = Actor(actor_encoder, action_num)
+    critic = Critic(critic_encoder, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = TD3AE(
+        actor_network=actor,
+        critic_network=critic,
+        decoder_network=decoder,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        encoder_lr=config.encoder_lr,
+        encoder_tau=config.encoder_tau,
+        decoder_lr=config.decoder_lr,
+        decoder_latent_lambda=config.decoder_latent_lambda,
+        decoder_weight_decay=config.decoder_weight_decay,
+        decoder_update_freq=config.decoder_update_freq,
+        device=device,
+    )
+    return agent
+
+
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
     from cares_reinforcement_learning.networks.NaSATD3 import (

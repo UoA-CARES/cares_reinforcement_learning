@@ -130,6 +130,32 @@ class TD3Config(AlgorithmConfig):
     tau: Optional[float] = 0.005
 
 
+class TD3AEConfig(AlgorithmConfig):
+    algorithm: str = Field("TD3AE", Literal=True)
+
+    image_observation: Optional[int] = 1
+    batch_size: Optional[int] = 128
+
+    actor_lr: Optional[float] = 1e-3
+    critic_lr: Optional[float] = 1e-3
+    alpha_lr: Optional[float] = 1e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    num_layers: Optional[int] = 4
+    num_filters: Optional[int] = 32
+
+    encoder_lr: Optional[float] = 1e-3
+    encoder_tau: Optional[float] = 0.05
+    latent_size: Optional[int] = 50
+
+    decoder_lr: Optional[float] = 1e-3
+    decoder_latent_lambda: Optional[float] = 1e-6
+    decoder_weight_decay: Optional[float] = 1e-7
+    decoder_update_freq: Optional[int] = 1
+
+
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
     actor_lr: Optional[float] = 3e-4

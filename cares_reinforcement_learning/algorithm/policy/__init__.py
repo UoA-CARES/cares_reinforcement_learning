@@ -1,5 +1,6 @@
 from .DDPG import DDPG
 from .TD3 import TD3
+from .TD3AE import TD3AE
 from .SAC import SAC
 from .SACAE import SACAE
 from .PPO import PPO
