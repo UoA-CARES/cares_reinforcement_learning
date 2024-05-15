@@ -67,6 +67,7 @@ class AlgorithmConfig(SubscriptableClass):
     noise_decay: Optional[float] = 1.0
 
     # Determines how much prioritization is used, α = 0 corresponding to the uniform case
+    # per_alpha
 
 
 class DQNConfig(AlgorithmConfig):
@@ -159,6 +160,7 @@ class DynaSACConfig(AlgorithmConfig):
 
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)
+
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
 
