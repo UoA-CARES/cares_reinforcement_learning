@@ -1,7 +1,6 @@
 """
-Original Paper: https://arxiv.org/abs/1802.09477v3
-
-Original code: https://github.com/sfujim/TD3
+Original Paper: https://arxiv.org/abs/1910.01741 - SAC based but followed same concept here
+Code based on: https://github.com/denisyarats/pytorch_sac_ae/tree/master
 """
 
 import copy
