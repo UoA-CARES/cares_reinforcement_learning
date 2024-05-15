@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
@@ -181,28 +182,17 @@ class SACAE:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the target networks - Soft Update
-            for target_param, param in zip(
-                self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_critic_net.encoder.parameters(),
-                self.critic_net.encoder.parameters(),
-            ):
-                target_param.data.copy_(
-                    param.data * self.encoder_tau
-                    + target_param.data * (1.0 - self.encoder_tau)
-                )
+            hlp.soft_update_params(
+                self.critic_net.Q1, self.target_critic_net.Q1, self.tau
+            )
+            hlp.soft_update_params(
+                self.critic_net.Q2, self.target_critic_net.Q2, self.tau
+            )
+            hlp.soft_update_params(
+                self.critic_net.encoder,
+                self.target_critic_net.encoder,
+                self.encoder_tau,
+            )
 
         if self.learn_counter % self.decoder_update_freq == 0:
             states_latent = self.critic_net.encoder(states_normalised)
