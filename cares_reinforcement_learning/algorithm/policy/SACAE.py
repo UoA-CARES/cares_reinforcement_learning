@@ -122,17 +122,17 @@ class SACAE:
 
     def _update_critic(
         self,
-        states_normalised: torch.Tensor,
+        states: torch.Tensor,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states_normalised: torch.Tensor,
+        next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> None:
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states_normalised)
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states_normalised, next_actions
+                next_states, next_actions
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
@@ -143,7 +143,7 @@ class SACAE:
                 rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
             )
 
-        q_values_one, q_values_two = self.critic_net(states_normalised, actions)
+        q_values_one, q_values_two = self.critic_net(states, actions)
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
@@ -153,9 +153,9 @@ class SACAE:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor(self, states_normalised: torch.Tensor) -> None:
-        pi, log_pi, _ = self.actor_net(states_normalised, detach_encoder=True)
-        qf1_pi, qf2_pi = self.critic_net(states_normalised, pi, detach_encoder=True)
+    def _update_actor(self, states: torch.Tensor) -> None:
+        pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
+        qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
@@ -171,11 +171,11 @@ class SACAE:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def _update_autoencoder(self, states_normalised: torch.Tensor) -> None:
-        states_latent = self.critic_net.encoder(states_normalised)
+    def _update_autoencoder(self, states: torch.Tensor) -> None:
+        states_latent = self.critic_net.encoder(states)
         rec_observations = self.decoder_net(states_latent)
 
-        rec_loss = F.mse_loss(states_normalised, rec_observations)
+        rec_loss = F.mse_loss(states, rec_observations)
 
         # add L2 penalty on latent representation
         # see https://arxiv.org/pdf/1903.12436.pdf
