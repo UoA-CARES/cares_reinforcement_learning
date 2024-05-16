@@ -339,7 +339,12 @@ class DynaSAC_BatchReweight:
             diff_q = qs - mean_q
             cov_aq = torch.mean(diff_a * diff_q, dim=0)
 
-            total_var = var_r + var_a + var_q + 2 * cov_aq
+            mean_r = torch.mean(rs, dim=0, keepdim=True)
+            diff_r = rs - mean_r
+            cov_rq = torch.mean(diff_r * diff_q, dim=0)
+            cov_ra = torch.mean(diff_r * diff_a, dim=0)
+
+            total_var = var_r + var_a + var_q + 2 * cov_aq + 2 * cov_rq + 2 * cov_ra
             total_var[total_var < phi] = phi
             total_stds = 1 / total_var
         return total_stds.detach()
