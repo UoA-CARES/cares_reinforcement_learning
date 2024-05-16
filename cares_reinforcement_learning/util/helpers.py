@@ -165,3 +165,20 @@ def quantile_huber_loss_f(quantiles, samples):
         torch.abs(tau[None, None, :, None] - (pairwise_delta < 0).float()) * huber_loss
     ).mean()
     return loss
+
+
+def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
+    """
+    Returns the right size of the flattened tensor after convolutional transformation
+    :param w: width of image
+    :param k: kernel size
+    :param s: stride
+    :param p: padding
+    :param m: max pooling (bool)
+    :return: proper shape and params: use x * x * previous_out_channels
+
+    Example:
+    r = flatten(*flatten(*flatten(w=100, k=3, s=1, p=0, m=True)))[0]
+    self.fc1 = nn.Linear(r*r*128, 1024)
+    """
+    return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)

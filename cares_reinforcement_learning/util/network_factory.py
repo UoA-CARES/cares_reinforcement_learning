@@ -200,19 +200,10 @@ def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
 
 def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3
-    from cares_reinforcement_learning.networks.TD3 import (
-        Actor,
-        CNNActor,
-        CNNCritic,
-        Critic,
-    )
+    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 
-    if config.image_observation:
-        actor = CNNActor(observation_size, action_num)
-        critic = CNNCritic(observation_size, action_num)
-    else:
-        actor = Actor(observation_size, action_num)
-        critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = TD3(

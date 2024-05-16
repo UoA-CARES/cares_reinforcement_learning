@@ -2,27 +2,12 @@ import numpy as np
 import torch
 from torch import nn
 
+import cares_reinforcement_learning.util.helpers as hlp
+
 
 def tie_weights(src, trg):
     trg.weight = src.weight
     trg.bias = src.bias
-
-
-def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
-    """
-    Returns the right size of the flattened tensor after convolutional transformation
-    :param w: width of image
-    :param k: kernel size
-    :param s: stride
-    :param p: padding
-    :param m: max pooling (bool)
-    :return: proper shape and params: use x * x * previous_out_channels
-
-    Example:
-    r = flatten(*flatten(*flatten(w=100, k=3, s=1, p=0, m=True)))[0]
-    self.fc1 = nn.Linear(r*r*128, 1024)
-    """
-    return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
 
 
 def create_autoencoder(
@@ -87,7 +72,7 @@ class Encoder(nn.Module):
             ]
         )
 
-        self.out_dim = flatten(observation_size[1], k=self.kernel_size, s=2)
+        self.out_dim = hlp.flatten(observation_size[1], k=self.kernel_size, s=2)
 
         for _ in range(self.num_layers - 1):
             self.convs.append(
@@ -98,7 +83,7 @@ class Encoder(nn.Module):
                     stride=1,
                 )
             )
-            self.out_dim = flatten(self.out_dim, k=self.kernel_size, s=1)
+            self.out_dim = hlp.flatten(self.out_dim, k=self.kernel_size, s=1)
 
         self.n_flatten = self.out_dim * self.out_dim * self.num_filters
 

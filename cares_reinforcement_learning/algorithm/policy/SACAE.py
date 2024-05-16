@@ -208,6 +208,7 @@ class SACAE:
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # Normalise states and next_states
+        # This because the states are [0-255] and the predictions are [0-1]
         states_normalised = states / 255
         next_states_normalised = next_states / 255
 
