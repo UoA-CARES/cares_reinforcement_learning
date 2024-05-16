@@ -153,7 +153,7 @@ class SACAE:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor(self, states: torch.Tensor) -> None:
+    def _update_actor_alpha(self, states: torch.Tensor) -> None:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
         qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
@@ -219,7 +219,7 @@ class SACAE:
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            self._update_actor(states_normalised)
+            self._update_actor_alpha(states_normalised)
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update the target networks - Soft Update
