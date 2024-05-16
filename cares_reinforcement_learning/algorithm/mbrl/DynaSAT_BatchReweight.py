@@ -12,20 +12,14 @@ import os
 
 import numpy as np
 import torch
-import torch.nn.functional as F
-
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
-from cares_reinforcement_learning.util import sampling
 
-from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
-    EnsembleWorldReward,
-)
 from cares_reinforcement_learning.networks.world_models.ensemble_world import (
     EnsembleWorldAndOneReward,
 )
 
 
-class DynaSAC_Reweight:
+class DynaSAT_BatchReweight:
     def __init__(
         self,
         actor_network: torch.nn.Module,
@@ -108,25 +102,40 @@ class DynaSAC_Reweight:
         ##################     Update the Critic First     ####################
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
-            target_q_one, target_q_two = self.target_critic_net(
+            target_q_one, target_q_two, target_q_three = self.target_critic_net(
                 next_states, next_actions
             )
             target_q_values = (
-                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                torch.minimum(torch.minimum(target_q_one, target_q_two), target_q_three) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+        q_values_one, q_values_two, q_values_three = self.critic_net(states, actions)
 
-        l1_loss_one = q_values_one - q_target
-        l1_loss_two = q_values_two - q_target
+        # Original loss function
+        l2_loss_one = (q_values_one - q_target).pow(2)
+        l2_loss_two = (q_values_two - q_target).pow(2)
+        l2_loss_three = (q_values_three - q_target).pow(2)
 
-        critic_loss_one = 0.5 * (l1_loss_one.pow(2) * weights).mean()
-        critic_loss_two = 0.5 * (l1_loss_two.pow(2) * weights).mean()
+        # Reweighted loss function. weight not participant in training.
+        weights = weights.detach()
+        disc_l2_loss_one = l2_loss_one * weights
+        disc_l2_loss_two = l2_loss_two * weights
+        disc_l2_loss_three = l2_loss_three * weights
 
-        # critic_loss_one = F.mse_loss(q_values_one, q_target)
-        # critic_loss_two = F.mse_loss(q_values_two, q_target)
-        critic_loss_total = critic_loss_one + critic_loss_two
+        # A ratio to scale the loss back to original loss scale.
+        ratio_1 = torch.mean(l2_loss_one) / torch.mean(disc_l2_loss_one)
+        ratio_1 = ratio_1.detach()
+        ratio_2 = torch.mean(l2_loss_two) / torch.mean(disc_l2_loss_two)
+        ratio_2 = ratio_2.detach()
+        ratio_3 = torch.mean(l2_loss_three) / torch.mean(disc_l2_loss_three)
+        ratio_3 = ratio_3.detach()
+
+        critic_loss_one = disc_l2_loss_one.mean() * ratio_1
+        critic_loss_two = disc_l2_loss_two.mean() * ratio_2
+        critic_loss_three = disc_l2_loss_three.mean() * ratio_3
+
+        critic_loss_total = critic_loss_one + critic_loss_two + critic_loss_three
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -135,8 +144,9 @@ class DynaSAC_Reweight:
 
         ##################     Update the Actor Second     ####################
         pi, first_log_p, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        qf1_pi, qf2_pi, qf3_pi = self.critic_net(states, pi)
+        min_qf_pi = torch.minimum(torch.minimum(qf1_pi, qf2_pi), qf3_pi)
+
         actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
 
         # Update the Actor
@@ -161,63 +171,10 @@ class DynaSAC_Reweight:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-    def train_world_model(
-        self, memory: PrioritizedReplayBuffer, batch_size: int
-    ) -> None:
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, _, _ = experiences
-
-        # experiences = memory.sample_consecutive(batch_size)
-        #
-        # (
-        #     states,
-        #     actions,
-        #     rewards,
-        #     next_states,
-        #     _,
-        #     _,
-        #     next_actions,
-        #     next_rewards,
-        #     _,
-        #     _,
-        #     _,
-        # ) = experiences
-
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        # next_rewards = (
-        #     torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
-        # )
-        # next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
-
-        # # Step 1 train the world model.
-        # self.world_model.train_world(
-        #     states=states,
-        #     actions=actions,
-        #     rewards=rewards,
-        #     next_states=next_states,
-        #     next_actions=next_actions,
-        #     next_rewards=next_rewards,
-        # )
-
-        self.world_model.train_world(
-            states=states,
-            actions=actions,
-            next_states=next_states,
-        )
-        self.world_model.train_reward(
-            next_states=next_states,
-            rewards=rewards,
-        )
-
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
-
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
-
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -237,11 +194,26 @@ class DynaSAC_Reweight:
         # # # Step 3 Dyna add more data
         self._dyna_generate_and_train(next_states=next_states)
 
-    def _dyna_generate_and_train(self, next_states):
-        """
-        Only off-policy Dyna will work.
-        :param next_states:
-        """
+    def train_world_model(
+        self, memory: PrioritizedReplayBuffer, batch_size: int
+    ) -> None:
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, _, _ = experiences
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        self.world_model.train_world(
+            states=states,
+            actions=actions,
+            next_states=next_states,
+        )
+        self.world_model.train_reward(
+            next_states=next_states,
+            rewards=rewards,
+        )
+
+    def _dyna_generate_and_train(self, next_states: torch.Tensor) -> None:
         pred_states = []
         pred_actions = []
         pred_rs = []
@@ -254,17 +226,15 @@ class DynaSAC_Reweight:
                 # This part is controversial. But random actions is empirically better.
                 rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
                 pred_acts = torch.FloatTensor(rand_acts).to(self.device)
-
                 pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-
                 uncert = self.sampling(pred_means=pred_mean, pred_vars=pred_var)
-                uncert = 1.5 - uncert
                 uncert = uncert.unsqueeze(dim=1).to(self.device)
 
-                pred_uncerts.append(uncert)
                 pred_reward = self.world_model.pred_rewards(pred_next_state)
+                # uncert = torch.ones(pred_reward.shape).to(self.device)
+                pred_uncerts.append(uncert)
 
                 pred_states.append(pred_state)
                 pred_actions.append(pred_acts.detach())
@@ -279,11 +249,11 @@ class DynaSAC_Reweight:
             # Pay attention to here! It is dones in the Cares RL Code!
             pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
             # states, actions, rewards, next_states, not_dones
-            self._train_policy(
-                pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
-            )
+        self._train_policy(
+            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
+        )
 
-    def sampling(self, pred_means, pred_vars):
+    def sampling(self, pred_means, pred_vars, phi=0.0001):
         """
         High std means low uncertainty. Therefore, divided by 1
 
@@ -291,35 +261,118 @@ class DynaSAC_Reweight:
         :param pred_vars:
         :return:
         """
+        sample_times = 10
         with torch.no_grad():
-            # 5 models, each sampled 10 times = 50,
             sample1 = torch.distributions.Normal(pred_means[0], pred_vars[0]).sample(
-                [10])
+                [sample_times])
             sample2 = torch.distributions.Normal(pred_means[1], pred_vars[1]).sample(
-                [10])
+                [sample_times])
             sample3 = torch.distributions.Normal(pred_means[2], pred_vars[2]).sample(
-                [10])
+                [sample_times])
             sample4 = torch.distributions.Normal(pred_means[3], pred_vars[3]).sample(
-                [10])
+                [sample_times])
             sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
-                [10])
-            samples = torch.cat((sample1, sample2, sample3, sample4, sample5))
-            # samples = torch.cat((sample1, sample2, sample3, sample4, sample5))
-            # Samples = [5 * 10, 10 predictions, 11 state dims]
-            # print(samples.shape)
-            stds = torch.var(samples, dim=0)
-            # print(stds.shape)
-            # [10 predictions, 11 state dims]
-            total_stds = torch.mean(stds, dim=1)
-            # Clip for sigmoid
-            # total_stds[total_stds < 0.2] = 0.0
-            # total_stds[total_stds > 4.0] = 4.0
+                [sample_times])
 
-            total_stds = F.sigmoid(total_stds)  # 0.5 - 1.0
-        # total_stds = 1 / total_stds
-        # total_stds = total_stds / torch.mean(total_stds)  # if very uncertain,
-        # high std, encouraged.
-        # total_stds = total_stds - torch.min(total_stds)
+            rs = []
+            acts = []
+            qs = []
+            q_vars = []
+            q_means = []
+            # Varying the next_state's distribution.
+            for i in range(sample_times):
+                # 5 models, each sampled 10 times = 50,
+                pred_rwd1 = self.world_model.pred_rewards(sample1[i])
+                pred_rwd2 = self.world_model.pred_rewards(sample2[i])
+                pred_rwd3 = self.world_model.pred_rewards(sample3[i])
+                pred_rwd4 = self.world_model.pred_rewards(sample4[i])
+                pred_rwd5 = self.world_model.pred_rewards(sample5[i])
+                rs.append(pred_rwd1)
+                rs.append(pred_rwd2)
+                rs.append(pred_rwd3)
+                rs.append(pred_rwd4)
+                rs.append(pred_rwd5)
+                # Each times, 5 models predict different actions.
+                # [2560, 17]
+                # Same sample, different model same next_state.
+                pred_act1, log_pi1, _ = self.actor_net(sample1[i])
+                pred_act2, log_pi2, _ = self.actor_net(sample2[i])
+                pred_act3, log_pi3, _ = self.actor_net(sample3[i])
+                pred_act4, log_pi4, _ = self.actor_net(sample4[i])
+                pred_act5, log_pi5, _ = self.actor_net(sample5[i])
+                acts.append(log_pi1)
+                acts.append(log_pi2)
+                acts.append(log_pi3)
+                acts.append(log_pi4)
+                acts.append(log_pi5)
+                # How to become the same next state, different action.
+                # Now: sample1 sample2... same next state, different model.
+                # Pred_act1 pred_act2 same next_state, different actions.
+                # 5 models * 10 samples [var of state]
+                qa1, qa2, qa3 = self.target_critic_net(sample1[i], pred_act1)
+                qa_mean = (qa1 + qa2 + qa3) / 3.0
+                qa_var = ((qa1 - qa_mean).pow(2) + (qa2 - qa_mean).pow(2) + (qa3 - qa_mean).pow(2)) / 3.0
+                q_vars.append(qa_var)
+                q_means.append(qa_mean)
+                # qa_mins = torch.minimum(torch.minimum(qa1, qa2), qa3)
+                # qs.append(qa_mins)
+
+                qb1, qb2, qb3 = self.target_critic_net(sample2[i], pred_act2)
+                qb_mean = (qb1 + qb2 + qb3) / 3.0
+                qb_var = ((qb1 - qb_mean).pow(2) + (qb2 - qb_mean).pow(2) + (qb3 - qb_mean).pow(2)) / 3.0
+                q_vars.append(qb_var)
+                q_means.append(qb_mean)
+                # qb_mins = torch.minimum(torch.minimum(qb1, qb2), qb3)
+                # qs.append(qb_mins)
+
+                qc1, qc2, qc3 = self.target_critic_net(sample3[i], pred_act3)
+                qc_mean = (qc1 + qc2 + qc3) / 3.0
+                qc_var = ((qc1 - qc_mean).pow(2) + (qc2 - qc_mean).pow(2) + (qc3 - qc_mean).pow(2)) / 3.0
+                q_vars.append(qc_var)
+                q_means.append(qc_mean)
+                # qc_mins = torch.minimum(torch.minimum(qc1, qc2), qc3)
+                # qs.append(qc_mins)
+
+                qd1, qd2, qd3 = self.target_critic_net(sample4[i], pred_act4)
+                qd_mean = (qd1 + qd2 + qd3) / 3.0
+                qd_var = ((qd1 - qd_mean).pow(2) + (qd2 - qd_mean).pow(2) + (qd3 - qd_mean).pow(2)) / 3.0
+                q_vars.append(qd_var)
+                q_means.append(qd_mean)
+                # qd_mins = torch.minimum(torch.minimum(qd1, qd2), qd3)
+                # qs.append(qd_mins)
+
+                qe1, qe2, qe3 = self.target_critic_net(sample5[i], pred_act5)
+                qe_mean = (qe1 + qe2 + qe3) / 3.0
+                qe_var = ((qe1 - qe_mean).pow(2) + (qe2 - qe_mean).pow(2) + (qe3 - qe_mean).pow(2)) / 3.0
+                q_vars.append(qe_var)
+                q_means.append(qe_mean)
+                # qe_mins = torch.minimum(torch.minimum(qe1, qe2), qe3)
+                # qs.append(qe_mins)
+
+            rs = torch.stack(rs)
+            acts = torch.stack(acts)
+            # qs = torch.stack(qs)
+
+            var_r = torch.var(rs, dim=0)
+            var_a = torch.var(acts, dim=0)
+
+            q_vars = torch.stack(q_vars)
+            q_means = torch.stack(q_means)
+            var_of_mean = torch.var(q_means, dim=0)
+            mean_of_vars = torch.mean(q_vars, dim=0)
+            var_q = var_of_mean + mean_of_vars
+
+            # Computing covariance.
+            # mean_a = torch.mean(acts, dim=0, keepdim=True)
+            # mean_q = torch.mean(qs, dim=0, keepdim=True)
+            # diff_a = acts - mean_a
+            # diff_q = qs - mean_q
+            # cov_aq = torch.mean(diff_a * diff_q, dim=0)
+
+            total_var = var_r + var_a + var_q # + 2 * cov_aq
+            # Clip for sigmoid
+            total_var[total_var < phi] = phi
+            total_stds = 1 / total_var
         return total_stds.detach()
 
     def set_statistics(self, stats: dict) -> None:

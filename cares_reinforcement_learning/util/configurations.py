@@ -133,14 +133,13 @@ class SACConfig(AlgorithmConfig):
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
     alpha_lr: Optional[float] = 3e-4
-
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
 
 
-class DynaSAC_ReweightConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC_Reweight", Literal=True)
+class DynaSAC_VarConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_Var", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 
@@ -150,8 +149,63 @@ class DynaSAC_ReweightConfig(AlgorithmConfig):
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
 
-    horizon: Optional[int] = 3
+    horizon: Optional[int] = 1
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+
+class DynaSAT_BatchReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAT_BatchReweight", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    horizon: Optional[int] = 1
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+
+class DynaSAC_BatchReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_BatchReweight", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    horizon: Optional[int] = 1
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+
+class DynaSATConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAT", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    horizon: Optional[int] = 1
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
 
@@ -162,15 +216,14 @@ class DynaSACConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
 
     alpha_lr: Optional[float] = 3e-4
-
-    # TODO this bool doesn't work as expected - needs to be int 1/0
     use_bounded_active: Optional[bool] = False
     num_models: Optional[int] = 5
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
 
-    horizon: Optional[int] = 3
+    horizon: Optional[int] = 1
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
 

@@ -12,7 +12,6 @@ import os
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
@@ -21,7 +20,7 @@ from cares_reinforcement_learning.networks.world_models.ensemble_world import (
 )
 
 
-class DynaSAC:
+class DynaSAT:
     def __init__(
         self,
         actor_network: torch.nn.Module,
@@ -103,21 +102,20 @@ class DynaSAC:
         ##################     Update the Critic First     ####################
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
-
-            target_q_one, target_q_two = self.target_critic_net(
+            target_q_one, target_q_two, target_q_three = self.target_critic_net(
                 next_states, next_actions
             )
             target_q_values = (
-                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                torch.minimum(torch.minimum(target_q_one, target_q_two), target_q_three) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
-
+        q_values_one, q_values_two, q_values_three = self.critic_net(states, actions)
         critic_loss_one = ((q_values_one - q_target).pow(2)).mean()
         critic_loss_two = ((q_values_two - q_target).pow(2)).mean()
+        critic_loss_three = ((q_values_three - q_target).pow(2)).mean()
 
-        critic_loss_total = critic_loss_one + critic_loss_two
+        critic_loss_total = critic_loss_one + critic_loss_two + critic_loss_three
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -126,8 +124,9 @@ class DynaSAC:
 
         ##################     Update the Actor Second     ####################
         pi, first_log_p, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        qf1_pi, qf2_pi, qf3_pi = self.critic_net(states, pi)
+        min_qf_pi = torch.minimum(torch.minimum(qf1_pi, qf2_pi), qf3_pi)
+
         actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
 
         # Update the Actor
@@ -152,27 +151,7 @@ class DynaSAC:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-    def train_world_model(
-        self, memory: PrioritizedReplayBuffer, batch_size: int
-    ) -> None:
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, _, _ = experiences
-
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-
-        self.world_model.train_world(
-            states=states,
-            actions=actions,
-            next_states=next_states,
-        )
-        self.world_model.train_reward(
-            next_states=next_states,
-            rewards=rewards,
-        )
 
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
@@ -197,6 +176,28 @@ class DynaSAC:
         )
         # # # Step 3 Dyna add more data
         self._dyna_generate_and_train(next_states=next_states)
+
+    def train_world_model(
+        self, memory: PrioritizedReplayBuffer, batch_size: int
+    ) -> None:
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, _, _ = experiences
+
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+
+        self.world_model.train_world(
+            states=states,
+            actions=actions,
+            next_states=next_states,
+        )
+        self.world_model.train_reward(
+            next_states=next_states,
+            rewards=rewards,
+        )
 
     def _dyna_generate_and_train(self, next_states: torch.Tensor) -> None:
         pred_states = []
