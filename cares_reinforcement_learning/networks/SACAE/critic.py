@@ -14,6 +14,7 @@ class Critic(nn.Module):
         self.hidden_size = [1024, 1024]
 
         # Q1 architecture
+        # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
             nn.Linear(self.encoder.latent_dim + num_actions, self.hidden_size[0]),
             nn.ReLU(),
@@ -23,6 +24,7 @@ class Critic(nn.Module):
         )
 
         # Q2 architecture
+        # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
             nn.Linear(self.encoder.latent_dim + num_actions, self.hidden_size[0]),
             nn.ReLU(),

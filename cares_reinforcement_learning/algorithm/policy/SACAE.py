@@ -152,7 +152,7 @@ class SACAE:
                 rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
             )
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+        q_values_one, q_values_two = self.critic_net(states_normalised, actions)
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
