@@ -98,29 +98,14 @@ class TD3AE:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.learn_counter += 1
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
-        # Normalise states and next_states
-        states_normalised = states / 255
-        next_states_normalised = next_states / 255
-
+    def _update_critic(
+        self,
+        states_normalised: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states_normalised: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> None:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states_normalised)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -147,17 +132,64 @@ class TD3AE:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
+    def _update_actor(self, states_normalised: torch.Tensor) -> None:
+        actions = self.actor_net(states_normalised, detach_encoder=True)
+        actor_q_values, _ = self.critic_net(
+            states_normalised, actions, detach_encoder=True
+        )
+        actor_loss = -actor_q_values.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+    def _update_autoencoder(self, states_normalised: torch.Tensor) -> None:
+        states_latent = self.critic_net.encoder(states_normalised)
+        rec_observations = self.decoder_net(states_latent)
+
+        rec_loss = F.mse_loss(states_normalised, rec_observations)
+
+        # add L2 penalty on latent representation
+        # see https://arxiv.org/pdf/1903.12436.pdf
+        latent_loss = (0.5 * states_latent.pow(2).sum(1)).mean()
+
+        loss = rec_loss + self.decoder_latent_lambda * latent_loss
+        self.encoder_net_optimiser.zero_grad()
+        self.decoder_net_optimiser.zero_grad()
+        loss.backward()
+        self.encoder_net_optimiser.step()
+        self.decoder_net_optimiser.step()
+
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        # Normalise states and next_states
+        states_normalised = states / 255
+        next_states_normalised = next_states / 255
+
+        self._update_critic(
+            states_normalised, actions, rewards, next_states_normalised, dones
+        )
+
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actions = self.actor_net(states_normalised, detach_encoder=True)
-            actor_q_values, _ = self.critic_net(
-                states_normalised, actions, detach_encoder=True
-            )
-            actor_loss = -actor_q_values.mean()
-
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward()
-            self.actor_net_optimiser.step()
+            self._update_actor(states_normalised)
 
             # Update target network params
             hlp.soft_update_params(
@@ -182,21 +214,7 @@ class TD3AE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            states_latent = self.critic_net.encoder(states_normalised)
-            rec_observations = self.decoder_net(states_latent)
-
-            rec_loss = F.mse_loss(states_normalised, rec_observations)
-
-            # add L2 penalty on latent representation
-            # see https://arxiv.org/pdf/1903.12436.pdf
-            latent_loss = (0.5 * states_latent.pow(2).sum(1)).mean()
-
-            loss = rec_loss + self.decoder_latent_lambda * latent_loss
-            self.encoder_net_optimiser.zero_grad()
-            self.decoder_net_optimiser.zero_grad()
-            loss.backward()
-            self.encoder_net_optimiser.step()
-            self.decoder_net_optimiser.step()
+            self._update_autoencoder(states_normalised)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
