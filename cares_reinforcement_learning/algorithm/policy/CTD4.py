@@ -92,7 +92,9 @@ class CTD4:
     ) -> tuple[torch.Tensor, torch.Tensor]:
         kalman_gain = (std_1**2) / (std_1**2 + std_2**2)
         fusion_mean = mean_1 + kalman_gain * (mean_2 - mean_1)
-        fusion_variance = (1 - kalman_gain) * (std_1**2)
+        fusion_variance = (
+            (1 - kalman_gain) * std_1**2 + kalman_gain * std_2**2 + 1e-6
+        )  # 1e-6 was included to avoid values equal to 0
         fusion_std = torch.sqrt(fusion_variance)
         return fusion_mean, fusion_std
 

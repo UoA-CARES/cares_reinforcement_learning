@@ -7,7 +7,7 @@ class Actor(nn.Module):
     def __init__(self, observation_size: int, num_actions: int):
         super(Actor, self).__init__()
 
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = [256, 256]
 
         self.h_linear_1 = nn.Linear(
             in_features=observation_size, out_features=self.hidden_size[0]

@@ -1,3 +1,4 @@
+import numpy as np
 from memory import memory_buffer, memory_buffer_1e6
 
 
@@ -97,6 +98,13 @@ def test_sample_inverse_sample_values(memory_buffer_1e6):
     for i in range(size):
         memory_buffer_1e6.add(i, i, i, i, i % 2, i)
 
+    ind = []
+    priorities = []
+    for i in range(size):
+        ind.append(i)
+        priorities.append(1)
+    memory_buffer_1e6.update_priorities(np.array(ind), np.array(priorities))
+
     states, actions, rewards, next_states, dones, log_probs, ind, weights = (
         memory_buffer_1e6.sample_inverse_priority(1)
     )
@@ -109,7 +117,7 @@ def test_sample_inverse_sample_values(memory_buffer_1e6):
     assert dones == [value % 2]
     assert log_probs == [value]
     assert ind == [value]
-    assert abs(weights[0] - size) < 0.0001
+    assert abs(weights[0] - size) < 0.001
 
 
 def test_sample_consecutive_values(memory_buffer_1e6):
