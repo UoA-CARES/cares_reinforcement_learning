@@ -12,3 +12,5 @@ from .MAPERTD3 import MAPERTD3
 from .PALTD3 import PALTD3
 from .REDQ import REDQ
 from .TQC import TQC
+from .EpisodicTD3 import EpisodicTD3
+
