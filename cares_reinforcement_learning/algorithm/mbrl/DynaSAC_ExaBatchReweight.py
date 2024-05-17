@@ -348,7 +348,7 @@ class DynaSAC_ExaBatchReweight:
 
             # Exacerbate the sample difference.
             scale = 2.0
-            mean_var = torch.mean(total_var, keepdim=True)
+            mean_var = torch.mean(total_var)
             diff = total_var - mean_var
             scale_diff = scale * diff
             total_var += scale_diff
