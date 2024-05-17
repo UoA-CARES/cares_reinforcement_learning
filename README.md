@@ -124,12 +124,12 @@ natsort  ├─ policy/
 | LA3PSAC     | Continuous   | [LA3PSAC Paper](https://arxiv.org/abs/2209.00532) |
 | MAPERTD3    | Continuous   | [MAPERTD3 Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
 | MAPERSAC    | Continuous   | [MAPERSAC Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
-| RDTD3       | Continuous   | [RDTD3 Paper]() |
-| RDSAC       | Continuous   | [RDSAC Paper]() |
+| RDTD3       | Continuous   | WIP |
+| RDSAC       | Continuous   | WIP |
 | REDQ        | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf) |
 | TQC         | Continuous   | [TQC Paper](https://arxiv.org/abs/1812.05905) |
 | CTD4        | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576) |
-| NaSATD3     | Continuous   | [NaSATD3 Paper]() |
+| NaSATD3     | Continuous   | In Submission |
 
 ## In progress
 | Algorithm      | Action Space |  On/Off Policy |
