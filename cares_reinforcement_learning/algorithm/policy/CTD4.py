@@ -1,5 +1,6 @@
 """
-CTD4
+Original Paper: https://arxiv.org/abs/2405.02576
+
 Continues Distributed TD3
 Each Critic outputs a normal distribution
 

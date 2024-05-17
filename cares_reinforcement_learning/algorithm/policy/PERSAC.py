@@ -1,3 +1,7 @@
+"""
+Original Paper: https://arxiv.org/abs/1511.05952
+"""
+
 import copy
 import logging
 import os

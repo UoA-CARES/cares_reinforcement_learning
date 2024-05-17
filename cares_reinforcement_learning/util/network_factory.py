@@ -26,6 +26,9 @@ def create_DQN(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Original paper https://arxiv.org/abs/1511.06581
+    """
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DuelingDQN import DuelingNetwork
 

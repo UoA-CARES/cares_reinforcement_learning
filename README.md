@@ -103,25 +103,33 @@ natsort  ├─ policy/
 `util`: contains common utility classes
 
 ## Supported Algorithms
-| Algorithm      | Action Space |
-| ----------- | ----------- |
-| DQN      | Discrete              | 
-| DoubleDQN   | Discrete         |
-| DuelingDQN   | Discrete         |
-| DDPG   | Continuous         |
-| PPO      | Continuous       |
-| TD3   | Continuous         |
-| PALTD3   | Continuous               |
-| PERTD3   | Continuous               |
-| LAPTD3   | Continuous               |
-| LA3PTD3   | Continuous               |
-| MAPERTD3   | Continuous               |
-| RDTD3   | Continuous               |
-| NaSATD3   | Continuous               |
-| CTD4   | Continuous               |
-| SAC   | Continuous               |
-| REDQ   | Continuous               |
-| TQC   | Continuous               |
+| Algorithm   | Action Space | Paper Reference |
+| ----------- | ------------ | --------------- |
+| DQN         | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602) |
+| DoubleDQN   | Discrete     | [DoubleDQN Paper](https://arxiv.org/abs/1509.06461) |
+| DuelingDQN  | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581) |
+| ----------- | ------------ | --------------- |
+| PPO         | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347) |
+| DDPG        | Continuous   | [DDPG Paper](https://arxiv.org/pdf/1509.02971v5.pdf) |
+| TD3         | Continuous   | [TD3 Paper](https://arxiv.org/abs/1802.09477v3) |
+| SAC         | Continuous   | [SAC Paper](https://arxiv.org/abs/1812.05905) |
+| TD3AE       | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741) |
+| SACAE       | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741) |
+| PERTD3      | Continuous   | [PERTD3 Paper](https://arxiv.org/abs/1511.05952) |
+| PERSAC      | Continuous   | [PERSAC Paper](https://arxiv.org/abs/1511.05952) |
+| PALTD3      | Continuous   | [PALTD3 Paper](https://arxiv.org/abs/2007.06049) |
+| LAPTD3      | Continuous   | [LAPTD3 Paper](https://arxiv.org/abs/2007.06049) |
+| LAPSAC      | Continuous   | [LAPSAC Paper](https://arxiv.org/abs/2007.06049) |
+| LA3PTD3     | Continuous   | [LA3PTD3 Paper](https://arxiv.org/abs/2209.00532) |
+| LA3PSAC     | Continuous   | [LA3PSAC Paper](https://arxiv.org/abs/2209.00532) |
+| MAPERTD3    | Continuous   | [MAPERTD3 Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
+| MAPERSAC    | Continuous   | [MAPERSAC Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
+| RDTD3       | Continuous   | [RDTD3 Paper]() |
+| RDSAC       | Continuous   | [RDSAC Paper]() |
+| REDQ        | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf) |
+| TQC         | Continuous   | [TQC Paper](https://arxiv.org/abs/1812.05905) |
+| CTD4        | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576) |
+| NaSATD3     | Continuous   | [NaSATD3 Paper]() |
 
 ## In progress
 | Algorithm      | Action Space |  On/Off Policy |
