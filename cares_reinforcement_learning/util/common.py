@@ -1,3 +1,4 @@
+import torch
 from torch import distributions as pyd
 from torch import nn
 from torch.distributions.transformed_distribution import TransformedDistribution
@@ -23,6 +24,36 @@ class MLP(nn.Module):
         for fully_connected_layer in self.fully_connected_layers:
             state = F.relu(fully_connected_layer(state))
         output = self.output_layer(state)
+        return output
+
+
+# CNN from Nature paper: https://www.nature.com/articles/nature14236
+class NatureCNN(nn.Module):
+    def __init__(self, observation_size: tuple[int]):
+        super().__init__()
+
+        self.cnn_modules = [
+            nn.Conv2d(observation_size[0], 32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+            nn.Flatten(),
+        ]
+
+        self.nature_cnn = nn.Sequential(*self.cnn_modules)
+
+        with torch.no_grad():
+            dummy_image = torch.zeros([1, *observation_size])
+            n_flatten = self.nature_cnn(torch.FloatTensor(dummy_image))
+
+        self.cnn_modules.append(nn.Linear(n_flatten.shape[1], 512))
+
+        self.nature_cnn = nn.Sequential(*self.cnn_modules)
+
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        output = self.nature_cnn(state)
         return output
 
 

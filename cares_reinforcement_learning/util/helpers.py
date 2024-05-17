@@ -14,24 +14,39 @@ def set_seed(seed):
     random.seed(seed)
 
 
-def plot_reward_curve(data_reward):
-    data = pd.DataFrame.from_dict(data_reward)
-    data.plot(x="step", y="episode_reward", title="Reward Curve")
-    plt.show()
-
-
-def weight_init(m):
+def soft_update_params(net, target_net, tau):
     """
-    Initialize the world model with orthogonal initializer for diversity.
-    It works better than Xavier, which is commented.
+    Soft updates the parameters of a neural network by blending them with the parameters of a target network.
 
-    Keyword arguments:
-        m -- the layer to be initialized.
+    Args:
+        net (torch.nn.Module): The neural network whose parameters will be updated.
+        target_net (torch.nn.Module): The target neural network whose parameters will be blended with the `net` parameters.
+        tau (float): The blending factor. The updated parameters will be a weighted average of the `net` parameters and the `target_net` parameters.
+
+    Returns:
+        None
     """
-    if isinstance(m, torch.nn.Linear):
-        #     torch.nn.init.xavier_uniform_(m.weight)
-        torch.nn.init.orthogonal_(m.weight.data)
-        m.bias.data.fill_(0.0)
+    for param, target_param in zip(net.parameters(), target_net.parameters()):
+        target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+
+
+def weight_init(module: torch.nn.Module) -> None:
+    """
+    Custom weight init for Conv2D and Linear layers
+
+    delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
+    """
+    if isinstance(module, torch.nn.Linear):
+        torch.nn.init.orthogonal_(module.weight.data)
+        module.bias.data.fill_(0.0)
+
+    elif isinstance(module, (torch.nn.Conv2d, torch.nn.ConvTranspose2d)):
+        assert module.weight.size(2) == module.weight.size(3)
+        module.weight.data.fill_(0.0)
+        module.bias.data.fill_(0.0)
+        mid = module.weight.size(2) // 2
+        gain = torch.nn.init.calculate_gain("relu")
+        torch.nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
 
 
 def normalize_observation(observation, statistics):
@@ -150,3 +165,20 @@ def quantile_huber_loss_f(quantiles, samples):
         torch.abs(tau[None, None, :, None] - (pairwise_delta < 0).float()) * huber_loss
     ).mean()
     return loss
+
+
+def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
+    """
+    Returns the right size of the flattened tensor after convolutional transformation
+    :param w: width of image
+    :param k: kernel size
+    :param s: stride
+    :param p: padding
+    :param m: max pooling (bool)
+    :return: proper shape and params: use x * x * previous_out_channels
+
+    Example:
+    r = flatten(*flatten(*flatten(w=100, k=3, s=1, p=0, m=True)))[0]
+    self.fc1 = nn.Linear(r*r*128, 1024)
+    """
+    return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
