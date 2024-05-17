@@ -172,6 +172,26 @@ class RDSAC:
             .flatten()
         )
 
+        # Update Scales
+        if self.learn_counter == 1:
+            td_err = torch.cat([diff_td_one, diff_td_two], -1)
+            mean_td_err = torch.mean(td_err, 1)
+            mean_td_err = mean_td_err.view(-1, 1)
+            numpy_td_err = mean_td_err[:, 0].detach().data.cpu().numpy()
+
+            reward_err = torch.cat([diff_reward_one, diff_reward_two], -1)
+            mean_reward_err = torch.mean(reward_err, 1)
+            mean_reward_err = mean_reward_err.view(-1, 1)
+            numpy_reward_err = mean_reward_err[:, 0].detach().data.cpu().numpy()
+
+            state_err = torch.cat([diff_next_states_one, diff_next_states_two], -1)
+            mean_state_err = torch.mean(state_err, 1)
+            mean_state_err = mean_state_err.view(-1, 1)
+            numpy_state_err = mean_state_err[:, 0].detach().data.cpu().numpy()
+
+            self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
+            self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
+
         return priorities
 
     def _update_actor_alpha(self, states: torch.Tensor, weights: torch.Tensor) -> None:
