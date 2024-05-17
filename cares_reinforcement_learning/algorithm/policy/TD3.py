@@ -72,7 +72,14 @@ class TD3:
         self.actor_net.train()
         return action
 
-    def _update_critc(self, states, actions, rewards, next_states, dones):
+    def _update_critc(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> None:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -98,7 +105,7 @@ class TD3:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor(self, states):
+    def _update_actor(self, states: torch.Tensor) -> None:
         actor_q_values, _ = self.critic_net(states, self.actor_net(states))
         actor_loss = -actor_q_values.mean()
 
@@ -133,12 +140,7 @@ class TD3:
             self._update_actor(states)
 
             # Update target network params
-            hlp.soft_update_params(
-                self.critic_net.Q1, self.target_critic_net.Q1, self.tau
-            )
-            hlp.soft_update_params(
-                self.critic_net.Q2, self.target_critic_net.Q2, self.tau
-            )
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:

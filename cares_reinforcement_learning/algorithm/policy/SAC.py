@@ -85,7 +85,14 @@ class SAC:
     def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def _update_critic(self, states, actions, rewards, next_states, dones):
+    def _update_critic(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> None:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -110,7 +117,7 @@ class SAC:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor_alpha(self, states):
+    def _update_actor_alpha(self, states: torch.Tensor) -> None:
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)

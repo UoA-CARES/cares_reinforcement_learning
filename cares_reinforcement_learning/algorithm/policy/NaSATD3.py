@@ -10,6 +10,7 @@ import torch.nn.functional as F
 from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 # TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
@@ -112,40 +113,22 @@ class NaSATD3:
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
-                action += noise_scale * np.random.randn(
-                    self.action_num
-                )  # this is part the TD3 too, add noise to the action
+                # this is part the TD3 too, add noise to the action
+                action += noise_scale * np.random.randn(self.action_num)
                 noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
                 action = action + noise
                 action = np.clip(action, -1, 1)
         self.actor.train()
         return action
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.encoder.train()
-        self.decoder.train()
-        self.actor.train()
-        self.critic.train()
-
-        self.learn_counter += 1
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        # goals       = torch.FloatTensor(np.asarray(goals)).to(self.device)
-
-        # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
+    def _update_critic(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> None:
         with torch.no_grad():
             next_actions = self.actor_target(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -166,12 +149,11 @@ class NaSATD3:
         critic_loss_two = F.mse_loss(q_values_two, q_target)
         critic_loss_total = critic_loss_one + critic_loss_two
 
-        # Update the Critic
         self.critic_optimizer.zero_grad()
         critic_loss_total.backward()
         self.critic_optimizer.step()
 
-        # Update Autoencoder
+    def _update_autoencoder(self, states: torch.Tensor) -> None:
         z_vector = self.encoder(states)
         rec_obs = self.decoder(z_vector)
 
@@ -179,9 +161,8 @@ class NaSATD3:
         target_images = states / 255
         rec_loss = F.mse_loss(target_images, rec_obs)
 
-        latent_loss = (
-            0.5 * z_vector.pow(2).sum(1)
-        ).mean()  # add L2 penalty on latent representation
+        # add L2 penalty on latent representation
+        latent_loss = (0.5 * z_vector.pow(2).sum(1)).mean()
         ae_loss = rec_loss + 1e-6 * latent_loss
 
         self.encoder_optimizer.zero_grad()
@@ -190,46 +171,63 @@ class NaSATD3:
         self.encoder_optimizer.step()
         self.decoder_optimizer.step()
 
-        # Update Actor
-        if self.learn_counter % self.policy_update_freq == 0:
-            actor_q_one, actor_q_two = self.critic(
-                states, self.actor(states, detach_encoder=True), detach_encoder=True
-            )
-            actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-            actor_loss = -actor_q_values.mean()
+    def _update_actor(self, states: torch.Tensor) -> None:
+        actor_q_one, actor_q_two = self.critic(
+            states, self.actor(states, detach_encoder=True), detach_encoder=True
+        )
+        actor_q_values = torch.minimum(actor_q_one, actor_q_two)
+        actor_loss = -actor_q_values.mean()
 
-            self.actor_optimizer.zero_grad()
-            actor_loss.backward()
-            self.actor_optimizer.step()
+        self.actor_optimizer.zero_grad()
+        actor_loss.backward()
+        self.actor_optimizer.step()
+
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        self.encoder.train()
+        self.decoder.train()
+        self.actor.train()
+        self.critic.train()
+
+        self.learn_counter += 1
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        # Update the Critic
+        self._update_critic(states, actions, rewards, next_states, dones)
+
+        # Update Autoencoder
+        self._update_autoencoder(states)
+
+        if self.learn_counter % self.policy_update_freq == 0:
+            # Update Actor
+            self._update_actor(states)
 
             # Update target network params
-            for target_param, param in zip(
-                self.critic_target.Q1.parameters(), self.critic.Q1.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.critic_target.Q2.parameters(), self.critic.Q2.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.actor_target.act_net.parameters(), self.actor.act_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
             # Note: the encoders in target networks are the same of main networks, so I wont update them
+            hlp.soft_update_params(self.critic.Q1, self.critic_target.Q1, self.tau)
+            hlp.soft_update_params(self.critic.Q2, self.critic_target.Q2, self.tau)
 
-        # TODO split the tuple non-tuple
+            hlp.soft_update_params(
+                self.actor.act_net, self.actor_target.act_net, self.tau
+            )
+
         # Update intrinsic models
         if self.intrinsic_on:
-            self.train_predictive_model(states, actions, next_states)
+            self._train_predictive_model(states, actions, next_states)
 
     def get_intrinsic_reward(
         self, state: np.ndarray, action: np.ndarray, next_state: np.ndarray
@@ -242,10 +240,10 @@ class NaSATD3:
             action_tensor = torch.FloatTensor(action).to(self.device)
             action_tensor = action_tensor.unsqueeze(0)
 
-            surprise_rate = self.get_surprise_rate(
+            surprise_rate = self._get_surprise_rate(
                 state_tensor, action_tensor, next_state_tensor
             )
-            novelty_rate = self.get_novelty_rate(state_tensor)
+            novelty_rate = self._get_novelty_rate(state_tensor)
 
         # TODO make these parameters - i.e. Tony's work
         a = 1.0
@@ -255,7 +253,7 @@ class NaSATD3:
 
         return reward_surprise + reward_novelty
 
-    def get_surprise_rate(
+    def _get_surprise_rate(
         self,
         state_tensor: torch.Tensor,
         action_tensor: torch.Tensor,
@@ -276,7 +274,7 @@ class NaSATD3:
             mse = (np.square(z_next_latent_prediction - z_next_latent_true)).mean()
         return mse
 
-    def get_novelty_rate(self, state_tensor_img: torch.Tensor) -> float:
+    def _get_novelty_rate(self, state_tensor_img: torch.Tensor) -> float:
         with torch.no_grad():
             z_vector = self.encoder(state_tensor_img)
 
@@ -299,7 +297,7 @@ class NaSATD3:
 
         return novelty_rate
 
-    def train_predictive_model(
+    def _train_predictive_model(
         self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
     ) -> None:
 
@@ -320,7 +318,7 @@ class NaSATD3:
             loss.backward()
             optimizer.step()
 
-    def get_reconstruction_for_evaluation(self, state: np.ndarray) -> np.ndarray:
+    def _get_reconstruction_for_evaluation(self, state: np.ndarray) -> np.ndarray:
         self.encoder.eval()
         self.decoder.eval()
         with torch.no_grad():

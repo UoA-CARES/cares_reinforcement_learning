@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
@@ -85,27 +86,15 @@ class RDSAC:
     def alpha(self) -> float:
         return self.log_alpha.exp()
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.learn_counter += 1
-
-        experiences = memory.sample_priority(batch_size)
-        states, actions, rewards, next_states, dones, indices, weights = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-        weights = weights.unsqueeze(0).reshape(batch_size, 1)
-
+    def _update_critics(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+        weights: torch.Tensor,
+    ) -> torch.Tensor:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
@@ -169,7 +158,6 @@ class RDSAC:
             critic_two_loss * weights
         ).mean()
 
-        # train critic
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
@@ -184,6 +172,9 @@ class RDSAC:
             .flatten()
         )
 
+        return priorities
+
+    def _update_actor_alpha(self, states: torch.Tensor, weights: torch.Tensor) -> None:
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         qf_pi_one, _, _ = self._split_output(qf1_pi)
@@ -192,7 +183,6 @@ class RDSAC:
 
         actor_loss = torch.mean(((self.alpha * log_pi) - min_qf_pi) * weights)
 
-        # Update the Actor
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
@@ -203,13 +193,37 @@ class RDSAC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        experiences = memory.sample_priority(batch_size)
+        states, actions, rewards, next_states, dones, indices, weights = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
+
+        # Reshape to batch_size x whatever
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        weights = weights.unsqueeze(0).reshape(batch_size, 1)
+
+        # Update the Critic
+        priorities = self._update_critics(
+            states, actions, rewards, next_states, dones, weights
+        )
+
+        # Update the Actor
+        self._update_actor_alpha(states, weights)
+
         if self.learn_counter % self.policy_update_freq == 0:
-            for target_param, param in zip(
-                self.target_critic_net.parameters(), self.critic_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         memory.update_priorities(indices, priorities)
 

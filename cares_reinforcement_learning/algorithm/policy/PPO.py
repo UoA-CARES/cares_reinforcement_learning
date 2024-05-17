@@ -117,6 +117,7 @@ class PPO:
         v, _ = self._evaluate_policy(states, actions)
 
         advantages = rtgs.detach() - v.detach()
+
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
 
