@@ -2,7 +2,7 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.encoders.autoencoder import Encoder
-from cares_reinforcement_learning.networks.DDPG import Actor as TD3Actor
+from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
 
 
 class Actor(TD3Actor):

@@ -11,7 +11,7 @@ class Actor(nn.Module):
     ):
         super().__init__()
         if hidden_size is None:
-            hidden_size = [256, 256]
+            hidden_size = [1024, 1024]
 
         self.hidden_size = hidden_size
 
