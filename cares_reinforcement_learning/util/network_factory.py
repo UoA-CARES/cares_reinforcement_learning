@@ -464,8 +464,7 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import REDQ
-    from cares_reinforcement_learning.networks.REDQ import Critic
-    from cares_reinforcement_learning.networks.SAC import Actor
+    from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -488,8 +487,7 @@ def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
 
 def create_TQC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import TQC
-    from cares_reinforcement_learning.networks.TQC import Critic
-    from cares_reinforcement_learning.networks.SAC import Actor
+    from cares_reinforcement_learning.networks.TQC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num, config.num_quantiles, config.num_nets)
@@ -535,8 +533,7 @@ def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import RDSAC
-    from cares_reinforcement_learning.networks.RDSAC import Critic
-    from cares_reinforcement_learning.networks.SAC import Actor
+    from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -558,8 +555,7 @@ def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import MAPERSAC
-    from cares_reinforcement_learning.networks.MAPERSAC import Critic
-    from cares_reinforcement_learning.networks.SAC import Actor
+    from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 
     actor = Actor(
         observation_size, action_num, hidden_size=[400, 300], log_std_bounds=[-20, 2]
