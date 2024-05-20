@@ -3,10 +3,17 @@ from torch import nn
 
 
 class Critic(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int):
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_size: list[int] = None,
+    ):
         super().__init__()
+        if hidden_size is None:
+            hidden_size = [256, 256]
 
-        self.hidden_size = [256, 256]
+        self.hidden_size = hidden_size
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
