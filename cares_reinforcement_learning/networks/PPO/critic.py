@@ -24,7 +24,6 @@ class Critic(nn.Module):
             nn.Linear(self.hidden_size[1], 1),
         )
 
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        obs_action = torch.cat([state, action], dim=1)
-        q1 = self.Q1(obs_action)
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        q1 = self.Q1(state)
         return q1

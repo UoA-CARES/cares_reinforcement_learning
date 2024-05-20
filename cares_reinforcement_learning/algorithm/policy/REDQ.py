@@ -188,7 +188,7 @@ class REDQ:
             for critic_net, target_critic_net in zip(
                 self.ensemble_critics, self.target_ensemble_critics
             ):
-                hlp.soft_update(critic_net, target_critic_net, self.tau)
+                hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
