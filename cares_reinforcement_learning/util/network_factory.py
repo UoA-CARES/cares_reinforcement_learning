@@ -347,7 +347,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PERTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -370,7 +370,7 @@ def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -393,7 +393,7 @@ def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -418,7 +418,7 @@ def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PALTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PALTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -510,7 +510,7 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PERSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -581,7 +581,7 @@ def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -605,7 +605,7 @@ def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
