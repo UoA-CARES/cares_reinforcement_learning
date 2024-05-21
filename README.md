@@ -49,12 +49,8 @@ Environment running Gameboy games utilising the pyboy wrapper: https://github.co
 ### Gripper Gym
 The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
 
-<center>
-
-![Rotation Task](./media/rotation_task-min.jpg)
-![Translation Task](./media/translation_task-min.jpg)
-
-</center>
+<img src="./media/rotation_task-min.jpg" align="left">
+<img src="./media/translation_task-min.jpg" align="right>
 
 
 ### F1Tenth Autonmous Racing
