@@ -19,7 +19,18 @@ Run `pip3 install -r requirements.txt` in the **root directory** of the package
 To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
 
 ## Running an Example
-This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own envrionments see this package which uses these algorithms on the Deep Mind Control suite and OpenAI gym envrionments - https://github.com/UoA-CARES/gymnasium_envrionments 
+This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own envrionments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks. 
+
+### Gym Environments
+We have integrated our reinforcement learning methods for use on the standard Deep Mind Control suite and OpenAI gym envrionments in our general Gymnasium Environment package: https://github.com/UoA-CARES/gymnasium_envrionments 
+
+This package also contains wrappers for custom Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment 
+
+### Gripper Gym
+The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
+
+### F1Tenth Autonmous Racing
+The Autonmous F1Tenth package contains all the code for training our F1Tenth platforms to autonmously race: https://github.com/UoA-CARES/autonomous_f1tenth 
 
 ## Utilities
 CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new envrionments we build to test our approaches.
