@@ -52,8 +52,8 @@ Environment running Gameboy games utilising the pyboy wrapper: https://github.co
 The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
 
 <p align="center">
-    <img src="./media/rotation_task-min.jpg" />
-    <img src="./media/translation_task-min.jpg" />
+<img src="./media/rotation_task-min.jpg" />
+<img src="./media/translation_task-min.jpg" />
 </p>
 
 
@@ -78,3 +78,101 @@ The Record class allows data to be saved into a consistent format during trainin
 
 All data from a training run is saved into '~/cares_rl_logs'. A folder will be created for each training run named as 'seed/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS', e.g. '10/TD3-HalfCheetah-v4-23_10_11_08:47:22'. This folder will contain the following directories and information saved during the training session:
 
+```
+ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
+├─ SEED
+|  ├─ env_config.py
+|  ├─ alg_config.py
+|  ├─ train_config.py
+|  ├─ data
+|  |  ├─ train.csv
+|  |  ├─ eval.csv
+|  ├─ figures
+|  |  ├─ eval.png
+|  |  ├─ train.png
+|  ├─ models
+|  |  ├─ model.pht
+|  |  ├─ CHECKPOINT_N.pht
+|  |  ├─ ...
+|  ├─ videos
+|  |  ├─ STEP.mp4
+|  |  ├─ ...
+├─ SEED...
+├─ ...
+```
+
+### plotting.py
+The plotting utility will plot the data contained in the training data. An example of how to plot the data from one or multiple training sessions together is shown below. Running 'python3 plotter.py -h' will provide details on the plotting parameters.
+
+```
+python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
+```
+
+### NetworkFactory.py
+A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package. 
+
+### MemoryFactory.py
+A factory class for creating a memory buffer that has been implemented into the CARES RL package.
+
+## Package Structure
+
+```
+cares_reinforcement_learning/
+├─ algorithm/
+├─ policy/
+│  │  ├─ TD3.py
+│  │  ├─ ...
+│  ├─ value/
+│  │  ├─ DQN.py
+│  │  ├─ ...
+├─ networks/
+│  ├─ DQN/
+│  │  ├─ network.py
+│  ├─ TD3.py/
+│  │  ├─ actor.py
+│  │  ├─ critic.py
+│  ├─ ...
+├─ memory/
+│  ├─ prioritised_replay_buffer.py
+├─ util/
+│  ├─ network_factory.py
+│  ├─ ...
+
+```
+`algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
+
+`networks`: contains standard neural networks that can be used with each algortihm
+
+`memory`: contains the implementation of various memory buffers - e.g. Priotised Experience Replay
+
+`util`: contains common utility classes
+
+## Supported Algorithms
+| Algorithm   | Observation Space          | Action Space | Paper Reference |
+| ----------- | -------------------------- | ------------ | --------------- |
+| DQN         | Vector                     | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602) |
+| DoubleDQN   | Vector                     | Discrete     | [DoubleDQN Paper](https://arxiv.org/abs/1509.06461) |
+| DuelingDQN  | Vector                     | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581) |
+| ----------- | -------------------------- | ------------ | --------------- |
+| PPO         | Vector                     | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347) |
+| DDPG        | Vector                     | Continuous   | [DDPG Paper](https://arxiv.org/pdf/1509.02971v5.pdf) |
+| TD3         | Vector                     | Continuous   | [TD3 Paper](https://arxiv.org/abs/1802.09477v3) |
+| SAC         | Vector                     | Continuous   | [SAC Paper](https://arxiv.org/abs/1812.05905) |
+| PERTD3      | Vector                     | Continuous   | [PERTD3 Paper](https://arxiv.org/abs/1511.05952) |
+| PERSAC      | Vector                     | Continuous   | [PERSAC Paper](https://arxiv.org/abs/1511.05952) |
+| PALTD3      | Vector                     | Continuous   | [PALTD3 Paper](https://arxiv.org/abs/2007.06049) |
+| LAPTD3      | Vector                     | Continuous   | [LAPTD3 Paper](https://arxiv.org/abs/2007.06049) |
+| LAPSAC      | Vector                     | Continuous   | [LAPSAC Paper](https://arxiv.org/abs/2007.06049) |
+| LA3PTD3     | Vector                     | Continuous   | [LA3PTD3 Paper](https://arxiv.org/abs/2209.00532) |
+| LA3PSAC     | Vector                     | Continuous   | [LA3PSAC Paper](https://arxiv.org/abs/2209.00532) |
+| MAPERTD3    | Vector                     | Continuous   | [MAPERTD3 Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
+| MAPERSAC    | Vector                     | Continuous   | [MAPERSAC Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
+| RDTD3       | Vector                     | Continuous   | WIP |
+| RDSAC       | Vector                     | Continuous   | WIP |
+| REDQ        | Vector                     | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf) |
+| TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/abs/1812.05905) |
+| CTD4        | Vector                     | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576) |
+| ----------- | -------------------------- | ------------ | --------------- |
+| NaSATD3     | Image                      | Continuous   | In Submission |
+| TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741) |
+| SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741) |
