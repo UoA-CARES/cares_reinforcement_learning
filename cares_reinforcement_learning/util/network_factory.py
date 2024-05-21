@@ -89,10 +89,9 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
-
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
 
     actor = Actor(observation_size, action_num)
