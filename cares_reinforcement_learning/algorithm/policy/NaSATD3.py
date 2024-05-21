@@ -110,6 +110,8 @@ class NaSATD3:
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = state_tensor / 255
+
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
@@ -118,6 +120,7 @@ class NaSATD3:
                 noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
                 action = action + noise
                 action = np.clip(action, -1, 1)
+
         self.actor.train()
         return action
 
@@ -157,8 +160,7 @@ class NaSATD3:
         z_vector = self.encoder(states)
         rec_obs = self.decoder(z_vector)
 
-        # this because the states are [0-255] and the predictions are [0-1]
-        target_images = states / 255
+        target_images = states
         rec_loss = F.mse_loss(target_images, rec_obs)
 
         # add L2 penalty on latent representation
@@ -182,6 +184,27 @@ class NaSATD3:
         actor_loss.backward()
         self.actor_optimizer.step()
 
+    def _update_predictive_model(
+        self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
+    ) -> None:
+
+        with torch.no_grad():
+            latent_state = self.encoder(states, detach_output=True)
+            latent_next_state = self.encoder(next_states, detach_output=True)
+
+        for predictive_network, optimizer in zip(
+            self.ensemble_predictive_model, self.epm_optimizers
+        ):
+            predictive_network.train()
+            # Get the deterministic prediction of each model
+            prediction_vector = predictive_network(latent_state, actions)
+            # Calculate Loss of each model
+            loss = F.mse_loss(prediction_vector, latent_next_state)
+            # Update weights and bias
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.encoder.train()
         self.decoder.train()
@@ -201,6 +224,11 @@ class NaSATD3:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Normalise states and next_states
+        # This because the states are [0-255] and the predictions are [0-1]
+        states /= 255
+        next_states /= 255
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
@@ -227,16 +255,22 @@ class NaSATD3:
 
         # Update intrinsic models
         if self.intrinsic_on:
-            self._train_predictive_model(states, actions, next_states)
+            self._update_predictive_model(states, actions, next_states)
 
     def get_intrinsic_reward(
         self, state: np.ndarray, action: np.ndarray, next_state: np.ndarray
     ) -> float:
         with torch.no_grad():
+            # Normalise states and next_states
+            # This because the states are [0-255] and the predictions are [0-1]
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = state_tensor / 255
+
             next_state_tensor = torch.FloatTensor(next_state).to(self.device)
             next_state_tensor = next_state_tensor.unsqueeze(0)
+            next_state_tensor = next_state_tensor / 255
+
             action_tensor = torch.FloatTensor(action).to(self.device)
             action_tensor = action_tensor.unsqueeze(0)
 
@@ -260,8 +294,8 @@ class NaSATD3:
         next_state_tensor: torch.Tensor,
     ) -> float:
         with torch.no_grad():
-            latent_state = self.encoder(state_tensor, detach=True)
-            latent_next_state = self.encoder(next_state_tensor, detach=True)
+            latent_state = self.encoder(state_tensor, detach_output=True)
+            latent_next_state = self.encoder(next_state_tensor, detach_output=True)
 
             predict_vector_set = []
             for network in self.ensemble_predictive_model:
@@ -276,16 +310,16 @@ class NaSATD3:
 
     def _get_novelty_rate(self, state_tensor_img: torch.Tensor) -> float:
         with torch.no_grad():
-            z_vector = self.encoder(state_tensor_img)
+            z_vector = self.encoder(state_tensor_img, detach_output=True)
 
-            # rec_img is a stack of k images --> (1, k , 84 ,84), [0~255]
+            # rec_img is a stack of k images --> (1, k , 84 ,84), [0~1]
             rec_img = self.decoder(z_vector)
 
             # --> (k , 84 ,84)
             original_stack_imgs = state_tensor_img.cpu().numpy()[0]
             reconstruction_stack = rec_img.cpu().numpy()[0]
 
-        target_images = original_stack_imgs / 255
+        target_images = original_stack_imgs
         ssim_index_total = ssim(
             target_images,
             reconstruction_stack,
@@ -296,27 +330,6 @@ class NaSATD3:
         novelty_rate = 1 - ssim_index_total
 
         return novelty_rate
-
-    def _train_predictive_model(
-        self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
-    ) -> None:
-
-        with torch.no_grad():
-            latent_state = self.encoder(states, detach=True)
-            latent_next_state = self.encoder(next_states, detach=True)
-
-        for predictive_network, optimizer in zip(
-            self.ensemble_predictive_model, self.epm_optimizers
-        ):
-            predictive_network.train()
-            # Get the deterministic prediction of each model
-            prediction_vector = predictive_network(latent_state, actions)
-            # Calculate Loss of each model
-            loss = F.mse_loss(prediction_vector, latent_next_state)
-            # Update weights and bias
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
 
     def _get_reconstruction_for_evaluation(self, state: np.ndarray) -> np.ndarray:
         self.encoder.eval()

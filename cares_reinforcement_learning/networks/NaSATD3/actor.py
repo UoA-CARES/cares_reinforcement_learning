@@ -1,9 +1,7 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
-    weight_init,
-)
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 class Actor(nn.Module):
@@ -21,11 +19,11 @@ class Actor(nn.Module):
             nn.Linear(self.hidden_size[1], num_actions),
             nn.Tanh(),
         )
-        self.apply(weight_init)
+        self.apply(hlp.weight_init)
 
     def forward(
         self, state: torch.Tensor, detach_encoder: bool = False
     ) -> torch.Tensor:
-        z_vector = self.encoder_net(state, detach=detach_encoder)
+        z_vector = self.encoder_net(state, detach_output=detach_encoder)
         output = self.act_net(z_vector)
         return output

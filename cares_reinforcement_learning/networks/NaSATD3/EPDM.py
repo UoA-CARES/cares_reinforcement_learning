@@ -6,9 +6,7 @@ Predict outputs  a point estimate e.g. discrete value
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
-    weight_init,
-)
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 # pylint: disable-next=invalid-name
@@ -30,7 +28,7 @@ class EPDM(nn.Module):
             nn.Linear(in_features=self.hidden_size[1], out_features=self.output_dim),
         )
 
-        self.apply(weight_init)
+        self.apply(hlp.weight_init)
 
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         x = torch.cat([state, action], dim=1)

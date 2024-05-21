@@ -24,5 +24,6 @@ class Critic(TD3Critic):
     def forward(
         self, state: torch.Tensor, action: torch.Tensor, detach_encoder: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        state_latent = self.encoder(state, detach=detach_encoder)
+        # Detach at the CNN layer to prevent backpropagation through the encoder
+        state_latent = self.encoder(state, detach_cnn=detach_encoder)
         return super().forward(state_latent, action)

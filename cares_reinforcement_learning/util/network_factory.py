@@ -149,7 +149,11 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 
     encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size, latent_dim=config.latent_size
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
     )
 
     actor_encoder = copy.deepcopy(encoder)
@@ -228,7 +232,11 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 
     encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size, latent_dim=config.latent_size
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
     )
 
     actor_encoder = copy.deepcopy(encoder)
@@ -259,16 +267,17 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
+    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
-    from cares_reinforcement_learning.networks.NaSATD3 import (
-        Actor,
-        Critic,
-        Decoder,
-        Encoder,
-    )
+    from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 
-    encoder = Encoder(latent_dim=config.latent_size)
-    decoder = Decoder(latent_dim=config.latent_size)
+    encoder, decoder = ae.create_autoencoder(
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+    )
 
     actor = Actor(config.latent_size, action_num, encoder)
     critic = Critic(config.latent_size, action_num, encoder)
