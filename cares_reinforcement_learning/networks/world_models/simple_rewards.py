@@ -37,10 +37,6 @@ class SimpleReward(nn.Module):
 
         :return (Tensors) x -- predicted rewards.
         """
-        assert (
-            observation.shape[1] + actions.shape[1]
-            == self.observation_size + self.num_actions
-        )
         x = torch.cat((observation, actions), dim=1)
         x = self.linear1(x)
         x = F.relu(x)

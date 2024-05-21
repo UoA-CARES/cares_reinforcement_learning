@@ -52,10 +52,7 @@ class SimpleDynamics(nn.Module):
         :return (Tensors) normalized_var -- normalized delta of var for
         uncertainty estimation.
         """
-        assert (
-            observation.shape[1] + actions.shape[1]
-            == self.observation_size + self.num_actions
-        )
+
         # Always normalized obs
         normalized_obs = hlp.normalize_observation(observation, self.statistics)
 

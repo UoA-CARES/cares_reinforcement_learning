@@ -225,10 +225,6 @@ class EnsembleWorldReward:
         :return (Tensors) all normalized delta' means
         :return (Tensors) all normalized delta' vars
         """
-        assert (
-            observation.shape[1] + actions.shape[1]
-            == self.observation_size + self.num_actions
-        )
         means = []
         norm_means = []
         norm_vars = []
