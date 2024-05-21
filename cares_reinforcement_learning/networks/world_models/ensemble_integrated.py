@@ -286,14 +286,6 @@ class EnsembleWorldReward:
         :param (Tensors) input next_actions:
         :param (Tensors) input next_rewards:
         """
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2
-        assert (
-            states.shape[1] + actions.shape[1]
-            == self.num_actions + self.observation_size
-        )
-
         # For each model, train with different data.
         mini_batch_size = int(math.floor(states.shape[0] / self.num_models))
 
