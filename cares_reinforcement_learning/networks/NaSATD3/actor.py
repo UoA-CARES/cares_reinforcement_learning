@@ -24,6 +24,7 @@ class Actor(nn.Module):
     def forward(
         self, state: torch.Tensor, detach_encoder: bool = False
     ) -> torch.Tensor:
+        # NaSATD3 detatches the encoder at the output
         z_vector = self.encoder_net(state, detach_output=detach_encoder)
         output = self.act_net(z_vector)
         return output
