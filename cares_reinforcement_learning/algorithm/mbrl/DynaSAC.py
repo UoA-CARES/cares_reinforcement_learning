@@ -92,6 +92,16 @@ class DynaSAC:
         self.actor_net.train()
         return action
 
+    def _update_critic_actor(self, states, actions, rewards, next_states, dones):
+        # Update Critic
+        self._update_critic(states, actions, rewards, next_states, dones)
+
+        # Update Actor
+        self._update_actor(states)
+
+        if self.learn_counter % self.policy_update_freq == 0:
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+
     def _update_critic(self, states, actions, rewards, next_states, dones):
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -155,12 +165,15 @@ class DynaSAC:
             pred_rs.append(pred_reward.detach())
             pred_n_states.append(pred_next_state.detach())
             pred_state = pred_next_state.detach()
+
         pred_states = torch.vstack(pred_states)
         pred_actions = torch.vstack(pred_actions)
         pred_rs = torch.vstack(pred_rs)
         pred_n_states = torch.vstack(pred_n_states)
+
         # Pay attention to here! It is dones in the Cares RL Code!
         pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
+
         # states, actions, rewards, next_states, not_dones
         self._update_critic_actor(
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
@@ -180,15 +193,7 @@ class DynaSAC:
         dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
 
         # Step 1 train as usual
-
-        # Update Critic
-        self._update_critic(states, actions, rewards, next_states, dones)
-
-        # Update Actor
-        self._update_actor(states)
-
-        if self.learn_counter % self.policy_update_freq == 0:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self._update_critic_actor(states, actions, rewards, next_states, dones)
 
         # # # Step 2 Dyna add more data
         self._dyna_generate_and_train(next_states=next_states)
