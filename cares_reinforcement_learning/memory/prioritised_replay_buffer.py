@@ -20,7 +20,10 @@ class PrioritizedReplayBuffer:
     Experiences are stored in the order: state, action, reward, next_state, done, ...
 
     Args:
-        max_capacity (int): The maximum capacity of the buffer.
+        max_capacity (int): The maximum capacity of the buffer. Default is 1e6.
+        min_priority (float): The minimum priority value. Default is 1e-4 - just above 0.
+        beta (float): The initial value of the beta parameter for importance weight calculation. Default is 0.4.
+        d_beta (float): The rate of change for the beta parameter. Default is 6e-7 - presumned over 1,000,000 steps.
         **priority_params: Additional parameters for priority calculation.
 
     Attributes:
@@ -28,20 +31,27 @@ class PrioritizedReplayBuffer:
         max_capacity (int): The maximum capacity of the buffer.
         current_size (int): The current size of the buffer.
         memory_buffers (list): An array of buffers for each experience type.
-        tree (SumTree): The SumTree data structure for efficient sampling based on priorities.
+        sum_tree (SumTree): The SumTree data structure for efficient sampling based on priorities.
+        inverse_tree (SumTree): The SumTree data structure for efficient sampling based on inverse priorities.
         tree_pointer (int): The location to add the next item into the tree.
+        min_priority (float): The minimum priority value.
+        init_beta (float): The initial value of the beta parameter.
+        beta (float): The current value of the beta parameter.
+        d_beta (float): The rate of change for the beta parameter.
         max_priority (float): The maximum priority value in the buffer.
-        beta (float): The beta parameter for importance weight calculation.
 
     Methods:
         __len__(): Returns the current size of the buffer.
         add(state, action, reward, next_state, done, *extra): Adds a single experience to the buffer.
         sample_uniform(batch_size): Samples experiences uniformly from the buffer.
-        sample_priority(batch_size): Samples experiences from the buffer based on priorities.
+        _importance_sampling_prioritised_weights(indices, weight_normalisation): Calculates the importance-sampling weights for prioritized replay.
+        sample_priority(batch_size, sampling, weight_normalisation): Samples experiences from the buffer based on priorities.
         sample_inverse_priority(batch_size): Samples experiences from the buffer based on inverse priorities.
         update_priorities(indices, priorities): Updates the priorities of the buffer at the given indices.
         flush(): Flushes the memory buffers and returns the experiences in order.
         sample_consecutive(batch_size): Randomly samples consecutive experiences from the memory buffer.
+        get_statistics(): Returns statistics about the buffer.
+        clear(): Clears the buffer.
     """
 
     def __init__(
