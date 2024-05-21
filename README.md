@@ -22,15 +22,45 @@ To make the module **globally accessible** in your working environment run `pip3
 This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own envrionments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks. 
 
 ### Gym Environments
-We have integrated our reinforcement learning methods for use on the standard Deep Mind Control suite and OpenAI gym envrionments in our general Gymnasium Environment package: https://github.com/UoA-CARES/gymnasium_envrionments 
+We have created a standardised training gym environment that wraps the most common gym environments used in reinforcement learning into a single easy to use place:  https://github.com/UoA-CARES/gymnasium_envrionments 
 
-This package also contains wrappers for custom Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment 
+This package contains wrappers for the following gym environments:
+
+#### Deep Mind Control Suite
+The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
+
+![DMCS](./media/dmcs.png)
+
+#### OpenAI Gymnasium
+The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium 
+
+![OpenAI Gymnasium](./media/openai.jpg)
+
+#### Game Boy Emulator
+Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment 
+
+<center>
+
+![Mario](./media/mario.png)
+![Pokemon](./media/pokemon.png)
+
+</center>
 
 ### Gripper Gym
 The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
 
+<center>
+
+![Rotation Task](./media/rotation_task-min.jpg)
+![Translation Task](./media/translation_task-min.jpg)
+
+</center>
+
+
 ### F1Tenth Autonmous Racing
 The Autonmous F1Tenth package contains all the code for training our F1Tenth platforms to autonmously race: https://github.com/UoA-CARES/autonomous_f1tenth 
+
+![F1Tenth Autonomous Racing](./media/f1tenth-min.png)
 
 ## Utilities
 CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new envrionments we build to test our approaches.
@@ -110,6 +140,8 @@ cares_reinforcement_learning/
 `algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
 
 `networks`: contains standard neural networks that can be used with each algortihm
+
+`memory`: contains the implementation of various memory buffers - e.g. Priotised Experience Replay
 
 `util`: contains common utility classes
 
