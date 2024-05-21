@@ -1,3 +1,8 @@
+"""
+This module provides functions to create different types of reinforcement learning agents
+with their corresponding network architectures.
+"""
+
 import copy
 import inspect
 import logging

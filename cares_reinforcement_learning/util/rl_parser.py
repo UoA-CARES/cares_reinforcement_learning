@@ -33,7 +33,9 @@ class RLParser:
         self.add_configuration("env_config", environment_config)
         self.add_configuration("training_config", TrainingConfig)
 
-    def add_model(self, parser, model):
+    def add_model(
+        self, parser: argparse.ArgumentParser, model: AlgorithmConfig
+    ) -> None:
         fields = model.__fields__
         for name, field in fields.items():
             nargs = "+" if get_origin(field.annotation) is list else None
@@ -47,7 +49,7 @@ class RLParser:
                 nargs=nargs,
             )
 
-    def _get_algorithm_parser(self):
+    def _get_algorithm_parser(self) -> None:
         alg_parser = argparse.ArgumentParser()
         alg_parsers = alg_parser.add_subparsers(
             help="Select which RL algorith you want to use",
@@ -63,16 +65,16 @@ class RLParser:
 
         return alg_parser, alg_parsers
 
-    def add_algorithm_config(self, algorithm_config):
+    def add_algorithm_config(self, algorithm_config: AlgorithmConfig) -> None:
         name = algorithm_config.__name__.replace("Config", "")
         parser = self.algorithm_parsers.add_parser(f"{name}", help=f"{name}")
         self.add_model(parser, algorithm_config)
         self.algorithm_configurations[algorithm_config.__name__] = algorithm_config
 
-    def add_configuration(self, name, configuration):
+    def add_configuration(self, name: str, configuration: SubscriptableClass) -> None:
         self.configurations[name] = configuration
 
-    def parse_args(self):
+    def parse_args(self) -> dict:
         parser = argparse.ArgumentParser(usage="<command> [<args>]")
         # Add an argument
         parser.add_argument(
@@ -102,7 +104,7 @@ class RLParser:
 
         return configs
 
-    def _config(self):
+    def _config(self) -> dict:
         parser = argparse.ArgumentParser()
         required = parser.add_argument_group("required arguments")
         required.add_argument(
@@ -134,7 +136,7 @@ class RLParser:
 
         return args
 
-    def _run(self):
+    def _run(self) -> dict:
         parser = argparse.ArgumentParser()
 
         for _, configuration in self.configurations.items():

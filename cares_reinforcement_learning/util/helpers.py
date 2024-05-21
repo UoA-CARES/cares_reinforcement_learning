@@ -1,12 +1,19 @@
 import random
 
-import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
 import torch
 
 
-def set_seed(seed):
+def set_seed(seed: int) -> None:
+    """
+    Set the random seed for reproducibility.
+
+    Args:
+        seed (int): The random seed value.
+
+    Returns:
+        None
+    """
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
@@ -49,72 +56,120 @@ def weight_init(module: torch.nn.Module) -> None:
         torch.nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
 
 
-def normalize_observation(observation, statistics):
+def normalize_observation(observation: torch.Tensor, statistics: dict) -> torch.Tensor:
     """
     This normalization is applied to world models inputs.
     Normalize the states based on the statistics from experience replay.
 
-    Keyword arguments:
-        obs -- input states
-        statistics -- statistics from experience replay (no default)
+    Args:
+        observation (torch.Tensor): The observation tensor to be normalized.
+        statistics (dict): The statistics from experience replay.
+
+    Returns:
+        torch.Tensor: The normalized observation tensor.
+
     """
     return (observation - statistics["observation_mean"]) / statistics[
         "observation_std"
     ]
 
 
-def denormalize_observation_delta(normalized_delta, statistics):
+def denormalize_observation_delta(
+    normalized_delta: torch.Tensor, statistics: dict
+) -> torch.Tensor:
     """
     This denormlizing is applied to world models predicitons to restore the range of state difference between next and
     current.
 
-    Keyword arguments:
-        obs -- input states
-        statistics -- statistics from experience replay (no default)
+    Args:
+        normalized_delta (torch.Tensor): The normalized delta tensor to be denormalized.
+        statistics (dict): The statistics from experience replay.
+
+    Returns:
+        torch.Tensor: The denormalized delta tensor.
+
     """
     return (normalized_delta * statistics["delta_std"]) + statistics["delta_mean"]
 
 
-def normalize_observation_delta(delta, statistics):
+def normalize_observation_delta(delta: torch.Tensor, statistics: dict) -> torch.Tensor:
     """
     This normalization is applied to world models' target lables. The world model is predicting the difference between
     current states and next states. This normalization is applied to the deltas.
+
+    Args:
+        delta (torch.Tensor): The delta tensor to be normalized.
+        statistics (dict): The statistics from experience replay.
+
+    Returns:
+        torch.Tensor: The normalized delta tensor.
 
     """
     return (delta - statistics["delta_mean"]) / statistics["delta_std"]
 
 
-def denormalize(action, max_action_value, min_action_value):
+def denormalize(
+    action: float, max_action_value: float, min_action_value: float
+) -> float:
     """
-    return action in environment range [max_action_value, min_action_value]
+    Denormalize the given action value within the specified range.
+
+    Args:
+        action (float): The action value to be denormalized.
+        max_action_value (float): The maximum value of the action range.
+        min_action_value (float): The minimum value of the action range.
+
+    Returns:
+        float: The denormalized action value.
+
     """
-    max_range_value = max_action_value
-    min_range_value = min_action_value
-    max_value_in = 1
-    min_value_in = -1
-    action_denorm = (action - min_value_in) * (max_range_value - min_range_value) / (
-        max_value_in - min_value_in
-    ) + min_range_value
+    max_range_value: float = max_action_value
+    min_range_value: float = min_action_value
+    max_value_in: float = 1
+    min_value_in: float = -1
+    action_denorm: float = (action - min_value_in) * (
+        max_range_value - min_range_value
+    ) / (max_value_in - min_value_in) + min_range_value
     return action_denorm
 
 
-def normalize(action, max_action_value, min_action_value):
+def normalize(action: float, max_action_value: float, min_action_value: float) -> float:
     """
-    return action in algorithm range [-1, +1]
+    Normalize the given action value within the specified range.
+
+    Args:
+        action (float): The action value to be normalized.
+        max_action_value (float): The maximum value of the action range.
+        min_action_value (float): The minimum value of the action range.
+
+    Returns:
+        float: The normalized action value.
+
     """
-    max_range_value = 1
-    min_range_value = -1
-    max_value_in = max_action_value
-    min_value_in = min_action_value
-    action_norm = (action - min_value_in) * (max_range_value - min_range_value) / (
-        max_value_in - min_value_in
-    ) + min_range_value
+    max_range_value: float = 1
+    min_range_value: float = -1
+    max_value_in: float = max_action_value
+    min_value_in: float = min_action_value
+    action_norm: float = (action - min_value_in) * (
+        max_range_value - min_range_value
+    ) / (max_value_in - min_value_in) + min_range_value
     return action_norm
 
 
-def compare_models(model_1, model_2):
+def compare_models(model_1: torch.nn.Module, model_2: torch.nn.Module) -> bool:
     """
-    This function helps to compare two models
+    Compare two PyTorch models and check if their state dictionaries are equal.
+
+    Args:
+        model_1 (torch.nn.Module): The first PyTorch model.
+        model_2 (torch.nn.Module): The second PyTorch model.
+
+    Returns:
+        bool: True if the models have equal state dictionaries, False otherwise.
+
+    Raises:
+        ValueError: If the models have different state dictionaries.
+
     """
     models_differ = 0
     for key_item_1, key_item_2 in zip(
@@ -133,7 +188,20 @@ def compare_models(model_1, model_2):
     return models_differ == 0
 
 
-def prioritized_approximate_loss(x, min_priority, alpha):
+def prioritized_approximate_loss(
+    x: torch.Tensor, min_priority: float, alpha: float
+) -> torch.Tensor:
+    """
+    Calculates the prioritized approximate loss.
+
+    Args:
+        x (torch.Tensor): The input tensor.
+        min_priority (float): The minimum priority value.
+        alpha (float): The alpha value.
+
+    Returns:
+        torch.Tensor: The calculated prioritized approximate loss.
+    """
     return torch.where(
         x.abs() < min_priority,
         (min_priority**alpha) * 0.5 * x.pow(2),
@@ -141,11 +209,35 @@ def prioritized_approximate_loss(x, min_priority, alpha):
     ).mean()
 
 
-def huber(x, min_priority):
+def huber(x: torch.Tensor, min_priority: float) -> torch.Tensor:
+    """
+    Computes the Huber loss function.
+
+    Args:
+        x (torch.Tensor): The input tensor.
+        min_priority (float): The minimum priority value.
+
+    Returns:
+        torch.Tensor: The computed Huber loss.
+
+    """
     return torch.where(x < min_priority, 0.5 * x.pow(2), min_priority * x).mean()
 
 
-def quantile_huber_loss_f(quantiles, samples):
+def quantile_huber_loss_f(
+    quantiles: torch.Tensor, samples: torch.Tensor
+) -> torch.Tensor:
+    """
+    Calculates the quantile Huber loss for a given set of quantiles and samples.
+
+    Args:
+        quantiles (torch.Tensor): A tensor of shape (batch_size, num_nets, num_quantiles) representing the quantiles.
+        samples (torch.Tensor): A tensor of shape (batch_size, num_samples) representing the samples.
+
+    Returns:
+        torch.Tensor: The quantile Huber loss.
+
+    """
     pairwise_delta = (
         samples[:, None, None, :] - quantiles[:, :, :, None]
     )  # batch x nets x quantiles x samples
