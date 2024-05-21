@@ -22,7 +22,7 @@ To make the module **globally accessible** in your working environment run `pip3
 This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own envrionments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks. 
 
 ### Gym Environments
-We have created a standardised training gym environment that wraps the most common gym environments used in reinforcement learning into a single easy to use place:  https://github.com/UoA-CARES/gymnasium_envrionments 
+We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place:  https://github.com/UoA-CARES/gymnasium_envrionments 
 
 This package contains wrappers for the following gym environments:
 
@@ -30,30 +30,30 @@ This package contains wrappers for the following gym environments:
 The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
 
 <p align="center">
-    <img src="./media/dmcs.png" />
+    <img src="./media/dmcs.png" style="width: 80%;"/>
 </p>
 
 #### OpenAI Gymnasium
 The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium 
 
 <p align="center">
-    <img src="./media/openai.jpg" />
+    <img src="./media/openai.jpg" style="width: 80%;" />
 </p>
 
 #### Game Boy Emulator
 Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment 
 
 <p align="center">
-    <img src="./media/mario.png" />
-    <img src="./media/pokemon.png" />
+    <img src="./media/mario.png" style="width: 40%;" />
+    <img src="./media/pokemon.png" style="width: 40%;"/>
 </p>
 
 ### Gripper Gym
 The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
 
 <p align="center">
-<img src="./media/rotation_task-min.jpg" />
-<img src="./media/translation_task-min.jpg" />
+<img src="./media/rotation_task-min.jpg" style="width: 40%;"/>
+<img src="./media/translation_task-min.jpg" style="width: 40%;"/>
 </p>
 
 
@@ -61,7 +61,7 @@ The gripper gym contains all the code for training our dexterous robotic manipul
 The Autonmous F1Tenth package contains all the code for training our F1Tenth platforms to autonmously race: https://github.com/UoA-CARES/autonomous_f1tenth 
 
 <p align="center">
-    <img src="./media/f1tenth-min.png" />
+    <img src="./media/f1tenth-min.png" style="width: 80%;"/>
 </p>
 
 ## Utilities
