@@ -61,6 +61,7 @@ class SimpleDynamics(nn.Module):
         x = F.relu(x)
         x = self.layer2(x)
         x = F.relu(x)
+
         normalized_mean = self.mean_layer(x)
         logvar = self.logvar_layer(x)
         logvar = torch.tanh(logvar)

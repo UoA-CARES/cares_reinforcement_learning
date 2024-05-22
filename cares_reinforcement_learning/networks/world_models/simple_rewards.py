@@ -22,6 +22,7 @@ class SimpleReward(nn.Module):
         self.linear1 = nn.Linear(observation_size + num_actions, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
         self.linear3 = nn.Linear(hidden_size, 1)
+
         self.apply(hlp.weight_init)
 
     def forward(
@@ -43,6 +44,8 @@ class SimpleReward(nn.Module):
         x = self.linear2(x)
         x = F.relu(x)
         x = self.linear3(x)
+
         if normalized:
             x = F.sigmoid(x)
+
         return x
