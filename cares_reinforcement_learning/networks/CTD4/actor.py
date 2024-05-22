@@ -1,22 +1,6 @@
-import torch
-from torch import nn
+"""
+This is a stub file for the Actor class - reads directly off SAC's Actor class.
+"""
 
-
-class Actor(nn.Module):
-    def __init__(self, observation_size: int, action_num: int):
-        super().__init__()
-
-        self.hidden_size = [256, 256]
-
-        self.act_net = nn.Sequential(
-            nn.Linear(observation_size, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[1], action_num),
-            nn.Tanh(),
-        )
-
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
-        output = self.act_net(state)
-        return output
+# pylint: disable=unused-import
+from cares_reinforcement_learning.networks.TD3 import Actor

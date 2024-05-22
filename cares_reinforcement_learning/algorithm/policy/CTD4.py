@@ -1,5 +1,6 @@
 """
-CTD4
+Original Paper: https://arxiv.org/abs/2405.02576
+
 Continues Distributed TD3
 Each Critic outputs a normal distribution
 
@@ -14,6 +15,7 @@ from typing import Literal
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
@@ -146,29 +148,15 @@ class CTD4:
         )
         return fusion_u, fusion_std
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.learn_counter += 1
-
-        self.target_policy_noise_scale *= self.policy_noise_decay
-        self.target_policy_noise_scale = max(
-            self.min_policy_noise, self.target_policy_noise_scale
-        )
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
+    def _update_critics(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> None:
         batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
@@ -213,95 +201,81 @@ class CTD4:
                 current_distribution, target_distribution
             ).mean()
 
-            # --------- Update Each Critic # ------------#
             critic_net_optimiser.zero_grad()
             critic_individual_loss.backward()
             critic_net_optimiser.step()
-            # -------------------------------------------#
+
+    def _update_actor(self, states: torch.Tensor) -> None:
+        batch_size = len(states)
+
+        actor_q_u_set = []
+        actor_q_std_set = []
+        for critic_net in self.ensemble_critics:
+            actor_q_u, actor_q_std = critic_net(states, self.actor_net(states))
+            actor_q_u_set.append(actor_q_u)
+            actor_q_std_set.append(actor_q_std)
+
+        if self.fusion_method == "kalman":
+            # Kalman filter combination of all critics and then a single mean for the actor loss
+            fusion_u_a, fusion_std_a = self._kalman(actor_q_u_set, actor_q_std_set)
+
+        elif self.fusion_method == "average":
+            # Average combination of all critics and then a single mean for the actor loss
+            fusion_u_a, fusion_std_a = self._average(
+                actor_q_u_set, actor_q_std_set, batch_size
+            )
+
+        elif self.fusion_method == "minimum":
+            # Minimum all critics and then a single mean for the actor loss
+            fusion_u_a, fusion_std_a = self._minimum(
+                actor_q_u_set, actor_q_std_set, batch_size
+            )
+
+        actor_loss = -fusion_u_a.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        self.target_policy_noise_scale *= self.policy_noise_decay
+        self.target_policy_noise_scale = max(
+            self.min_policy_noise, self.target_policy_noise_scale
+        )
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        # Update Critics
+        self._update_critics(states, actions, rewards, next_states, dones)
 
         if self.learn_counter % self.policy_update_freq == 0:
-            actor_q_u_set = []
-            actor_q_std_set = []
-            for critic_net in self.ensemble_critics:
-                actor_q_u, actor_q_std = critic_net(states, self.actor_net(states))
-                actor_q_u_set.append(actor_q_u)
-                actor_q_std_set.append(actor_q_std)
-
-            if self.fusion_method == "kalman":
-                # ------------------- #
-                # kalman filter combination of all critics and then a single mean for the actor loss
-                for i in range(len(actor_q_u_set) - 1):
-                    if i == 0:
-                        x_1_a, std_1_a = actor_q_u_set[i], actor_q_std_set[i]
-                        x_2_a, std_2_a = actor_q_u_set[i + 1], actor_q_std_set[i + 1]
-                        fusion_u_a, fusion_std_a = self._fusion_kalman(
-                            std_1_a, x_1_a, std_2_a, x_2_a
-                        )
-                    else:
-                        x_2_a, std_2_a = actor_q_u_set[i + 1], actor_q_std_set[i + 1]
-                        fusion_u_a, fusion_std_a = self._fusion_kalman(
-                            fusion_std_a, fusion_u_a, std_2_a, x_2_a
-                        )
-                # ------------------- #
-
-            elif self.fusion_method == "average":
-                # -------------------------------  #
-                # average combination of all critics and then a single mean for the actor loss
-                fusion_u_a = (
-                    torch.mean(torch.concat(actor_q_u_set, dim=1), dim=1)
-                    .unsqueeze(0)
-                    .reshape(batch_size, 1)
-                )
-                fusion_std_a = (
-                    torch.mean(torch.concat(actor_q_std_set, dim=1), dim=1)
-                    .unsqueeze(0)
-                    .reshape(batch_size, 1)
-                )
-                # -------------------------------- #
-
-            elif self.fusion_method == "minimum":
-                # -----------------------------------------#
-                fusion_min_a = torch.min(torch.concat(actor_q_u_set, dim=1), dim=1)
-                fusion_u_a = fusion_min_a.values.unsqueeze(0).reshape(batch_size, 1)
-                # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
-                std_concat_a = torch.concat(actor_q_std_set, dim=1)
-                fusion_std_a = (
-                    torch.stack(
-                        [
-                            std_concat_a[i, fusion_min_a.indices[i]]
-                            for i in range(len(std_concat_a))
-                        ]
-                    )
-                    .unsqueeze(0)
-                    .reshape(batch_size, 1)
-                )
-                # -----------------------------------------#
-
-            actor_loss = -fusion_u_a.mean()
-            # --------- Update Actor # ------------#
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward()
-            self.actor_net_optimiser.step()
-            # -------------------------------------#
+            # Update Actor
+            self._update_actor(states)
 
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
                 self.ensemble_critics, self.target_ensemble_critics
             ):
-                for target_param, param in zip(
-                    target_critic_net.parameters(), critic_net.parameters()
-                ):
-                    target_param.data.copy_(
-                        param.data * self.tau + target_param.data * (1.0 - self.tau)
-                    )
+                hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 
             # Update target actor
-            for target_param, param in zip(
-                self.target_actor_net.parameters(), self.actor_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

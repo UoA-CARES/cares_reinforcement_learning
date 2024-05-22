@@ -1,7 +1,8 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
-from cares_reinforcement_learning.util.helpers import weight_init
+from torch import nn
+
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 class SimpleReward(nn.Module):
@@ -21,7 +22,8 @@ class SimpleReward(nn.Module):
         self.linear1 = nn.Linear(observation_size + num_actions, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
         self.linear3 = nn.Linear(hidden_size, 1)
-        self.apply(weight_init)
+
+        self.apply(hlp.weight_init)
 
     def forward(
         self, observation: torch.Tensor, actions: torch.Tensor, normalized: bool = False
@@ -36,16 +38,14 @@ class SimpleReward(nn.Module):
 
         :return (Tensors) x -- predicted rewards.
         """
-        assert (
-            observation.shape[1] + actions.shape[1]
-            == self.observation_size + self.num_actions
-        )
         x = torch.cat((observation, actions), dim=1)
         x = self.linear1(x)
         x = F.relu(x)
         x = self.linear2(x)
         x = F.relu(x)
         x = self.linear3(x)
+
         if normalized:
             x = F.sigmoid(x)
+
         return x

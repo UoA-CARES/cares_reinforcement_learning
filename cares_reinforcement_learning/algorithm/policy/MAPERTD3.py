@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
@@ -84,30 +85,15 @@ class MAPERTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.learn_counter += 1
-
-        # Sample replay buffer
-        experiences = memory.sample_priority(
-            batch_size, sampling="stratified", weight_normalisation="population"
-        )
-        states, actions, rewards, next_states, dones, indices, weights = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-        weights = weights.unsqueeze(0).reshape(batch_size, 1)
-
+    def _update_critic(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+        weights: torch.Tensor,
+    ) -> torch.Tensor:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states, actions)
         q_value_one, predicted_reward_one, next_states_one = self._split_output(
@@ -227,40 +213,63 @@ class MAPERTD3:
             .flatten()
         )
 
-        if self.learn_counter % self.policy_update_freq == 0:
-            # Update Actor
-            actor_q_one, actor_q_two = self.critic_net(
-                states.detach(), self.actor_net(states.detach())
-            )
-            actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-            actor_val, _, _ = self._split_output(actor_q_values)
-
-            actor_loss = -(actor_val * weights).mean()
-
-            # Optimize the actor
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward()
-            self.actor_net_optimiser.step()
-
-            # Update target network params
-            for target_param, param in zip(
-                self.target_critic_net.parameters(), self.critic_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_actor_net.parameters(), self.actor_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
         # Update Scales
         if self.learn_counter == 1:
             self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
             self.scale_s = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
+
+        return priorities
+
+    def _update_actor(self, states: torch.Tensor, weights: torch.Tensor) -> None:
+        actor_q_one, actor_q_two = self.critic_net(
+            states.detach(), self.actor_net(states.detach())
+        )
+        actor_q_values = torch.minimum(actor_q_one, actor_q_two)
+        actor_val, _, _ = self._split_output(actor_q_values)
+
+        actor_loss = -(actor_val * weights).mean()
+
+        # Optimize the actor
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        # Sample replay buffer
+        experiences = memory.sample_priority(
+            batch_size, sampling="stratified", weight_normalisation="population"
+        )
+        states, actions, rewards, next_states, dones, indices, weights = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
+
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        weights = weights.unsqueeze(0).reshape(batch_size, 1)
+
+        # Update critic
+        priorities = self._update_critic(
+            states, actions, rewards, next_states, dones, weights
+        )
+
+        if self.learn_counter % self.policy_update_freq == 0:
+            # Update Actor
+            self._update_actor(states, weights)
+
+            # Update target network params
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
         memory.update_priorities(indices, priorities)
 

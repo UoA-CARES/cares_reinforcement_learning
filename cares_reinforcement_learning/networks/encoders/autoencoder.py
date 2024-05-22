@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 from torch import nn
 
@@ -102,11 +101,13 @@ class Encoder(nn.Module):
         h = torch.flatten(conv, start_dim=1)
         return h
 
-    def forward(self, obs: torch.Tensor, detach: bool = False) -> torch.Tensor:
+    def forward(
+        self, obs: torch.Tensor, detach_cnn: bool = False, detach_output: bool = False
+    ) -> torch.Tensor:
         h = self._forward_conv(obs)
 
         # SAC AE detaches at the CNN layer
-        if detach:
+        if detach_cnn:
             h = h.detach()
 
         h_fc = self.fc(h)
@@ -114,6 +115,8 @@ class Encoder(nn.Module):
         latent_obs = torch.tanh(h_norm)
 
         # NaSATD3 detatches the encoder output
+        if detach_output:
+            latent_obs = latent_obs.detach()
 
         return latent_obs
 

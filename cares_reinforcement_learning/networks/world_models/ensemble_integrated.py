@@ -9,13 +9,11 @@ import torch.nn.functional as F
 import torch.utils
 from torch import optim
 
-from cares_reinforcement_learning.networks.world_models.simple_dynamics import (
+from cares_reinforcement_learning.networks.world_models import (
     SimpleDynamics,
-)
-from cares_reinforcement_learning.networks.world_models.simple_rewards import (
     SimpleReward,
 )
-from cares_reinforcement_learning.util.helpers import normalize_observation_delta
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 class IntegratedWorldModel:
@@ -40,18 +38,23 @@ class IntegratedWorldModel:
             num_actions=num_actions,
             hidden_size=hidden_size,
         )
+
         self.reward_network = SimpleReward(
             observation_size=observation_size,
             num_actions=num_actions,
             hidden_size=hidden_size,
         )
+
         self.reward_optimizer = optim.Adam(self.reward_network.parameters(), lr=lr)
+
         self.dyna_optimizer = optim.Adam(self.dyna_network.parameters(), lr=lr)
+
         self.all_optimizer = optim.Adam(
             list(self.reward_network.parameters())
             + list(self.dyna_network.parameters()),
             lr=lr,
         )
+
         self.statistics = {}
 
     def train_dynamics(
@@ -66,11 +69,16 @@ class IntegratedWorldModel:
         :param (Tensor) next_states -- target label.
         """
         target = next_states - states
-        delta_targets_normalized = normalize_observation_delta(target, self.statistics)
+        delta_targets_normalized = hlp.normalize_observation_delta(
+            target, self.statistics
+        )
+
         _, n_mean, n_var = self.dyna_network.forward(states, actions)
+
         model_loss = F.gaussian_nll_loss(
             input=n_mean, target=delta_targets_normalized, var=n_var
         ).mean()
+
         self.dyna_optimizer.zero_grad()
         model_loss.backward()
         self.dyna_optimizer.step()
@@ -97,15 +105,23 @@ class IntegratedWorldModel:
         mean_deltas, normalized_mean, normalized_var = self.dyna_network.forward(
             states, actions
         )
+
         # Always denormalized delta
         pred_next_state = mean_deltas + states
         target = next_states - states
-        delta_targets_normalized = normalize_observation_delta(target, self.statistics)
+
+        delta_targets_normalized = hlp.normalize_observation_delta(
+            target, self.statistics
+        )
+
         model_loss = F.gaussian_nll_loss(
             input=normalized_mean, target=delta_targets_normalized, var=normalized_var
         ).mean()
+
         pred_rewards = self.reward_network.forward(pred_next_state, next_actions)
+
         all_loss = F.mse_loss(pred_rewards, next_rewards) + model_loss.mean()
+
         # Update
         self.all_optimizer.zero_grad()
         all_loss.backward()
@@ -135,6 +151,7 @@ class EnsembleWorldReward:
         self.num_models = num_models
         self.observation_size = observation_size
         self.num_actions = num_actions
+
         self.models = [
             IntegratedWorldModel(
                 observation_size=observation_size,
@@ -185,9 +202,11 @@ class EnsembleWorldReward:
         for model in self.models:
             pred_rewards = model.reward_network.forward(observation, actions)
             rewards.append(pred_rewards)
+
         # Use average
         rewards = torch.stack(rewards)
         reward = torch.min(rewards, dim=0).values  # Pessimetic
+
         return reward, rewards
 
     def pred_next_states(
@@ -206,13 +225,10 @@ class EnsembleWorldReward:
         :return (Tensors) all normalized delta' means
         :return (Tensors) all normalized delta' vars
         """
-        assert (
-            observation.shape[1] + actions.shape[1]
-            == self.observation_size + self.num_actions
-        )
         means = []
         norm_means = []
         norm_vars = []
+
         # Iterate over the neural networks and get the predictions
         for model in self.models:
             # Predict delta
@@ -220,10 +236,12 @@ class EnsembleWorldReward:
             means.append(mean)
             norm_means.append(n_mean)
             norm_vars.append(n_var)
+
         # Normalized
         predictions_means = torch.stack(means)
         predictions_norm_means = torch.stack(norm_means)
         predictions_vars = torch.stack(norm_vars)
+
         # Get rid of the nans
         not_nans = []
         for i in range(self.num_models):
@@ -232,13 +250,16 @@ class EnsembleWorldReward:
         if len(not_nans) == 0:
             logging.info("Predicting all Nans")
             sys.exit()
+
         rand_ind = random.randint(0, len(not_nans) - 1)
         prediction = predictions_means[not_nans[rand_ind]]
+
         # next = current + delta
         prediction += observation
         all_predictions = torch.stack(means)
         for j in range(all_predictions.shape[0]):
             all_predictions[j] += observation
+
         return prediction, all_predictions, predictions_norm_means, predictions_vars
 
     def train_world(
@@ -261,25 +282,31 @@ class EnsembleWorldReward:
         :param (Tensors) input next_actions:
         :param (Tensors) input next_rewards:
         """
-        assert len(states.shape) >= 2
-        assert len(actions.shape) == 2
-        assert len(rewards.shape) == 2
-        assert (
-            states.shape[1] + actions.shape[1]
-            == self.num_actions + self.observation_size
-        )
         # For each model, train with different data.
         mini_batch_size = int(math.floor(states.shape[0] / self.num_models))
+
         for i in range(self.num_models):
+            states_i = states[i * mini_batch_size : (i + 1) * mini_batch_size]
+            actions_i = actions[i * mini_batch_size : (i + 1) * mini_batch_size]
+            next_states_i = next_states[i * mini_batch_size : (i + 1) * mini_batch_size]
+
             self.models[i].train_dynamics(
-                states[i * mini_batch_size : (i + 1) * mini_batch_size],
-                actions[i * mini_batch_size : (i + 1) * mini_batch_size],
-                next_states[i * mini_batch_size : (i + 1) * mini_batch_size],
+                states_i,
+                actions_i,
+                next_states_i,
             )
+
+            next_actions_i = next_actions[
+                i * mini_batch_size : (i + 1) * mini_batch_size
+            ]
+            next_rewards_i = next_rewards[
+                i * mini_batch_size : (i + 1) * mini_batch_size
+            ]
+
             self.models[i].train_overall(
-                states[i * mini_batch_size : (i + 1) * mini_batch_size],
-                actions[i * mini_batch_size : (i + 1) * mini_batch_size],
-                next_states[i * mini_batch_size : (i + 1) * mini_batch_size],
-                next_actions[i * mini_batch_size : (i + 1) * mini_batch_size],
-                next_rewards[i * mini_batch_size : (i + 1) * mini_batch_size],
+                states_i,
+                actions_i,
+                next_states_i,
+                next_actions_i,
+                next_rewards_i,
             )

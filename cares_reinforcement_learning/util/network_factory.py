@@ -1,3 +1,8 @@
+"""
+This module provides functions to create different types of reinforcement learning agents
+with their corresponding network architectures.
+"""
+
 import copy
 import inspect
 import logging
@@ -26,6 +31,9 @@ def create_DQN(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Original paper https://arxiv.org/abs/1511.06581
+    """
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DuelingDQN import DuelingNetwork
 
@@ -81,10 +89,9 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
-
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
 
     actor = Actor(observation_size, action_num)
@@ -146,7 +153,11 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 
     encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size, latent_dim=config.latent_size
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
     )
 
     actor_encoder = copy.deepcopy(encoder)
@@ -182,7 +193,7 @@ def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=[1024, 1024])
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -225,7 +236,11 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 
     encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size, latent_dim=config.latent_size
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
     )
 
     actor_encoder = copy.deepcopy(encoder)
@@ -256,16 +271,17 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
+    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
-    from cares_reinforcement_learning.networks.NaSATD3 import (
-        Actor,
-        Critic,
-        Decoder,
-        Encoder,
-    )
+    from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 
-    encoder = Encoder(latent_dim=config.latent_size)
-    decoder = Decoder(latent_dim=config.latent_size)
+    encoder, decoder = ae.create_autoencoder(
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+    )
 
     actor = Actor(config.latent_size, action_num, encoder)
     critic = Critic(config.latent_size, action_num, encoder)
@@ -344,7 +360,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PERTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -367,7 +383,7 @@ def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -390,7 +406,7 @@ def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -415,7 +431,7 @@ def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PALTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PALTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -507,7 +523,7 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PERSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -554,7 +570,9 @@ def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import MAPERSAC
     from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
+    actor = Actor(
+        observation_size, action_num, hidden_size=[400, 300], log_std_bounds=[-20, 2]
+    )
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -576,7 +594,7 @@ def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -600,7 +618,7 @@ def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)

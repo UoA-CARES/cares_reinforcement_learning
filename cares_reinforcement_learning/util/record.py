@@ -1,23 +1,39 @@
 import json
 import logging
 import os
+from typing import Any, Optional
 
 import cv2
+import numpy as np
 import pandas as pd
+import torch.nn as nn
 
 import cares_reinforcement_learning.util.plotter as plt
 
 
 class Record:
+    """
+    A class that represents a record for logging and saving data during training and evaluation.
+
+    Args:
+        glob_log_dir (str): The global log directory.
+        log_dir (str): The log directory.
+        algorithm (str): The algorithm name.
+        task (str): The task name.
+        plot_frequency (int, optional): The frequency at which to plot training data. Defaults to 10.
+        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. Defaults to 1000.
+        network (Optional[nn.Module], optional): The neural network model. Defaults to None.
+    """
+
     def __init__(
         self,
-        glob_log_dir,
-        log_dir,
-        algorithm,
-        task,
-        plot_frequency=10,
-        checkpoint_frequency=1000,
-        network=None,
+        glob_log_dir: str,
+        log_dir: str,
+        algorithm: str,
+        task: str,
+        plot_frequency: int = 10,
+        checkpoint_frequency: int = 1000,
+        network: Optional[nn.Module] = None,
     ) -> None:
         self.glob_log_dir = glob_log_dir
         self.log_dir = log_dir
@@ -63,7 +79,7 @@ class Record:
 
         self.__initialise_directories()
 
-    def save_config(self, configuration, file_name):
+    def save_config(self, configuration: dict, file_name: str) -> None:
         with open(
             f"{self.directory}/{file_name}.json", "w", encoding="utf-8"
         ) as outfile:
@@ -77,19 +93,19 @@ class Record:
         )
         self.log_video(frame)
 
-    def stop_video(self):
+    def stop_video(self) -> None:
         self.video.release()
 
-    def log_video(self, frame):
+    def log_video(self, frame: np.ndarray) -> None:
         self.video.write(frame)
 
-    def log_info(self, info, display=False):
+    def log_info(self, info: dict, display: bool = False) -> None:
         self.info_data = pd.concat(
             [self.info_data, pd.DataFrame([info])], ignore_index=True
         )
         self.save_data(self.info_data, self.info_data_path, info, display=display)
 
-    def log_train(self, display=False, **logs):
+    def log_train(self, display: bool = False, **logs) -> None:
         self.log_count += 1
 
         self.train_data = pd.concat(
@@ -112,7 +128,7 @@ class Record:
                 f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
             )
 
-    def log_eval(self, display=False, **logs):
+    def log_eval(self, display: bool = False, **logs) -> None:
         self.eval_data = pd.concat(
             [self.eval_data, pd.DataFrame([logs])], ignore_index=True
         )
@@ -126,7 +142,9 @@ class Record:
             "eval",
         )
 
-    def save_data(self, data_frame, path, logs, display=True):
+    def save_data(
+        self, data_frame: pd.DataFrame, path: str, logs: dict, display: bool = True
+    ) -> None:
         if data_frame.empty:
             logging.warning("Trying to save an Empty Dataframe")
 
@@ -139,7 +157,7 @@ class Record:
         if display:
             logging.info(string)
 
-    def save(self):
+    def save(self) -> None:
         logging.info("Saving final outputs")
         self.save_data(self.train_data, self.train_data_path, {}, display=False)
         self.save_data(self.eval_data, self.eval_data_path, {}, display=False)
@@ -163,7 +181,7 @@ class Record:
         if self.network is not None:
             self.network.save_models(self.algorithm, self.directory)
 
-    def __initialise_directories(self):
+    def __initialise_directories(self) -> None:
         if not os.path.exists(self.glob_log_dir):
             os.makedirs(self.glob_log_dir)
 

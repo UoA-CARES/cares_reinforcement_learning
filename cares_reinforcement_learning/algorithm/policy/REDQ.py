@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
 
@@ -94,30 +95,15 @@ class REDQ:
     def alpha(self) -> float:
         return self.log_alpha.exp()
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.learn_counter += 1
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
-        # replace=False so that not picking the same idx twice
-        idx = np.random.choice(
-            self.ensemble_size, self.num_sample_critics, replace=False
-        )
-
+    def _update_critics(
+        self,
+        idx: list[int],
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> None:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
 
@@ -143,11 +129,11 @@ class REDQ:
 
             critic_loss_total = 0.5 * F.mse_loss(q_values, q_target)
 
-            # Update the Critic
             critic_net_optimiser.zero_grad()
             critic_loss_total.backward()
             critic_net_optimiser.step()
 
+    def _update_actor_alpha(self, idx: list[int], states: torch.Tensor) -> None:
         pi, log_pi, _ = self.actor_net(states)
 
         qf1_pi = self.target_ensemble_critics[idx[0]](states, pi)
@@ -157,7 +143,6 @@ class REDQ:
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
-        # Update the Actor
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
@@ -168,17 +153,42 @@ class REDQ:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
+    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Reshape to batch_size x whatever
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        # replace=False so that not picking the same idx twice
+        idx = np.random.choice(
+            self.ensemble_size, self.num_sample_critics, replace=False
+        )
+
+        # Update the Critics
+        self._update_critics(idx, states, actions, rewards, next_states, dones)
+
+        # Update the Actor
+        self._update_actor_alpha(idx, states)
+
         if self.learn_counter % self.policy_update_freq == 0:
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
                 self.ensemble_critics, self.target_ensemble_critics
             ):
-                for target_param, param in zip(
-                    target_critic_net.parameters(), critic_net.parameters()
-                ):
-                    target_param.data.copy_(
-                        param.data * self.tau + target_param.data * (1.0 - self.tau)
-                    )
+                hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
