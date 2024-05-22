@@ -275,3 +275,16 @@ class TQCConfig(AlgorithmConfig):
     top_quantiles_to_drop: Optional[int] = 2
     num_quantiles: Optional[int] = 25
     num_nets: Optional[int] = 5
+    
+class EpisodicTD3Config(AlgorithmConfig):
+    algorithm: str = Field("EpisodicTD3", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    alpha: Optional[float] = 0.7
+    min_priority: Optional[float] = 1.0
+    prioritized_fraction: Optional[float] = 0.5
+
+    

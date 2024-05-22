@@ -7,7 +7,7 @@ import os
 import numpy as np
 import torch
 import torch.nn.functional as F
-from cares_reinforcement_learning.memory import EpisodicReplayBuffer
+from cares_reinforcement_learning.memory import ManageBuffers
 
 
 
@@ -160,7 +160,7 @@ class EpisodicTD3:
         self.critic_net_optimiser.step()
 
 
-    def train_policy(self, memory:EpisodicReplayBuffer, batch_size: int) -> None:
+    def train_policy(self, memory:ManageBuffers, batch_size: int) -> None:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -186,10 +186,10 @@ class EpisodicTD3:
 
         ######################### Episodic SAMPLING #########################
         
-        crucial_episodes_ids = memory.long_term_memory.sample_uniform(1)
+        crucial_episodes_ids, crucial_episodes_rewards = memory.long_term_memory.sample_uniform(1)
         
-        for episode_id in crucial_episodes_ids:
-            experiences = memory.episodic_memory.sample_episode(episode_id)
+        for i in range(len(crucial_episodes_ids)):
+            experiences = memory.episodic_memory.sample_episode(crucial_episodes_ids[i], crucial_episodes_rewards[i], priority_batch_size)
             states, actions, rewards, next_states, dones, episode_nums, episode_steps = experiences
 
             self._train_critic(

@@ -430,6 +430,29 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
+def create_EpisodicTD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import EpisodicTD3
+    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = EpisodicTD3(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        alpha=config.alpha,  # Add this line
+        min_priority=config.min_priority,  # Add this line
+        prioritized_fraction=config.prioritized_fraction,  # Add this line
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
 
 class NetworkFactory:
     def create_network(self, observation_size, action_num, config: AlgorithmConfig):
