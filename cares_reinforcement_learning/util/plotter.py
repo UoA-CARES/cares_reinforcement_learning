@@ -37,18 +37,12 @@ def plot_data(
     )
     plt.gca().xaxis.offsetText.set_fontsize(15)
 
-    sns.lineplot(data=plot_frame, x=plot_frame["steps"], y="avg", label=label)
-
-    # See for how to plot confidence interval
-    # https://saturncloud.io/blog/plot-95-confidence-interval-errorbar-python-pandas-dataframes/
-    Z = 1.960  # 95% confidence interval
-    confidence_interval = Z * plot_frame["std_dev"] / np.sqrt(len(plot_frame["avg"]))
-
-    plt.fill_between(
-        plot_frame["steps"],
-        plot_frame["avg"] - confidence_interval,
-        plot_frame["avg"] + confidence_interval,
-        alpha=0.4,
+    sns.lineplot(
+        data=plot_frame,
+        x=plot_frame["steps"],
+        y="avg",
+        label=label,
+        errorbar="sd",
     )
 
     plt.legend(fontsize="15", loc="upper left")
@@ -101,9 +95,13 @@ def prepare_eval_plot_frame(eval_data):
     frame_average = eval_data.groupby([x_data], as_index=False).mean()
     frame_std = eval_data.groupby([x_data], as_index=False).std()
 
-    plot_frame["steps"] = frame_average[x_data]
-    plot_frame["avg"] = frame_average[y_data]
-    plot_frame["std_dev"] = frame_std[y_data]
+    plot_frame["steps"] = eval_data[x_data]
+    plot_frame["avg"] = eval_data[y_data]
+    # plot_frame["std_dev"] = frame_std[y_data]
+
+    # plot_frame["steps"] = frame_average[x_data]
+    # plot_frame["avg"] = frame_average[y_data]
+    # plot_frame["std_dev"] = frame_std[y_data]
 
     return plot_frame
 
