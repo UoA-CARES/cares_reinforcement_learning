@@ -112,6 +112,10 @@ def create_DynaSAC_MaxBatchReweight(observation_size, action_num, config: Algori
         alpha_lr=config.alpha_lr,
         horizon=config.horizon,
         num_samples=config.num_samples,
+        max_scale=config.max_scale,
+        max_threshold=config.max_threshold,
+        mode=config.mode,
+        sample_times=config.sample_times,
     )
     return agent
 

@@ -173,6 +173,7 @@ class DynaSAT_BatchReweightConfig(AlgorithmConfig):
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
 
+
 class DynaSAC_MaxBatchReweightConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_MaxBatchReweight", Literal=True)
     actor_lr: Optional[float] = 3e-4
@@ -189,6 +190,12 @@ class DynaSAC_MaxBatchReweightConfig(AlgorithmConfig):
     horizon: Optional[int] = 1
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
+
+    max_scale: Optional[float] = 0.1
+    max_threshold: Optional[float] = 0.7
+    mode: Optional[int] = 0
+    sample_times: Optional[int] = 10
+
 
 class DynaSAC_ExaBatchReweightConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_ExaBatchReweight", Literal=True)
