@@ -11,10 +11,6 @@ import seaborn as sns
 logging.basicConfig(level=logging.INFO)
 
 
-# TODO make the plots look how people want them too. This is just a basic example
-import matplotlib.pyplot as plt
-
-
 def plot_data(
     plot_frame: pd.DataFrame,
     title: str,
@@ -30,6 +26,7 @@ def plot_data(
     close_figure: bool = True,
 ) -> None:
 
+    # TODO make the plots look how people want them too. This is just a basic example
     plt.xlabel(x_label, fontsize=label_fontsize)
     plt.ylabel(y_label, fontsize=label_fontsize)
     plt.title(title, fontsize=title_fontsize)
