@@ -5,7 +5,6 @@ import os
 from glob import glob
 
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import seaborn as sns
 
@@ -21,20 +20,19 @@ def plot_data(
     y_label,
     directory,
     filename,
+    label_fontsize=15,
+    title_fontsize=20,
+    ticks_fontsize=10,
     display=True,
     close_figure=True,
 ):
     # TODO make font size a parameter
-    plt.xlabel(x_label, fontsize=21)
-    plt.ylabel(y_label, fontsize=21)
-    plt.title(title, fontsize=30)
-    plt.xticks(
-        fontsize=15,
-    )
-    plt.yticks(
-        fontsize=15,
-    )
-    plt.gca().xaxis.offsetText.set_fontsize(15)
+    plt.xlabel(x_label, fontsize=label_fontsize)
+    plt.ylabel(y_label, fontsize=label_fontsize)
+    plt.title(title, fontsize=title_fontsize)
+
+    plt.xticks(fontsize=ticks_fontsize)
+    plt.yticks(fontsize=ticks_fontsize)
 
     sns.lineplot(
         data=plot_frame,
@@ -44,17 +42,9 @@ def plot_data(
         errorbar="sd",
     )
 
-    plt.legend(fontsize="15", loc="upper left")
+    plt.legend(loc="best").set_draggable(True)
 
-    # Resize the plotted figure. Pixel = DPI * Inch. PLT Default DPI: 100.
-    fig = plt.gcf()
-    width = 800
-    height = 650
-    default_dpi = 100
-    fig.set_dpi(default_dpi)
-    fig.set_size_inches(width / default_dpi, height / default_dpi)
-
-    plt.savefig(f"{directory}/figures/{filename}.png")
+    plt.tight_layout(pad=0.5)
 
     if display:
         plt.show()
@@ -62,9 +52,21 @@ def plot_data(
     if close_figure:
         plt.close()
 
+    plt.savefig(f"{directory}/figures/{filename}.png")
+
 
 def plot_comparisons(
-    plot_frames, title, labels, x_label, y_label, directory, filename, display=True
+    plot_frames,
+    title,
+    labels,
+    x_label,
+    y_label,
+    directory,
+    filename,
+    label_fontsize=15,
+    title_fontsize=20,
+    ticks_fontsize=10,
+    display=True,
 ):
     for plot_frame, label in zip(plot_frames, labels):
         plot_data(
@@ -75,6 +77,9 @@ def plot_comparisons(
             y_label,
             directory,
             filename,
+            label_fontsize=label_fontsize,
+            title_fontsize=title_fontsize,
+            ticks_fontsize=ticks_fontsize,
             display=False,
             close_figure=False,
         )
@@ -239,6 +244,27 @@ def parse_args():
         help="Plot Individual Seeds for each algorithm in addition to the average of all seeds",
     )
 
+    parser.add_argument(
+        "--label_fontsize",
+        type=int,
+        default=15,
+        help="Fontsize for the x-axis label",
+    )
+
+    parser.add_argument(
+        "--title_fontsize",
+        type=int,
+        default=20,
+        help="Fontsize for the title",
+    )
+
+    parser.add_argument(
+        "--ticks_fontsize",
+        type=int,
+        default=10,
+        help="Fontsize for the ticks",
+    )
+
     # converts into a dictionary
     args = vars(parser.parse_args())
     return args
@@ -302,7 +328,10 @@ def main():
                 label_y,
                 directory,
                 f"{title}-{algorithm}-eval",
-                False,
+                label_fontsize=args["label_fontsize"],
+                title_fontsize=args["title_fontsize"],
+                ticks_fontsize=args["ticks_fontsize"],
+                display=False,
             )
 
         eval_plot_frame = prepare_eval_plot_frame(average_eval_data)
@@ -317,7 +346,10 @@ def main():
         label_y,
         directory,
         f"{title}-compare-eval",
-        True,
+        label_fontsize=args["label_fontsize"],
+        title_fontsize=args["title_fontsize"],
+        ticks_fontsize=args["ticks_fontsize"],
+        display=True,
     )
 
 
