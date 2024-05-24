@@ -25,7 +25,6 @@ def plot_data(
     close_figure=True,
 ):
     # TODO make font size a parameter
-
     plt.xlabel(x_label, fontsize=21)
     plt.ylabel(y_label, fontsize=21)
     plt.title(title, fontsize=30)
@@ -91,17 +90,8 @@ def prepare_eval_plot_frame(eval_data):
     y_data = "episode_reward"
 
     plot_frame = pd.DataFrame()
-
-    frame_average = eval_data.groupby([x_data], as_index=False).mean()
-    frame_std = eval_data.groupby([x_data], as_index=False).std()
-
     plot_frame["steps"] = eval_data[x_data]
     plot_frame["avg"] = eval_data[y_data]
-    # plot_frame["std_dev"] = frame_std[y_data]
-
-    # plot_frame["steps"] = frame_average[x_data]
-    # plot_frame["avg"] = frame_average[y_data]
-    # plot_frame["std_dev"] = frame_std[y_data]
 
     return plot_frame
 
@@ -152,6 +142,44 @@ def plot_train(
     )
 
 
+def read_environmnet_config(result_directory):
+    with open(f"{result_directory}/env_config.json", "r", encoding="utf-8") as file:
+        env_config = json.load(file)
+    return env_config
+
+
+def read_algorithm_config(result_directory):
+    with open(f"{result_directory}/alg_config.json", "r", encoding="utf-8") as file:
+        alg_config = json.load(file)
+    return alg_config
+
+
+def read_train_config(result_directory):
+    with open(f"{result_directory}/train_config.json", "r", encoding="utf-8") as file:
+        train_config = json.load(file)
+    return train_config
+
+
+def generate_labels(args, title, result_directory):
+    env_config = read_environmnet_config(result_directory)
+    train_config = read_train_config(result_directory)
+    alg_config = read_algorithm_config(result_directory)
+
+    algorithm = alg_config["algorithm"]
+    domain = env_config["domain"]
+    task = env_config["task"]
+    task = task if domain == "" else f"{domain}-{task}"
+
+    param_tag = args["param_tag"]
+    param = str(alg_config[param_tag]) if param_tag in alg_config else ""
+    param += str(train_config[param_tag]) if param_tag in train_config else ""
+    param = f"_{param_tag}_{param}" if param else ""
+    label = algorithm + param
+
+    title = task if title == "" else title
+    return title, algorithm, task, label
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
 
@@ -162,70 +190,88 @@ def parse_args():
         required=True,
         help="Directory you want to save the data into",
     )
+
     parser.add_argument(
         "-d",
-        "--data_path",
+        "--data_directories",
         type=str,
         nargs="+",
         help="List of Directories with data you want to compare",
         required=True,
     )
-    parser.add_argument("-w", "--window_size", type=int, default=1)
 
-    parser.add_argument("-p", "--param_tag", type=str, default="")
+    parser.add_argument(
+        "-t",
+        "--title",
+        type=str,
+        default="",
+        help="Title for the plot - default will be taken from the task name",
+    )
 
-    parser.add_argument("-ps", "--plot_seeds", type=int, default=0)
+    parser.add_argument(
+        "-x",
+        "--x_axis",
+        type=str,
+        default="Steps",
+        help="X Axis Label for the plot",
+    )
+
+    parser.add_argument(
+        "-y",
+        "--y_axis",
+        type=str,
+        default="Average Reward",
+        help="Y Axis Label for the plot",
+    )
+
+    parser.add_argument(
+        "-p",
+        "--param_tag",
+        type=str,
+        default="",
+        help="Tag to add to labels based on algorithm or training parameter",
+    )
+
+    parser.add_argument(
+        "-ps",
+        "--plot_seeds",
+        action=argparse.BooleanOptionalAction,
+        help="Plot Individual Seeds for each algorithm in addition to the average of all seeds",
+    )
 
     # converts into a dictionary
     args = vars(parser.parse_args())
-    args["plot_seeds"] = True if args["plot_seeds"] == 1 else False
     return args
 
 
 def main():
     args = parse_args()
 
+    title = args["title"]
+    label_x = args["x_axis"]
+    label_y = args["y_axis"]
+
     directory = args["save_directory"]
-    window_size = args["window_size"]
-    param_tag = args["param_tag"]
 
     eval_plot_frames = []
     labels = []
-    title = "Undefined Task"
 
-    for d, data_directory in enumerate(args["data_path"]):
+    for d, data_directory in enumerate(args["data_directories"]):
         logging.info(
-            f"Processing {d+1}/{len(args['data_path'])} Data for {data_directory}"
+            f"Processing {d+1}/{len(args['data_directories'])} Data for {data_directory}"
         )
         result_directories = glob(f"{data_directory}/*")
 
-        average_train_data = pd.DataFrame()
-        average_eval_data = pd.DataFrame()
-
-        result_directory = result_directories[0]
-        with open(f"{result_directory}/env_config.json", "r", encoding="utf-8") as file:
-            env_config = json.load(file)
-
-        with open(
-            f"{result_directory}/train_config.json", "r", encoding="utf-8"
-        ) as file:
-            train_config = json.load(file)
-
-        with open(f"{result_directory}/alg_config.json", "r", encoding="utf-8") as file:
-            alg_config = json.load(file)
-
-        algorithm = alg_config["algorithm"]
-
-        param = str(alg_config[param_tag]) if param_tag in alg_config else ""
-        param += str(train_config[param_tag]) if param_tag in train_config else ""
-        param = f"_{param_tag}_{param}" if param else ""
-        label = algorithm + param
+        title, algorithm, task, label = generate_labels(
+            args, title, result_directories[0]
+        )
         labels.append(label)
-        task = env_config["task"]
-        title = task
+
+        average_eval_data = pd.DataFrame()
 
         seed_plot_frames = []
         seed_label = []
+
         for i, result_directory in enumerate(result_directories):
             logging.info(
                 f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}"
@@ -237,12 +283,7 @@ def main():
                 )
                 continue
 
-            train_data = pd.read_csv(f"{result_directory}/data/train.csv")
             eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
-
-            average_train_data = pd.concat(
-                [average_train_data, train_data], ignore_index=True
-            )
             average_eval_data = pd.concat(
                 [average_eval_data, eval_data], ignore_index=True
             )
@@ -257,8 +298,8 @@ def main():
                 seed_plot_frames,
                 f"{title}",
                 seed_label,
-                "Steps",
-                "Average Reward",
+                label_x,
+                label_y,
                 directory,
                 f"{title}-{algorithm}-eval",
                 False,
@@ -272,8 +313,8 @@ def main():
         eval_plot_frames,
         f"{title}",
         labels,
-        "Steps",
-        "Average Reward",
+        label_x,
+        label_y,
         directory,
         f"{title}-compare-eval",
         True,
