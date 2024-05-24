@@ -12,21 +12,24 @@ logging.basicConfig(level=logging.INFO)
 
 
 # TODO make the plots look how people want them too. This is just a basic example
+import matplotlib.pyplot as plt
+
+
 def plot_data(
-    plot_frame,
-    title,
-    label,
-    x_label,
-    y_label,
-    directory,
-    filename,
-    label_fontsize=15,
-    title_fontsize=20,
-    ticks_fontsize=10,
-    display=True,
-    close_figure=True,
-):
-    # TODO make font size a parameter
+    plot_frame: pd.DataFrame,
+    title: str,
+    label: str,
+    x_label: str,
+    y_label: str,
+    directory: str,
+    filename: str,
+    label_fontsize: int = 15,
+    title_fontsize: int = 20,
+    ticks_fontsize: int = 10,
+    display: bool = True,
+    close_figure: bool = True,
+) -> None:
+
     plt.xlabel(x_label, fontsize=label_fontsize)
     plt.ylabel(y_label, fontsize=label_fontsize)
     plt.title(title, fontsize=title_fontsize)
@@ -59,18 +62,18 @@ def plot_data(
 
 
 def plot_comparisons(
-    plot_frames,
-    title,
-    labels,
-    x_label,
-    y_label,
-    directory,
-    filename,
-    label_fontsize=15,
-    title_fontsize=20,
-    ticks_fontsize=10,
-    display=True,
-):
+    plot_frames: list[pd.DataFrame],
+    title: str,
+    labels: list[str],
+    x_label: str,
+    y_label: str,
+    directory: str,
+    filename: str,
+    label_fontsize: int = 15,
+    title_fontsize: int = 20,
+    ticks_fontsize: int = 10,
+    display: bool = True,
+) -> None:
     for plot_frame, label in zip(plot_frames, labels):
         plot_data(
             plot_frame,
@@ -93,18 +96,25 @@ def plot_comparisons(
     plt.close()
 
 
-def prepare_eval_plot_frame(eval_data):
-    x_data = "total_steps"
-    y_data = "episode_reward"
+def prepare_eval_plot_frame(eval_data: pd.DataFrame) -> pd.DataFrame:
+    x_data: str = "total_steps"
+    y_data: str = "episode_reward"
 
-    plot_frame = pd.DataFrame()
+    plot_frame: pd.DataFrame = pd.DataFrame()
     plot_frame["steps"] = eval_data[x_data]
     plot_frame["avg"] = eval_data[y_data]
 
     return plot_frame
 
 
-def plot_eval(eval_data, title, label, directory, filename, display=False):
+def plot_eval(
+    eval_data: pd.DataFrame,
+    title: str,
+    label: str,
+    directory: str,
+    filename: str,
+    display: bool = False,
+) -> None:
     eval_plot_frame = prepare_eval_plot_frame(eval_data)
     plot_data(
         eval_plot_frame,
@@ -118,11 +128,13 @@ def plot_eval(eval_data, title, label, directory, filename, display=False):
     )
 
 
-def prepare_train_plot_frame(train_data, window_size):
-    x_data = "total_steps"
-    y_data = "episode_reward"
+def prepare_train_plot_frame(
+    train_data: pd.DataFrame, window_size: int
+) -> pd.DataFrame:
+    x_data: str = "total_steps"
+    y_data: str = "episode_reward"
 
-    plot_frame = pd.DataFrame()
+    plot_frame: pd.DataFrame = pd.DataFrame()
     plot_frame["steps"] = train_data[x_data]
     plot_frame["avg"] = (
         train_data[y_data].rolling(window_size, step=1, min_periods=1).mean()
@@ -135,8 +147,14 @@ def prepare_train_plot_frame(train_data, window_size):
 
 
 def plot_train(
-    train_data, title, label, directory, filename, window_size, display=False
-):
+    train_data: pd.DataFrame,
+    title: str,
+    label: str,
+    directory: str,
+    filename: str,
+    window_size: int,
+    display: bool = False,
+) -> None:
     train_plot_frame = prepare_train_plot_frame(train_data, window_size)
     plot_data(
         train_plot_frame,
@@ -150,25 +168,27 @@ def plot_train(
     )
 
 
-def read_environmnet_config(result_directory):
+def read_environmnet_config(result_directory: str) -> dict:
     with open(f"{result_directory}/env_config.json", "r", encoding="utf-8") as file:
         env_config = json.load(file)
     return env_config
 
 
-def read_algorithm_config(result_directory):
+def read_algorithm_config(result_directory: str) -> dict:
     with open(f"{result_directory}/alg_config.json", "r", encoding="utf-8") as file:
         alg_config = json.load(file)
     return alg_config
 
 
-def read_train_config(result_directory):
+def read_train_config(result_directory: str) -> dict:
     with open(f"{result_directory}/train_config.json", "r", encoding="utf-8") as file:
         train_config = json.load(file)
     return train_config
 
 
-def generate_labels(args, title, result_directory):
+def generate_labels(
+    args, title: str, result_directory: str
+) -> tuple[str, str, str, str]:
     env_config = read_environmnet_config(result_directory)
     train_config = read_train_config(result_directory)
     alg_config = read_algorithm_config(result_directory)
@@ -188,8 +208,8 @@ def generate_labels(args, title, result_directory):
     return title, algorithm, task, label
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
+def parse_args() -> dict:
+    parser: argparse.ArgumentParser = argparse.ArgumentParser()
 
     parser.add_argument(
         "-s",
