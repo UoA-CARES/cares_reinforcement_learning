@@ -26,6 +26,8 @@ def plot_data(
     close_figure: bool = True,
 ) -> None:
 
+    plt.style.use("seaborn")  # Plot Styles
+
     # TODO make the plots look how people want them too. This is just a basic example
     plt.xlabel(x_label, fontsize=label_fontsize)
     plt.ylabel(y_label, fontsize=label_fontsize)
