@@ -52,6 +52,9 @@ def plot_data(
     if close_figure:
         plt.close()
 
+    if not os.path.exists(f"{directory}/figures"):
+        os.makedirs(f"{directory}/figures")
+
     plt.savefig(f"{directory}/figures/{filename}.png")
 
 
