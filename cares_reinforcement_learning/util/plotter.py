@@ -26,9 +26,9 @@ def plot_data(
     close_figure: bool = True,
 ) -> None:
 
-    plt.style.use("seaborn")  # Plot Styles
+    # Plot Styles
+    plt.style.use("seaborn")
 
-    # TODO make the plots look how people want them too. This is just a basic example
     plt.xlabel(x_label, fontsize=label_fontsize)
     plt.ylabel(y_label, fontsize=label_fontsize)
     plt.title(title, fontsize=title_fontsize)
@@ -51,13 +51,13 @@ def plot_data(
     if display:
         plt.show()
 
-    if close_figure:
-        plt.close()
-
     if not os.path.exists(f"{directory}/figures"):
         os.makedirs(f"{directory}/figures")
 
     plt.savefig(f"{directory}/figures/{filename}.png")
+
+    if close_figure:
+        plt.close()
 
 
 def plot_comparisons(
@@ -115,15 +115,19 @@ def plot_eval(
     display: bool = False,
 ) -> None:
     eval_plot_frame = prepare_eval_plot_frame(eval_data)
+
+    x_label: str = "Steps"
+    y_label: str = "Average Reward"
+
     plot_data(
         eval_plot_frame,
         title,
         label,
-        "Steps",
-        "Average Reward",
+        x_label,
+        y_label,
         directory,
         filename,
-        display,
+        display=display,
     )
 
 
@@ -163,7 +167,7 @@ def plot_train(
         "Average Reward",
         directory,
         filename,
-        display,
+        display=display,
     )
 
 
@@ -332,6 +336,7 @@ def main():
                 continue
 
             eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
+
             average_eval_data = pd.concat(
                 [average_eval_data, eval_data], ignore_index=True
             )
