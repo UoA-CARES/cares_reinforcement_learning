@@ -27,7 +27,7 @@ def plot_data(
 ) -> None:
 
     # Plot Styles
-    plt.style.use("seaborn")
+    plt.style.use("seaborn-v0_8")
 
     plt.xlabel(x_label, fontsize=label_fontsize)
     plt.ylabel(y_label, fontsize=label_fontsize)
