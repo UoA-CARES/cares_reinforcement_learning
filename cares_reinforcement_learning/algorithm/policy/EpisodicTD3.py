@@ -99,7 +99,7 @@ class EpisodicTD3:
 
     def _train_actor(self, states: np.ndarray) -> None:
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        states = torch.FloatTensor(np.asarray(states)).to(self.device).squeeze(0)
 
         # Update Actor
         actor_q_value_one, actor_q_value_two = self.critic_net(states, self.actor_net(states))
@@ -124,15 +124,16 @@ class EpisodicTD3:
         uniform_sampling: bool,
     ) -> np.ndarray:
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
+        states = torch.FloatTensor(np.asarray(states)).to(self.device).squeeze(0)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device).squeeze(0)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).squeeze(0)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device).squeeze(0)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device).squeeze(0)
+        
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(len(rewards), 1)
         dones = dones.unsqueeze(0).reshape(len(dones), 1)
+
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
@@ -163,8 +164,10 @@ class EpisodicTD3:
     def train_policy(self, memory:ManageBuffers, batch_size: int) -> None:
         self.learn_counter += 1
 
-        uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
-        priority_batch_size = int(batch_size * self.prioritized_fraction)
+        #uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
+        #priority_batch_size = int(batch_size * self.prioritized_fraction)
+        uniform_batch_size = batch_size
+        priority_batch_size = batch_size
 
         policy_update = self.learn_counter % self.policy_update_freq == 0
 
@@ -185,24 +188,24 @@ class EpisodicTD3:
             self._train_actor(states)
 
         ######################### Episodic SAMPLING #########################
-        
-        crucial_episodes_ids, crucial_episodes_rewards = memory.long_term_memory.sample_uniform(1)
-        
-        for i in range(len(crucial_episodes_ids)):
-            experiences = memory.episodic_memory.sample_episode(crucial_episodes_ids[i], crucial_episodes_rewards[i], priority_batch_size)
-            states, actions, rewards, next_states, dones, episode_nums, episode_steps = experiences
+        if (memory.long_term_memory.get_length() != 0):
+            crucial_episodes_ids, crucial_episodes_rewards = memory.long_term_memory.sample_uniform(1)
+           # print(f"crucial_episodes_ids:{crucial_episodes_ids}, crucial_episodes_rewards:{crucial_episodes_rewards}")
+            for i in range(len(crucial_episodes_ids)):
+                experiences = memory.episodic_memory.sample_episode(crucial_episodes_ids[i], crucial_episodes_rewards[i], priority_batch_size)
+                states, actions, rewards, next_states, dones, episode_nums, episode_steps = experiences
 
-            self._train_critic(
-                states,
-                actions,
-                rewards,
-                next_states,
-                dones,
-                uniform_sampling=False,
-            )
+                self._train_critic(
+                    states,
+                    actions,
+                    rewards,
+                    next_states,
+                    dones,
+                    uniform_sampling=False,
+                )
 
-            if policy_update:
-                self._train_actor(states)
+                if policy_update:
+                    self._train_actor(states)
         
        
     def save_models(self, filename: str, filepath: str = "models") -> None:

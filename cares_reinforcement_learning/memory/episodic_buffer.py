@@ -28,30 +28,27 @@ class EpisodicBuffer:
         """
         return self.current_size
 
-    def add(self, experience) -> None:
+    def add(self,experience) -> None:
         self.memory_buffers.append(experience)
         self.current_size += 1
-
-    def add_episode(self, episodic_batch) -> None:
-        """
-        Add an episode to the episodic memory buffer.
-        """
-        if not self.full:
-            # Add the episode to the buffer
-            for i in range(len(episodic_batch[2])):
-                self.add([episodic_batch[0], episodic_batch[1], episodic_batch[2][i], episodic_batch[3][i], episodic_batch[4][i],
-                     episodic_batch[5][i], episodic_batch[6][i], episodic_batch[7][i], episodic_batch[8][i]])
-                self.current_size += 1
-            if self.current_size >= self.max_capacity:
+        if self.current_size >= self.max_capacity:
                 self.full = True
 
-    def replaceEpisode(self, deleted_episode_id, deleted_episode_reward, episodic_batch):
+   
+    def add_episode(self, episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps) -> None:
+                  
+             for i in range(len(rewards)):
+                 self.add([episode_num,total_reward, states[i], actions[i], rewards[i], next_states[i], dones[i], episode_nums[i], episode_steps[i]])
+           
+    
+    def replace_episode(self, deleted_episode_id, deleted_episode_reward, episodic_batch):
         """
         Replace an episode in the episodic memory with a new episode.
         """
         self.delete_episode(deleted_episode_id, deleted_episode_reward)
         # Replace the episode with the new episode
-        self.add_episode(episodic_batch)
+        #episode_id,episode_reward, states, actions, rewards, next_states, dones, episode_nums, episode_steps= episodic_batch
+        self.add( episodic_batch)
 
     def delete_episode(self, episode_id, episode_reward):
         """
@@ -65,6 +62,8 @@ class EpisodicBuffer:
        
         matching_experiences = [
             experience for experience in self.memory_buffers if experience[0] == target_episode_id and experience[1] == target_episode_reward]
+        # print(f"self.memory_buffers:{self.memory_buffers}")
+        # input()
 
         if len(matching_experiences) >= batch_size:
             sampled_experiences = random.sample(
@@ -79,10 +78,13 @@ class EpisodicBuffer:
             """
         else:
             sampled_experiences = matching_experiences
+        if not sampled_experiences:
+            raise ValueError("No matching experience found")
 
         # Unzip the experiences into separate lists
-        _,_, states, actions, rewards, next_states, dones, episode_nums, episode_steps = zip(
-            *sampled_experiences)
+        
+        _,_, states, actions, rewards, next_states, dones, episode_nums, episode_steps = zip(*sampled_experiences)
+       
         return states, actions, rewards, next_states, dones, episode_nums, episode_steps
 
     def is_full(self):

@@ -24,17 +24,6 @@ class ShortTermReplayBuffer:
     
     
     def sample_random_episode(self, batch_size: int) -> tuple:
-        """
-        Randomly samples an episode from the memory buffer.
-
-        Args:
-            batch_size (int): The number of experiences to sample.
-
-        Returns:
-            tuple: A tuple containing the sampled experiences and their corresponding indices.
-                - Experiences are returned in the order: state, action, reward, next_state, done, ...
-                - The indices represent the indices of the sampled experiences in the buffer.
-        """
         
         # Randomly sample an experience
         based_exp = random.sample(self.memory_buffers, 1)
@@ -62,16 +51,29 @@ class ShortTermReplayBuffer:
 
         if matching_index >= self.max_capacity or matching_index < 0:
             raise ValueError("Index out of bounds")
-        if matching_index < batch_size:
-            start_idx = matching_index
-            end_idx = min(self.max_capacity,matching_index + batch_size)
+        if matching_index < batch_size or target_episode_step < batch_size:
+            
+            start_idx = max(0,matching_index -target_episode_step+1)
+            #print(f"start_idx:{start_idx}, matching_index:{matching_index}, target_episode_step:{target_episode_step}")
+            
+            #end_idx = min(self.max_capacity,matching_index + batch_size)
         else:
-            # Determine the starting and ending indices for the batch
             start_idx = max(0, matching_index - batch_size)
-            end_idx = matching_index
+            # for i in range(1, batch_size):
+            #    if  self.memory_buffers[matching_index - i][-2] != target_episode_num:
+            #        start_idx = max(0, matching_index - i+1)
+            #        break
+        end_idx = matching_index
         # Extract the batch of experiences
         experience_batch = list(self.memory_buffers)[start_idx:end_idx]
+       
+        if (start_idx == end_idx):
+             experience_batch = list(self.memory_buffers)[start_idx:end_idx+1]
+        
         states, actions, rewards, next_states, dones, episode_nums, episode_steps = zip(*experience_batch)
+        # print(f"start_idx:{start_idx}, end_idx:{end_idx}")
+        # print(f"experience_batch:{episode_nums, episode_steps}")
+        # input()
       
         return states, actions, rewards, next_states, dones, episode_nums, episode_steps
     

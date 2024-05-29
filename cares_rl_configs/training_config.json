@@ -3,7 +3,7 @@
 
     "G":  1,
     "G_model": 1,
-    "batch_size": 10,
+    "batch_size": 256,
     
     "max_steps_exploration": 1000,
     "max_steps_training": 1000000,
