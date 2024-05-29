@@ -29,7 +29,11 @@ class ShortTermReplayBuffer:
         based_exp = random.sample(self.memory_buffers, 1)
         randomExperience = based_exp[0]
         state, action, reward, next_state, done, episode_num, episode_step = randomExperience
+        print(f"episode_num:{episode_num}, episode_step:{episode_step}")
         states, actions, rewards, next_states, dones, episode_nums, episode_steps = self.sample_episode(episode_num, episode_step, batch_size)
+        if(episode_step ==2):
+           print(f"states:{states}, actions:{actions}, rewards:{rewards}, next_states:{next_states}, dones:{dones}, episode_nums:{episode_nums}, episode_steps:{episode_steps}")
+           input()
         return states, actions, rewards, next_states, dones, episode_nums, episode_steps
     
     def sample_episode(self, target_episode_num: int, target_episode_step: int, batch_size: int) -> tuple:
@@ -63,7 +67,7 @@ class ShortTermReplayBuffer:
             #    if  self.memory_buffers[matching_index - i][-2] != target_episode_num:
             #        start_idx = max(0, matching_index - i+1)
             #        break
-        end_idx = matching_index
+        end_idx = matching_index + 1
         # Extract the batch of experiences
         experience_batch = list(self.memory_buffers)[start_idx:end_idx]
        

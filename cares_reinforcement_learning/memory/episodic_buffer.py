@@ -78,8 +78,14 @@ class EpisodicBuffer:
             """
         else:
             sampled_experiences = matching_experiences
+        if len(sampled_experiences) == 0:
+            print(f"matching_experiences:{matching_experiences}")
+            print(f"target_episode_id:{target_episode_id}, target_episode_reward:{target_episode_reward}")
+            print(f"self.memory_buffers:{self.memory_buffers}")
         if not sampled_experiences:
+            
             raise ValueError("No matching experience found")
+        
 
         # Unzip the experiences into separate lists
         

@@ -129,6 +129,8 @@ class EpisodicTD3:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).squeeze(0)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device).squeeze(0)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device).squeeze(0)
+        print(f"states:{states.shape}, actions:{actions.shape}, rewards:{rewards.shape}, next_states:{next_states.shape}, dones:{dones.shape}")
+
         
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(len(rewards), 1)
@@ -164,17 +166,15 @@ class EpisodicTD3:
     def train_policy(self, memory:ManageBuffers, batch_size: int) -> None:
         self.learn_counter += 1
 
-        #uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
-        #priority_batch_size = int(batch_size * self.prioritized_fraction)
-        uniform_batch_size = batch_size
-        priority_batch_size = batch_size
+        uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
+        priority_batch_size = int(batch_size * self.prioritized_fraction)
 
         policy_update = self.learn_counter % self.policy_update_freq == 0
 
         ######################### UNIFORM SAMPLING #########################
         experiences = memory.short_term_memory.sample_random_episode(uniform_batch_size)
         states, actions, rewards, next_states, dones, episode_nums, episode_steps = experiences
-
+        print(f"uniform")
         self._train_critic(
             states,
             actions,
@@ -189,8 +189,9 @@ class EpisodicTD3:
 
         ######################### Episodic SAMPLING #########################
         if (memory.long_term_memory.get_length() != 0):
+            
             crucial_episodes_ids, crucial_episodes_rewards = memory.long_term_memory.sample_uniform(1)
-           # print(f"crucial_episodes_ids:{crucial_episodes_ids}, crucial_episodes_rewards:{crucial_episodes_rewards}")
+            print(f"crucial_episodes_ids:{crucial_episodes_ids}, crucial_episodes_rewards:{crucial_episodes_rewards}")
             for i in range(len(crucial_episodes_ids)):
                 experiences = memory.episodic_memory.sample_episode(crucial_episodes_ids[i], crucial_episodes_rewards[i], priority_batch_size)
                 states, actions, rewards, next_states, dones, episode_nums, episode_steps = experiences
