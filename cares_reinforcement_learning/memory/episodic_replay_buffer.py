@@ -13,5 +13,5 @@ class ManageBuffers:
         
         self.short_term_memory = ShortTermReplayBuffer(max_capacity=max_capacity, **memory_params)
         self.long_term_memory = LongMemoryBuffer(max_capacity=int(1e3), **memory_params)
-        self.episodic_memory = EpisodicBuffer(max_capacity=max_capacity)
+        #self.episodic_memory = EpisodicBuffer(max_capacity=max_capacity)
         

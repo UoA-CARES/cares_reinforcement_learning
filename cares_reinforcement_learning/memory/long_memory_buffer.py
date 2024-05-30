@@ -13,8 +13,6 @@ class LongMemoryBuffer:
         self.max_capacity = max_capacity
         self.memory_buffers = deque([], maxlen=self.max_capacity)
         self.min_reward = float('inf')
-        self.replaced_episode_id = None
-        self.replaced_episode_reward = -1
         self.min_index = -1
 
     def add(self, experience) -> None:
@@ -23,26 +21,23 @@ class LongMemoryBuffer:
         
         if self.is_full():
             if episode_reward > self.min_reward:
-                # Replace the experience with the minimum reward with the current one
-                self.replaced_episode_id = self.memory_buffers[self.min_index][0]
-                self.replaced_episode_reward = self.memory_buffers[self.min_index][1]
                 self.memory_buffers[self.min_index] = experience
                 # Update the minimum reward and index
                 self.update_min_reward()
         else:
             # Add the new experience if the buffer is not full
             self.memory_buffers.append(experience)
-            # Update the minimum reward and index
-            #self.update_min_reward()
-            self.min_reward = min(self.min_reward, episode_reward)
-
-                
+            # Update the minimum reward and index if necessary
+            if episode_reward < self.min_reward:
+                self.min_reward = episode_reward
+                self.min_index = len(self.memory_buffers) - 1
+         
     
     def update_min_reward(self):
         if self.memory_buffers:
-            min_entry = min(self.memory_buffers, key=lambda x: x[1])  # total_reward is at index 1
-            self.min_reward = min_entry[1]
-            self.min_index = self.memory_buffers.index(min_entry)
+            rewards = [entry[1] for entry in self.memory_buffers]
+            self.min_index = np.argmin(rewards)
+            self.min_reward = rewards[self.min_index]
         else:
             self.min_reward = float('inf')
             self.min_index = -1
@@ -66,10 +61,8 @@ class LongMemoryBuffer:
         #print(f"experience_batch:{experience_batch}")
         #input()
        
-        episode_ids, episode_rewards = zip(*((experience[0], experience[1]) for experience in experience_batch))
-        #print(f"episode_ids:{episode_ids}", f"episode_rewards:{episode_rewards}")
         #input()
-        return episode_ids , episode_rewards
+        return  experience_batch
     
     
     def get_min_reward(self) -> float:
@@ -81,13 +74,13 @@ class LongMemoryBuffer:
         """
         return self.min_reward
     
-    def get_replaced_episode_id_reward(self) -> int:
-        """
-        Returns the episode id of the deleted episode in the long term memory buffer.
+    # def get_replaced_episode_id_reward(self) -> int:
+    #     """
+    #     Returns the episode id of the deleted episode in the long term memory buffer.
 
-        Returns:
-            int: The episode id of the deleted episode.
-        """
-        return self.replaced_episode_id, self.replaced_episode_reward
+    #     Returns:
+    #         int: The episode id of the deleted episode.
+    #     """
+    #     return self.replaced_episode_id, self.replaced_episode_reward
     
    
