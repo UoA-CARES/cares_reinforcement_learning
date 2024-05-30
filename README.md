@@ -67,12 +67,6 @@ The Autonmous F1Tenth package contains all the code for training our F1Tenth pla
 # Utilities
 CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new envrionments we build to test our approaches.
 
-## configurations.py
-Provides baseline dataclasses for environment, training, and algorithm configurations to allow for consistent recording of training parameters. 
-
-## RLParser.py
-Provides a means of loading enevironment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
-
 ## Record.py
 The Record class allows data to be saved into a consistent format during training. This allows all data to be consistently formatted for plotting against each other for fair and consistent evaluation.
 
@@ -102,11 +96,28 @@ ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
 ```
 
 ## plotting.py
-The plotting utility will plot the data contained in the training data. An example of how to plot the data from one or multiple training sessions together is shown below. Running 'python3 plotter.py -h' will provide details on the plotting parameters.
+The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below. 
 
+Plot the results of a single training instance
 ```
-python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
+python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
 ```
+
+Plot and compare the results of two or more training instances
+```
+python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
+```
+
+Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguements.
+```
+python3 plotter.py -h
+```
+
+## configurations.py
+Provides baseline dataclasses for environment, training, and algorithm configurations to allow for consistent recording of training parameters. 
+
+## RLParser.py
+Provides a means of loading enevironment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
 
 ## NetworkFactory.py
 A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package. 
@@ -115,7 +126,6 @@ A factory class for creating a baseline RL algorithm that has been implemented i
 A factory class for creating a memory buffer that has been implemented into the CARES RL package.
 
 # Package Structure
-
 ```
 cares_reinforcement_learning/
 ├─ algorithm/

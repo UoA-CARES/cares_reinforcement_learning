@@ -214,6 +214,31 @@ def generate_labels(
 def parse_args() -> dict:
     parser: argparse.ArgumentParser = argparse.ArgumentParser()
 
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument(
+        "-d",
+        "--data_directories",
+        type=str,
+        nargs="+",
+        help="List of Specific Directories with data you want to compare",
+    )
+
+    group.add_argument(
+        "-a",
+        "--algorithm_directories",
+        type=str,
+        nargs="+",
+        help="List of Algorithm Directories with data you want to compare",
+    )
+
+    group.add_argument(
+        "-t",
+        "--task_directories",
+        type=str,
+        nargs="+",
+        help="List of Task Directories with data you want to compare",
+    )
+
     parser.add_argument(
         "-s",
         "--save_directory",
@@ -223,16 +248,6 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "-d",
-        "--data_directories",
-        type=str,
-        nargs="+",
-        help="List of Directories with data you want to compare",
-        required=True,
-    )
-
-    parser.add_argument(
-        "-t",
         "--title",
         type=str,
         default="",
@@ -240,7 +255,6 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "-x",
         "--x_axis",
         type=str,
         default="Steps",
@@ -248,7 +262,6 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "-y",
         "--y_axis",
         type=str,
         default="Average Reward",
@@ -256,7 +269,6 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "-p",
         "--param_tag",
         type=str,
         default="",
@@ -264,7 +276,6 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "-ps",
         "--plot_seeds",
         action=argparse.BooleanOptionalAction,
         help="Plot Individual Seeds for each algorithm in addition to the average of all seeds",
@@ -296,7 +307,7 @@ def parse_args() -> dict:
     return args
 
 
-def main():
+def plot_evaluations():
     args = parse_args()
 
     title = args["title"]
@@ -378,6 +389,10 @@ def main():
         ticks_fontsize=args["ticks_fontsize"],
         display=True,
     )
+
+
+def main():
+    plot_evaluations()
 
 
 if __name__ == "__main__":
