@@ -12,7 +12,7 @@ import numpy as np
 from cares_reinforcement_learning.memory import SumTree
 
 
-class PrioritizedReplayBuffer:
+class MemoryBuffer:
     """
     A prioritized replay buffer implementation for reinforcement learning.
 
