@@ -9,7 +9,7 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class PALTD3:
@@ -128,7 +128,7 @@ class PALTD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)

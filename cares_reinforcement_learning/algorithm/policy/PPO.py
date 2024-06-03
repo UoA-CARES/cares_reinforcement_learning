@@ -16,7 +16,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class PPO:
@@ -95,7 +95,7 @@ class PPO:
         return batch_rtgs
 
     def train_policy(
-        self, memory: PrioritizedReplayBuffer, batch_size: int = 0
+        self, memory: MemoryBuffer, batch_size: int = 0
     ) -> None:
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences

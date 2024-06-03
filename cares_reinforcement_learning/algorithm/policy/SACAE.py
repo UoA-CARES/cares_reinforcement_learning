@@ -14,7 +14,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class SACAE:
@@ -188,7 +188,7 @@ class SACAE:
         self.encoder_net_optimiser.step()
         self.decoder_net_optimiser.step()
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
