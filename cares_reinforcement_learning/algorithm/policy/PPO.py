@@ -94,9 +94,7 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int = 0
-    ) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> None:
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences
 

@@ -199,9 +199,7 @@ class DynaSAC:
         # # # Step 2 Dyna add more data
         self._dyna_generate_and_train(next_states=next_states)
 
-    def train_world_model(
-        self, memory: MemoryBuffer, batch_size: int
-    ) -> None:
+    def train_world_model(self, memory: MemoryBuffer, batch_size: int) -> None:
         experiences = memory.sample_consecutive(batch_size)
 
         (
