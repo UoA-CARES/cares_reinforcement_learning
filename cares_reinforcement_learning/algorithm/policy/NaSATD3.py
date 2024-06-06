@@ -237,6 +237,8 @@ class NaSATD3:
         # Update the Critic
         self._update_critic(states, actions, rewards, next_states, dones)
 
+        # TODO Nadine modified to update autoencoder after G loop
+
         # Update Autoencoder
         self._update_autoencoder(states)
 

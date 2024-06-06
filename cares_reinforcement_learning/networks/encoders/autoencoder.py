@@ -44,6 +44,53 @@ def create_autoencoder(
     return encoder, decoder
 
 
+class Autoencoder(nn.Module):
+    """
+    An image based autoencoder model consisting of an encoder and a decoder pair.
+
+    Args:
+        observation_size (tuple[int]): The size of the input image observations.
+        latent_dim (int): The dimension of the latent space.
+        num_layers (int, optional): The number of layers in the encoder and decoder. Defaults to 4.
+        num_filters (int, optional): The number of filters in each layer. Defaults to 32.
+        kernel_size (int, optional): The size of the convolutional kernel. Defaults to 3.
+    """
+
+    def __init__(
+        self,
+        observation_size: tuple[int],
+        latent_dim: int,
+        num_layers: int = 4,
+        num_filters: int = 32,
+        kernel_size: int = 3,
+    ):
+        super().__init__()
+
+        self.encoder = Encoder(
+            observation_size,
+            latent_dim,
+            num_layers,
+            num_filters,
+            kernel_size,
+        )
+
+        self.decoder = Decoder(
+            observation_size,
+            latent_dim,
+            self.encoder.out_dim,
+            num_layers,
+            num_filters,
+            kernel_size,
+        )
+
+    def forward(
+        self, obs: torch.Tensor, detach_cnn: bool = False, detach_output: bool = False
+    ) -> torch.Tensor:
+        latent_obs = self.encoder(obs, detach_cnn, detach_output)
+        reconstruction = self.decoder(latent_obs)
+        return reconstruction
+
+
 class Encoder(nn.Module):
     def __init__(
         self,
