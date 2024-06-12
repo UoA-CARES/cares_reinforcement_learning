@@ -371,8 +371,9 @@ class DynaSAC_BinaryBatchReweight:
             # Exacerbate the sample difference.
             min_var = torch.min(total_var)
             max_var = torch.max(total_var)
-            scale_var = max_var - min_var
-            threshold = (self.threshold_scale * scale_var) + min_var
+            # scale_var = max_var - min_var
+            mean_var = torch.mean(total_var)
+            threshold = (self.threshold_scale * (max_var - mean_var)) + mean_var
             total_var[total_var <= threshold] = min_var
             total_stds = 1 / total_var
         return total_stds.detach()
