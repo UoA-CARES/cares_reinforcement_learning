@@ -76,13 +76,13 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
-def create_DynaSAC_MaxBatchReweight(observation_size, action_num, config: AlgorithmConfig):
+def create_DynaSAC_BinaryBatchReweight(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
 
     """
-    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_MaxBatchReweight
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_BinaryBatchReweight
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
 
@@ -99,7 +99,7 @@ def create_DynaSAC_MaxBatchReweight(observation_size, action_num, config: Algori
         lr=config.world_model_lr,
     )
 
-    agent = DynaSAC_MaxBatchReweight(
+    agent = DynaSAC_BinaryBatchReweight(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
@@ -112,8 +112,7 @@ def create_DynaSAC_MaxBatchReweight(observation_size, action_num, config: Algori
         alpha_lr=config.alpha_lr,
         horizon=config.horizon,
         num_samples=config.num_samples,
-        max_scale=config.max_scale,
-        max_threshold=config.max_threshold,
+        threshold_scale=config.threshold_scale,
         mode=config.mode,
         sample_times=config.sample_times,
     )

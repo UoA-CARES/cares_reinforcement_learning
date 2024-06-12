@@ -19,7 +19,7 @@ from cares_reinforcement_learning.networks.world_models.ensemble_world import (
 )
 
 
-class DynaSAC_MaxBatchReweight:
+class DynaSAC_BinaryBatchReweight:
     """
     Max as ?
     """
@@ -36,8 +36,7 @@ class DynaSAC_MaxBatchReweight:
         alpha_lr: float,
         num_samples: int,
         horizon: int,
-        max_scale: float,
-        max_threshold: float,
+        threshold_scale: float,
         mode: int,
         sample_times: int,
         device: torch.device,
@@ -77,8 +76,7 @@ class DynaSAC_MaxBatchReweight:
         # World model
         self.world_model = world_network
         # Parameter
-        self.max_scale = max_scale
-        self.max_threshold = max_threshold
+        self.threshold_scale = threshold_scale
         self.mode = mode
         self.sample_times = sample_times
 
@@ -374,8 +372,8 @@ class DynaSAC_MaxBatchReweight:
             min_var = torch.min(total_var)
             max_var = torch.max(total_var)
             scale_var = max_var - min_var
-            total_var = (total_var - min_var) / scale_var
-            total_var[total_var < self.max_threshold] = self.max_scale
+            threshold = (self.threshold_scale * scale_var) + min_var
+            total_var[total_var <= threshold] = min_var
             total_stds = 1 / total_var
         return total_stds.detach()
 
