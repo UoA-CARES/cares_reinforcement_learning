@@ -200,7 +200,7 @@ class LA3PSAC:
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
         priority_batch_size = int(batch_size * self.prioritized_fraction)
 
-        policy_update = self.learn_counter % self.policy_update_freq
+        policy_update = self.learn_counter % self.policy_update_freq == 0
 
         ######################### UNIFORM SAMPLING #########################
         experiences = memory.sample_uniform(uniform_batch_size)

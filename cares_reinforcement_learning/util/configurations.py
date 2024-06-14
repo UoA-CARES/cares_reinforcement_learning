@@ -359,11 +359,13 @@ class RDTD3Config(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
-
+    
     beta: Optional[float] = 0.4
     per_alpha: Optional[float] = 0.7
     min_priority: Optional[float] = 1.0
-
+    
+    G: Optional[int] = 1
+    number_steps_per_train_policy: Optional[int] = 1
 
 class RDSACConfig(AlgorithmConfig):
     algorithm: str = Field("RDSAC", Literal=True)
@@ -376,3 +378,23 @@ class RDSACConfig(AlgorithmConfig):
     beta: Optional[float] = 0.4
     per_alpha: Optional[float] = 0.7
     min_priority: Optional[float] = 1.0
+
+class EpisodicTD3Config(AlgorithmConfig):
+    algorithm: str = Field("EpisodicTD3", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    alpha: Optional[float] = 0.7
+    min_priority: Optional[float] = 1.0
+    prioritized_fraction: Optional[float] = 0.5
+
+class ReTD3Config(AlgorithmConfig):
+    algorithm: str = Field("ReTD3", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+

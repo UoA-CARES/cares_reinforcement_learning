@@ -17,3 +17,5 @@ from .RDSAC import RDSAC
 from .MAPERSAC import MAPERSAC
 from .LA3PSAC import LA3PSAC
 from .TQC import TQC
+from .EpisodicTD3 import EpisodicTD3
+from .ReTD3 import ReTD3  

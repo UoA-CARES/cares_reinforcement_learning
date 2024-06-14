@@ -85,7 +85,7 @@ class RDTD3:
         self.learn_counter += 1
 
         # Sample replay buffer
-        experiences = memory.sample_priority(batch_size)
+        experiences = memory.sample_priority(batch_size, sampling="simple", weight_normalisation="batch")
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)

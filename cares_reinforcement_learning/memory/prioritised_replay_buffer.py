@@ -201,7 +201,7 @@ class PrioritizedReplayBuffer:
     def sample_priority(
         self,
         batch_size: int,
-        sampling: str = "stratified",
+        sampling: str = "simple",
         weight_normalisation: str = "batch",
     ) -> tuple:
         """
