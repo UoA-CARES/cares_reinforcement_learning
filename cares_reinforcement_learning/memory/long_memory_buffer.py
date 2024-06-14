@@ -74,11 +74,11 @@ class LongMemoryBuffer:
         """
         return self.min_reward
     
-    def get_crusial_path(self,number_of_crusial_episodes:int):
+    def get_crucial_path(self,number_of_crusial_episodes:int):
         
         episode_batch = self.sample_uniform(number_of_crusial_episodes)
-        episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps = episode_batch
-        return actions
+        episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps = zip(*episode_batch)
+        return actions,episode_nums,episode_steps
     
     
     # def get_replaced_episode_id_reward(self) -> int:

@@ -46,6 +46,35 @@ class ShortTermReplayBuffer:
         #    input()
         return states, actions, rewards, next_states, dones, episode_nums, episode_steps
     
+    def sample_complete_episode(self, target_episode_num: int, target_episode_step: int) -> tuple:
+        
+        start_idx = None
+        end_idx = None
+        
+        # Find the start and end indices for the target episode
+        for i, experience in enumerate(self.memory_buffers):
+            episode_num, episode_step = experience[-2], experience[-1]
+            
+            if episode_num == target_episode_num:
+                if episode_step == 1:
+                    start_idx = i
+                elif episode_step == target_episode_step:
+                    end_idx = i + 1
+                    break
+        
+        if start_idx is None or end_idx is None:
+            raise ValueError("No matching experience found")
+
+        # Extract the batch of experiences
+        experience_batch = list(self.memory_buffers)[start_idx:end_idx]
+        
+        # Unpack the experiences
+        states, actions, rewards, next_states, dones, episode_nums, episode_steps = zip(*experience_batch)
+        
+        return states, actions, rewards, next_states, dones, episode_nums, episode_steps
+
+        
+    
     def sample_episode(self, target_episode_num: int, target_episode_step: int, batch_size: int) -> tuple:
        
         matching_index = None
