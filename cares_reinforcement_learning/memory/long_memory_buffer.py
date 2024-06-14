@@ -13,11 +13,14 @@ class LongMemoryBuffer:
         self.max_capacity = max_capacity
         self.memory_buffers = deque([], maxlen=self.max_capacity)
         self.min_reward = float('inf')
+        self.max_reward = -float('inf')
         self.min_index = -1
 
     def add(self, experience) -> None:
        
         episode_reward = experience[1]  # total_reward is at index 1
+        if episode_reward > self.max_reward:
+            self.max_reward = episode_reward
         
         if self.is_full():
             if episode_reward > self.min_reward:
@@ -31,6 +34,8 @@ class LongMemoryBuffer:
             if episode_reward < self.min_reward:
                 self.min_reward = episode_reward
                 self.min_index = len(self.memory_buffers) - 1
+                # print(f"min_reward:{self.min_reward}, min_index_rewaard:{self.memory_buffers[self.min_index][1]}")
+                # input()
          
     
     def update_min_reward(self):
@@ -63,7 +68,15 @@ class LongMemoryBuffer:
        
         #input()
         return  experience_batch
-    
+    def sample_max_reward(self) -> tuple:
+        
+        for experience in self.memory_buffers:
+            if experience[1] == self.max_reward:
+                # print (f"max_reward:{experience[1]}")
+                # input()
+                return experience
+        return None
+        
     
     def get_min_reward(self) -> float:
         """
@@ -75,9 +88,12 @@ class LongMemoryBuffer:
         return self.min_reward
     
     def get_crucial_path(self,number_of_crusial_episodes:int):
-        
-        episode_batch = self.sample_uniform(number_of_crusial_episodes)
-        episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps = zip(*episode_batch)
+        # print (f"buffer rewards:{[experience[1] for experience in self.memory_buffers]}")
+        # input()
+        episode_batch = self.sample_max_reward()
+        episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps = episode_batch
+        # print(f"total_reward:{total_reward}")
+        # input()
         return actions,episode_nums,episode_steps
     
     
