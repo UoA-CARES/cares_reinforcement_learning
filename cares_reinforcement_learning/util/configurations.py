@@ -178,6 +178,29 @@ class DynaSAC_BinaryBatchReweightConfig(AlgorithmConfig):
     sample_times: Optional[int] = 10
 
 
+class DynaSAC_MaxBatchReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_MaxBatchReweight", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    horizon: Optional[int] = 1
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+    threshold_scale: Optional[float] = 0.7
+    variance_scale: Optional[float] = 0.1
+    mode: Optional[int] = 1
+    sample_times: Optional[int] = 10
+
+
 class DynaSAC_ScaleBatchReweightConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_ScaleBatchReweight", Literal=True)
     actor_lr: Optional[float] = 3e-4
