@@ -138,26 +138,8 @@ class SACConfig(AlgorithmConfig):
     reward_scale: Optional[float] = 1.0
 
 
-class DynaSAC_VarConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC_Var", Literal=True)
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-
-    alpha_lr: Optional[float] = 3e-4
-    use_bounded_active: Optional[bool] = False
-    num_models: Optional[int] = 5
-
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    reward_scale: Optional[float] = 1.0
-
-    horizon: Optional[int] = 1
-    num_samples: Optional[int] = 10
-    world_model_lr: Optional[float] = 0.001
-
-
-class DynaSAT_BatchReweightConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAT_BatchReweight", Literal=True)
+class DynaSACConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 
@@ -192,12 +174,12 @@ class DynaSAC_BinaryBatchReweightConfig(AlgorithmConfig):
     world_model_lr: Optional[float] = 0.001
 
     threshold_scale: Optional[float] = 0.7
-    mode: Optional[int] = 0
+    mode: Optional[int] = 1
     sample_times: Optional[int] = 10
 
 
-class DynaSAC_ExaBatchReweightConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC_ExaBatchReweight", Literal=True)
+class DynaSAC_ScaleBatchReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_ScaleBatchReweight", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 
@@ -213,59 +195,10 @@ class DynaSAC_ExaBatchReweightConfig(AlgorithmConfig):
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
 
-
-class DynaSAC_BatchReweightConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC_BatchReweight", Literal=True)
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-
-    alpha_lr: Optional[float] = 3e-4
-    use_bounded_active: Optional[bool] = False
-    num_models: Optional[int] = 5
-
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    reward_scale: Optional[float] = 1.0
-
-    horizon: Optional[int] = 1
-    num_samples: Optional[int] = 10
-    world_model_lr: Optional[float] = 0.001
-
-
-class DynaSATConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAT", Literal=True)
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-
-    alpha_lr: Optional[float] = 3e-4
-    use_bounded_active: Optional[bool] = False
-    num_models: Optional[int] = 5
-
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    reward_scale: Optional[float] = 1.0
-
-    horizon: Optional[int] = 1
-    num_samples: Optional[int] = 10
-    world_model_lr: Optional[float] = 0.001
-
-
-class DynaSACConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC", Literal=True)
-    actor_lr: Optional[float] = 3e-4
-    critic_lr: Optional[float] = 3e-4
-
-    alpha_lr: Optional[float] = 3e-4
-    use_bounded_active: Optional[bool] = False
-    num_models: Optional[int] = 5
-
-    gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
-    reward_scale: Optional[float] = 1.0
-
-    horizon: Optional[int] = 1
-    num_samples: Optional[int] = 10
-    world_model_lr: Optional[float] = 0.001
+    threshold_scale: Optional[float] = 0.7
+    variance_scale: Optional[float] = 0.1
+    mode: Optional[int] = 1
+    sample_times: Optional[int] = 10
 
 
 class NaSATD3Config(AlgorithmConfig):

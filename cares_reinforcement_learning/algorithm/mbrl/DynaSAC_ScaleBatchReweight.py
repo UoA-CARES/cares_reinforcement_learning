@@ -19,7 +19,10 @@ from cares_reinforcement_learning.networks.world_models.ensemble_world import (
 )
 
 
-class DynaSAC_ExaBatchReweight:
+class DynaSAC_ScaleBatchReweight:
+    """
+    Max as ?
+    """
     def __init__(
         self,
         actor_network: torch.nn.Module,
@@ -33,6 +36,10 @@ class DynaSAC_ExaBatchReweight:
         alpha_lr: float,
         num_samples: int,
         horizon: int,
+        threshold_scale: float,
+        variance_scale: float,
+        mode: int,
+        sample_times: int,
         device: torch.device,
     ):
         self.type = "mbrl"
@@ -69,6 +76,11 @@ class DynaSAC_ExaBatchReweight:
 
         # World model
         self.world_model = world_network
+        # Parameter
+        self.threshold_scale = threshold_scale
+        self.variance_scale = variance_scale
+        self.mode = mode
+        self.sample_times = sample_times
 
     @property
     def _alpha(self) -> float:
@@ -255,7 +267,7 @@ class DynaSAC_ExaBatchReweight:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
         )
 
-    def sampling(self, pred_means, pred_vars, phi=0.0001):
+    def sampling(self, pred_means, pred_vars):
         """
         High std means low uncertainty. Therefore, divided by 1
 
@@ -263,24 +275,23 @@ class DynaSAC_ExaBatchReweight:
         :param pred_vars:
         :return:
         """
-        sample_times = 10
         with torch.no_grad():
             # 5 models. Each predict 10 next_states.
             sample1 = torch.distributions.Normal(pred_means[0], pred_vars[0]).sample(
-                [sample_times])
+                [self.sample_times])
             sample2 = torch.distributions.Normal(pred_means[1], pred_vars[1]).sample(
-                [sample_times])
+                [self.sample_times])
             sample3 = torch.distributions.Normal(pred_means[2], pred_vars[2]).sample(
-                [sample_times])
+                [self.sample_times])
             sample4 = torch.distributions.Normal(pred_means[3], pred_vars[3]).sample(
-                [sample_times])
+                [self.sample_times])
             sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
-                [sample_times])
+                [self.sample_times])
             rs = []
             acts = []
             qs = []
             # Varying the next_state's distribution.
-            for i in range(sample_times):
+            for i in range(self.sample_times):
                 # 5 models, each sampled 10 times = 50,
                 pred_rwd1 = self.world_model.pred_rewards(sample1[i])
                 pred_rwd2 = self.world_model.pred_rewards(sample2[i])
@@ -329,33 +340,52 @@ class DynaSAC_ExaBatchReweight:
             qs = torch.stack(qs)
 
             var_r = torch.var(rs, dim=0)
-            var_a = torch.var(acts, dim=0)
-            var_q = torch.var(qs, dim=0)
+
+            if self.mode < 3:
+                var_a = torch.var(acts, dim=0)
+                var_q = torch.var(qs, dim=0)
 
             # Computing covariance.
-            mean_a = torch.mean(acts, dim=0, keepdim=True)
-            mean_q = torch.mean(qs, dim=0, keepdim=True)
-            diff_a = acts - mean_a
-            diff_q = qs - mean_q
-            cov_aq = torch.mean(diff_a * diff_q, dim=0)
+            if self.mode < 2:
+                mean_a = torch.mean(acts, dim=0, keepdim=True)
+                mean_q = torch.mean(qs, dim=0, keepdim=True)
+                diff_a = acts - mean_a
+                diff_q = qs - mean_q
+                cov_aq = torch.mean(diff_a * diff_q, dim=0)
 
-            mean_r = torch.mean(rs, dim=0, keepdim=True)
-            diff_r = rs - mean_r
-            cov_rq = torch.mean(diff_r * diff_q, dim=0)
-            cov_ra = torch.mean(diff_r * diff_a, dim=0)
+            if self.mode < 1:
+                mean_r = torch.mean(rs, dim=0, keepdim=True)
+                diff_r = rs - mean_r
+                cov_rq = torch.mean(diff_r * diff_q, dim=0)
 
-            total_var = var_r + var_a + var_q + 2 * cov_aq + 2 * cov_rq + 2 * cov_ra
+                cov_ra = torch.mean(diff_r * diff_a, dim=0)
+
+            # Ablation
+            if self.mode == 0:
+                total_var = var_r + var_a + var_q + 2 * cov_aq + 2 * cov_rq + 2 * cov_ra
+            if self.mode == 1:
+                total_var = var_r + var_a + var_q + 2 * cov_aq
+            if self.mode == 2:
+                total_var = var_r + var_a + var_q
+            if self.mode == 3:
+                total_var = var_r
 
             # Exacerbate the sample difference.
-            scale = 2.0
-            mean_var = torch.mean(total_var)
-            diff = total_var - mean_var
-            scale_diff = scale * diff
-            total_var += scale_diff
-            total_var[total_var < phi] = phi
+            old_mean_var = torch.mean(total_var)
+            # normalize vars to sum = 1
+            total_var /= old_mean_var
+            min_var = torch.min(total_var)
+            max_var = torch.max(total_var)
+            # mean_var = torch.mean(total_var)
+
+            threshold = self.threshold_scale * (max_var - min_var) + min_var
+            total_var[total_var <= threshold] = threshold
+
+            # threshold = (self.threshold_scale * (max_var - mean_var)) + mean_var
+            # threshold = torch.min(threshold, min_var)
+            # total_var[total_var <= threshold] = max_var * self.variance_scale
 
             total_stds = 1 / total_var
-
         return total_stds.detach()
 
     def set_statistics(self, stats: dict) -> None:
