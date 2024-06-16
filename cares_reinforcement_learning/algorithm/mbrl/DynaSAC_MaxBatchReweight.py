@@ -360,15 +360,18 @@ class DynaSAC_MaxBatchReweight:
 
                 cov_ra = torch.mean(diff_r * diff_a, dim=0)
 
+            gamma_sq = self.gamma * self.gamma
             # Ablation
             if self.mode == 0:
-                total_var = var_r + var_a + var_q + 2 * cov_aq + 2 * cov_rq + 2 * cov_ra
+                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
+                            gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
             if self.mode == 1:
-                total_var = var_r + var_a + var_q + 2 * cov_aq
+                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
             if self.mode == 2:
-                total_var = var_r + var_a + var_q
+                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q
             if self.mode == 3:
                 total_var = var_r
+
 
             # Exacerbate the sample difference.
             min_var = torch.min(total_var)
