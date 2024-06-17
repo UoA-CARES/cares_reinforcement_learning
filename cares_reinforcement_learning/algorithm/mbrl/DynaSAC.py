@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
     EnsembleWorldReward,
 )
@@ -180,7 +180,7 @@ class DynaSAC:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -199,9 +199,7 @@ class DynaSAC:
         # # # Step 2 Dyna add more data
         self._dyna_generate_and_train(next_states=next_states)
 
-    def train_world_model(
-        self, memory: PrioritizedReplayBuffer, batch_size: int
-    ) -> None:
+    def train_world_model(self, memory: MemoryBuffer, batch_size: int) -> None:
         experiences = memory.sample_consecutive(batch_size)
 
         (
