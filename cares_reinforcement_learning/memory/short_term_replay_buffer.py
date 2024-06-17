@@ -58,16 +58,21 @@ class ShortTermReplayBuffer:
             if episode_num == target_episode_num:
                 if episode_step == 1:
                     start_idx = i
+                    end_idx = i+1 
                 elif episode_step == target_episode_step:
                     end_idx = i + 1
                     break
         
+        # print(f"start_idx:{start_idx}, end_idx:{end_idx}")
+        # input()
+    
         if start_idx is None or end_idx is None:
             raise ValueError("No matching experience found")
 
         # Extract the batch of experiences
         experience_batch = list(self.memory_buffers)[start_idx:end_idx]
-        
+        # print(f"experience_batch:{experience_batch}")
+        # input()
         # Unpack the experiences
         states, actions, rewards, next_states, dones, episode_nums, episode_steps = zip(*experience_batch)
         
