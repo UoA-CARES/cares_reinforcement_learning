@@ -7,12 +7,12 @@ from collections import deque
 class LongMemoryBuffer:
   
 
-    def __init__(self, max_capacity: int = int(1e3), **priority_params):
+    def __init__(self, max_capacity: int = int(1e2), **priority_params):
         self.priority_params = priority_params
 
         self.max_capacity = max_capacity
         self.memory_buffers = deque([], maxlen=self.max_capacity)
-        self.min_reward = float('inf')
+        self.min_high_reward = float('inf')
         self.max_reward = -float('inf')
         self.min_index = -1
 
@@ -23,7 +23,7 @@ class LongMemoryBuffer:
             self.max_reward = episode_reward
         
         if self.is_full():
-            if episode_reward > self.min_reward:
+            if episode_reward > self.min_high_reward:
                 self.memory_buffers[self.min_index] = experience
                 # Update the minimum reward and index
                 self.update_min_reward()
@@ -31,20 +31,19 @@ class LongMemoryBuffer:
             # Add the new experience if the buffer is not full
             self.memory_buffers.append(experience)
             # Update the minimum reward and index if necessary
-            if episode_reward < self.min_reward:
-                self.min_reward = episode_reward
+            if episode_reward < self.min_high_reward:
+                self.min_high_reward = episode_reward
                 self.min_index = len(self.memory_buffers) - 1
-                # print(f"min_reward:{self.min_reward}, min_index_rewaard:{self.memory_buffers[self.min_index][1]}")
-                # input()
-         
+        # print(f"memory_buffers_len:{len(self.memory_buffers)}, episode_reward:{experience[1]},max_reward:{ self.max_reward}, min_high_reward:{self.min_high_reward}")
+        # input()
     
     def update_min_reward(self):
         if self.memory_buffers:
             rewards = [entry[1] for entry in self.memory_buffers]
             self.min_index = np.argmin(rewards)
-            self.min_reward = rewards[self.min_index]
+            self.min_high_reward = rewards[self.min_index]
         else:
-            self.min_reward = float('inf')
+            self.min_high_reward = float('inf')
             self.min_index = -1
     
     def is_full(self):
@@ -68,6 +67,7 @@ class LongMemoryBuffer:
        
         #input()
         return  experience_batch
+    
     def sample_max_reward(self) -> tuple:
         
         for experience in self.memory_buffers:
@@ -85,14 +85,19 @@ class LongMemoryBuffer:
         Returns:
             float: The minimum reward in the buffer.
         """
-        return self.min_reward
+        return self.min_high_reward
     
     def get_crucial_path(self,number_of_crusial_episodes:int):
         # print (f"buffer rewards:{[experience[1] for experience in self.memory_buffers]}")
         # input()
         episode_batch = self.sample_max_reward()
+        if(episode_batch is None):
+            raise ValueError("No episode with max reward found")
+            
         episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps = episode_batch
-        # print(f"total_reward:{total_reward}")
+        print(f"total_reward:{total_reward}, max_reward:{self.max_reward}")
+        #input()
+        # print(f", rewards:{rewards}, episode_nums:{episode_nums}, episode_steps:{episode_steps}")
         # input()
         return actions,episode_nums,episode_steps
     
