@@ -4,6 +4,7 @@ import logging
 import os
 from glob import glob
 
+import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
@@ -25,6 +26,7 @@ def plot_data(
     display: bool = True,
     close_figure: bool = True,
 ) -> None:
+    matplotlib.use("agg")
 
     # Plot Styles
     plt.style.use("seaborn-v0_8")
