@@ -99,7 +99,7 @@ class LongMemoryBuffer:
         #input()
         # print(f", rewards:{rewards}, episode_nums:{episode_nums}, episode_steps:{episode_steps}")
         # input()
-        return actions,episode_nums,episode_steps
+        return actions,episode_num,episode_steps
     
     
     # def get_replaced_episode_id_reward(self) -> int:
