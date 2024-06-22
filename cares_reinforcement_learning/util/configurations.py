@@ -219,7 +219,9 @@ class DynaSAC_ScaleBatchReweightConfig(AlgorithmConfig):
     world_model_lr: Optional[float] = 0.001
 
     threshold_scale: Optional[float] = 0.7
-    variance_scale: Optional[float] = 0.1
+    reweight_critic: Optional[bool] = True
+    reweight_actor: Optional[bool] = False
+
     mode: Optional[int] = 1
     sample_times: Optional[int] = 10
 

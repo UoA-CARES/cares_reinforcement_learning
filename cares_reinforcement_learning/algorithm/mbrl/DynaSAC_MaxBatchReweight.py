@@ -372,14 +372,12 @@ class DynaSAC_MaxBatchReweight:
             if self.mode == 3:
                 total_var = var_r
 
-
             # Exacerbate the sample difference.
             min_var = torch.min(total_var)
             max_var = torch.max(total_var)
             total_var /= (max_var - min_var)
             threshold = self.threshold_scale
             total_var[total_var <= threshold] = self.variance_scale
-
             total_stds = 1 / total_var
         return total_stds.detach()
 
