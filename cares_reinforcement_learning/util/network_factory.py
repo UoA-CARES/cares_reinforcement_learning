@@ -114,8 +114,8 @@ def create_DynaSAC_ScaleBatchReweight(observation_size, action_num, config: Algo
         horizon=config.horizon,
         num_samples=config.num_samples,
         threshold_scale=config.threshold_scale,
-        reweight_actor=config.reweight_actor,
         reweight_critic=config.reweight_critic,
+        reweight_actor=config.reweight_actor,
         mode=config.mode,
         sample_times=config.sample_times,
     )
