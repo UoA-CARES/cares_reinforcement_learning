@@ -2,3 +2,6 @@ from .DynaSAC import DynaSAC
 from .DynaSAC_ScaleBatchReweight import DynaSAC_ScaleBatchReweight
 from .DynaSAC_BinaryBatchReweight import DynaSAC_BinaryBatchReweight
 from .DynaSAC_MaxBatchReweight import DynaSAC_MaxBatchReweight
+from .DynaSAC_SUNRISE import DynaSAC_SUNRISEReweight
+from .DynaSAC_UWAC import DynaSAC_UWACReweight
+from .DynaSAC_BIV import DynaSAC_BIVReweight

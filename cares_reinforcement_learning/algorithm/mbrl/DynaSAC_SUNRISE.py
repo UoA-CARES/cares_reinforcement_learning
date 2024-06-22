@@ -15,35 +15,35 @@ import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-
 from cares_reinforcement_learning.networks.world_models.ensemble_world import (
     EnsembleWorldAndOneReward,
 )
 
 
-class DynaSAC_ScaleBatchReweight:
+class DynaSAC_SUNRISEReweight:
     """
     Max as ?
     """
+
     def __init__(
-        self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        world_network: EnsembleWorldAndOneReward,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        num_samples: int,
-        horizon: int,
-        threshold_scale: float,
-        reweigt_critic: bool,
-        reweigt_actor: bool,
-        mode: int,
-        sample_times: int,
-        device: torch.device,
+            self,
+            actor_network: torch.nn.Module,
+            critic_network: torch.nn.Module,
+            world_network: EnsembleWorldAndOneReward,
+            gamma: float,
+            tau: float,
+            action_num: int,
+            actor_lr: float,
+            critic_lr: float,
+            alpha_lr: float,
+            num_samples: int,
+            horizon: int,
+            threshold_scale: float,
+            reweigt_critic: bool,
+            reweigt_actor: bool,
+            mode: int,
+            sample_times: int,
+            device: torch.device,
     ):
         self.type = "mbrl"
         self.device = device
@@ -91,7 +91,7 @@ class DynaSAC_ScaleBatchReweight:
 
     # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+            self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
@@ -106,13 +106,13 @@ class DynaSAC_ScaleBatchReweight:
         return action
 
     def _train_policy(
-        self,
-        states: torch.Tensor,
-        actions: torch.Tensor,
-        rewards: torch.Tensor,
-        next_states: torch.Tensor,
-        dones: torch.Tensor,
-        weights: torch.Tensor,
+            self,
+            states: torch.Tensor,
+            actions: torch.Tensor,
+            rewards: torch.Tensor,
+            next_states: torch.Tensor,
+            dones: torch.Tensor,
+            weights: torch.Tensor,
     ) -> None:
         ##################     Update the Critic First     ####################
         # Have more target values?
@@ -122,7 +122,7 @@ class DynaSAC_ScaleBatchReweight:
                 next_states, next_actions
             )
             target_q_values = (
-                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -179,7 +179,7 @@ class DynaSAC_ScaleBatchReweight:
 
         # Update the temperature
         alpha_loss = -(
-            self.log_alpha * (first_log_p + self.target_entropy).detach()
+                self.log_alpha * (first_log_p + self.target_entropy).detach()
         ).mean()
 
         self.log_alpha_optimizer.zero_grad()
@@ -188,14 +188,14 @@ class DynaSAC_ScaleBatchReweight:
 
         if self.learn_counter % self.policy_update_freq == 0:
             for target_param, param in zip(
-                self.target_critic_net.parameters(), self.critic_net.parameters()
+                    self.target_critic_net.parameters(), self.critic_net.parameters()
             ):
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
     def train_world_model(
-        self, memory: PrioritizedReplayBuffer, batch_size: int
+            self, memory: PrioritizedReplayBuffer, batch_size: int
     ) -> None:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -388,16 +388,7 @@ class DynaSAC_ScaleBatchReweight:
             if self.mode == 3:
                 total_var = var_r
 
-            # Exacerbate the sample difference.
-            old_mean_var = torch.mean(total_var)
-            # normalize vars to sum = 1
-            total_var /= old_mean_var
-            min_var = torch.min(total_var)
-            max_var = torch.max(total_var)
-            # As (max-min) decrease, threshold should go down.
-            threshold = self.threshold_scale * (max_var - min_var) + min_var
-            total_var[total_var <= threshold] = threshold
-            total_stds = 1 / total_var
+            total_stds = torch.sigmoid(-1 * torch.sqrt(total_var) * self.threshold_scale) + 0.5
 
         return total_stds.detach()
 
