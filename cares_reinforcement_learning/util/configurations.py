@@ -299,6 +299,31 @@ class DynaSAC_UWACReweightConfig(AlgorithmConfig):
     sample_times: Optional[int] = 10
 
 
+class DynaSAC_NormalizedSigmoidBatchReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_NormalizedSigmoidBatchReweight", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    horizon: Optional[int] = 1
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+    threshold_scale: Optional[float] = 4.0
+    reweight_critic: Optional[bool] = True
+    reweight_actor: Optional[bool] = False
+
+    mode: Optional[int] = 1
+    sample_times: Optional[int] = 10
+
+
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)
 
