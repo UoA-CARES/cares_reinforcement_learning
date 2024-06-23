@@ -388,7 +388,7 @@ class DynaSAC_BIVReweight:
             if self.mode == 3:
                 total_var = var_r
 
-            xi = self.get_optimal_xi(total_var.detach().numpy())
+            xi = self.get_optimal_xi(total_var.detach().squeeze().numpy())
             xi = torch.FloatTensor(xi).to(self.device)
             total_var += xi
 
@@ -416,7 +416,7 @@ class DynaSAC_BIVReweight:
         # print(eff_bs)
         return eff_bs
 
-    def get_optimal_xi(self, variances, minimal_size):
+    def get_optimal_xi(self, variances):
         minimal_size = self.threshold_scale
         minimal_size = min(variances.shape[0] - 1, minimal_size)
         if self.compute_eff_bs(self.get_iv_weights(variances)) >= minimal_size:
@@ -426,13 +426,6 @@ class DynaSAC_BIVReweight:
         xi = np.abs(epsilon.x[0])
         xi = 0 if xi is None else xi
         return xi
-
-    def compute_ebs(self, weights):
-        weights_sum = torch.sum(weights)
-        weights_square = weights.pow(2)
-        # ebs = square of sum / sum of square.
-        ebs = weights_sum.pow(2) / torch.sum(weights_square)
-        return ebs
 
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
