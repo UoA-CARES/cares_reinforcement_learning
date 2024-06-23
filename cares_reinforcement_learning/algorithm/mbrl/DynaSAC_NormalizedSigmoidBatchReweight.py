@@ -13,6 +13,8 @@ import os
 import numpy as np
 import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+import torch.nn.functional as F
+
 
 from cares_reinforcement_learning.networks.world_models.ensemble_world import (
     EnsembleWorldAndOneReward,
@@ -37,13 +39,16 @@ class DynaSAC_NormalizedSigmoidBatchReweight:
         num_samples: int,
         horizon: int,
         threshold_scale: float,
+        reweigt_critic: bool,
+        reweigt_actor: bool,
         mode: int,
         sample_times: int,
         device: torch.device,
     ):
         self.type = "mbrl"
         self.device = device
-
+        self.reweight_critic = reweigt_critic
+        self.reweight_actor = reweigt_actor
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
         # this may be called soft_q_net in other implementations
@@ -123,25 +128,29 @@ class DynaSAC_NormalizedSigmoidBatchReweight:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        # Original loss function
-        l2_loss_one = (q_values_one - q_target).pow(2)
-        l2_loss_two = (q_values_two - q_target).pow(2)
+        if self.reweight_critic:
+            # Reweighted loss function. weight not participant in training.
+            l2_loss_one = (q_values_one - q_target).pow(2)
+            l2_loss_two = (q_values_two - q_target).pow(2)
 
-        # Reweighted loss function. weight not participant in training.
-        weights = weights.detach()
-        disc_l2_loss_one = l2_loss_one * weights
-        disc_l2_loss_two = l2_loss_two * weights
-        # A ratio to scale the loss back to original loss scale.
+            weights = weights.detach()
+            disc_l2_loss_one = l2_loss_one * weights
+            disc_l2_loss_two = l2_loss_two * weights
+            # A ratio to scale the loss back to original loss scale.
 
-        ratio_1 = torch.mean(l2_loss_one) / torch.mean(disc_l2_loss_one)
-        ratio_1 = ratio_1.detach()
-        ratio_2 = torch.mean(l2_loss_two) / torch.mean(disc_l2_loss_two)
-        ratio_2 = ratio_2.detach()
+            ratio_1 = torch.mean(l2_loss_one) / torch.mean(disc_l2_loss_one)
+            ratio_1 = ratio_1.detach()
+            ratio_2 = torch.mean(l2_loss_two) / torch.mean(disc_l2_loss_two)
+            ratio_2 = ratio_2.detach()
 
-        critic_loss_one = disc_l2_loss_one.mean() * ratio_1
-        critic_loss_two = disc_l2_loss_two.mean() * ratio_2
+            critic_loss_one = disc_l2_loss_one.mean() * ratio_1
+            critic_loss_two = disc_l2_loss_two.mean() * ratio_2
 
-        critic_loss_total = critic_loss_one + critic_loss_two
+            critic_loss_total = critic_loss_one + critic_loss_two
+        else:
+            critic_loss_one = F.mse_loss(q_values_one, q_target)
+            critic_loss_two = F.mse_loss(q_values_two, q_target)
+            critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -152,7 +161,16 @@ class DynaSAC_NormalizedSigmoidBatchReweight:
         pi, first_log_p, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
-        actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
+
+        if self.reweight_actor:
+            weights = weights.detach()
+            a_loss = (self._alpha * first_log_p) - min_qf_pi
+            disc_actor_loss = a_loss * weights
+            ratio = torch.mean(a_loss) / torch.mean(disc_actor_loss)
+            ratio = ratio.detach()
+            actor_loss = ratio * torch.mean(disc_actor_loss)
+        else:
+            actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
@@ -381,10 +399,6 @@ class DynaSAC_NormalizedSigmoidBatchReweight:
             total_var *= self.threshold_scale
             total_stds = torch.sigmoid(-1.0 * total_var) + 0.5
 
-            # mean_var = torch.mean(total_var)
-            # threshold = (self.threshold_scale * (max_var - mean_var)) + mean_var
-            # total_var[total_var <= threshold] = min_var
-            # total_stds = 1 / total_var
         return total_stds.detach()
 
     def set_statistics(self, stats: dict) -> None:
