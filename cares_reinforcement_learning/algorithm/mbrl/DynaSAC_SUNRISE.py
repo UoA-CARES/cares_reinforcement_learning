@@ -39,16 +39,16 @@ class DynaSAC_SUNRISEReweight:
             num_samples: int,
             horizon: int,
             threshold_scale: float,
-            reweigt_critic: bool,
-            reweigt_actor: bool,
+            reweight_critic: bool,
+            reweight_actor: bool,
             mode: int,
             sample_times: int,
             device: torch.device,
     ):
         self.type = "mbrl"
         self.device = device
-        self.reweight_critic = reweigt_critic
-        self.reweight_actor = reweigt_actor
+        self.reweight_critic = reweight_critic
+        self.reweight_actor = reweight_actor
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
         # this may be called soft_q_net in other implementations
