@@ -7,12 +7,13 @@ from cares_reinforcement_learning.memory.episodic_replay_buffer import ManageBuf
 
 
 class MemoryFactory:
-    def create_memory(self, alg_config: AlgorithmConfig) -> PrioritizedReplayBuffer:
+    def create_memory(self, alg_config: AlgorithmConfig):
 
         beta = 0.0
         d_beta = 0.0
         min_priority = 1.0
-        buffer_size = 100000
+        buffer_size = alg_config.buffer_size
+        
 
         if hasattr(alg_config, "beta"):
             beta = alg_config.beta
@@ -21,7 +22,7 @@ class MemoryFactory:
         if hasattr(alg_config, "min_priority"):
             min_priority = alg_config.min_priority
        
-        if alg_config.algorithm=="EpisodicTD3" or "ReTD3":    
+        if alg_config.algorithm in ["EpisodicTD3", "ReTD3"]:     
             return ManageBuffers(
                 max_capacity=alg_config.buffer_size,
                 priority_params={},
