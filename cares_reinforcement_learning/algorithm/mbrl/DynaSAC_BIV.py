@@ -388,16 +388,32 @@ class DynaSAC_BIVReweight:
             if self.mode == 3:
                 total_var = var_r
 
-            xi = self.get_optimal_xi(total_var.detach().squeeze().numpy())
-            xi = torch.FloatTensor(xi).to(self.device)
+            # # Exacerbate the sample difference.
+            # min_var = torch.min(total_var)
+            # max_var = torch.max(total_var)
+            # scale_var = max_var - min_var
+            # # 0 - 1
+            # total_var -= min_var
+            # total_var /= scale_var
+            # total_var += 0.000001
+            xi = self.get_optimal_xi(total_var.detach().cpu().squeeze().numpy())
             total_var += xi
-
             # Weight = inverse of sum of weights * inverse of varaince.
-            total_stds = 1.0 / total_var
-            ratio = 1.0 / torch.sum(total_stds)
-            total_stds = ratio * total_stds
-
+            weights = 1.0 / total_var
+            ratio = 1.0 / torch.sum(weights)
+            total_stds = ratio * weights
         return total_stds.detach()
+
+
+    def get_optimal_xi(self, variances):
+        minimal_size = self.threshold_scale
+        if self.compute_eff_bs(self.get_iv_weights(variances)) >= minimal_size:
+            return 0
+        fn = lambda x: np.abs(self.compute_eff_bs(self.get_iv_weights(variances + np.abs(x))) - minimal_size)
+        epsilon = minimize(fn, 0, method='Nelder-Mead', options={'fatol': 1.0, 'maxiter': 100})
+        xi = np.abs(epsilon.x[0])
+        xi = 0 if xi is None else xi
+        return xi
 
     def get_iv_weights(self, variances):
         '''
@@ -413,19 +429,10 @@ class DynaSAC_BIVReweight:
     def compute_eff_bs(self, weights):
         # Compute original effective mini-batch size
         eff_bs = 1 / np.sum(np.square(weights))
-        # print(eff_bs)
+        eff_bs = eff_bs / np.shape(weights)[0]
         return eff_bs
 
-    def get_optimal_xi(self, variances):
-        minimal_size = self.threshold_scale
-        minimal_size = min(variances.shape[0] - 1, minimal_size)
-        if self.compute_eff_bs(self.get_iv_weights(variances)) >= minimal_size:
-            return 0
-        fn = lambda x: np.abs(self.compute_eff_bs(self.get_iv_weights(variances + np.abs(x))) - minimal_size)
-        epsilon = minimize(fn, 0, method='Nelder-Mead', options={'fatol': 1.0, 'maxiter': 100})
-        xi = np.abs(epsilon.x[0])
-        xi = 0 if xi is None else xi
-        return xi
+
 
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
