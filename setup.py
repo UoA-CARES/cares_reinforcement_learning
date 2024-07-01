@@ -2,7 +2,6 @@ from setuptools import setup, find_packages
 
 setup(
     name="cares_reinforcement_learning",
-    version="",
     packages=find_packages(),
     url="",
     license="",
