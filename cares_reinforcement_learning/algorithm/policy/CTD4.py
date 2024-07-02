@@ -290,7 +290,7 @@ class CTD4:
         )
         logging.info("models has been saved...")
 
-    def load_models(self, filename: str, filepath: str = "models") -> None:
+    def load_models(self, filepath: str, filename: str) -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
         actor_path = f"{path}/{filename}_actor.pht"
         ensemble_path = f"{path}/{filename}_ensemble.pht"

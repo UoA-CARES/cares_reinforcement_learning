@@ -1,5 +1,5 @@
 """
-This is a stub file for the Actor class - reads directly off SAC's Actor class.
+This is a stub file for the Actor class - reads directly off TD3's Actor class.
 """
 
 # pylint: disable=unused-import
