@@ -3,10 +3,17 @@ from torch import nn
 
 
 class Actor(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int):
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_size: list[int] = None,
+    ):
         super().__init__()
+        if hidden_size is None:
+            hidden_size = [256, 256]
 
-        self.hidden_size = [256, 256]
+        self.hidden_size = hidden_size
 
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, self.hidden_size[0]),
