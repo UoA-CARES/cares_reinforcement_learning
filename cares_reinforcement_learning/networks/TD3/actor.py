@@ -1,6 +1,29 @@
-"""
-This is a stub file for the Actor class - reads directly off SAC's Actor class.
-"""
+import torch
+from torch import nn
 
-# pylint: disable=unused-import
-from cares_reinforcement_learning.networks.DDPG.actor import Actor
+
+class Actor(nn.Module):
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_size: list[int] = None,
+    ):
+        super().__init__()
+        if hidden_size is None:
+            hidden_size = [256, 256]
+
+        self.hidden_size = hidden_size
+
+        self.act_net = nn.Sequential(
+            nn.Linear(observation_size, self.hidden_size[0]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[1], num_actions),
+            nn.Tanh(),
+        )
+
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        output = self.act_net(state)
+        return output
