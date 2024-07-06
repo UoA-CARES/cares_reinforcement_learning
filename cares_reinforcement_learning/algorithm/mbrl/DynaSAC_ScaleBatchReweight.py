@@ -308,7 +308,7 @@ class DynaSAC_ScaleBatchReweight:
             qs = []
             # Varying the next_state's distribution.
             for i in range(self.sample_times):
-                if self.mode == 0:
+                if self.reweight_critic == 0:
                     # 5 models, each sampled 10 times = 50,
                     pred_rwd1 = self.world_model.pred_rewards(sample1[i])
                     pred_rwd2 = self.world_model.pred_rewards(sample2[i])
@@ -351,12 +351,12 @@ class DynaSAC_ScaleBatchReweight:
                 qs.append(qc)
                 qs.append(qd)
                 qs.append(qe)
-
-            rs = torch.stack(rs)
+            if self.reweight_critic == 0:
+                rs = torch.stack(rs)
             acts = torch.stack(acts)
             qs = torch.stack(qs)
 
-            if self.mode == 0:
+            if self.reweight_critic:
                 var_r = torch.var(rs, dim=0)
                 var_a = torch.var(acts, dim=0)
                 var_q = torch.var(qs, dim=0)
@@ -376,7 +376,7 @@ class DynaSAC_ScaleBatchReweight:
                 total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
                             gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
 
-            if self.mode == 1:
+            if self.reweight_actor:
                 mean_a = torch.mean(acts, dim=0, keepdim=True)
                 mean_q = torch.mean(qs, dim=0, keepdim=True)
                 diff_a = acts - mean_a
