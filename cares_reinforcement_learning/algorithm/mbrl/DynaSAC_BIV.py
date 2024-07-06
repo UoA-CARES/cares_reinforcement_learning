@@ -388,14 +388,6 @@ class DynaSAC_BIVReweight:
             if self.mode == 3:
                 total_var = var_r
 
-            # # Exacerbate the sample difference.
-            # min_var = torch.min(total_var)
-            # max_var = torch.max(total_var)
-            # scale_var = max_var - min_var
-            # # 0 - 1
-            # total_var -= min_var
-            # total_var /= scale_var
-            # total_var += 0.000001
             xi = self.get_optimal_xi(total_var.detach().cpu().squeeze().numpy())
             total_var += xi
             # Weight = inverse of sum of weights * inverse of varaince.

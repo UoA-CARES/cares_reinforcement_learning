@@ -15,7 +15,6 @@ import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-
 from cares_reinforcement_learning.networks.world_models.ensemble_world import (
     EnsembleWorldAndOneReward,
 )
@@ -25,25 +24,26 @@ class DynaSAC_ScaleBatchReweight:
     """
     Max as ?
     """
+
     def __init__(
-        self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        world_network: EnsembleWorldAndOneReward,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        num_samples: int,
-        horizon: int,
-        threshold_scale: float,
-        reweight_critic: bool,
-        reweight_actor: bool,
-        mode: int,
-        sample_times: int,
-        device: torch.device,
+            self,
+            actor_network: torch.nn.Module,
+            critic_network: torch.nn.Module,
+            world_network: EnsembleWorldAndOneReward,
+            gamma: float,
+            tau: float,
+            action_num: int,
+            actor_lr: float,
+            critic_lr: float,
+            alpha_lr: float,
+            num_samples: int,
+            horizon: int,
+            threshold_scale: float,
+            reweight_critic: bool,
+            reweight_actor: bool,
+            mode: int,
+            sample_times: int,
+            device: torch.device,
     ):
         self.type = "mbrl"
         self.device = device
@@ -91,7 +91,7 @@ class DynaSAC_ScaleBatchReweight:
 
     # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+            self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
@@ -106,13 +106,13 @@ class DynaSAC_ScaleBatchReweight:
         return action
 
     def _train_policy(
-        self,
-        states: torch.Tensor,
-        actions: torch.Tensor,
-        rewards: torch.Tensor,
-        next_states: torch.Tensor,
-        dones: torch.Tensor,
-        weights: torch.Tensor,
+            self,
+            states: torch.Tensor,
+            actions: torch.Tensor,
+            rewards: torch.Tensor,
+            next_states: torch.Tensor,
+            dones: torch.Tensor,
+            weights: torch.Tensor,
     ) -> None:
         ##################     Update the Critic First     ####################
         # Have more target values?
@@ -122,7 +122,7 @@ class DynaSAC_ScaleBatchReweight:
                 next_states, next_actions
             )
             target_q_values = (
-                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -179,7 +179,7 @@ class DynaSAC_ScaleBatchReweight:
 
         # Update the temperature
         alpha_loss = -(
-            self.log_alpha * (first_log_p + self.target_entropy).detach()
+                self.log_alpha * (first_log_p + self.target_entropy).detach()
         ).mean()
 
         self.log_alpha_optimizer.zero_grad()
@@ -188,14 +188,14 @@ class DynaSAC_ScaleBatchReweight:
 
         if self.learn_counter % self.policy_update_freq == 0:
             for target_param, param in zip(
-                self.target_critic_net.parameters(), self.critic_net.parameters()
+                    self.target_critic_net.parameters(), self.critic_net.parameters()
             ):
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
     def train_world_model(
-        self, memory: PrioritizedReplayBuffer, batch_size: int
+            self, memory: PrioritizedReplayBuffer, batch_size: int
     ) -> None:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -308,17 +308,18 @@ class DynaSAC_ScaleBatchReweight:
             qs = []
             # Varying the next_state's distribution.
             for i in range(self.sample_times):
-                # 5 models, each sampled 10 times = 50,
-                pred_rwd1 = self.world_model.pred_rewards(sample1[i])
-                pred_rwd2 = self.world_model.pred_rewards(sample2[i])
-                pred_rwd3 = self.world_model.pred_rewards(sample3[i])
-                pred_rwd4 = self.world_model.pred_rewards(sample4[i])
-                pred_rwd5 = self.world_model.pred_rewards(sample5[i])
-                rs.append(pred_rwd1)
-                rs.append(pred_rwd2)
-                rs.append(pred_rwd3)
-                rs.append(pred_rwd4)
-                rs.append(pred_rwd5)
+                if self.mode == 0:
+                    # 5 models, each sampled 10 times = 50,
+                    pred_rwd1 = self.world_model.pred_rewards(sample1[i])
+                    pred_rwd2 = self.world_model.pred_rewards(sample2[i])
+                    pred_rwd3 = self.world_model.pred_rewards(sample3[i])
+                    pred_rwd4 = self.world_model.pred_rewards(sample4[i])
+                    pred_rwd5 = self.world_model.pred_rewards(sample5[i])
+                    rs.append(pred_rwd1)
+                    rs.append(pred_rwd2)
+                    rs.append(pred_rwd3)
+                    rs.append(pred_rwd4)
+                    rs.append(pred_rwd5)
                 # Each times, 5 models predict different actions.
                 # [2560, 17]
                 pred_act1, log_pi1, _ = self.actor_net(sample1[i])
@@ -355,38 +356,37 @@ class DynaSAC_ScaleBatchReweight:
             acts = torch.stack(acts)
             qs = torch.stack(qs)
 
-            var_r = torch.var(rs, dim=0)
-
-            if self.mode < 3:
+            if self.mode == 0:
+                var_r = torch.var(rs, dim=0)
                 var_a = torch.var(acts, dim=0)
                 var_q = torch.var(qs, dim=0)
 
-            # Computing covariance.
-            if self.mode < 2:
                 mean_a = torch.mean(acts, dim=0, keepdim=True)
                 mean_q = torch.mean(qs, dim=0, keepdim=True)
                 diff_a = acts - mean_a
                 diff_q = qs - mean_q
                 cov_aq = torch.mean(diff_a * diff_q, dim=0)
 
-            if self.mode < 1:
                 mean_r = torch.mean(rs, dim=0, keepdim=True)
                 diff_r = rs - mean_r
                 cov_rq = torch.mean(diff_r * diff_q, dim=0)
-
                 cov_ra = torch.mean(diff_r * diff_a, dim=0)
 
-            gamma_sq = self.gamma * self.gamma
-            # Ablation
-            if self.mode == 0:
+                gamma_sq = self.gamma * self.gamma
                 total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
                             gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
+
             if self.mode == 1:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
-            if self.mode == 2:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q
-            if self.mode == 3:
-                total_var = var_r
+                mean_a = torch.mean(acts, dim=0, keepdim=True)
+                mean_q = torch.mean(qs, dim=0, keepdim=True)
+                diff_a = acts - mean_a
+                diff_q = qs - mean_q
+                cov_aq = torch.mean(diff_a * diff_q, dim=0)
+
+                var_a = torch.var(acts, dim=0)
+                var_q = torch.var(qs, dim=0)
+                # For actor: alpha^2 * var_a + var_q
+                total_var = (self._alpha ** 2) * var_a + var_q + cov_aq
 
             # Exacerbate the sample difference.
             old_mean_var = torch.mean(total_var)
