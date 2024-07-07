@@ -246,7 +246,7 @@ class DynaSAC_BIVReweightConfig(AlgorithmConfig):
     reweight_critic: Optional[bool] = True
     reweight_actor: Optional[bool] = False
 
-    mode: Optional[int] = 1
+    mode: Optional[int] = 0
     sample_times: Optional[int] = 10
 
 
