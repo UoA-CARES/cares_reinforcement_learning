@@ -392,6 +392,7 @@ class DynaSAC_ScaleBatchReweight:
             old_mean_var = torch.mean(total_var)
             # normalize vars to sum = 1
             total_var /= old_mean_var
+            total_var += 0.00000001
             min_var = torch.min(total_var)
             max_var = torch.max(total_var)
             # As (max-min) decrease, threshold should go down.
