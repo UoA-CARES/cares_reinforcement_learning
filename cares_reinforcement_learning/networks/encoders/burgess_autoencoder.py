@@ -56,15 +56,14 @@ class BurgessAutoencoder(nn.Module):
         # states = states / 255
 
         mean, logvar = self.encoder(states, detach)
-        print(f"{mean.shape=}")
 
         latent_sample = self.reparameterize(mean, logvar)
-        print(f"{latent_sample.shape=}")
 
         rec_obs = self.decoder(latent_sample)
-        print(f"{rec_obs.shape=}")
+
         loss = 0
 
+        # Ah no, the normal and sqvae types only go with their respective single loss function and the other loss functions all go with the Burgess type
         # loss = self.loss_fn(
         #     states,
         #     rec_obs,
@@ -156,11 +155,9 @@ class BurgessEncoder(nn.Module):
 
     def _forward_conv(self, x: torch.Tensor) -> torch.Tensor:
         conv = torch.relu(self.convs[0](x))
-        print(f"{conv.shape=}")
 
         for i in range(1, self.num_layers):
             conv = torch.relu(self.convs[i](conv))
-            print(f"{conv.shape=}")
 
         return conv
 
@@ -170,7 +167,6 @@ class BurgessEncoder(nn.Module):
         batch_size = obs.size(0)
 
         # Convolutional layers with ReLu activations
-        print(f"{obs.shape=}")
         h = self._forward_conv(obs)
 
         # SAC AE detaches at the CNN layer
@@ -179,20 +175,14 @@ class BurgessEncoder(nn.Module):
 
         # Fully connected layers with ReLu activations
         h = h.view((batch_size, -1))
-        print(f"{h.shape=}")
         h = torch.relu(self.linear_one(h))
-        print(f"{h.shape=}")
         h = torch.relu(self.linear_two(h))
-        print(f"{h.shape=}")
 
         # Fully connected layer for log variance and mean
         # Log std-dev in paper (bear in mind)
         mu_logvar = self.mu_logvar_gen(h)
-        print(f"{mu_logvar.shape=}")
 
         mu, logvar = mu_logvar.view(-1, self.latent_dim, 2).unbind(-1)
-        print(f"{mu.shape=}")
-        print(f"{logvar.shape=}")
 
         if detach_output:
             mu = mu.detach()
@@ -265,22 +255,16 @@ class BurgessDecoder(nn.Module):
 
         # Fully connected layers with ReLu activations
         h_fc = torch.relu(self.linear_one(latent_obs))
-        print(f"{h_fc.shape=}")
         h_fc = torch.relu(self.linear_two(h_fc))
-        print(f"{h_fc.shape=}")
         h_fc = torch.relu(self.linear_three(h_fc))
-        print(f"{h_fc.shape=}")
 
         deconv = h_fc.view(batch_size, self.num_filters, self.out_dim, self.out_dim)
-        print(f"{deconv.shape=}")
 
         # Convolutional layers with ReLu activations
         for i in range(0, self.num_layers - 1):
             deconv = torch.relu(self.deconvs[i](deconv))
-            print(f"{deconv.shape=}")
 
         # Sigmoid activation for final conv layer
         observation = torch.sigmoid(self.deconvs[-1](deconv))
-        print(f"{observation.shape=}")
 
         return observation
