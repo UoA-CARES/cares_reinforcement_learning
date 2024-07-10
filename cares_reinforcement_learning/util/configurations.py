@@ -68,6 +68,8 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: Optional[int] = 0
 
+    hidden_size: List[int] = None
+
     # Determines how much prioritization is used, α = 0 corresponding to the uniform case
     # per_alpha
 

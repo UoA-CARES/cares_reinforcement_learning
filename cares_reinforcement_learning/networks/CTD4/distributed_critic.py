@@ -3,10 +3,17 @@ from torch import nn
 
 
 class DistributedCritic(nn.Module):
-    def __init__(self, observation_size: int, action_num: int):
+    def __init__(
+        self,
+        observation_size: int,
+        action_num: int,
+        hidden_size: list[int] = None,
+    ):
         super().__init__()
+        if hidden_size is None:
+            hidden_size = [256, 256]
 
-        self.hidden_size = [256, 256]
+        self.hidden_size = hidden_size
 
         self.mean_layer = nn.Sequential(
             nn.Linear(observation_size + action_num, self.hidden_size[0]),

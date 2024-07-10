@@ -4,10 +4,17 @@ from torch import nn
 
 
 class Network(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int):
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_size: list[int] = None,
+    ):
         super().__init__()
+        if hidden_size is None:
+            hidden_size = [1024, 1024]
 
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = hidden_size
 
         self.h_linear_1 = nn.Linear(
             in_features=observation_size, out_features=self.hidden_size[0]
