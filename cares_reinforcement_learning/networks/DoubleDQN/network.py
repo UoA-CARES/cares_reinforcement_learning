@@ -12,7 +12,7 @@ class Network(nn.Module):
     ):
         super().__init__()
         if hidden_size is None:
-            hidden_size = [1024, 1024]
+            hidden_size = [512, 512]
 
         self.hidden_size = hidden_size
 
