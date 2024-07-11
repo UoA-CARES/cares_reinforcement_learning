@@ -5,11 +5,19 @@ import cares_reinforcement_learning.util.helpers as hlp
 
 
 class Critic(nn.Module):
-    def __init__(self, latent_size: int, num_actions: int, encoder: nn.Module):
+    def __init__(
+        self,
+        latent_size: int,
+        num_actions: int,
+        encoder: nn.Module,
+        hidden_size: list[int] = None,
+    ):
         super().__init__()
+        if hidden_size is None:
+            hidden_size = [1024, 1024]
 
         self.encoder_net = encoder
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = hidden_size
 
         # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
