@@ -32,7 +32,7 @@ class DuelingNetwork(nn.Module):
         )
 
         self.advantage_stream = nn.Sequential(
-            nn.Linear(self.hidden_size[1], self.hidden_size[1]),
+            nn.Linear(self.hidden_size[1], self.hidden_size[2]),
             nn.ReLU(),
             nn.Linear(self.hidden_size[2], self.output_dim),
         )
