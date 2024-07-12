@@ -388,7 +388,7 @@ class DynaSAC_UWACReweight:
             if self.mode == 3:
                 total_var = var_r
 
-            total_stds = torch.minimum(self.threshold_scale/total_var, torch.ones(total_var.shape) * 1.5)
+            total_stds = torch.minimum(self.threshold_scale/total_var, torch.ones(total_var.shape).to(self.device) * 1.5)
 
         return total_stds.detach()
 
