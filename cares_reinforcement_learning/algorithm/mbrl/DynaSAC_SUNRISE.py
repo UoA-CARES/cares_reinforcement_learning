@@ -15,7 +15,7 @@ import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.networks.world_models.ensemble_world import (
+from cares_reinforcement_learning.networks.world_models.ensemble_world_sn import (
     EnsembleWorldAndOneReward,
 )
 
@@ -381,12 +381,6 @@ class DynaSAC_SUNRISEReweight:
             if self.mode == 0:
                 total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
                             gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
-            if self.mode == 1:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
-            if self.mode == 2:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q
-            if self.mode == 3:
-                total_var = var_r
 
             total_stds = torch.sigmoid(-1 * torch.sqrt(total_var) * self.threshold_scale) + 0.5
 

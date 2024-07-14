@@ -12,7 +12,7 @@ from torch import optim
 from cares_reinforcement_learning.networks.world_models.simple_dynamics import (
     SimpleDynamics,
 )
-from cares_reinforcement_learning.networks.world_models.simple_rewards import (
+from cares_reinforcement_learning.networks.world_models.simple_reward_sn import (
     SimpleReward,
 )
 from cares_reinforcement_learning.util.helpers import normalize_observation_delta

@@ -16,17 +16,17 @@ import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
-from cares_reinforcement_learning.networks.world_models.ensemble_world_sn import (
-    EnsembleWorldAndOneReward,
+from cares_reinforcement_learning.networks.world_models.ensmeble_world_sa import (
+    EnsembleWorldAndOneSAReward,
 )
 
 
-class DynaSAC:
+class DynaSAC_SA:
     def __init__(
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        world_network: EnsembleWorldAndOneReward,
+        world_network: EnsembleWorldAndOneSAReward,
         gamma: float,
         tau: float,
         action_num: int,
@@ -170,7 +170,8 @@ class DynaSAC:
             next_states=next_states,
         )
         self.world_model.train_reward(
-            next_states=next_states,
+            states=states,
+            actions=actions,
             rewards=rewards,
         )
 
@@ -214,7 +215,7 @@ class DynaSAC:
                 pred_next_state, _, _, _ = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-                pred_reward = self.world_model.pred_rewards(pred_next_state)
+                pred_reward = self.world_model.pred_rewards(pred_state, pred_acts)
                 pred_states.append(pred_state)
                 pred_actions.append(pred_acts.detach())
                 pred_rs.append(pred_reward.detach())
