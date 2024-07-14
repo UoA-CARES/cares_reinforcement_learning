@@ -51,6 +51,14 @@ class AlgorithmConfig(SubscriptableClass):
         max_steps_exploration (Optional[int]): Maximum number of steps for exploration.
         max_steps_training (Optional[int]): Maximum number of steps for training.
         number_steps_per_train_policy (Optional[int]): Number of steps per updating the training policy.
+
+        min_noise (Optional[float]): Minimum noise value.
+        noise_scale (Optional[float]): Noise scale.
+        noise_decay (Optional[float]): Noise decay.
+
+        image_observation (Optional[int]): Whether the observation is an image.
+
+        hidden_size (List[int]): List of hidden layer sizes - e.g. [256, 256].
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")
@@ -67,6 +75,8 @@ class AlgorithmConfig(SubscriptableClass):
     noise_decay: Optional[float] = 1.0
 
     image_observation: Optional[int] = 0
+
+    hidden_size: List[int] = None
 
     # Determines how much prioritization is used, α = 0 corresponding to the uniform case
     # per_alpha
@@ -166,6 +176,8 @@ class SACConfig(AlgorithmConfig):
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
 
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class SACAEConfig(AlgorithmConfig):
     algorithm: str = Field("SACAE", Literal=True)
@@ -180,6 +192,8 @@ class SACAEConfig(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
+
+    log_std_bounds: List[float] = [-20, 2]
 
     num_layers: Optional[int] = 4
     num_filters: Optional[int] = 32
@@ -207,6 +221,8 @@ class DynaSACConfig(AlgorithmConfig):
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+
+    log_std_bounds: List[float] = [-20, 2]
 
     horizon: Optional[int] = 3
     num_samples: Optional[int] = 10
@@ -259,6 +275,8 @@ class TQCConfig(AlgorithmConfig):
     num_quantiles: Optional[int] = 25
     num_nets: Optional[int] = 5
 
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class CTD4Config(AlgorithmConfig):
     algorithm: str = Field("CTD4", Literal=True)
@@ -301,6 +319,8 @@ class PERSACConfig(AlgorithmConfig):
     per_alpha: Optional[float] = 0.6
     min_priority: Optional[float] = 1e-6
 
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class LAPTD3Config(AlgorithmConfig):
     algorithm: str = Field("LAPTD3", Literal=True)
@@ -327,6 +347,8 @@ class LAPSACConfig(AlgorithmConfig):
     per_alpha: Optional[float] = 0.6
     reward_scale: Optional[float] = 1.0
     min_priority: Optional[float] = 1.0
+
+    log_std_bounds: List[float] = [-20, 2]
 
 
 class PALTD3Config(AlgorithmConfig):
@@ -371,6 +393,8 @@ class LA3PSACConfig(AlgorithmConfig):
     min_priority: Optional[float] = 1.0
     prioritized_fraction: Optional[float] = 0.5
 
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class MAPERTD3Config(AlgorithmConfig):
     algorithm: str = Field("MAPERTD3", Literal=True)
@@ -410,6 +434,9 @@ class MAPERSACConfig(AlgorithmConfig):
     G: Optional[int] = 64
     number_steps_per_train_policy: Optional[int] = 64
 
+    hidden_size: List[int] = [400, 300]
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class RDTD3Config(AlgorithmConfig):
     algorithm: str = Field("RDTD3", Literal=True)
@@ -435,3 +462,5 @@ class RDSACConfig(AlgorithmConfig):
     beta: Optional[float] = 0.4
     per_alpha: Optional[float] = 0.7
     min_priority: Optional[float] = 1.0
+
+    log_std_bounds: List[float] = [-20, 2]
