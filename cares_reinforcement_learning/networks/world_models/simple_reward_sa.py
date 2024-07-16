@@ -24,7 +24,7 @@ class SimpleRewardSA(nn.Module):
         self.apply(weight_init)
 
     def forward(
-        self, observation: torch.Tensor, actions:torch.Tensor, normalized: bool = False
+        self, observation: torch.Tensor, actions: torch.Tensor, normalized: bool = False
     ) -> torch.Tensor:
         """
         Forward the inputs throught the network.

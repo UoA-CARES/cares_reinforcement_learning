@@ -13,37 +13,40 @@ import os
 import numpy as np
 import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+import torch.nn.functional as F
 
 from cares_reinforcement_learning.networks.world_models.ensemble_world_sn import (
     EnsembleWorldAndOneReward,
 )
 
 
-class DynaSAC_MaxBatchReweight:
+class DynaSAC_Immerse_Reweight_Combo:
     """
     Max as ?
     """
+
     def __init__(
-        self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        world_network: EnsembleWorldAndOneReward,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        num_samples: int,
-        horizon: int,
-        threshold_scale: float,
-        variance_scale: float,
-        mode: int,
-        sample_times: int,
-        device: torch.device,
+            self,
+            actor_network: torch.nn.Module,
+            critic_network: torch.nn.Module,
+            world_network: EnsembleWorldAndOneReward,
+            gamma: float,
+            tau: float,
+            action_num: int,
+            actor_lr: float,
+            critic_lr: float,
+            alpha_lr: float,
+            num_samples: int,
+            horizon: int,
+            threshold_scale_actor: float,
+            threshold_scale_critic: float,
+            sample_times: int,
+            device: torch.device,
     ):
         self.type = "mbrl"
         self.device = device
+        self.threshold_scale_actor = threshold_scale_actor
+        self.threshold_scale_critic = threshold_scale_critic
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
@@ -77,9 +80,6 @@ class DynaSAC_MaxBatchReweight:
         # World model
         self.world_model = world_network
         # Parameter
-        self.threshold_scale = threshold_scale
-        self.variance_scale = variance_scale
-        self.mode = mode
         self.sample_times = sample_times
 
     @property
@@ -88,7 +88,7 @@ class DynaSAC_MaxBatchReweight:
 
     # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+            self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
@@ -103,13 +103,14 @@ class DynaSAC_MaxBatchReweight:
         return action
 
     def _train_policy(
-        self,
-        states: torch.Tensor,
-        actions: torch.Tensor,
-        rewards: torch.Tensor,
-        next_states: torch.Tensor,
-        dones: torch.Tensor,
-        weights: torch.Tensor,
+            self,
+            states: torch.Tensor,
+            actions: torch.Tensor,
+            rewards: torch.Tensor,
+            next_states: torch.Tensor,
+            dones: torch.Tensor,
+            critic_weights: torch.Tensor,
+            actor_weights: torch.Tensor,
     ) -> None:
         ##################     Update the Critic First     ####################
         # Have more target values?
@@ -119,30 +120,25 @@ class DynaSAC_MaxBatchReweight:
                 next_states, next_actions
             )
             target_q_values = (
-                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        # Original loss function
+        # Reweighted loss function. weight not participant in training.
         l2_loss_one = (q_values_one - q_target).pow(2)
         l2_loss_two = (q_values_two - q_target).pow(2)
-
-        # Reweighted loss function. weight not participant in training.
-        weights = weights.detach()
-        disc_l2_loss_one = l2_loss_one * weights
-        disc_l2_loss_two = l2_loss_two * weights
+        critic_weights = critic_weights.detach()
+        disc_l2_loss_one = l2_loss_one * critic_weights
+        disc_l2_loss_two = l2_loss_two * critic_weights
         # A ratio to scale the loss back to original loss scale.
-
         ratio_1 = torch.mean(l2_loss_one) / torch.mean(disc_l2_loss_one)
         ratio_1 = ratio_1.detach()
         ratio_2 = torch.mean(l2_loss_two) / torch.mean(disc_l2_loss_two)
         ratio_2 = ratio_2.detach()
-
         critic_loss_one = disc_l2_loss_one.mean() * ratio_1
         critic_loss_two = disc_l2_loss_two.mean() * ratio_2
-
         critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
@@ -154,7 +150,13 @@ class DynaSAC_MaxBatchReweight:
         pi, first_log_p, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
-        actor_loss = ((self._alpha * first_log_p) - min_qf_pi).mean()
+
+        actor_weights = actor_weights.detach()
+        a_loss = (self._alpha * first_log_p) - min_qf_pi
+        disc_actor_loss = a_loss * actor_weights
+        actor_ratio = torch.mean(a_loss) / torch.mean(disc_actor_loss)
+        actor_ratio = actor_ratio.detach()
+        actor_loss = actor_ratio * torch.mean(disc_actor_loss)
 
         # Update the Actor
         self.actor_net_optimiser.zero_grad()
@@ -163,7 +165,7 @@ class DynaSAC_MaxBatchReweight:
 
         # Update the temperature
         alpha_loss = -(
-            self.log_alpha * (first_log_p + self.target_entropy).detach()
+                self.log_alpha * (first_log_p + self.target_entropy).detach()
         ).mean()
 
         self.log_alpha_optimizer.zero_grad()
@@ -172,14 +174,14 @@ class DynaSAC_MaxBatchReweight:
 
         if self.learn_counter % self.policy_update_freq == 0:
             for target_param, param in zip(
-                self.target_critic_net.parameters(), self.critic_net.parameters()
+                    self.target_critic_net.parameters(), self.critic_net.parameters()
             ):
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
     def train_world_model(
-        self, memory: PrioritizedReplayBuffer, batch_size: int
+            self, memory: PrioritizedReplayBuffer, batch_size: int
     ) -> None:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -219,7 +221,8 @@ class DynaSAC_MaxBatchReweight:
             rewards=rewards,
             next_states=next_states,
             dones=dones,
-            weights=full_weights,
+            critic_weights=full_weights,
+            actor_weights=full_weights,
         )
         # # # Step 3 Dyna add more data
         self._dyna_generate_and_train(next_states=next_states)
@@ -233,7 +236,9 @@ class DynaSAC_MaxBatchReweight:
         pred_actions = []
         pred_rs = []
         pred_n_states = []
-        pred_uncerts = []
+        pred_uncerts_actor = []
+        pred_uncerts_critic = []
+
         with torch.no_grad():
             pred_state = next_states
             for _ in range(self.horizon):
@@ -245,9 +250,11 @@ class DynaSAC_MaxBatchReweight:
                 pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-                uncert = self.sampling(pred_means=pred_mean, pred_vars=pred_var)
-                uncert = uncert.unsqueeze(dim=1).to(self.device)
-                pred_uncerts.append(uncert)
+                critic_uncert, actor_uncert = self.sampling(pred_means=pred_mean, pred_vars=pred_var)
+                critic_uncert = critic_uncert.unsqueeze(dim=1).to(self.device)
+                actor_uncert = actor_uncert.unsqueeze(dim=1).to(self.device)
+                pred_uncerts_critic.append(critic_uncert)
+                pred_uncerts_actor.append(actor_uncert)
 
                 pred_reward = self.world_model.pred_rewards(pred_next_state)
                 pred_states.append(pred_state)
@@ -259,12 +266,13 @@ class DynaSAC_MaxBatchReweight:
             pred_actions = torch.vstack(pred_actions)
             pred_rs = torch.vstack(pred_rs)
             pred_n_states = torch.vstack(pred_n_states)
-            pred_weights = torch.vstack(pred_uncerts)
+            pred_uncerts_actor = torch.vstack(pred_uncerts_actor)
+            pred_uncerts_critic = torch.vstack(pred_uncerts_critic)
             # Pay attention to here! It is dones in the Cares RL Code!
             pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
             # states, actions, rewards, next_states, not_dones
         self._train_policy(
-            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
+            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_uncerts_critic, pred_uncerts_actor
         )
 
     def sampling(self, pred_means, pred_vars):
@@ -340,46 +348,46 @@ class DynaSAC_MaxBatchReweight:
             qs = torch.stack(qs)
 
             var_r = torch.var(rs, dim=0)
+            var_a = torch.var(acts, dim=0)
+            var_q = torch.var(qs, dim=0)
 
-            if self.mode < 3:
-                var_a = torch.var(acts, dim=0)
-                var_q = torch.var(qs, dim=0)
+            mean_a = torch.mean(acts, dim=0, keepdim=True)
+            mean_q = torch.mean(qs, dim=0, keepdim=True)
+            diff_a = acts - mean_a
+            diff_q = qs - mean_q
+            cov_aq = torch.mean(diff_a * diff_q, dim=0)
 
-            # Computing covariance.
-            if self.mode < 2:
-                mean_a = torch.mean(acts, dim=0, keepdim=True)
-                mean_q = torch.mean(qs, dim=0, keepdim=True)
-                diff_a = acts - mean_a
-                diff_q = qs - mean_q
-                cov_aq = torch.mean(diff_a * diff_q, dim=0)
+            mean_r = torch.mean(rs, dim=0, keepdim=True)
+            diff_r = rs - mean_r
+            cov_rq = torch.mean(diff_r * diff_q, dim=0)
 
-            if self.mode < 1:
-                mean_r = torch.mean(rs, dim=0, keepdim=True)
-                diff_r = rs - mean_r
-                cov_rq = torch.mean(diff_r * diff_q, dim=0)
-
-                cov_ra = torch.mean(diff_r * diff_a, dim=0)
+            cov_ra = torch.mean(diff_r * diff_a, dim=0)
 
             gamma_sq = self.gamma * self.gamma
-            # Ablation
-            if self.mode == 0:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
-                            gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
-            if self.mode == 1:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
-            if self.mode == 2:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q
-            if self.mode == 3:
-                total_var = var_r
 
-            # Exacerbate the sample difference.
-            min_var = torch.min(total_var)
-            max_var = torch.max(total_var)
-            total_var /= (max_var - min_var)
-            threshold = self.threshold_scale
-            total_var[total_var <= threshold] = self.variance_scale
-            total_stds = 1 / total_var
-        return total_stds.detach()
+            critic_total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
+                               gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
+
+            # For actor: alpha^2 * var_a + var_q
+            actor_total_var = (self._alpha ** 2) * var_a + var_q + (self._alpha ** 2) * cov_aq
+
+            critic_min_var = torch.min(critic_total_var)
+            critic_max_var = torch.max(critic_total_var)
+            # As (max-min) decrease, threshold should go down.
+            critic_threshold = self.threshold_scale_critic * (critic_max_var - critic_min_var) + critic_min_var
+            critic_total_var[critic_total_var <= critic_threshold] = critic_threshold
+
+            actor_min_var = torch.min(actor_total_var)
+            actor_max_var = torch.max(actor_total_var)
+            actor_threshold = self.threshold_scale_actor * (actor_max_var - actor_min_var) + actor_min_var
+            actor_total_var[actor_total_var <= actor_threshold] = actor_threshold
+
+            actor_total_var += 0.00000001
+            critic_total_var += 0.00000001
+            critic_total_stds = 1 / critic_total_var
+            actor_total_stds = 1 / actor_total_var
+
+        return critic_total_stds.detach(), actor_total_stds.detach()
 
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
