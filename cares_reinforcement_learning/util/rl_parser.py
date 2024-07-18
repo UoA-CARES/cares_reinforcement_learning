@@ -13,15 +13,14 @@ from cares_reinforcement_learning.util.configurations import (
     AlgorithmConfig,
     EnvironmentConfig,
     SubscriptableClass,
-    TrainingConfig,
 )
 
 
 class RLParser:
-    def __init__(self, environment_config: EnvironmentConfig) -> None:
+    def __init__(self) -> None:
         self.configurations = {}
 
-        self.algorithm_parser, self.algorithm_parsers = self._get_algorithm_parser()
+        self.algorithm_parser, self.sub_algorithm_parser = self._get_algorithm_parser()
 
         self.algorithm_configurations = {}
         for name, cls in inspect.getmembers(configurations, inspect.isclass):
@@ -29,9 +28,6 @@ class RLParser:
                 self.algorithm_configurations[name] = cls
 
         self.args = {}
-
-        self.add_configuration("env_config", environment_config)
-        self.add_configuration("training_config", TrainingConfig)
 
     def add_model(
         self, parser: argparse.ArgumentParser, model: AlgorithmConfig
@@ -51,8 +47,8 @@ class RLParser:
 
     def _get_algorithm_parser(self) -> None:
         alg_parser = argparse.ArgumentParser()
-        alg_parsers = alg_parser.add_subparsers(
-            help="Select which RL algorith you want to use",
+        sub_parsers = alg_parser.add_subparsers(
+            help="Select which RL algorithm you want to use",
             dest="algorithm",
             required=True,
         )
@@ -60,14 +56,14 @@ class RLParser:
         for name, cls in inspect.getmembers(configurations, inspect.isclass):
             if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
                 name = name.replace("Config", "")
-                cls_parser = alg_parsers.add_parser(name, help=name)
+                cls_parser = sub_parsers.add_parser(name, help=name)
                 self.add_model(cls_parser, cls)
 
-        return alg_parser, alg_parsers
+        return alg_parser, sub_parsers
 
     def add_algorithm_config(self, algorithm_config: AlgorithmConfig) -> None:
         name = algorithm_config.__name__.replace("Config", "")
-        parser = self.algorithm_parsers.add_parser(f"{name}", help=f"{name}")
+        parser = self.sub_algorithm_parser.add_parser(f"{name}", help=f"{name}")
         self.add_model(parser, algorithm_config)
         self.algorithm_configurations[algorithm_config.__name__] = algorithm_config
 
@@ -89,7 +85,6 @@ class RLParser:
             sys.exit(1)
         # use dispatch pattern to invoke method with same name
         self.args = getattr(self, f"_{cmd_arg.command}")()
-        print(self.args)
 
         configs = {}
 
