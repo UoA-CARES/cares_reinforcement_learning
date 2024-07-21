@@ -34,13 +34,14 @@ def create_path_from_format_string(
     date = datetime.now().strftime("%y_%m_%d_%H-%M-%S")
 
     run_name_else_date = run_name if run_name != "" else date
+    run_name_else_unnamed = run_name if run_name != "" else "unnamed"
 
     log_dir = format_str.format(
         algorithm=algorithm,
         domain=domain,
         task=task,
         gym=gym,
-        run_name=run_name,
+        run_name=run_name_else_unnamed,
         run_name_else_date=run_name_else_date,
         seed=seed,
         domain_task=domain_task,
