@@ -1,13 +1,17 @@
 <img src="./media/logo.png" alt="CARES reinforcement learning package logo" />
+
 The CARES reinforcement learning bed used as the foundation for RL related projects.
 
 # Motivation
+
 **Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
 
 # Usage
+
 Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki) for a guide on how to use the package
 
 # Installation Instructions
+
 If you want to utilise the GPU with Pytorch install CUDA first - https://developer.nvidia.com/cuda-toolkit
 
 Install Pytorch following the instructions here - https://pytorch.org/get-started/locally/
@@ -19,62 +23,85 @@ Run `pip3 install -r requirements.txt` in the **root directory** of the package
 To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
 
 # Running an Example
-This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own envrionments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks. 
+
+This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own environments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks.
 
 ## Gym Environments
-We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place:  https://github.com/UoA-CARES/gymnasium_envrionments 
+
+We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place:  https://github.com/UoA-CARES/gymnasium_envrionments
 
 This package contains wrappers for the following gym environments:
 
-#### Deep Mind Control Suite
+### Deep Mind Control Suite
+
 The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
 
 <p align="center">
-    <img src="./media/dmcs.png" style="width: 80%;"/>
+    <img alt="deep mind control suite" src="./media/dmcs.png" style="width: 80%;"/>
 </p>
 
-#### OpenAI Gymnasium
-The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium 
+### OpenAI Gymnasium
+
+The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium
 
 <p align="center">
-    <img src="./media/openai.jpg" style="width: 80%;" />
+    <img alt="open ai" src="./media/openai.jpg" style="width: 80%;" />
 </p>
 
-#### Game Boy Emulator
-Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment 
+### Game Boy Emulator
+
+Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment
 
 <p align="center">
-    <img src="./media/mario.png" style="width: 40%;" />
-    <img src="./media/pokemon.png" style="width: 40%;"/>
+    <img alt="game boy mario" src="./media/mario.png" style="width: 40%;" />
+    <img alt="game boy pokemon" src="./media/pokemon.png" style="width: 40%;"/>
 </p>
 
 ## Gripper Gym
+
 The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
 
 <p align="center">
-<img src="./media/rotation_task-min.jpg" style="width: 40%;"/>
-<img src="./media/translation_task-min.jpg" style="width: 40%;"/>
+    <img alt="rotation task" src="./media/rotation_task-min.jpg" style="width: 40%;"/>
+    <img alt="translation task" src="./media/translation_task-min.jpg" style="width: 40%;"/>
 </p>
 
+## F1Tenth Autonomous Racing
 
-## F1Tenth Autonmous Racing
-The Autonmous F1Tenth package contains all the code for training our F1Tenth platforms to autonmously race: https://github.com/UoA-CARES/autonomous_f1tenth 
+The Autonomous F1Tenth package contains all the code for training our F1Tenth platforms to autonomously race: https://github.com/UoA-CARES/autonomous_f1tenth
 
 <p align="center">
-    <img src="./media/f1tenth-min.png" style="width: 80%;"/>
+    <img alt="f one tenth" src="./media/f1tenth-min.png" style="width: 80%;"/>
 </p>
 
 # Utilities
-CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new envrionments we build to test our approaches.
+
+CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new environments we build to test our approaches.
 
 ## Record.py
+
 The Record class allows data to be saved into a consistent format during training. This allows all data to be consistently formatted for plotting against each other for fair and consistent evaluation.
 
-All data from a training run is saved into '~/cares_rl_logs'. A folder will be created for each training run named as 'seed/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS', e.g. '10/TD3-HalfCheetah-v4-23_10_11_08:47:22'. This folder will contain the following directories and information saved during the training session:
+All data from a training run is saved into the directory specified in the `CARES_LOG_DIR` environment variable. If not specified, this will default to `'~/cares_rl_logs'`.
 
-```
-ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
-├─ SEED
+You may specify a custom log directory format using the `log_path` config option. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"` so that each run is saved as a new seed under the algorithm and domain-task pair for that algorithm.
+
+The following variables are supported for `log_path` variable interpolation:
+
+- `algorithm`
+- `domain`
+- `task`
+- `domain_task`: The domain and task or just task if domain does not exist
+- `gym`
+- `seed`
+- `date`: The current date in the `YY_MM_DD:HH:MM:SS` format
+- `run_name`: The run name if it is provided, otherwise "unnamed"
+- `run_name_else_date`: The run name if it is provided, otherwise the date
+
+This folder will contain the following directories and information saved during the training session:
+
+```text
+├─ <log_path>
 |  ├─ env_config.py
 |  ├─ alg_config.py
 |  ├─ train_config.py
@@ -90,43 +117,50 @@ ALGORITHM-TASK-YY_MM_DD:HH:MM:SS/
 |  |  ├─ ...
 |  ├─ videos
 |  |  ├─ STEP.mp4
-|  |  ├─ ...
-├─ SEED...
 ├─ ...
 ```
 
 ## plotting.py
-The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below. 
+
+The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
 
 Plot the results of a single training instance
-```
+
+```sh
 python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
 ```
 
 Plot and compare the results of two or more training instances
-```
+
+```sh
 python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
 ```
 
-Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguements.
-```
+Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments.
+
+```sh
 python3 plotter.py -h
 ```
 
 ## configurations.py
-Provides baseline dataclasses for environment, training, and algorithm configurations to allow for consistent recording of training parameters. 
+
+Provides baseline data classes for environment, training, and algorithm configurations to allow for consistent recording of training parameters.
 
 ## RLParser.py
-Provides a means of loading enevironment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
+
+Provides a means of loading environment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
 
 ## NetworkFactory.py
-A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package. 
+
+A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package.
 
 ## MemoryFactory.py
+
 A factory class for creating a memory buffer that has been implemented into the CARES RL package.
 
 # Package Structure
-```
+
+```text
 cares_reinforcement_learning/
 ├─ algorithm/
 ├─ policy/
@@ -147,17 +181,18 @@ cares_reinforcement_learning/
 ├─ util/
 │  ├─ network_factory.py
 │  ├─ ...
-
 ```
+
 `algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
 
-`networks`: contains standard neural networks that can be used with each algortihm
+`networks`: contains standard neural networks that can be used with each algorithm
 
-`memory`: contains the implementation of various memory buffers - e.g. Priotised Experience Replay
+`memory`: contains the implementation of various memory buffers - e.g. Prioritised Experience Replay
 
 `util`: contains common utility classes
 
 # Supported Algorithms
+
 | Algorithm   | Observation Space          | Action Space | Paper Reference |
 | ----------- | -------------------------- | ------------ | --------------- |
 | DQN         | Vector                     | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602) |
