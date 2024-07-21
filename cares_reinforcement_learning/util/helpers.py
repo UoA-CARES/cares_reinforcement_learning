@@ -1,9 +1,10 @@
 import random
+import os
+from datetime import datetime
 
 import numpy as np
 import torch
 
-from datetime import datetime
 
 
 def create_path_from_format_string(
@@ -26,6 +27,8 @@ def create_path_from_format_string(
     :return: The path
     """
 
+    base_dir = os.environ.get("CARES_LOG_DIR", f"{Path.home()}/cares_rl_logs")
+
     domain_with_hyphen_or_empty = f"{domain}-" if domain != "" else ""
     domain_task = domain_with_hyphen_or_empty + task
 
@@ -44,7 +47,7 @@ def create_path_from_format_string(
         domain_task=domain_task,
         date=date,
     )
-    return log_dir
+    return f"{base_dir}/{log_dir}"
 
 
 def set_seed(seed: int) -> None:
