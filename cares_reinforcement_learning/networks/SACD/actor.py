@@ -31,14 +31,13 @@ class Actor(nn.Module):
             nn.ReLU(),
         )
 
-
         self.action_linear = nn.Linear(self.hidden_size[1], num_actions)
 
     def forward(
         self, state: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         x = self.act_net(state)
-        
+
         logits = self.action_linear(x)
         action_probs = torch.softmax(logits, dim=-1)
         dist = torch.distributions.Categorical(action_probs)

@@ -99,7 +99,9 @@ class SACD:
         with torch.no_grad():
             next_action_probs, next_log_pi, _ = self.actor_net(next_states)
             next_actions = torch.multinomial(next_action_probs, 1).squeeze()
-            next_log_pi = torch.log(next_action_probs.gather(1, next_actions.unsqueeze(1)))
+            next_log_pi = torch.log(
+                next_action_probs.gather(1, next_actions.unsqueeze(1))
+            )
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
