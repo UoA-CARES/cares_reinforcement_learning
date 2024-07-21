@@ -6,7 +6,6 @@ import numpy as np
 import torch
 
 
-
 def create_path_from_format_string(
     format_str: str,
     algorithm: str,
