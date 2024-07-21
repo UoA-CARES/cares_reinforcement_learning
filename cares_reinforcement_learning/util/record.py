@@ -16,7 +16,7 @@ class Record:
     A class that represents a record for logging and saving data during training and evaluation.
 
     Args:
-        glob_log_dir (str): The global log directory.
+        glob_log_dir (str): DEPRECATED - Just use the log_dir
         log_dir (str): The log directory.
         algorithm (str): The algorithm name.
         task (str): The task name.
@@ -27,7 +27,7 @@ class Record:
 
     def __init__(
         self,
-        glob_log_dir: str,
+        glob_log_dir: str, # Now ignored
         log_dir: str,
         algorithm: str,
         task: str,
@@ -35,9 +35,7 @@ class Record:
         checkpoint_frequency: int = 1000,
         network: Optional[nn.Module] = None,
     ) -> None:
-        self.glob_log_dir = glob_log_dir
-        self.log_dir = log_dir
-        self.directory = f"{self.glob_log_dir}/{self.log_dir}"
+        self.directory = log_dir
 
         self.algorithm = algorithm
         self.task = task
@@ -182,8 +180,6 @@ class Record:
             self.network.save_models(self.algorithm, self.directory)
 
     def __initialise_directories(self) -> None:
-        if not os.path.exists(self.glob_log_dir):
-            os.makedirs(self.glob_log_dir)
 
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
