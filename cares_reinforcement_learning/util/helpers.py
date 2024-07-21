@@ -46,6 +46,7 @@ def create_path_from_format_string(
     )
     return log_dir
 
+
 def set_seed(seed: int) -> None:
     """
     Set the random seed for reproducibility.
