@@ -27,7 +27,7 @@ class Record:
 
     def __init__(
         self,
-        glob_log_dir: str, # Now ignored
+        glob_log_dir: str,  # Now ignored
         log_dir: str,
         algorithm: str,
         task: str,
