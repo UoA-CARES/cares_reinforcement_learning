@@ -76,7 +76,7 @@ class Encoder1D(nn.Module):
         # SAC AE detaches at the CNN layer
         if detach_cnn:
             h = h.detach()
-
+            
         h_fc = self.fc(h)
         h_norm = self.ln(h_fc)
         latent_obs = torch.tanh(h_norm)
@@ -148,7 +148,7 @@ class Decoder1D(nn.Module):
 
 
 def create_autoencoder_1d(
-    observation_size: tuple[int],
+    observation_size: int,
     latent_dim: int,
     num_layers: int = 4,
     num_filters: int = 32,

@@ -33,6 +33,7 @@ class TD3AE:
         decoder_weight_decay: float,
         decoder_update_freq: int,
         device: torch.device,
+        is_1d: bool = False
     ):
         self.type = "policy"
         self.device = device
@@ -78,6 +79,8 @@ class TD3AE:
             lr=decoder_lr,
             weight_decay=decoder_weight_decay,
         )
+        # needed since tensor shapes need to be treated differently
+        self.is_1d = is_1d
 
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
@@ -85,7 +88,13 @@ class TD3AE:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
+
+            # normally input of shape [3,w,h] to [1,3,w,h] to account for batch size
+            # somehow in 1d case channel size of 1 is ommited, need to unsqueeze twice to get [1,1,num_of_features]
+            if self.is_1d:
+                state_tensor = state_tensor.unsqueeze(0).unsqueeze(0)
+            else:
+                state_tensor = state_tensor.unsqueeze(0)
             state_tensor = state_tensor / 255
 
             action = self.actor_net(state_tensor)
@@ -107,6 +116,11 @@ class TD3AE:
         dones: torch.Tensor,
     ) -> None:
         with torch.no_grad():
+
+            ##########################################################
+            # states = states.view(-1,1,684)
+            # next_states = next_states.view(-1,1,684)
+
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
@@ -133,6 +147,9 @@ class TD3AE:
         self.critic_net_optimiser.step()
 
     def _update_actor(self, states: torch.Tensor) -> None:
+        ######################################################################
+        # states = states.view(-1,1,684)
+
         actions = self.actor_net(states, detach_encoder=True)
         actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
         actor_loss = -actor_q_values.mean()
@@ -142,6 +159,9 @@ class TD3AE:
         self.actor_net_optimiser.step()
 
     def _update_autoencoder(self, states: torch.Tensor) -> None:
+        ##################################################################
+        # states = states.view(-1,1,684)
+
         states_latent = self.critic_net.encoder(states)
         rec_observations = self.decoder_net(states_latent)
 
@@ -177,6 +197,13 @@ class TD3AE:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        # Here since passing states directly in result in shape [1,batch_size,num_of_features] SOMEHOW
+        # might be related to that weird omitting size of 1 issue
+        if self.is_1d:
+            states = states.view(batch_size,1,-1)
+            next_states = next_states.view(batch_size,1,-1)
+        
+        #TODO: does not make sense for non-image cases. However some scaling does not break anything either.
         # Normalise states and next_states
         # This because the states are [0-255] and the predictions are [0-1]
         states_normalised = states / 255
@@ -224,6 +251,7 @@ class TD3AE:
 
         torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
         torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:

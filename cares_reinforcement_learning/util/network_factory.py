@@ -249,16 +249,26 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
     import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    import cares_reinforcement_learning.networks.encoders.autoencoder_1d as ae_1d
     from cares_reinforcement_learning.algorithm.policy import TD3AE
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 
-    encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size,
-        latent_dim=config.latent_size,
-        num_layers=4,
-        num_filters=32,
-        kernel_size=3,
-    )
+    if config.is_1d == True:
+        encoder, decoder = ae_1d.create_autoencoder_1d(
+            observation_size=observation_size,
+            latent_dim=config.latent_size,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
+    else:
+        encoder, decoder = ae.create_autoencoder(
+            observation_size=observation_size,
+            latent_dim=config.latent_size,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
 
     actor_encoder = copy.deepcopy(encoder)
     critic_encoder = copy.deepcopy(encoder)
@@ -283,6 +293,7 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
         decoder_weight_decay=config.decoder_weight_decay,
         decoder_update_freq=config.decoder_update_freq,
         device=device,
+        is_1d=config.is_1d
     )
     return agent
 
