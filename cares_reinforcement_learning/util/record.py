@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -35,10 +35,10 @@ class Record:
         checkpoint_frequency: int = 1000,
         network: Optional[nn.Module] = None,
     ) -> None:
-        
+
         self.glob_log_dir = glob_log_dir # Keeping this here just so we don't break existing environments
         self.log_dir = log_dir
-        
+
         self.directory = f"{glob_log_dir}/{log_dir}"
 
         self.algorithm = algorithm
@@ -184,7 +184,7 @@ class Record:
             self.network.save_models(self.algorithm, self.directory)
 
     def __initialise_directories(self) -> None:
-            
+
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)
 
