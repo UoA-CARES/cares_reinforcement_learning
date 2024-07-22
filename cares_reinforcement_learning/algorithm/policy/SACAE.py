@@ -37,7 +37,7 @@ class SACAE:
         decoder_update_freq: int,
         alpha_lr: float,
         device: torch.device,
-        is_1d: bool = False
+        is_1d: bool = False,
     ):
         self.type = "policy"
         self.device = device
@@ -116,8 +116,8 @@ class SACAE:
                 state_tensor = state_tensor.unsqueeze(0).unsqueeze(0).to(self.device)
             else:
                 state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            
-            #TODO: Doesn't make sense for non-image input, but not breaking
+
+            # TODO: Doesn't make sense for non-image input, but not breaking
             state_tensor = state_tensor / 255
 
             if evaluation:
@@ -218,14 +218,14 @@ class SACAE:
         # Here since passing states directly in result in shape [1,batch_size,num_of_features] SOMEHOW
         # might be related to that weird omitting size of 1 issue
         if self.is_1d:
-            states = states.view(batch_size,1,-1)
-            next_states = next_states.view(batch_size,1,-1)
+            states = states.view(batch_size, 1, -1)
+            next_states = next_states.view(batch_size, 1, -1)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        #TODO: does not make sense for non-image cases. However some scaling does not break anything either.
+        # TODO: does not make sense for non-image cases. However some scaling does not break anything either.
         # Normalise states and next_states
         # This because the states are [0-255] and the predictions are [0-1]
         states_normalised = states / 255

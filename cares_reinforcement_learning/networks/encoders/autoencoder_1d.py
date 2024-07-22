@@ -8,13 +8,16 @@ def tie_weights(src, trg):
     trg.weight = src.weight
     trg.bias = src.bias
 
+
 class Encoder1D(nn.Module):
-    def __init__(self,
+    def __init__(
+        self,
         observation_size: int,
         latent_dim: int,
         num_layers: int = 4,
         num_filters: int = 32,
-        kernel_size: int = 3):
+        kernel_size: int = 3,
+    ):
 
         super().__init__()
 
@@ -47,9 +50,8 @@ class Encoder1D(nn.Module):
                     stride=1,
                 )
             )
-            #calculate current size of each channel
+            # calculate current size of each channel
             self.out_dim = hlp.flatten(self.out_dim, k=self.kernel_size, s=1)
-
 
         self.n_flatten = self.out_dim * self.num_filters
 
@@ -76,7 +78,7 @@ class Encoder1D(nn.Module):
         # SAC AE detaches at the CNN layer
         if detach_cnn:
             h = h.detach()
-            
+
         h_fc = self.fc(h)
         h_norm = self.ln(h_fc)
         latent_obs = torch.tanh(h_norm)

@@ -33,7 +33,7 @@ class TD3AE:
         decoder_weight_decay: float,
         decoder_update_freq: int,
         device: torch.device,
-        is_1d: bool = False
+        is_1d: bool = False,
     ):
         self.type = "policy"
         self.device = device
@@ -96,7 +96,7 @@ class TD3AE:
             else:
                 state_tensor = state_tensor.unsqueeze(0)
 
-            #TODO: Doesn't make sense for non-image input, but not breaking
+            # TODO: Doesn't make sense for non-image input, but not breaking
             state_tensor = state_tensor / 255
 
             action = self.actor_net(state_tensor)
@@ -202,10 +202,10 @@ class TD3AE:
         # Here since passing states directly in result in shape [1,batch_size,num_of_features] SOMEHOW
         # might be related to that weird omitting size of 1 issue
         if self.is_1d:
-            states = states.view(batch_size,1,-1)
-            next_states = next_states.view(batch_size,1,-1)
-        
-        #TODO: does not make sense for non-image cases. However some scaling does not break anything either.
+            states = states.view(batch_size, 1, -1)
+            next_states = next_states.view(batch_size, 1, -1)
+
+        # TODO: does not make sense for non-image cases. However some scaling does not break anything either.
         # Normalise states and next_states
         # This because the states are [0-255] and the predictions are [0-1]
         states_normalised = states / 255

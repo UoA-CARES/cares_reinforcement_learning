@@ -10,7 +10,7 @@ import sys
 
 import torch
 
-from cares_reinforcement_learning.util.configurations import * #AlgorithmConfig
+from cares_reinforcement_learning.util.configurations import *  # AlgorithmConfig
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -212,7 +212,7 @@ def create_SACAE(observation_size, action_num, config: SACAEConfig):
         decoder_update_freq=config.decoder_update_freq,
         alpha_lr=config.alpha_lr,
         device=device,
-        is_1d = config.is_1d
+        is_1d=config.is_1d,
     )
     return agent
 
@@ -304,7 +304,7 @@ def create_TD3AE(observation_size, action_num, config: TD3AEConfig):
         decoder_weight_decay=config.decoder_weight_decay,
         decoder_update_freq=config.decoder_update_freq,
         device=device,
-        is_1d=config.is_1d
+        is_1d=config.is_1d,
     )
     return agent
 
