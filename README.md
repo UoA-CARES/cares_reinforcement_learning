@@ -94,7 +94,7 @@ The following variables are supported for `log_path` variable interpolation:
 - `domain_task`: The domain and task or just task if domain does not exist
 - `gym`
 - `seed`
-- `date`: The current date in the `YY_MM_DD:HH:MM:SS` format
+- `date`: The current date in the `YY_MM_DD-HH-MM-SS` format
 - `run_name`: The run name if it is provided, otherwise "unnamed"
 - `run_name_else_date`: The run name if it is provided, otherwise the date
 
