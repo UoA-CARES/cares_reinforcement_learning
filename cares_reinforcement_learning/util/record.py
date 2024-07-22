@@ -36,7 +36,7 @@ class Record:
         network: Optional[nn.Module] = None,
     ) -> None:
 
-        self.glob_log_dir = glob_log_dir # Keeping this here just so we don't break existing environments
+        self.glob_log_dir = glob_log_dir  # Keeping this here just so we don't break existing environments
         self.log_dir = log_dir
 
         self.directory = f"{glob_log_dir}/{log_dir}"
