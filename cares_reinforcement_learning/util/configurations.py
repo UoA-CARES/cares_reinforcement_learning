@@ -209,6 +209,8 @@ class SACAEConfig(AlgorithmConfig):
     decoder_weight_decay: Optional[float] = 1e-7
     decoder_update_freq: Optional[int] = 1
 
+    is_1d: Optional[bool] = False
+
 
 class DynaSACConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC", Literal=True)

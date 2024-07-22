@@ -10,7 +10,7 @@ import sys
 
 import torch
 
-from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.util.configurations import * #AlgorithmConfig
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -159,18 +159,28 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
+def create_SACAE(observation_size, action_num, config: SACAEConfig):
     import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    import cares_reinforcement_learning.networks.encoders.autoencoder_1d as ae_1d
     from cares_reinforcement_learning.algorithm.policy import SACAE
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 
-    encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size,
-        latent_dim=config.latent_size,
-        num_layers=4,
-        num_filters=32,
-        kernel_size=3,
-    )
+    if config.is_1d == True:
+        encoder, decoder = ae_1d.create_autoencoder_1d(
+            observation_size=observation_size,
+            latent_dim=config.latent_size,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
+    else:
+        encoder, decoder = ae.create_autoencoder(
+            observation_size=observation_size,
+            latent_dim=config.latent_size,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
 
     actor_encoder = copy.deepcopy(encoder)
     critic_encoder = copy.deepcopy(encoder)
@@ -202,6 +212,7 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
         decoder_update_freq=config.decoder_update_freq,
         alpha_lr=config.alpha_lr,
         device=device,
+        is_1d = config.is_1d
     )
     return agent
 
@@ -247,7 +258,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
+def create_TD3AE(observation_size, action_num, config: TD3AEConfig):
     import cares_reinforcement_learning.networks.encoders.autoencoder as ae
     import cares_reinforcement_learning.networks.encoders.autoencoder_1d as ae_1d
     from cares_reinforcement_learning.algorithm.policy import TD3AE

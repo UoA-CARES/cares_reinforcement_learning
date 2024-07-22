@@ -95,6 +95,8 @@ class TD3AE:
                 state_tensor = state_tensor.unsqueeze(0).unsqueeze(0)
             else:
                 state_tensor = state_tensor.unsqueeze(0)
+
+            #TODO: Doesn't make sense for non-image input, but not breaking
             state_tensor = state_tensor / 255
 
             action = self.actor_net(state_tensor)
