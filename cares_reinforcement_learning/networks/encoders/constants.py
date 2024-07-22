@@ -8,12 +8,12 @@ class Autoencoders(str, Enum):
 
 
 class Losses(str, Enum):
-    VAE = "VAE"
+    VAE = "vae"
     BETA_H = "betaH"
     BETA_B = "betaB"
     FACTOR = "factor"
     BTCVAE = "btcVAE"
-    AE = "AE"
+    AE = "ae"
     SQVAE = "SQVAE"
 
 

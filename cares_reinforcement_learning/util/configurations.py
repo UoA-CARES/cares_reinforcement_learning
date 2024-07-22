@@ -1,11 +1,13 @@
-from pathlib import Path
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-# NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
+from cares_reinforcement_learning.networks.encoders.configurations import (
+    AEConfig,
+    VanillaAEConfig,
+)
 
-file_path = Path(__file__).parent.resolve()
+# NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
 
 
 class SubscriptableClass(BaseModel):
@@ -248,6 +250,8 @@ class NaSATD3Config(AlgorithmConfig):
 
     latent_size: Optional[int] = 200
     intrinsic_on: Optional[int] = 1
+
+    autoencoder_type: Optional[AEConfig] = VanillaAEConfig(latent_dim=latent_size)
 
 
 class REDQConfig(AlgorithmConfig):

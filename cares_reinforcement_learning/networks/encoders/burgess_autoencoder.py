@@ -3,23 +3,29 @@
 Original Code: https://github.com/YannDubs/disentangling-vae/tree/master
 """
 
-import numpy as np
 import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks.encoders.losses import BaseBurgessLoss
+from cares_reinforcement_learning.networks.encoders.autoencoder import Autoencoder
 
 
-class BurgessAutoencoder(nn.Module):
+class BurgessAutoencoder(Autoencoder):
     def __init__(
         self,
         observation_size: tuple[int],
         latent_dim: int,
+        loss_function: BaseBurgessLoss,
         num_layers: int = 4,
         num_filters: int = 32,
         kernel_size: int = 3,
     ):
-        super().__init__()
+        super().__init__(
+            loss_function=loss_function,
+            observation_size=observation_size,
+            latent_dim=latent_dim,
+        )
 
         self.encoder = BurgessEncoder(
             observation_size,
@@ -46,44 +52,42 @@ class BurgessAutoencoder(nn.Module):
 
     def forward(
         self,
-        states,
-        storer=None,
-        n_data=1000,
-        detach=False,
+        observation,
+        detach_cnn: bool = False,
+        detach_output: bool = False,
         no_discrim=False,
         is_agent=False,
+        **kwargs,
     ):
-        # states = states / 255
+        latent_dist = self.encoder(
+            observation, detach_cnn=detach_cnn, detach_output=detach_output
+        )
 
-        mean, logvar = self.encoder(states, detach)
-
+        mean, logvar = latent_dist
         latent_sample = self.reparameterize(mean, logvar)
 
-        rec_obs = self.decoder(latent_sample)
+        reconstructed_observation = self.decoder(latent_sample)
 
         loss = 0
 
-        # Ah no, the normal and sqvae types only go with their respective single loss function and the other loss functions all go with the Burgess type
-        # loss = self.loss_fn(
-        #     states,
-        #     rec_obs,
-        #     latent_dist,
-        #     True,
-        #     storer,
-        #     latent_sample=latent_sample,
-        #     n_data=n_data,
-        #     no_discrim=no_discrim,
-        #     is_agent=is_agent,
-        # )
+        loss = self.loss_function(
+            data=observation,
+            reconstructed_data=reconstructed_observation,
+            latent_dist=latent_dist,
+            is_train=True,
+            latent_sample=latent_sample,
+            no_discrim=no_discrim,
+            is_agent=is_agent,
+        )
 
-        if detach:
+        if detach_output:
             latent_sample = latent_sample.detach()
 
         return {
             "loss": loss,
             "z_vector": latent_sample,
             "latent_dist": [mean, logvar],
-            "rec_obs": rec_obs,
+            "reconstructed_observation": reconstructed_observation,
         }
 
     def sample_latent(self, x):
@@ -190,8 +194,10 @@ class BurgessEncoder(nn.Module):
 
         return mu, logvar
 
-    def forward(self, x, detach=False):
-        latent_dist = self.enc_forward(x, detach)
+    def forward(self, obs, detach_cnn: bool = False, detach_output: bool = False):
+        latent_dist = self.enc_forward(
+            obs, detach_cnn=detach_cnn, detach_output=detach_output
+        )
         return latent_dist
 
 

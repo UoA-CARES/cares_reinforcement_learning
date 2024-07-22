@@ -1,7 +1,7 @@
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks.encoders.autoencoder import Encoder
+from cares_reinforcement_learning.networks.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.TD3 import Critic as TD3Critic
 
 
