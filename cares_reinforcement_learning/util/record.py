@@ -21,7 +21,7 @@ class Record:
         algorithm (str): The algorithm name.
         task (str): The task name.
         plot_frequency (int, optional): The frequency at which to plot training data. Defaults to 10.
-        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. Defaults to 1000.
+        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. If not set model will not auto-save, use .save_model() externally to save.
         network (Optional[nn.Module], optional): The neural network model. Defaults to None.
     """
 
@@ -32,7 +32,7 @@ class Record:
         algorithm: str,
         task: str,
         plot_frequency: int = 10,
-        checkpoint_frequency: int = 1000,
+        checkpoint_frequency: Optional[int] = None,
         network: Optional[nn.Module] = None,
     ) -> None:
 
@@ -97,6 +97,11 @@ class Record:
 
     def stop_video(self) -> None:
         self.video.release()
+
+    def save_model(self, identifier):
+        self.network.save_models(
+            f"{self.algorithm}-{identifier}", self.directory
+        )
 
     def log_video(self, frame: np.ndarray) -> None:
         self.video.write(frame)
