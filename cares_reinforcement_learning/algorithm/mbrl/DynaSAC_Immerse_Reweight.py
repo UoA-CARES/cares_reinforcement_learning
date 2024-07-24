@@ -395,11 +395,10 @@ class DynaSAC_ScaleBatchReweight:
             total_var[total_var <= threshold] = threshold
 
             # Exacerbate the sample difference.
-            mean_var = torch.mean(total_var)
-
-            ratio = mean_var / ((1.0 / total_var.shape[0]) * (torch.prod(total_var)))
+            # mean_var = torch.mean(total_var)
+            # ratio = mean_var / ((1.0 / total_var.shape[0]) * (torch.prod(total_var)))
             # normalize vars to sum = 1
-            total_var *= ()
+            # total_var *= ()
 
             total_var += 0.00000001
             total_stds = 1 / total_var
