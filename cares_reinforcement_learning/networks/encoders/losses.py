@@ -13,7 +13,12 @@ from cares_reinforcement_learning.networks.encoders.constants import Losses, Rec
 from cares_reinforcement_learning.networks.encoders.discriminator import Discriminator
 
 
-class AELoss:
+class BaseLoss(metaclass=abc.ABCMeta):
+    def __init__(self) -> None:
+        pass
+
+
+class AELoss(BaseLoss):
     def __init__(self) -> None:
         pass
 
@@ -30,7 +35,7 @@ class AELoss:
         return loss
 
 
-class SqVaeLoss:
+class SqVaeLoss(BaseLoss):
     def __init__(self):
         pass
 
@@ -112,7 +117,7 @@ def get_burgess_loss_function(config: BurgessConfig):
         raise ValueError(f"Unknown loss function: {loss_name}")
 
 
-class BaseBurgessLoss(abc.ABC):
+class BaseBurgessLoss(BaseLoss, metaclass=abc.ABCMeta):
     """
     Base class for losses.
 
@@ -160,9 +165,10 @@ class BaseBurgessLoss(abc.ABC):
         kwargs:
             Loss specific arguments
         """
+        raise NotImplementedError("Method must be implemented in subclass")
 
-    def _pre_call(self, is_train, is_agent=False):
-        if is_train and not is_agent:
+    def _pre_call(self, is_train):
+        if is_train:
             self.n_train_steps += 1
 
 
@@ -196,10 +202,9 @@ class BetaHLoss(BaseBurgessLoss):
         reconstructed_data,
         latent_dist,
         is_train,
-        is_agent=False,
         **kwargs,
     ):
-        self._pre_call(is_train, is_agent=is_agent)
+        self._pre_call(is_train)
 
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, reduction="sum", distribution=self.rec_dist
@@ -295,10 +300,9 @@ class FactorKLoss(BaseBurgessLoss):
         latent_dist,
         is_train,
         latent_sample=None,
-        no_discrim=False,
         **kwargs,
     ):
-        if not no_discrim:
+        if is_train:
             raise ValueError("Use `call_optimize` to also train the discriminator")
 
         rec_loss = _reconstruction_loss(
@@ -319,8 +323,8 @@ class FactorKLoss(BaseBurgessLoss):
 
         return vae_loss
 
-    def call_optimize(self, data, ae, ae_optimizer=None, is_agent=False):
-        self._pre_call(ae.training, is_agent=is_agent)
+    def call_optimize(self, data, ae, ae_optimizer=None):
+        self._pre_call(ae.training)
 
         # factor-vae split data into two batches. In the paper they sample 2 batches
         batch_size = data.size(dim=0)
@@ -329,7 +333,7 @@ class FactorKLoss(BaseBurgessLoss):
         data1 = data[0]
         data2 = data[1]
 
-        # Factor VAE Loss
+        # Factor VAE Loss - repeat of the code above...simplify
         latent_dist = ae.encoder(data1)
         latent_sample1 = ae.sample_latent(data1)
         recon_batch = ae.decoder(latent_sample1)
@@ -432,10 +436,9 @@ class BetaBLoss(BaseBurgessLoss):
         reconstructed_data,
         latent_dist,
         is_train,
-        is_agent=False,
         **kwargs,
     ):
-        self._pre_call(is_train, is_agent=is_agent)
+        self._pre_call(is_train)
 
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, reduction="sum", distribution=self.rec_dist
@@ -510,13 +513,12 @@ class BtcvaeLoss(BaseBurgessLoss):
         is_train,
         latent_sample=None,
         n_data=None,
-        is_agent=False,
         **kwargs,
     ):
         if n_data is not None:
             self.n_data = n_data
 
-        self._pre_call(is_train, is_agent=is_agent)
+        self._pre_call(is_train)
 
         rec_loss = _reconstruction_loss(
             data,
@@ -557,7 +559,6 @@ def _reconstruction_loss(
     reconstructed_data,
     reduction="none",
     distribution=ReconDist.GAUSSIAN,
-    storer=None,
 ):
     """
     Calculates the per image reconstruction loss for a batch of data. I.e. negative
@@ -590,7 +591,7 @@ def _reconstruction_loss(
         Per image cross entropy (i.e. normalized per batch but not pixel and
         channel)
     """
-    batch_size, n_chan, height, width = reconstructed_data.size()
+    batch_size, _, _, _ = reconstructed_data.size()
 
     if distribution == ReconDist.BERNOULLI:
         loss = (
@@ -620,9 +621,6 @@ def _reconstruction_loss(
 
     if reduction == "sum":
         loss = loss / batch_size
-
-    if storer is not None:
-        storer["recon_loss"].append(loss.item())
 
     return loss
 

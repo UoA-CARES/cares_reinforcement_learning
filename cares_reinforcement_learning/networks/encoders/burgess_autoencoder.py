@@ -7,8 +7,9 @@ import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks.encoders.losses import BaseBurgessLoss
 from cares_reinforcement_learning.networks.encoders.autoencoder import Autoencoder
+from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
+from cares_reinforcement_learning.networks.encoders.losses import BaseBurgessLoss
 
 
 class BurgessAutoencoder(Autoencoder):
@@ -22,6 +23,7 @@ class BurgessAutoencoder(Autoencoder):
         kernel_size: int = 3,
     ):
         super().__init__(
+            ae_type=Autoencoders.BURGESS,
             loss_function=loss_function,
             observation_size=observation_size,
             latent_dim=latent_dim,
@@ -45,26 +47,19 @@ class BurgessAutoencoder(Autoencoder):
 
         # self.apply(weight_init_burgess)
 
-    def reparameterize(self, mean, logvar):
-        std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
-        return mean + std * eps
-
     def forward(
         self,
         observation,
         detach_cnn: bool = False,
         detach_output: bool = False,
-        no_discrim=False,
-        is_agent=False,
+        is_train=False,
         **kwargs,
     ):
         latent_dist = self.encoder(
             observation, detach_cnn=detach_cnn, detach_output=detach_output
         )
 
-        mean, logvar = latent_dist
-        latent_sample = self.reparameterize(mean, logvar)
+        mu, logvar, latent_sample = latent_dist
 
         reconstructed_observation = self.decoder(latent_sample)
 
@@ -74,20 +69,18 @@ class BurgessAutoencoder(Autoencoder):
             data=observation,
             reconstructed_data=reconstructed_observation,
             latent_dist=latent_dist,
-            is_train=True,
+            is_train=is_train,
             latent_sample=latent_sample,
-            no_discrim=no_discrim,
-            is_agent=is_agent,
         )
 
         if detach_output:
             latent_sample = latent_sample.detach()
 
         return {
-            "loss": loss,
-            "z_vector": latent_sample,
-            "latent_dist": [mean, logvar],
+            "latent_observation": latent_sample,
             "reconstructed_observation": reconstructed_observation,
+            "latent_distribution": {"mu": mu, "logvar": logvar},
+            "loss": loss,
         }
 
     def sample_latent(self, x):
@@ -165,7 +158,12 @@ class BurgessEncoder(nn.Module):
 
         return conv
 
-    def enc_forward(
+    def _reparameterize(self, mean, logvar):
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return mean + std * eps
+
+    def _enc_forward(
         self, obs: torch.Tensor, detach_cnn: bool = False, detach_output: bool = False
     ):
         batch_size = obs.size(0)
@@ -192,10 +190,12 @@ class BurgessEncoder(nn.Module):
             mu = mu.detach()
             logvar = logvar.detach()
 
-        return mu, logvar
+        latent_sample = self._reparameterize(mu, logvar)
+
+        return mu, logvar, latent_sample
 
     def forward(self, obs, detach_cnn: bool = False, detach_output: bool = False):
-        latent_dist = self.enc_forward(
+        latent_dist = self._enc_forward(
             obs, detach_cnn=detach_cnn, detach_output=detach_output
         )
         return latent_dist

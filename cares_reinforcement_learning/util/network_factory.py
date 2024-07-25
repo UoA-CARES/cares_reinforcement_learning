@@ -299,19 +299,22 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
         observation_size=observation_size, config=config.autoencoder_type
     )
 
-    encoder, decoder = autoencoder.encoder, autoencoder.decoder
-
     actor = Actor(
-        config.latent_size, action_num, encoder, hidden_size=config.hidden_size
+        config.latent_size,
+        action_num,
+        autoencoder,
+        hidden_size=config.hidden_size,
     )
     critic = Critic(
-        config.latent_size, action_num, encoder, hidden_size=config.hidden_size
+        config.latent_size,
+        action_num,
+        autoencoder,
+        hidden_size=config.hidden_size,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = NaSATD3(
-        encoder_network=encoder,
-        decoder_network=decoder,
+        autoencoder=autoencoder,
         actor_network=actor,
         critic_network=critic,
         gamma=config.gamma,

@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
 
 
 class Critic(nn.Module):
@@ -9,14 +10,14 @@ class Critic(nn.Module):
         self,
         latent_size: int,
         num_actions: int,
-        encoder: nn.Module,
+        autoencoder: nn.Module,
         hidden_size: list[int] = None,
     ):
         super().__init__()
         if hidden_size is None:
             hidden_size = [1024, 1024]
 
-        self.encoder_net = encoder
+        self.autoencoder = autoencoder
         self.hidden_size = hidden_size
 
         # pylint: disable-next=invalid-name
@@ -43,7 +44,18 @@ class Critic(nn.Module):
         self, state: torch.Tensor, action: torch.Tensor, detach_encoder: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # NaSATD3 detatches the encoder at the output
-        z_vector = self.encoder_net(state, detach_output=detach_encoder)
+        if self.autoencoder.ae_type == Autoencoders.BURGESS:
+            output = self.autoencoder(
+                state, detach_cnn=False, detach_output=detach_encoder, is_train=False
+            )
+            # take the mean value for stability
+            z_vector = output["latent_distribution"]["mu"]
+        else:
+            output = self.autoencoder(
+                state, detach_output=detach_encoder, is_train=False
+            )
+            z_vector = output["latent_observation"]
+
         obs_action = torch.cat([z_vector, action], dim=1)
         q1 = self.Q1(obs_action)
         q2 = self.Q2(obs_action)

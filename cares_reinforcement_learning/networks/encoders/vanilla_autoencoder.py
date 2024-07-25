@@ -3,6 +3,7 @@ from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.encoders.autoencoder import Autoencoder
+from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
 from cares_reinforcement_learning.networks.encoders.losses import AELoss
 
 
@@ -32,6 +33,7 @@ class VanillaAutoencoder(Autoencoder):
         kernel_size: int = 3,
     ):
         super().__init__(
+            ae_type=Autoencoders.AE,
             loss_function=AELoss(),
             observation_size=observation_size,
             latent_dim=latent_dim,
@@ -61,7 +63,9 @@ class VanillaAutoencoder(Autoencoder):
         detach_output: bool = False,
         **kwargs,
     ) -> torch.Tensor:
-        latent_observation = self.encoder(observation, detach_cnn, detach_output)
+        latent_observation = self.encoder(
+            observation, detach_cnn=detach_cnn, detach_output=detach_output
+        )
 
         reconstructed_observation = self.decoder(latent_observation)
 
@@ -71,7 +75,11 @@ class VanillaAutoencoder(Autoencoder):
             latent_sample=latent_observation,
         )
 
-        return {"reconstructed_observation": reconstructed_observation, "loss": loss}
+        return {
+            "latent_observation": latent_observation,
+            "reconstructed_observation": reconstructed_observation,
+            "loss": loss,
+        }
 
 
 class Encoder(nn.Module):
@@ -142,13 +150,13 @@ class Encoder(nn.Module):
 
         h_fc = self.fc(h)
         h_norm = self.ln(h_fc)
-        latent_obs = torch.tanh(h_norm)
+        latent_observation = torch.tanh(h_norm)
 
         # NaSATD3 detatches the encoder output
         if detach_output:
-            latent_obs = latent_obs.detach()
+            latent_observation = latent_observation.detach()
 
-        return latent_obs
+        return latent_observation
 
 
 class Decoder(nn.Module):
@@ -196,8 +204,8 @@ class Decoder(nn.Module):
             )
         )
 
-    def forward(self, latent_obs: torch.Tensor) -> torch.Tensor:
-        h_fc = self.fc(latent_obs)
+    def forward(self, latent_observation: torch.Tensor) -> torch.Tensor:
+        h_fc = self.fc(latent_observation)
         h_fc = torch.relu(h_fc)
 
         deconv = h_fc.view(-1, self.num_filters, self.out_dim, self.out_dim)

@@ -1,8 +1,13 @@
+import abc
+
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.networks.encoders.losses import BaseLoss
+from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
 
-class Autoencoder(nn.Module):
+
+class Autoencoder(nn.Module, metaclass=abc.ABCMeta):
     """
     Base class for the autoencoder models consisting of an encoder and a decoder pair.
 
@@ -16,16 +21,19 @@ class Autoencoder(nn.Module):
 
     def __init__(
         self,
-        loss_function,
+        ae_type: Autoencoders,
+        loss_function: BaseLoss,
         observation_size: tuple[int],
         latent_dim: int,
     ):
         super().__init__()
 
+        self.ae_type = ae_type
         self.loss_function = loss_function
         self.observation_size = observation_size
         self.latent_dim = latent_dim
 
+    @abc.abstractmethod
     def forward(
         self,
         observation: torch.Tensor,
@@ -33,4 +41,4 @@ class Autoencoder(nn.Module):
         detach_output: bool = False,
         **kwargs,
     ):
-        raise NotImplementedError("forward method must be implemented in subclass.")
+        raise NotImplementedError("Forward method must be implemented in subclass.")
