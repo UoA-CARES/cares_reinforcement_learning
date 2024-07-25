@@ -21,7 +21,7 @@ class Record:
         algorithm (str): The algorithm name.
         task (str): The task name.
         plot_frequency (int, optional): The frequency at which to plot training data. Defaults to 10.
-        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. If not set model will not auto-save, use .save_model() externally to save.
+        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. If not set model will not auto-save, use save_model externally to save.
         network (Optional[nn.Module], optional): The neural network model. Defaults to None.
     """
 
@@ -130,7 +130,7 @@ class Record:
                 20,
             )
 
-        if self.network is not None and self.log_count % self.checkpoint_frequency == 0:
+        if (self.network is not None) and (self.checkpoint_frequency is not None) and (self.log_count % self.checkpoint_frequency == 0):
             self.network.save_models(
                 f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
             )
