@@ -32,6 +32,7 @@ class TrainingConfig(SubscriptableClass):
     """
 
     seeds: List[int] = [10]
+    log_path: str = "{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
     number_steps_per_evaluation: Optional[int] = 10000
