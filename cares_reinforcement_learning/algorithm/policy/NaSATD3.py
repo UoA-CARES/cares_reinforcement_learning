@@ -160,7 +160,6 @@ class NaSATD3:
         self.critic_optimizer.step()
 
     def _update_autoencoder(self, states: torch.Tensor) -> None:
-
         # TODO handle FactoKLoss being odd with raise exception...
         output = self.autoencoder(states, is_train=True)
         ae_loss = output["loss"]
@@ -216,9 +215,11 @@ class NaSATD3:
             optimizer.step()
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
-        self.autoencoder.train()
         self.actor.train()
         self.critic.train()
+        self.autoencoder.train()
+        self.autoencoder.encoder.train()
+        self.autoencoder.decoder.train()
 
         self.learn_counter += 1
 
@@ -386,8 +387,12 @@ class NaSATD3:
             os.makedirs(path)
         torch.save(self.actor.state_dict(), f"{path}/{filename}_actor.pht")
         torch.save(self.critic.state_dict(), f"{path}/{filename}_critic.pht")
-        torch.save(self.encoder.state_dict(), f"{path}/{filename}_encoder.pht")
-        torch.save(self.decoder.state_dict(), f"{path}/{filename}_decoder.pht")
+        torch.save(
+            self.autoencoder.encoder.state_dict(), f"{path}/{filename}_encoder.pht"
+        )
+        torch.save(
+            self.autoencoder.decoder.state_dict(), f"{path}/{filename}_decoder.pht"
+        )
         torch.save(
             self.ensemble_predictive_model.state_dict(),
             f"{path}/{filename}_ensemble.pht",
@@ -398,6 +403,10 @@ class NaSATD3:
         path = f"{filepath}/models" if filepath != "models" else filepath
         self.actor.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
         self.critic.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
-        self.encoder.load_state_dict(torch.load(f"{path}/{filename}_encoder.pht"))
-        self.decoder.load_state_dict(torch.load(f"{path}/{filename}_decoder.pht"))
+        self.autoencoder.encoder.load_state_dict(
+            torch.load(f"{path}/{filename}_encoder.pht")
+        )
+        self.autoencoder.decoder.load_state_dict(
+            torch.load(f"{path}/{filename}_decoder.pht")
+        )
         logging.info("models has been loaded...")
