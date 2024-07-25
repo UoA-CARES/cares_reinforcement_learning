@@ -56,18 +56,15 @@ class NaSATD3:
 
         self.autoencoder = autoencoder.to(device)
 
-        # self.encoder = self.autoencoder.encoder.to(device)
-        # self.decoder = self.autoencoder.decoder.to(device)
-
         self.actor = actor_network.to(device)
         self.critic = critic_network.to(device)
 
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
 
-        # Necessary to make the same encoder in the whole algorithm
-        # self.actor_target.encoder_net = self.encoder
-        # self.critic_target.encoder_net = self.encoder
+        # Necessary to make the same autoencoder in the whole algorithm
+        self.actor_target.autoencoder = self.autoencoder
+        self.critic_target.autoencoder = self.autoencoder
 
         self.ensemble_predictive_model = nn.ModuleList()
         networks = [

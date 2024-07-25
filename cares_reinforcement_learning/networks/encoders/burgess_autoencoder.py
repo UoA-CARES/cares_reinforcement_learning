@@ -195,10 +195,10 @@ class BurgessEncoder(nn.Module):
         return mu, logvar, latent_sample
 
     def forward(self, obs, detach_cnn: bool = False, detach_output: bool = False):
-        latent_dist = self._enc_forward(
+        mu, logvar, latent_sample = self._enc_forward(
             obs, detach_cnn=detach_cnn, detach_output=detach_output
         )
-        return latent_dist
+        return mu, logvar, latent_sample
 
 
 class BurgessDecoder(nn.Module):
