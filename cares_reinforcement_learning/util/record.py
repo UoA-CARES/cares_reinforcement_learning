@@ -102,9 +102,7 @@ class Record:
         self.video.release()
 
     def save_model(self, identifier):
-        self.network.save_models(
-            f"{self.algorithm}-{identifier}", self.directory
-        )
+        self.network.save_models(f"{self.algorithm}-{identifier}", self.directory)
 
     def log_video(self, frame: np.ndarray) -> None:
         self.video.write(frame)
@@ -133,7 +131,11 @@ class Record:
                 20,
             )
 
-        if (self.network is not None) and (self.checkpoint_frequency is not None) and (self.log_count % self.checkpoint_frequency == 0):
+        if (
+            (self.network is not None)
+            and (self.checkpoint_frequency is not None)
+            and (self.log_count % self.checkpoint_frequency == 0)
+        ):
             self.network.save_models(
                 f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
             )
