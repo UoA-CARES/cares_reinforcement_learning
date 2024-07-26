@@ -48,7 +48,9 @@ class Record:
         self.checkpoint_frequency = checkpoint_frequency
 
         if checkpoint_frequency == None:
-            logging.warning("checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model.")
+            logging.warning(
+                "checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model."
+            )
 
         self.train_data_path = f"{self.directory}/data/train.csv"
         self.train_data = (
