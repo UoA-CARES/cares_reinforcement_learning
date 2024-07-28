@@ -35,16 +35,12 @@ class Actor(nn.Module):
     ) -> torch.Tensor:
         # NaSATD3 detatches the encoder at the output
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
-            output = self.autoencoder(
-                state, detach_cnn=False, detach_output=detach_encoder, is_train=False
-            )
             # take the mean value for stability
-            z_vector = output["latent_distribution"]["mu"]
-        else:
-            output = self.autoencoder(
-                state, detach_output=detach_encoder, is_train=False
+            z_vector, _, _ = self.autoencoder.encoder(
+                state, detach_output=detach_encoder
             )
-            z_vector = output["latent_observation"]
+        else:
+            z_vector = self.autoencoder.encoder(state, detach_output=detach_encoder)
 
         output = self.act_net(z_vector)
         return output
