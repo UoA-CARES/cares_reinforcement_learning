@@ -47,7 +47,7 @@ class Record:
         self.plot_frequency = plot_frequency
         self.checkpoint_frequency = checkpoint_frequency
 
-        if checkpoint_frequency == None:
+        if self.checkpoint_frequency == None:
             logging.warning(
                 "checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model."
             )
