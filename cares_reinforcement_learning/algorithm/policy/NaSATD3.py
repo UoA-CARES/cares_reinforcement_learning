@@ -184,15 +184,15 @@ class NaSATD3:
     ) -> torch.Tensor:
         # NaSATD3 detatches the encoder at the output
         output = self.autoencoder.encoder(states, detach_output=detach_output)
-        z_vector = output
+        latent_state = output
 
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
-            z_vector, _, _ = output
+            latent_state, _, _ = output
             # take the sample value for the latent space
             if sample_latent:
-                _, _, z_vector = output
+                _, _, latent_state = output
 
-        return z_vector
+        return latent_state
 
     def _update_predictive_model(
         self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
@@ -275,36 +275,6 @@ class NaSATD3:
         if self.intrinsic_on:
             self._update_predictive_model(states, actions, next_states)
 
-    def get_intrinsic_reward(
-        self, state: np.ndarray, action: np.ndarray, next_state: np.ndarray
-    ) -> float:
-        with torch.no_grad():
-            # Normalise states and next_states
-            # This because the states are [0-255] and the predictions are [0-1]
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            state_tensor = state_tensor / 255
-
-            next_state_tensor = torch.FloatTensor(next_state).to(self.device)
-            next_state_tensor = next_state_tensor.unsqueeze(0)
-            next_state_tensor = next_state_tensor / 255
-
-            action_tensor = torch.FloatTensor(action).to(self.device)
-            action_tensor = action_tensor.unsqueeze(0)
-
-            surprise_rate = self._get_surprise_rate(
-                state_tensor, action_tensor, next_state_tensor
-            )
-            novelty_rate = self._get_novelty_rate(state_tensor)
-
-        # TODO make these parameters - i.e. Tony's work
-        a = 1.0
-        b = 1.0
-        reward_surprise = surprise_rate * a
-        reward_novelty = novelty_rate * b
-
-        return reward_surprise + reward_novelty
-
     def _get_surprise_rate(
         self,
         state_tensor: torch.Tensor,
@@ -358,6 +328,36 @@ class NaSATD3:
         novelty_rate = 1 - ssim_index_total
 
         return novelty_rate
+
+    def get_intrinsic_reward(
+        self, state: np.ndarray, action: np.ndarray, next_state: np.ndarray
+    ) -> float:
+        with torch.no_grad():
+            # Normalise states and next_states
+            # This because the states are [0-255] and the predictions are [0-1]
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = state_tensor / 255
+
+            next_state_tensor = torch.FloatTensor(next_state).to(self.device)
+            next_state_tensor = next_state_tensor.unsqueeze(0)
+            next_state_tensor = next_state_tensor / 255
+
+            action_tensor = torch.FloatTensor(action).to(self.device)
+            action_tensor = action_tensor.unsqueeze(0)
+
+            surprise_rate = self._get_surprise_rate(
+                state_tensor, action_tensor, next_state_tensor
+            )
+            novelty_rate = self._get_novelty_rate(state_tensor)
+
+        # TODO make these parameters - i.e. Tony's work
+        a = 1.0
+        b = 1.0
+        reward_surprise = surprise_rate * a
+        reward_novelty = novelty_rate * b
+
+        return reward_surprise + reward_novelty
 
     # def _get_reconstruction_for_evaluation(self, state: np.ndarray) -> np.ndarray:
     #     self.encoder.eval()
