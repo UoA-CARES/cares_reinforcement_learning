@@ -21,7 +21,7 @@ class Record:
         algorithm (str): The algorithm name.
         task (str): The task name.
         plot_frequency (int, optional): The frequency at which to plot training data. Defaults to 10.
-        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. Defaults to 1000.
+        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. If not set model will not auto-save, use save_model externally to save.
         network (Optional[nn.Module], optional): The neural network model. Defaults to None.
     """
 
@@ -31,7 +31,7 @@ class Record:
         algorithm: str,
         task: str,
         plot_frequency: int = 10,
-        checkpoint_frequency: int = 1000,
+        checkpoint_frequency: Optional[int] = None,
         network: Optional[nn.Module] = None,
     ) -> None:
 
@@ -44,6 +44,11 @@ class Record:
 
         self.plot_frequency = plot_frequency
         self.checkpoint_frequency = checkpoint_frequency
+
+        if self.checkpoint_frequency == None:
+            logging.warning(
+                "checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model."
+            )
 
         self.train_data_path = f"{self.directory}/data/train.csv"
         self.train_data = (
@@ -96,6 +101,9 @@ class Record:
     def stop_video(self) -> None:
         self.video.release()
 
+    def save_model(self, identifier):
+        self.network.save_models(f"{self.algorithm}-{identifier}", self.directory)
+
     def log_video(self, frame: np.ndarray) -> None:
         self.video.write(frame)
 
@@ -123,7 +131,11 @@ class Record:
                 20,
             )
 
-        if self.network is not None and self.log_count % self.checkpoint_frequency == 0:
+        if (
+            (self.network is not None)
+            and (self.checkpoint_frequency is not None)
+            and (self.log_count % self.checkpoint_frequency == 0)
+        ):
             self.network.save_models(
                 f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
             )
