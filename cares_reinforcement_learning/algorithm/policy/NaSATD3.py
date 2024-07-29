@@ -12,6 +12,7 @@ from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
 
 # TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
@@ -178,25 +179,33 @@ class NaSATD3:
         actor_loss.backward()
         self.actor_optimizer.step()
 
+    def _get_latent_state(
+        self, states: np.ndarray, detach_output: bool, sample_latent: bool = True
+    ) -> torch.Tensor:
+        # NaSATD3 detatches the encoder at the output
+        output = self.autoencoder.encoder(states, detach_output=detach_output)
+        z_vector = output
+
+        if self.autoencoder.ae_type == Autoencoders.BURGESS:
+            z_vector, _, _ = output
+            # take the sample value for the latent space
+            if sample_latent:
+                _, _, z_vector = output
+
+        return z_vector
+
     def _update_predictive_model(
         self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
     ) -> None:
 
         with torch.no_grad():
-            # latent_state = self.encoder(states, detach_output=True)
-            # latent_next_state = self.encoder(next_states, detach_output=True)
+            latent_state = self._get_latent_state(
+                states, detach_output=True, sample_latent=True
+            )
 
-            latent_state = self.autoencoder(
-                states,
-                detach_output=True,
-                is_train=False,
-            )["latent_observation"]
-
-            latent_next_state = self.autoencoder(
-                next_states,
-                detach_output=True,
-                is_train=False,
-            )["latent_observation"]
+            latent_next_state = self._get_latent_state(
+                next_states, detach_output=True, sample_latent=True
+            )
 
         for predictive_network, optimizer in zip(
             self.ensemble_predictive_model, self.epm_optimizers
@@ -303,19 +312,13 @@ class NaSATD3:
         next_state_tensor: torch.Tensor,
     ) -> float:
         with torch.no_grad():
-            # latent_state = self.encoder(state_tensor, detach_output=True)
-            # latent_next_state = self.encoder(next_state_tensor, detach_output=True)
-            latent_state = self.autoencoder(
-                state_tensor,
-                detach_output=True,
-                is_train=False,
-            )["latent_observation"]
+            latent_state = self._get_latent_state(
+                state_tensor, detach_output=True, sample_latent=True
+            )
 
-            latent_next_state = self.autoencoder(
-                next_state_tensor,
-                detach_output=True,
-                is_train=False,
-            )["latent_observation"]
+            latent_next_state = self._get_latent_state(
+                next_state_tensor, detach_output=True, sample_latent=True
+            )
 
             predict_vector_set = []
             for network in self.ensemble_predictive_model:
