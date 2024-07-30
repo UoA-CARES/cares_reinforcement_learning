@@ -21,7 +21,14 @@ class BurgessAutoencoder(Autoencoder):
         num_layers: int = 4,
         num_filters: int = 32,
         kernel_size: int = 3,
+        encoder_optimiser_params: dict[str, any] = None,
+        decoder_optimiser_params: dict[str, any] = None,
     ):
+        if encoder_optimiser_params is None:
+            encoder_optimiser_params = {"lr": 1e-3}
+        if decoder_optimiser_params is None:
+            decoder_optimiser_params = {"lr": 1e-3}
+
         super().__init__(
             ae_type=Autoencoders.BURGESS,
             loss_function=loss_function,
@@ -45,7 +52,29 @@ class BurgessAutoencoder(Autoencoder):
             kernel_size,
         )
 
+        # Autoencoder Optimizer
+        self.encoder_optimizer = torch.optim.Adam(
+            self.encoder.parameters(),
+            **encoder_optimiser_params,
+        )
+
+        self.decoder_optimizer = torch.optim.Adam(
+            self.decoder.parameters(),
+            **decoder_optimiser_params,
+        )
+
         # self.apply(weight_init_burgess)
+
+    def update_autoencoder(self, data: torch.Tensor):
+        # TODO handle
+        output = self.forward(data, is_train=True)
+        ae_loss = output["loss"]
+
+        self.encoder_optimizer.zero_grad()
+        self.decoder_optimizer.zero_grad()
+        ae_loss.backward()
+        self.encoder_optimizer.step()
+        self.decoder_optimizer.step()
 
     def forward(
         self,
@@ -63,14 +92,13 @@ class BurgessAutoencoder(Autoencoder):
 
         reconstructed_observation = self.decoder(latent_sample)
 
-        loss = 0
-
         loss = self.loss_function(
             data=observation,
             reconstructed_data=reconstructed_observation,
             latent_dist=latent_dist,
             is_train=is_train,
             latent_sample=latent_sample,
+            autoencoder=self,
         )
 
         if detach_output:

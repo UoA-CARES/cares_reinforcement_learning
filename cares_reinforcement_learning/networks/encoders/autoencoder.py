@@ -41,4 +41,10 @@ class Autoencoder(nn.Module, metaclass=abc.ABCMeta):
         detach_output: bool = False,
         **kwargs,
     ):
-        raise NotImplementedError("Forward method must be implemented in subclass.")
+        raise NotImplementedError("forward method must be implemented in subclass.")
+
+    @abc.abstractmethod
+    def update_autoencoder(self, data: torch.Tensor):
+        raise NotImplementedError(
+            "update_autoencoder method must be implemented in subclass."
+        )

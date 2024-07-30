@@ -293,18 +293,9 @@ class FactorKLoss(BaseBurgessLoss):
             self.discriminator.parameters(), **optim_kwargs
         )
 
-    def __call__(
-        self,
-        data,
-        reconstructed_data,
-        latent_dist,
-        is_train,
-        latent_sample=None,
-        **kwargs,
+    def _calculate_loss(
+        self, data, reconstructed_data, latent_dist, is_train, latent_sample
     ):
-        if is_train:
-            raise ValueError("Use `call_optimize` to also train the discriminator")
-
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, reduction="sum", distribution=self.rec_dist
         )
@@ -323,8 +314,8 @@ class FactorKLoss(BaseBurgessLoss):
 
         return vae_loss
 
-    def call_optimize(self, data, ae, ae_optimizer=None):
-        self._pre_call(ae.training)
+    def _call_optimize(self, data, autoencoder):
+        self._pre_call(autoencoder.training)
 
         # factor-vae split data into two batches. In the paper they sample 2 batches
         batch_size = data.size(dim=0)
@@ -334,9 +325,9 @@ class FactorKLoss(BaseBurgessLoss):
         data2 = data[1]
 
         # Factor VAE Loss - repeat of the code above...simplify
-        latent_dist = ae.encoder(data1)
-        latent_sample1 = ae.sample_latent(data1)
-        recon_batch = ae.decoder(latent_sample1)
+        latent_dist = autoencoder.encoder(data1)
+        latent_sample1 = autoencoder.sample_latent(data1)
+        recon_batch = autoencoder.decoder(latent_sample1)
         rec_loss = _reconstruction_loss(
             data1,
             recon_batch,
@@ -355,20 +346,21 @@ class FactorKLoss(BaseBurgessLoss):
 
         anneal_reg = (
             linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
-            if ae.training
+            if autoencoder.training
             else 1
         )
         vae_loss = rec_loss + (kl_loss + anneal_reg * self.gamma * tc_loss)
 
-        if ae.training:
+        if autoencoder.training:
             # Compute VAE gradients
-            ae_optimizer.zero_grad()
+            autoencoder.encoder_optimiser.zero_grad()
+            autoencoder.decoder_optimiser.zero_grad()
             vae_loss.backward(retain_graph=True)
 
             # Discriminator Loss
             # Get second sample of latent distribution
             # works because only the BurgessEncoder can be used here
-            latent_sample2 = ae.sample_latent(data2)
+            latent_sample2 = autoencoder.sample_latent(data2)
             z_perm = _permute_dims(latent_sample2).detach()
             d_z_perm = self.discriminator(z_perm)
 
@@ -380,6 +372,7 @@ class FactorKLoss(BaseBurgessLoss):
             d_tc_loss = 0.5 * (
                 F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones)
             )
+
             # with sigmoid would be :
             # d_tc_loss = 0.5 * (self.bce(d_z.flatten(), ones) + self.bce(d_z_perm.flatten(), 1 - ones))
 
@@ -390,10 +383,28 @@ class FactorKLoss(BaseBurgessLoss):
             d_tc_loss.backward()
 
             # Update at the end (since pytorch 1.5. complains if update before)
-            ae_optimizer.step()
+            autoencoder.encoder_optimiser.step()
+            autoencoder.decoder_optimiser.step()
             self.discriminator_optimizer.step()
 
         return vae_loss
+
+    def __call__(
+        self,
+        data,
+        reconstructed_data,
+        latent_dist,
+        is_train,
+        latent_sample,
+        autoencoder,
+        **kwargs,
+    ):
+        if is_train:
+            return self._call_optimize(data, autoencoder)
+
+        return self._calculate_loss(
+            data, reconstructed_data, latent_dist, is_train, latent_sample
+        )
 
 
 class BetaBLoss(BaseBurgessLoss):

@@ -40,7 +40,7 @@ class TrainingConfig(SubscriptableClass):
 
 
 class AlgorithmConfig(SubscriptableClass):
-    """
+    """f
     Configuration class for the algorithm.
 
     These attributes are common to all algorithms. They can be overridden by the specific algorithm configuration.
@@ -240,6 +240,7 @@ class NaSATD3Config(AlgorithmConfig):
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
 
+    # TODO shift to dict for encoder/decoder_optimiser_param
     encoder_lr: Optional[float] = 1e-3
     decoder_lr: Optional[float] = 1e-3
 
@@ -253,6 +254,13 @@ class NaSATD3Config(AlgorithmConfig):
     intrinsic_on: Optional[int] = 1
 
     autoencoder_type: Optional[AEConfig] = VanillaAEConfig(latent_dim=latent_size)
+    # encoder_optim_kwargs: Optional[dict[str, float]] = Field(
+    #     default_factory=lambda: {"lr": 1e-3}
+    # )
+
+    # decoder_optim_kwargs: Optional[dict[str, float]] = Field(
+    #     default_factory=lambda: {"lr": 1e-3, "weight_decay": 1e-7}
+    # )
 
 
 class REDQConfig(AlgorithmConfig):

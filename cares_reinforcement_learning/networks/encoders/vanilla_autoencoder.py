@@ -31,7 +31,14 @@ class VanillaAutoencoder(Autoencoder):
         num_layers: int = 4,
         num_filters: int = 32,
         kernel_size: int = 3,
+        encoder_optimiser_params: dict[str, any] = None,
+        decoder_optimiser_params: dict[str, any] = None,
     ):
+        if encoder_optimiser_params is None:
+            encoder_optimiser_params = {"lr": 1e-3}
+        if decoder_optimiser_params is None:
+            decoder_optimiser_params = {"lr": 1e-3, "weight_decay": 1e-7}
+
         super().__init__(
             ae_type=Autoencoders.AE,
             loss_function=AELoss(),
@@ -55,6 +62,27 @@ class VanillaAutoencoder(Autoencoder):
             num_filters,
             kernel_size,
         )
+
+        # Autoencoder Optimizer
+        self.encoder_optimizer = torch.optim.Adam(
+            self.encoder.parameters(),
+            **encoder_optimiser_params,
+        )
+
+        self.decoder_optimizer = torch.optim.Adam(
+            self.decoder.parameters(),
+            **decoder_optimiser_params,
+        )
+
+    def update_autoencoder(self, data: torch.Tensor):
+        output = self.forward(data)
+        ae_loss = output["loss"]
+
+        self.encoder_optimizer.zero_grad()
+        self.decoder_optimizer.zero_grad()
+        ae_loss.backward()
+        self.encoder_optimizer.step()
+        self.decoder_optimizer.step()
 
     def forward(
         self,

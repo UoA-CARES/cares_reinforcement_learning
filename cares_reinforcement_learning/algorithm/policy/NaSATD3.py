@@ -93,21 +93,11 @@ class NaSATD3:
             for i in range(self.ensemble_size)
         ]
 
-        # Autoencoder Optimizer
-        self.encoder_lr = encoder_lr
-        self.encoder_optimizer = torch.optim.Adam(
-            self.autoencoder.encoder.parameters(), lr=self.encoder_lr
-        )
-
-        self.decoder_lr = decoder_lr
-        self.decoder_optimizer = torch.optim.Adam(
-            self.autoencoder.decoder.parameters(), lr=self.decoder_lr, weight_decay=1e-7
-        )
-
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
     ) -> np.ndarray:
         self.actor.eval()
+        self.autoencoder.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -123,6 +113,7 @@ class NaSATD3:
                 action = np.clip(action, -1, 1)
 
         self.actor.train()
+        self.autoencoder.train()
         return action
 
     def _update_critic(
@@ -158,15 +149,8 @@ class NaSATD3:
         self.critic_optimizer.step()
 
     def _update_autoencoder(self, states: torch.Tensor) -> None:
-        # TODO handle FactoKLoss being odd with raise exception...
-        output = self.autoencoder(states, is_train=True)
-        ae_loss = output["loss"]
-
-        self.encoder_optimizer.zero_grad()
-        self.decoder_optimizer.zero_grad()
-        ae_loss.backward()
-        self.encoder_optimizer.step()
-        self.decoder_optimizer.step()
+        # Leaving this function in case this needs to be extended again in the future
+        self.autoencoder.update_autoencoder(states)
 
     def _update_actor(self, states: torch.Tensor) -> None:
         actor_q_one, actor_q_two = self.critic(
