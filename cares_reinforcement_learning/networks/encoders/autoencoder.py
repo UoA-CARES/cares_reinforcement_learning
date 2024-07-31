@@ -9,14 +9,19 @@ from cares_reinforcement_learning.networks.encoders.constants import Autoencoder
 
 class Autoencoder(nn.Module, metaclass=abc.ABCMeta):
     """
-    Base class for the autoencoder models consisting of an encoder and a decoder pair.
+    Base class for autoencoder models.
 
     Args:
-        observation_size (tuple[int]): The size of the input image observations.
+        ae_type (Autoencoders): The type of autoencoder.
+        loss_function (BaseLoss): The loss function used for training the autoencoder.
+        observation_size (tuple[int]): The size of the input observations.
         latent_dim (int): The dimension of the latent space.
-        num_layers (int, optional): The number of layers in the encoder and decoder. Defaults to 4.
-        num_filters (int, optional): The number of filters in each layer. Defaults to 32.
-        kernel_size (int, optional): The size of the convolutional kernel. Defaults to 3.
+
+    Attributes:
+        ae_type (Autoencoders): The type of autoencoder.
+        loss_function (BaseLoss): The loss function used for training the autoencoder.
+        observation_size (tuple[int]): The size of the input observations.
+        latent_dim (int): The dimension of the latent space.
     """
 
     def __init__(
@@ -41,10 +46,34 @@ class Autoencoder(nn.Module, metaclass=abc.ABCMeta):
         detach_output: bool = False,
         **kwargs,
     ):
+        """
+        Forward pass of the autoencoder.
+
+        Args:
+            observation (torch.Tensor): The input observation.
+            detach_cnn (bool, optional): Whether to detach the CNN part of the autoencoder. Defaults to False.
+            detach_output (bool, optional): Whether to detach the output of the autoencoder. Defaults to False.
+            **kwargs: Additional keyword arguments.
+
+        Raises:
+            NotImplementedError: This method must be implemented in a subclass.
+
+        Returns:
+            torch.Tensor: The output of the autoencoder.
+        """
         raise NotImplementedError("forward method must be implemented in subclass.")
 
     @abc.abstractmethod
     def update_autoencoder(self, data: torch.Tensor):
+        """
+        Update the autoencoder using the given data.
+
+        Args:
+            data (torch.Tensor): The data used for updating the autoencoder.
+
+        Raises:
+            NotImplementedError: This method must be implemented in a subclass.
+        """
         raise NotImplementedError(
             "update_autoencoder method must be implemented in subclass."
         )

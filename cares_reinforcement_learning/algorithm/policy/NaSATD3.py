@@ -13,8 +13,6 @@ from torch import nn
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
-
-# TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 
 
@@ -28,7 +26,6 @@ class NaSATD3:
         tau: float,
         ensemble_size: int,
         action_num: int,
-        latent_size: int,
         intrinsic_on: bool,
         actor_lr: float,
         critic_lr: float,
@@ -45,7 +42,6 @@ class NaSATD3:
         self.policy_noise = 0.2
 
         self.ensemble_size = ensemble_size
-        self.latent_size = latent_size
         self.intrinsic_on = intrinsic_on
 
         self.learn_counter = 0
@@ -67,7 +63,8 @@ class NaSATD3:
 
         self.ensemble_predictive_model = nn.ModuleList()
         networks = [
-            EPDM(self.latent_size, self.action_num) for _ in range(self.ensemble_size)
+            EPDM(self.autoencoder.latent_dim, self.action_num)
+            for _ in range(self.ensemble_size)
         ]
         self.ensemble_predictive_model.extend(networks)
         self.ensemble_predictive_model.to(self.device)

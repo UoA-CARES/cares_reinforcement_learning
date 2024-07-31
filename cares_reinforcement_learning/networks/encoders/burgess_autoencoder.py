@@ -12,7 +12,41 @@ from cares_reinforcement_learning.networks.encoders.constants import Autoencoder
 from cares_reinforcement_learning.networks.encoders.losses import BaseBurgessLoss
 
 
+def tie_weights(src, trg):
+    trg.weight = src.weight
+    trg.bias = src.bias
+
+
 class BurgessAutoencoder(Autoencoder):
+    """
+    Implementation of the Burgess Autoencoder.
+
+    Args:
+        observation_size (tuple[int]): The size of the input observation.
+        latent_dim (int): The dimension of the latent space.
+        loss_function (BaseBurgessLoss): The loss function used for training the autoencoder.
+        num_layers (int, optional): The number of layers in the encoder and decoder networks. Defaults to 4.
+        num_filters (int, optional): The number of filters in each layer of the encoder and decoder networks. Defaults to 32.
+        kernel_size (int, optional): The size of the kernel used in the convolutional layers of the encoder and decoder networks. Defaults to 3.
+        encoder_optimiser_params (dict[str, any], optional): Additional parameters for the encoder optimizer. Defaults to None.
+        decoder_optimiser_params (dict[str, any], optional): Additional parameters for the decoder optimizer. Defaults to None.
+
+    Attributes:
+        encoder (BurgessEncoder): The encoder network.
+        decoder (BurgessDecoder): The decoder network.
+        encoder_optimizer (torch.optim.Adam): The optimizer for the encoder network.
+        decoder_optimizer (torch.optim.Adam): The optimizer for the decoder network.
+
+    Methods:
+        update_autoencoder(data: torch.Tensor) -> None:
+            Update the autoencoder parameters based on the given data.
+        forward(observation, detach_cnn: bool = False, detach_output: bool = False, is_train=False, **kwargs) -> dict:
+            Perform a forward pass through the autoencoder.
+
+    Inherits from:
+        Autoencoder
+    """
+
     def __init__(
         self,
         observation_size: tuple[int],
@@ -63,10 +97,16 @@ class BurgessAutoencoder(Autoencoder):
             **decoder_optimiser_params,
         )
 
-        # self.apply(weight_init_burgess)
+    def update_autoencoder(self, data: torch.Tensor) -> None:
+        """
+        Update the autoencoder parameters based on the given data.
 
-    def update_autoencoder(self, data: torch.Tensor):
-        # TODO handle
+        Args:
+            data (torch.Tensor): The input data used for updating the autoencoder.
+
+        Returns:
+            None
+        """
         output = self.forward(data, is_train=True)
         ae_loss = output["loss"]
 
@@ -83,7 +123,20 @@ class BurgessAutoencoder(Autoencoder):
         detach_output: bool = False,
         is_train=False,
         **kwargs,
-    ):
+    ) -> dict:
+        """
+        Perform a forward pass through the autoencoder.
+
+        Args:
+            observation: The input observation.
+            detach_cnn (bool, optional): Whether to detach the CNN part of the encoder. Defaults to False.
+            detach_output (bool, optional): Whether to detach the output of the encoder. Defaults to False.
+            is_train (bool, optional): Whether the forward pass is performed during training. Defaults to False.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            dict: A dictionary containing the latent observation, reconstructed observation, latent distribution, and loss.
+        """
         latent_dist = self.encoder(
             observation, detach_cnn=detach_cnn, detach_output=detach_output
         )
@@ -110,11 +163,6 @@ class BurgessAutoencoder(Autoencoder):
             "latent_distribution": {"mu": mu, "logvar": logvar},
             "loss": loss,
         }
-
-    def sample_latent(self, x):
-        latent_dist = self.encoder(x)
-        latent_sample = self.reparameterize(*latent_dist)
-        return latent_sample
 
 
 class BurgessEncoder(nn.Module):
@@ -177,6 +225,11 @@ class BurgessEncoder(nn.Module):
 
         # Fully connected layers for mean and variance
         self.mu_logvar_gen = nn.Linear(self.hidden_dim, self.latent_dim * 2)
+
+    def copy_conv_weights_from(self, source):
+        # Only tie conv layers
+        for i in range(self.num_layers):
+            tie_weights(src=source.convs[i], trg=self.convs[i])
 
     def _forward_conv(self, x: torch.Tensor) -> torch.Tensor:
         conv = torch.relu(self.convs[0](x))

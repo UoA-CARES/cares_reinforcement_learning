@@ -311,7 +311,6 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
         tau=config.tau,
         ensemble_size=config.ensemble_size,
         action_num=action_num,
-        latent_size=config.latent_size,
         intrinsic_on=config.intrinsic_on,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,

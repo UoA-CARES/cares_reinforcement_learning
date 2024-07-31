@@ -14,7 +14,7 @@ def tie_weights(src, trg):
 
 class VanillaAutoencoder(Autoencoder):
     """
-    An image based autoencoder model consisting of an encoder and a decoder pair.
+    An image-based autoencoder model consisting of an encoder and a decoder pair.
 
     Args:
         observation_size (tuple[int]): The size of the input image observations.
@@ -22,6 +22,25 @@ class VanillaAutoencoder(Autoencoder):
         num_layers (int, optional): The number of layers in the encoder and decoder. Defaults to 4.
         num_filters (int, optional): The number of filters in each layer. Defaults to 32.
         kernel_size (int, optional): The size of the convolutional kernel. Defaults to 3.
+        latent_lambda (float, optional): The weight of the latent regularization term in the loss function. Defaults to 1e-6.
+        encoder_optimiser_params (dict[str, any], optional): Additional parameters for the encoder optimizer. Defaults to {"lr": 1e-4}.
+        decoder_optimiser_params (dict[str, any], optional): Additional parameters for the decoder optimizer. Defaults to {"lr": 1e-4}.
+
+    Attributes:
+        encoder (Encoder): The encoder component of the autoencoder.
+        decoder (Decoder): The decoder component of the autoencoder.
+        encoder_optimizer (torch.optim.Adam): The optimizer for the encoder.
+        decoder_optimizer (torch.optim.Adam): The optimizer for the decoder.
+
+    Methods:
+        update_autoencoder(data: torch.Tensor) -> None:
+            Update the autoencoder model by performing a forward pass and backpropagation.
+
+        forward(observation: torch.Tensor, detach_cnn: bool = False, detach_output: bool = False, **kwargs) -> torch.Tensor:
+            Perform a forward pass through the autoencoder model.
+
+    Inherits from:
+        Autoencoder
     """
 
     def __init__(
@@ -75,7 +94,16 @@ class VanillaAutoencoder(Autoencoder):
             **decoder_optimiser_params,
         )
 
-    def update_autoencoder(self, data: torch.Tensor):
+    def update_autoencoder(self, data: torch.Tensor) -> None:
+        """
+        Update the autoencoder model by performing a forward pass and backpropagation.
+
+        Args:
+            data (torch.Tensor): The input data for updating the autoencoder.
+
+        Returns:
+            None
+        """
         output = self.forward(data)
         ae_loss = output["loss"]
 
@@ -92,6 +120,18 @@ class VanillaAutoencoder(Autoencoder):
         detach_output: bool = False,
         **kwargs,
     ) -> torch.Tensor:
+        """
+        Perform a forward pass through the autoencoder model.
+
+        Args:
+            observation (torch.Tensor): The input observation to be encoded and decoded.
+            detach_cnn (bool, optional): Whether to detach the CNN part of the encoder. Defaults to False.
+            detach_output (bool, optional): Whether to detach the output of the encoder. Defaults to False.
+            **kwargs: Additional keyword arguments.
+
+        Returns:
+            torch.Tensor: The reconstructed observation and the latent observation.
+        """
         latent_observation = self.encoder(
             observation, detach_cnn=detach_cnn, detach_output=detach_output
         )

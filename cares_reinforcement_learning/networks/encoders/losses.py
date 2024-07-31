@@ -14,16 +14,42 @@ from cares_reinforcement_learning.networks.encoders.discriminator import Discrim
 
 
 class BaseLoss(metaclass=abc.ABCMeta):
+    """
+    Base class for defining loss functions.
+    """
+
     def __init__(self) -> None:
         pass
 
 
 class AELoss(BaseLoss):
+    """
+    Autoencoder loss function.
+
+    This class represents the loss function used for training an autoencoder model.
+    It calculates the reconstruction loss and adds an L2 penalty on the latent representation.
+
+    Args:
+        latent_lambda (float): The weight for the L2 penalty on the latent representation.
+
+    """
+
     def __init__(self, latent_lambda: float = 1e-6) -> None:
         self.latent_lambda = latent_lambda
 
     def __call__(self, data, reconstructed_data, latent_sample):
+        """
+        Calculate the loss for the autoencoder model.
 
+        Args:
+            data: The input data.
+            reconstructed_data: The reconstructed data.
+            latent_sample: The latent representation of the input data.
+
+        Returns:
+            The calculated loss.
+
+        """
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, distribution=ReconDist.GAUSSIAN
         )
@@ -37,6 +63,16 @@ class AELoss(BaseLoss):
 
 
 class SqVaeLoss(BaseLoss):
+    """
+    Calculates the squared VAE loss.
+
+    Args:
+        None
+
+    Returns:
+        Tuple: A tuple containing the reconstruction loss and the total loss.
+    """
+
     def __init__(self):
         pass
 
@@ -47,6 +83,19 @@ class SqVaeLoss(BaseLoss):
         flg_arelbo=True,
         loss_latent=0.0,
     ):
+        """
+        Calculates the loss for the given data and reconstructed data.
+
+        Args:
+            data (torch.Tensor): The original data.
+            reconstructed_data (torch.Tensor): The reconstructed data.
+            flg_arelbo (bool, optional): Flag to indicate whether to use the ARELBO loss calculation. Defaults to True.
+            loss_latent (float, optional): The loss for the latent space. Defaults to 0.0.
+
+        Returns:
+            tuple: A tuple containing the reconstruction loss and the total loss.
+        """
+
         logvar_x = nn.Parameter(torch.tensor(np.log(0.1)))
 
         # TODO dim_x should be passed as argument as currently hard coded to 3 * 64 * 64
