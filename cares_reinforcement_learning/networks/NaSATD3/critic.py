@@ -3,14 +3,16 @@ from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
+from cares_reinforcement_learning.networks.encoders.autoencoder import (
+    Autoencoder,
+)
 
 
 class Critic(nn.Module):
     def __init__(
         self,
-        latent_size: int,
         num_actions: int,
-        autoencoder: nn.Module,
+        autoencoder: Autoencoder,
         hidden_size: list[int] = None,
     ):
         super().__init__()
@@ -22,7 +24,7 @@ class Critic(nn.Module):
 
         # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
-            nn.Linear(latent_size + num_actions, self.hidden_size[0]),
+            nn.Linear(self.autoencoder.latent_dim + num_actions, self.hidden_size[0]),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
@@ -31,7 +33,7 @@ class Critic(nn.Module):
 
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
-            nn.Linear(latent_size + num_actions, self.hidden_size[0]),
+            nn.Linear(self.autoencoder.latent_dim + num_actions, self.hidden_size[0]),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),

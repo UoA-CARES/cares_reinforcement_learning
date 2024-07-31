@@ -292,13 +292,11 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     )
 
     actor = Actor(
-        config.latent_size,
         action_num,
         autoencoder,
         hidden_size=config.hidden_size,
     )
     critic = Critic(
-        config.latent_size,
         action_num,
         autoencoder,
         hidden_size=config.hidden_size,
