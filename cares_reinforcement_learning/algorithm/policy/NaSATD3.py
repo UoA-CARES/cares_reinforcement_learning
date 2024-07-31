@@ -32,8 +32,6 @@ class NaSATD3:
         intrinsic_on: bool,
         actor_lr: float,
         critic_lr: float,
-        encoder_lr: float,
-        decoder_lr: float,
         epm_lr: float,
         device: str,
     ):

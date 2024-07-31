@@ -19,8 +19,8 @@ class BaseLoss(metaclass=abc.ABCMeta):
 
 
 class AELoss(BaseLoss):
-    def __init__(self) -> None:
-        pass
+    def __init__(self, latent_lambda: float = 1e-6) -> None:
+        self.latent_lambda = latent_lambda
 
     def __call__(self, data, reconstructed_data, latent_sample):
 
@@ -30,7 +30,8 @@ class AELoss(BaseLoss):
 
         # add L2 penalty on latent representation
         latent_loss = (0.5 * latent_sample.pow(2).sum(1)).mean()
-        loss = rec_loss + 1e-6 * latent_loss
+
+        loss = rec_loss + self.latent_lambda * latent_loss
 
         return loss
 

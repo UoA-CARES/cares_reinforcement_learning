@@ -156,17 +156,18 @@ class TD3AEConfig(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
 
-    num_layers: Optional[int] = 4
-    num_filters: Optional[int] = 32
-
-    encoder_lr: Optional[float] = 1e-3
     encoder_tau: Optional[float] = 0.05
-    latent_size: Optional[int] = 50
-
-    decoder_lr: Optional[float] = 1e-3
-    decoder_latent_lambda: Optional[float] = 1e-6
-    decoder_weight_decay: Optional[float] = 1e-7
     decoder_update_freq: Optional[int] = 1
+
+    autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
+        latent_dim=50,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
 
 
 class SACConfig(AlgorithmConfig):
@@ -198,17 +199,18 @@ class SACAEConfig(AlgorithmConfig):
 
     log_std_bounds: List[float] = [-20, 2]
 
-    num_layers: Optional[int] = 4
-    num_filters: Optional[int] = 32
-
-    encoder_lr: Optional[float] = 1e-3
     encoder_tau: Optional[float] = 0.05
-    latent_size: Optional[int] = 50
-
-    decoder_lr: Optional[float] = 1e-3
-    decoder_latent_lambda: Optional[float] = 1e-6
-    decoder_weight_decay: Optional[float] = 1e-7
     decoder_update_freq: Optional[int] = 1
+
+    autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
+        latent_dim=50,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
 
 
 class DynaSACConfig(AlgorithmConfig):
@@ -239,28 +241,23 @@ class NaSATD3Config(AlgorithmConfig):
 
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
-
-    # TODO shift to dict for encoder/decoder_optimiser_param
-    encoder_lr: Optional[float] = 1e-3
-    decoder_lr: Optional[float] = 1e-3
-
     epm_lr: Optional[float] = 1e-4
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     ensemble_size: Optional[int] = 3
 
-    latent_size: Optional[int] = 200
     intrinsic_on: Optional[int] = 1
 
-    autoencoder_type: Optional[AEConfig] = VanillaAEConfig(latent_dim=latent_size)
-    # encoder_optim_kwargs: Optional[dict[str, float]] = Field(
-    #     default_factory=lambda: {"lr": 1e-3}
-    # )
-
-    # decoder_optim_kwargs: Optional[dict[str, float]] = Field(
-    #     default_factory=lambda: {"lr": 1e-3, "weight_decay": 1e-7}
-    # )
+    autoencoder_config: Optional[AEConfig] = VanillaAEConfig(
+        latent_dim=200,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
 
 
 class REDQConfig(AlgorithmConfig):

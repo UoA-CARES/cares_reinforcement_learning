@@ -27,7 +27,7 @@ class BurgessAutoencoder(Autoencoder):
         if encoder_optimiser_params is None:
             encoder_optimiser_params = {"lr": 1e-3}
         if decoder_optimiser_params is None:
-            decoder_optimiser_params = {"lr": 1e-3}
+            decoder_optimiser_params = {"lr": 1e-3, "weight_decay": 1e-7}
 
         super().__init__(
             ae_type=Autoencoders.BURGESS,

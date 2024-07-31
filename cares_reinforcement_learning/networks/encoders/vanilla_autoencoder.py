@@ -31,17 +31,18 @@ class VanillaAutoencoder(Autoencoder):
         num_layers: int = 4,
         num_filters: int = 32,
         kernel_size: int = 3,
+        latent_lambda: float = 1e-6,
         encoder_optimiser_params: dict[str, any] = None,
         decoder_optimiser_params: dict[str, any] = None,
     ):
         if encoder_optimiser_params is None:
-            encoder_optimiser_params = {"lr": 1e-3}
+            encoder_optimiser_params = {"lr": 1e-4}
         if decoder_optimiser_params is None:
-            decoder_optimiser_params = {"lr": 1e-3, "weight_decay": 1e-7}
+            decoder_optimiser_params = {"lr": 1e-4}
 
         super().__init__(
             ae_type=Autoencoders.AE,
-            loss_function=AELoss(),
+            loss_function=AELoss(latent_lambda=latent_lambda),
             observation_size=observation_size,
             latent_dim=latent_dim,
         )

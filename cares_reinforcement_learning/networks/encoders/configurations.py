@@ -29,6 +29,14 @@ class AEConfig(SubscriptableClass):
     num_filters: Optional[int] = 32
     kernel_size: Optional[int] = 3
 
+    encoder_optim_kwargs: Optional[dict[str, float]] = Field(
+        default_factory=lambda: {"lr": 1e-3}
+    )
+
+    decoder_optim_kwargs: Optional[dict[str, float]] = Field(
+        default_factory=lambda: {"lr": 1e-3}
+    )
+
 
 class VanillaAEConfig(AEConfig):
     """
@@ -36,6 +44,7 @@ class VanillaAEConfig(AEConfig):
     """
 
     type: str = "vanilla"
+    latent_lambda: float = 1e-6
 
 
 class SQVAEConfig(AEConfig):
