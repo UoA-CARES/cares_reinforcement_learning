@@ -77,6 +77,48 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_STEVE(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import STEVE
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble_all import EnsembleWorldRewardDone
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    world_model = EnsembleWorldRewardDone(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_world_models=config.num_world_models,
+        num_reward_models=config.num_reward_models,
+        num_done_models=config.num_done_models,
+        lr=config.world_model_lr,
+        device=device,
+    )
+
+    agent = STEVE(
+        actor_network=actor,
+        critic_network=critic,
+        world_network=world_model,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
+        L=config.num_critic_models,
+        device=device,
+    )
+    return agent
+
+
 def create_DynaSAC_SA(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
@@ -85,7 +127,7 @@ def create_DynaSAC_SA(observation_size, action_num, config: AlgorithmConfig):
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_SA
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models.ensmeble_world_sa import EnsembleWorldAndOneSAReward
+    from cares_reinforcement_learning.networks.world_models.ensmeble_sa_world import EnsembleWorldAndOneSAReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -125,7 +167,7 @@ def create_DynaSAC_SABR(observation_size, action_num, config: AlgorithmConfig):
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_SABR
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models.ensmeble_world_sa import EnsembleWorldAndOneSAReward
+    from cares_reinforcement_learning.networks.world_models.ensmeble_sa_world import EnsembleWorldAndOneSAReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
@@ -294,6 +336,7 @@ def create_DynaSAC_BIVReweight(observation_size, action_num, config: AlgorithmCo
     )
     return agent
 
+
 def create_DynaSAC_SUNRISEReweight(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
@@ -422,7 +465,6 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
         device=device,
     )
     return agent
-
 
 
 def create_SAC(observation_size, action_num, config: AlgorithmConfig):

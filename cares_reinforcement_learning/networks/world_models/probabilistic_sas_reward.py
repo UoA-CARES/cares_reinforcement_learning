@@ -1,10 +1,10 @@
 import torch
-from torch import nn
+from torch import nn, Tensor
 import torch.nn.functional as F
 from cares_reinforcement_learning.util.helpers import weight_init
 
 
-class ProbabilityReward(nn.Module):
+class Probabilistic_SAS_Reward(nn.Module):
     def __init__(self, observation_size: int, num_actions: int, hidden_size: int):
         """
         Note, This reward function is limited to 0 ~ 1 for dm_control.
@@ -18,15 +18,14 @@ class ProbabilityReward(nn.Module):
         super().__init__()
         self.observation_size = observation_size
         self.num_actions = num_actions
-        self.linear1 = nn.Linear(observation_size + num_actions, hidden_size)
+        self.linear1 = nn.Linear(2 * observation_size + num_actions, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
-        self.mean = nn.Linear(hidden_size, 1)
-        self.var = nn.Linear(hidden_size, 1)
+        self.linear3 = nn.Linear(hidden_size, 1)
+        self.linear4 = nn.Linear(hidden_size, 1)
         self.apply(weight_init)
 
     def forward(
-        self, observation: torch.Tensor, actions: torch.Tensor, normalized: bool = False
-    ) -> torch.Tensor:
+        self, observation: torch.Tensor, actions: torch.Tensor, next_observation: torch.Tensor) -> tuple[Tensor, Tensor]:
         """
         Forward the inputs throught the network.
         Note: For DMCS environment, the reward is from 0~1.
@@ -41,15 +40,15 @@ class ProbabilityReward(nn.Module):
             observation.shape[1] + actions.shape[1]
             == self.observation_size + self.num_actions
         )
-        x = torch.cat((observation, actions), dim=1)
+        x = torch.cat((observation, actions, next_observation), dim=1)
         x = self.linear1(x)
         x = F.relu(x)
         x = self.linear2(x)
         x = F.relu(x)
-        rwd_mean = self.mean(x)
-        rwd_var = self.var(x)
-        logvar = torch.tanh(rwd_var)
-        rwd_var = torch.exp(logvar)
-        if normalized:
-            rwd_mean = F.sigmoid(rwd_mean)
-        return rwd_mean, rwd_var
+        rwd_mean = self.linear3(x)
+        var_mean = self.linear4(x)
+        logvar = torch.tanh(var_mean)
+        normalized_var = torch.exp(logvar)
+        # if normalized:
+        #     rwd_mean = F.sigmoid(rwd_mean)
+        return rwd_mean, normalized_var

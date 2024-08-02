@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.util.helpers import weight_init
 
 
-class SimpleReward(nn.Module):
+class Simple_NS_Reward(nn.Module):
     def __init__(self, observation_size: int, num_actions: int, hidden_size: int):
         """
         Note, This reward function is limited to 0 ~ 1 for dm_control.

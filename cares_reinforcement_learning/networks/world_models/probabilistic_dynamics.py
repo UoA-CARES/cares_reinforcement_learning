@@ -10,7 +10,7 @@ from cares_reinforcement_learning.util.helpers import (
 )
 
 
-class SimpleDynamics(nn.Module):
+class ProbabilisticDynamics(nn.Module):
     """
     A world model with fully connected layers. It takes current states (s) and
     current actions (a), and predict next states (s').
@@ -66,6 +66,7 @@ class SimpleDynamics(nn.Module):
         x = F.relu(x)
         normalized_mean = self.mean_layer(x)
         logvar = self.logvar_layer(x)
+
         logvar = torch.tanh(logvar)
         normalized_var = torch.exp(logvar)
         # Always denormalized delta

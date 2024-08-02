@@ -15,7 +15,7 @@ import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.networks.world_models.ensemble_world_sn import (
+from cares_reinforcement_learning.networks.world_models.ensemble_ns_world import (
     EnsembleWorldAndOneReward,
 )
 

@@ -9,15 +9,12 @@ import torch.nn.functional as F
 import torch.utils
 from torch import optim
 
-from cares_reinforcement_learning.networks.world_models.simple_dynamics import (
-    SimpleDynamics,
+from cares_reinforcement_learning.networks.world_models.probabilistic_dynamics import (
+    ProbabilisticDynamics,
 )
-from cares_reinforcement_learning.networks.world_models.simple_reward_sn import (
-    SimpleReward,
+from cares_reinforcement_learning.networks.world_models.simple_ns_reward import (
+    Simple_NS_Reward,
 )
-# from cares_reinforcement_learning.networks.world_models.probability_rewards import (
-#     ProbabilityReward,
-# )
 
 from cares_reinforcement_learning.util.helpers import normalize_observation_delta
 
@@ -39,12 +36,12 @@ class IntegratedWorldModel:
         hidden_size: int,
         lr: float = 0.001,
     ):
-        self.dyna_network = SimpleDynamics(
+        self.dyna_network = ProbabilisticDynamics(
             observation_size=observation_size,
             num_actions=num_actions,
             hidden_size=hidden_size,
         )
-        self.reward_network = SimpleReward(
+        self.reward_network = Simple_NS_Reward(
             observation_size=observation_size,
             num_actions=num_actions,
             hidden_size=hidden_size,

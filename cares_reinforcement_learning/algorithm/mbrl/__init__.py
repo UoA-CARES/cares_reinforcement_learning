@@ -1,4 +1,4 @@
-from .DynaSAC import DynaSAC
+from .DynaSAC import DynaSAC_SA
 from .DynaSAC_Immerse_Reweight import DynaSAC_ScaleBatchReweight
 from .DynaSAC_Immerse_Reweight_Combo import DynaSAC_Immerse_Reweight_Combo
 from .DynaSAC_SUNRISE_Reweight import DynaSAC_SUNRISEReweight
@@ -6,3 +6,4 @@ from .DynaSAC_UWAC_Reweight import DynaSAC_UWACReweight
 from .DynaSAC_BIV_Reweight import DynaSAC_BIVReweight
 from .DynaSAC_SA import DynaSAC_SA
 from .DynaSAC_SA_Immerse_Reweight import DynaSAC_SABR
+from .STEVESAC import STEVE

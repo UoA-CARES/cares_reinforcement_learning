@@ -16,17 +16,17 @@ import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
-from cares_reinforcement_learning.networks.world_models.ensemble_world_sn import (
-    EnsembleWorldAndOneReward,
+from cares_reinforcement_learning.networks.world_models.ensmeble_sa_world import (
+    EnsembleWorldAndOneSAReward,
 )
 
 
-class DynaSAC:
+class DynaSAC_SA:
     def __init__(
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        world_network: EnsembleWorldAndOneReward,
+        world_network: EnsembleWorldAndOneSAReward,
         gamma: float,
         tau: float,
         action_num: int,
@@ -100,6 +100,7 @@ class DynaSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> None:
+
         ##################     Update the Critic First     ####################
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -108,7 +109,7 @@ class DynaSAC:
                 next_states, next_actions
             )
             target_q_values = (
-                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -170,7 +171,8 @@ class DynaSAC:
             next_states=next_states,
         )
         self.world_model.train_reward(
-            next_states=next_states,
+            states=states,
+            actions=actions,
             rewards=rewards,
         )
 
@@ -194,41 +196,6 @@ class DynaSAC:
             rewards=rewards,
             next_states=next_states,
             dones=dones,
-        )
-        # # # Step 3 Dyna add more data
-        self._dyna_generate_and_train(next_states=next_states)
-
-    def _dyna_generate_and_train(self, next_states: torch.Tensor) -> None:
-        pred_states = []
-        pred_actions = []
-        pred_rs = []
-        pred_n_states = []
-
-        with torch.no_grad():
-            pred_state = next_states
-            for _ in range(self.horizon):
-                pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
-                # This part is controversial. But random actions is empirically better.
-                rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
-                pred_acts = torch.FloatTensor(rand_acts).to(self.device)
-                pred_next_state, _, _, _ = self.world_model.pred_next_states(
-                    pred_state, pred_acts
-                )
-                pred_reward = self.world_model.pred_rewards(pred_next_state)
-                pred_states.append(pred_state)
-                pred_actions.append(pred_acts.detach())
-                pred_rs.append(pred_reward.detach())
-                pred_n_states.append(pred_next_state.detach())
-                pred_state = pred_next_state.detach()
-            pred_states = torch.vstack(pred_states)
-            pred_actions = torch.vstack(pred_actions)
-            pred_rs = torch.vstack(pred_rs)
-            pred_n_states = torch.vstack(pred_n_states)
-            # Pay attention to here! It is dones in the Cares RL Code!
-            pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
-            # states, actions, rewards, next_states, not_dones
-        self._train_policy(
-            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
     def set_statistics(self, stats: dict) -> None:
