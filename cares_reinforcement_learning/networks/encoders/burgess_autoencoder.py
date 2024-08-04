@@ -40,7 +40,7 @@ class BurgessAutoencoder(Autoencoder):
     Methods:
         update_autoencoder(data: torch.Tensor) -> None:
             Update the autoencoder parameters based on the given data.
-        forward(observation, detach_cnn: bool = False, detach_output: bool = False, is_train=False, **kwargs) -> dict:
+        forward(observation, detach_cnn: bool = False, detach_output: bool = False, **kwargs) -> dict:
             Perform a forward pass through the autoencoder.
 
     Inherits from:
@@ -97,7 +97,7 @@ class BurgessAutoencoder(Autoencoder):
             **decoder_optimiser_params,
         )
 
-    def update_autoencoder(self, data: torch.Tensor) -> None:
+    def update_autoencoder(self, data: torch.Tensor) -> float:
         """
         Update the autoencoder parameters based on the given data.
 
@@ -105,24 +105,16 @@ class BurgessAutoencoder(Autoencoder):
             data (torch.Tensor): The input data used for updating the autoencoder.
 
         Returns:
-            None
+            float: The VAE loss after updating the autoencoder.
         """
-        output = self.forward(data, is_train=True)
-        ae_loss = output["loss"]
-
-        self.encoder_optimizer.zero_grad()
-        self.decoder_optimizer.zero_grad()
-        ae_loss.backward()
-        self.encoder_optimizer.step()
-        self.decoder_optimizer.step()
+        vae_loss = self.loss_function.update_autoencoder(data, self)
+        return vae_loss
 
     def forward(
         self,
         observation,
         detach_cnn: bool = False,
         detach_output: bool = False,
-        is_train=False,
-        **kwargs,
     ) -> dict:
         """
         Perform a forward pass through the autoencoder.
@@ -131,8 +123,6 @@ class BurgessAutoencoder(Autoencoder):
             observation: The input observation.
             detach_cnn (bool, optional): Whether to detach the CNN part of the encoder. Defaults to False.
             detach_output (bool, optional): Whether to detach the output of the encoder. Defaults to False.
-            is_train (bool, optional): Whether the forward pass is performed during training. Defaults to False.
-            **kwargs: Additional keyword arguments.
 
         Returns:
             dict: A dictionary containing the latent observation, reconstructed observation, latent distribution, and loss.
@@ -145,13 +135,12 @@ class BurgessAutoencoder(Autoencoder):
 
         reconstructed_observation = self.decoder(latent_sample)
 
-        loss = self.loss_function(
+        # Train is false to get the full loss for the data
+        loss = self.loss_function.calculate_loss(
             data=observation,
             reconstructed_data=reconstructed_observation,
             latent_dist=latent_dist,
-            is_train=is_train,
-            latent_sample=latent_sample,
-            autoencoder=self,
+            is_train=False,
         )
 
         if detach_output:

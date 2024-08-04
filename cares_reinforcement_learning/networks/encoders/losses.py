@@ -13,16 +13,7 @@ from cares_reinforcement_learning.networks.encoders.constants import Losses, Rec
 from cares_reinforcement_learning.networks.encoders.discriminator import Discriminator
 
 
-class BaseLoss(metaclass=abc.ABCMeta):
-    """
-    Base class for defining loss functions.
-    """
-
-    def __init__(self) -> None:
-        pass
-
-
-class AELoss(BaseLoss):
+class AELoss:
     """
     Autoencoder loss function.
 
@@ -37,7 +28,12 @@ class AELoss(BaseLoss):
     def __init__(self, latent_lambda: float = 1e-6) -> None:
         self.latent_lambda = latent_lambda
 
-    def __call__(self, data, reconstructed_data, latent_sample):
+    def calculate_loss(
+        self,
+        data: torch.Tensor,
+        reconstructed_data: torch.Tensor,
+        latent_sample: torch.Tensor,
+    ) -> torch.Tensor:
         """
         Calculate the loss for the autoencoder model.
 
@@ -61,8 +57,27 @@ class AELoss(BaseLoss):
 
         return loss
 
+    def update_autoencoder(self, data: torch.Tensor, autoencoder) -> torch.Tensor:
+        latent_observation = autoencoder.encoder(data)
 
-class SqVaeLoss(BaseLoss):
+        reconstructed_observation = autoencoder.decoder(latent_observation)
+
+        loss = self.calculate_loss(
+            data=data,
+            reconstructed_data=reconstructed_observation,
+            latent_sample=reconstructed_observation,
+        )
+
+        autoencoder.encoder_optimizer.zero_grad()
+        autoencoder.decoder_optimizer.zero_grad()
+        loss.backward()
+        autoencoder.encoder_optimizer.step()
+        autoencoder.decoder_optimizer.step()
+
+        return loss
+
+
+class SqVaeLoss:
     """
     Calculates the squared VAE loss.
 
@@ -76,7 +91,7 @@ class SqVaeLoss(BaseLoss):
     def __init__(self):
         pass
 
-    def __call__(
+    def calculate_loss(
         self,
         data,
         reconstructed_data,
@@ -118,6 +133,26 @@ class SqVaeLoss(BaseLoss):
         loss = loss_reconst + loss_latent
 
         return loss_reconst, loss
+
+    # TODO implement for SQVAE
+    # def update_autoencoder(self, data, autoencoder):
+    #     latent_observation = autoencoder.encoder(data)
+
+    #     reconstructed_observation = autoencoder.decoder(latent_observation)
+
+    #     loss_reconst, loss = self.calculate_loss(
+    #         data=data,
+    #         reconstructed_data=reconstructed_observation,
+    #         latent_sample=reconstructed_observation,
+    #     )
+
+    #     autoencoder.encoder_optimizer.zero_grad()
+    #     autoencoder.decoder_optimizer.zero_grad()
+    #     loss.backward()
+    #     autoencoder.encoder_optimizer.step()
+    #     autoencoder.decoder_optimizer.step()
+
+    #     return loss_reconst, loss
 
 
 def get_burgess_loss_function(config: BurgessConfig):
@@ -167,7 +202,7 @@ def get_burgess_loss_function(config: BurgessConfig):
         raise ValueError(f"Unknown loss function: {loss_name}")
 
 
-class BaseBurgessLoss(BaseLoss, metaclass=abc.ABCMeta):
+class BaseBurgessLoss(metaclass=abc.ABCMeta):
     """
     Base class for losses.
 
@@ -183,13 +218,19 @@ class BaseBurgessLoss(BaseLoss, metaclass=abc.ABCMeta):
         Number of annealing steps where gradually adding the regularisation.
     """
 
-    def __init__(self, rec_dist=ReconDist.BERNOULLI, steps_anneal=0):
+    def __init__(self, rec_dist=ReconDist.BERNOULLI, steps_anneal: int = 0):
         self.n_train_steps = 0
         self.rec_dist = rec_dist
         self.steps_anneal = steps_anneal
 
     @abc.abstractmethod
-    def __call__(self, data, reconstructed_data, latent_dist, is_train, **kwargs):
+    def calculate_loss(
+        self,
+        data,
+        reconstructed_data,
+        latent_dist,
+        is_train,
+    ):
         """
         Calculates loss for a batch of data.
 
@@ -209,17 +250,37 @@ class BaseBurgessLoss(BaseLoss, metaclass=abc.ABCMeta):
         is_train : bool
             Whether currently in train mode.
 
-        storer : dict
-            Dictionary in which to store important variables for vizualisation.
-
         kwargs:
             Loss specific arguments
         """
         raise NotImplementedError("Method must be implemented in subclass")
 
-    def _pre_call(self, is_train):
-        if is_train:
-            self.n_train_steps += 1
+    def _pre_call(self):
+        self.n_train_steps += 1
+
+    def update_autoencoder(self, data, autoencoder):
+        self._pre_call()
+
+        latent_dist = autoencoder.encoder(data)
+
+        _, _, latent_sample = latent_dist
+
+        reconstructed_observation = autoencoder.decoder(latent_sample)
+
+        loss = self.calculate_loss(
+            data=data,
+            reconstructed_data=reconstructed_observation,
+            latent_dist=latent_dist,
+            is_train=True,
+        )
+
+        autoencoder.encoder_optimizer.zero_grad()
+        autoencoder.decoder_optimizer.zero_grad()
+        loss.backward()
+        autoencoder.encoder_optimizer.step()
+        autoencoder.decoder_optimizer.step()
+
+        return loss
 
 
 class BetaHLoss(BaseBurgessLoss):
@@ -246,24 +307,22 @@ class BetaHLoss(BaseBurgessLoss):
         super().__init__(rec_dist=rec_dist, steps_anneal=steps_anneal)
         self.beta = beta
 
-    def __call__(
+    def calculate_loss(
         self,
         data,
         reconstructed_data,
         latent_dist,
         is_train,
-        **kwargs,
     ):
-        self._pre_call(is_train)
-
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, reduction="sum", distribution=self.rec_dist
         )
 
-        kl_loss = _kl_normal_loss(*latent_dist)
+        mean, logvar, _ = latent_dist
+        kl_loss = _kl_normal_loss(mean, logvar)
 
         anneal_reg = (
-            linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+            _linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
             if is_train
             else 1
         )
@@ -343,118 +402,102 @@ class FactorKLoss(BaseBurgessLoss):
             self.discriminator.parameters(), **optim_kwargs
         )
 
-    def _calculate_loss(
-        self, data, reconstructed_data, latent_dist, is_train, latent_sample
-    ):
+    def _calculate_loss(self, data, reconstructed_data, latent_dist, is_train):
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, reduction="sum", distribution=self.rec_dist
         )
 
-        kl_loss = _kl_normal_loss(*latent_dist)
+        mean, logvar, latent_sample = latent_dist
+        kl_loss = _kl_normal_loss(mean, logvar)
 
         d_z = self.discriminator(latent_sample)
         tc_loss = (d_z[:, 0] - d_z[:, 1]).mean()
 
         anneal_reg = (
-            linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+            _linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
             if is_train
             else 1
         )
         vae_loss = rec_loss + (kl_loss + anneal_reg * self.gamma * tc_loss)
 
-        return vae_loss
+        return d_z, vae_loss
 
-    def _call_optimize(self, data, autoencoder):
-        self._pre_call(autoencoder.training)
+    def update_autoencoder(self, data, autoencoder):
+        self._pre_call()
 
         # factor-vae split data into two batches. In the paper they sample 2 batches
         batch_size = data.size(dim=0)
         half_batch_size = batch_size // 2
         data = data.split(half_batch_size)
-        data1 = data[0]
-        data2 = data[1]
+        data_one = data[0]
+        data_two = data[1]
 
-        # Factor VAE Loss - repeat of the code above...simplify
-        latent_dist = autoencoder.encoder(data1)
-        latent_sample1 = autoencoder.sample_latent(data1)
-        recon_batch = autoencoder.decoder(latent_sample1)
-        rec_loss = _reconstruction_loss(
-            data1,
-            recon_batch,
-            reduction="sum",
-            distribution=self.rec_dist,
+        latent_dist_one = autoencoder.encoder(data_one)
+
+        _, _, latent_sample_one = latent_dist_one
+
+        recon_batch_one = autoencoder.decoder(latent_sample_one)
+
+        d_z, vae_loss = self._calculate_loss(
+            data_one,
+            recon_batch_one,
+            latent_dist_one,
+            autoencoder.training,
         )
 
-        kl_loss = _kl_normal_loss(*latent_dist)
+        # Compute VAE gradients
+        autoencoder.encoder_optimizer.zero_grad()
+        autoencoder.decoder_optimizer.zero_grad()
+        vae_loss.backward(retain_graph=True)
 
-        d_z = self.discriminator(latent_sample1)
-        # We want log(p_true/p_false). If not using logisitc regression but softmax
-        # then p_true = exp(logit_true) / Z; p_false = exp(logit_false) / Z
-        # so log(p_true/p_false) = logit_true - logit_false
-        tc_loss = (d_z[:, 0] - d_z[:, 1]).mean()
-        # with sigmoid (not good results) should be `tc_loss = (2 * d_z.flatten()).mean()`
+        # Discriminator Loss
+        # Get second sample of latent distribution
+        # works because only the BurgessEncoder can be used here
+        latent_dist_two = autoencoder.encoder(data_two)
 
-        anneal_reg = (
-            linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
-            if autoencoder.training
-            else 1
+        _, _, latent_sample_two = latent_dist_two
+
+        z_perm = _permute_dims(latent_sample_two).detach()
+
+        d_z_perm = self.discriminator(z_perm)
+
+        # Calculate total correlation loss
+        # for cross entropy the target is the index => need to be long and says
+        # that it's first output for d_z and second for perm
+        ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
+        zeros = torch.zeros_like(ones)
+        d_tc_loss = 0.5 * (
+            F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones)
         )
-        vae_loss = rec_loss + (kl_loss + anneal_reg * self.gamma * tc_loss)
 
-        if autoencoder.training:
-            # Compute VAE gradients
-            autoencoder.encoder_optimiser.zero_grad()
-            autoencoder.decoder_optimiser.zero_grad()
-            vae_loss.backward(retain_graph=True)
+        # with sigmoid would be :
+        # d_tc_loss = 0.5 * (self.bce(d_z.flatten(), ones) + self.bce(d_z_perm.flatten(), 1 - ones))
 
-            # Discriminator Loss
-            # Get second sample of latent distribution
-            # works because only the BurgessEncoder can be used here
-            latent_sample2 = autoencoder.sample_latent(data2)
-            z_perm = _permute_dims(latent_sample2).detach()
-            d_z_perm = self.discriminator(z_perm)
+        # d_tc_loss = anneal_reg * d_tc_loss
 
-            # Calculate total correlation loss
-            # for cross entropy the target is the index => need to be long and says
-            # that it's first output for d_z and second for perm
-            ones = torch.ones(half_batch_size, dtype=torch.long, device=self.device)
-            zeros = torch.zeros_like(ones)
-            d_tc_loss = 0.5 * (
-                F.cross_entropy(d_z, zeros) + F.cross_entropy(d_z_perm, ones)
-            )
+        # Compute discriminator gradients
+        self.discriminator_optimizer.zero_grad()
+        d_tc_loss.backward()
 
-            # with sigmoid would be :
-            # d_tc_loss = 0.5 * (self.bce(d_z.flatten(), ones) + self.bce(d_z_perm.flatten(), 1 - ones))
-
-            # d_tc_loss = anneal_reg * d_tc_loss
-
-            # Compute discriminator gradients
-            self.discriminator_optimizer.zero_grad()
-            d_tc_loss.backward()
-
-            # Update at the end (since pytorch 1.5. complains if update before)
-            autoencoder.encoder_optimiser.step()
-            autoencoder.decoder_optimiser.step()
-            self.discriminator_optimizer.step()
+        # Update at the end (since pytorch 1.5. complains if update before)
+        autoencoder.encoder_optimizer.step()
+        autoencoder.decoder_optimizer.step()
+        self.discriminator_optimizer.step()
 
         return vae_loss
 
-    def __call__(
+    def calculate_loss(
         self,
         data,
         reconstructed_data,
         latent_dist,
         is_train,
-        latent_sample,
-        autoencoder,
-        **kwargs,
     ):
-        if is_train:
-            return self._call_optimize(data, autoencoder)
-
-        return self._calculate_loss(
-            data, reconstructed_data, latent_dist, is_train, latent_sample
+        _, vae_loss = self._calculate_loss(
+            data, reconstructed_data, latent_dist, is_train
         )
+
+        return vae_loss
 
 
 class BetaBLoss(BaseBurgessLoss):
@@ -491,23 +534,22 @@ class BetaBLoss(BaseBurgessLoss):
         self.c_init = c_init
         self.c_fin = c_fin
 
-    def __call__(
+    def calculate_loss(
         self,
         data,
         reconstructed_data,
         latent_dist,
         is_train,
-        **kwargs,
     ):
-        self._pre_call(is_train)
-
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, reduction="sum", distribution=self.rec_dist
         )
-        kl_loss = _kl_normal_loss(*latent_dist)
+
+        mean, logvar, _ = latent_dist
+        kl_loss = _kl_normal_loss(mean, logvar)
 
         capacity = (
-            linear_annealing(
+            _linear_annealing(
                 self.c_init, self.c_fin, self.n_train_steps, self.steps_anneal
             )
             if is_train
@@ -566,21 +608,13 @@ class BtcvaeLoss(BaseBurgessLoss):
         self.gamma = gamma
         self.is_mss = is_mss  # minibatch stratified sampling
 
-    def __call__(
+    def calculate_loss(
         self,
         data,
         reconstructed_data,
         latent_dist,
         is_train,
-        latent_sample=None,
-        n_data=None,
-        **kwargs,
     ):
-        if n_data is not None:
-            self.n_data = n_data
-
-        self._pre_call(is_train)
-
         rec_loss = _reconstruction_loss(
             data,
             reconstructed_data,
@@ -588,6 +622,7 @@ class BtcvaeLoss(BaseBurgessLoss):
             distribution=self.rec_dist,
         )
 
+        _, _, latent_sample = latent_dist
         log_pz, log_qz, log_prod_qzi, log_q_zcx = _get_log_pz_qz_prodzi_qzcx(
             latent_sample, latent_dist, self.n_data, is_mss=self.is_mss
         )
@@ -600,7 +635,7 @@ class BtcvaeLoss(BaseBurgessLoss):
         dw_kl_loss = (log_prod_qzi - log_pz).mean()
 
         anneal_reg = (
-            linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
+            _linear_annealing(0, 1, self.n_train_steps, self.steps_anneal)
             if is_train
             else 1
         )
@@ -686,7 +721,7 @@ def _reconstruction_loss(
     return loss
 
 
-def _kl_normal_loss(mean, logvar, storer=None):
+def _kl_normal_loss(mean, logvar):
     """
     Calculates the KL divergence between a normal distribution
     with diagonal covariance and a unit normal distribution.
@@ -704,15 +739,9 @@ def _kl_normal_loss(mean, logvar, storer=None):
     storer : dict
         Dictionary in which to store important variables for vizualisation.
     """
-    latent_dim = mean.size(1)
     # batch mean of kl for each latent dimension
     latent_kl = 0.5 * (-1 - logvar + mean.pow(2) + logvar.exp()).mean(dim=0)
     total_kl = latent_kl.sum()
-
-    if storer is not None:
-        storer["kl_loss"].append(total_kl.item())
-        for i in range(latent_dim):
-            storer["kl_loss_" + str(i)].append(latent_kl[i].item())
 
     return total_kl
 
@@ -727,7 +756,6 @@ def _permute_dims(latent_sample):
     ----------
     latent_sample: torch.Tensor
         sample from the latent dimension using the reparameterisation trick
-        shape : (batch_size, latent_dim).
 
     References
     ----------
@@ -745,7 +773,7 @@ def _permute_dims(latent_sample):
     return perm
 
 
-def linear_annealing(init, fin, step, annealing_steps):
+def _linear_annealing(init, fin, step, annealing_steps):
     """Linear annealing of a parameter."""
     if annealing_steps == 0:
         return fin
@@ -757,17 +785,18 @@ def linear_annealing(init, fin, step, annealing_steps):
 
 # Batch TC specific
 def _get_log_pz_qz_prodzi_qzcx(latent_sample, latent_dist, n_data, is_mss=True):
-    batch_size, hidden_dim = latent_sample.shape
+    batch_size, _ = latent_sample.shape
 
     # calculate log q(z|x)
-    log_q_zCx = log_density_gaussian(latent_sample, *latent_dist).sum(dim=1)
+    mean, logvar, _ = latent_dist
+    log_q_zCx = log_density_gaussian(latent_sample, mean, logvar).sum(dim=1)
 
     # calculate log p(z)
     # mean and log var is 0
     zeros = torch.zeros_like(latent_sample)
     log_pz = log_density_gaussian(latent_sample, zeros, zeros).sum(1)
 
-    mat_log_qz = matrix_log_density_gaussian(latent_sample, *latent_dist)
+    mat_log_qz = matrix_log_density_gaussian(latent_sample, mean, logvar)
 
     if is_mss:
         # use stratification

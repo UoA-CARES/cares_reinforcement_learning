@@ -287,9 +287,7 @@ class NaSATD3:
     def _get_novelty_rate(self, state_tensor_img: torch.Tensor) -> float:
         with torch.no_grad():
             # rec_img is a stack of k images --> (1, k , w ,w), [0~1]
-            output = self.autoencoder(
-                state_tensor_img, detach_output=True, is_train=False
-            )
+            output = self.autoencoder(state_tensor_img, detach_output=True)
             rec_img = output["reconstructed_observation"]
 
             # --> (k , w , w)

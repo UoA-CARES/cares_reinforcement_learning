@@ -147,7 +147,7 @@ class TD3AE:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
 
-        loss = self.loss_function(
+        loss = self.loss_function.calculate_loss(
             data=states,
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,

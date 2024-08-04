@@ -1,4 +1,4 @@
-class SqVae(BasicAutoencoder):
+class SqVae(Autoencoder):
     def __init__(
         self,
         ae_type,

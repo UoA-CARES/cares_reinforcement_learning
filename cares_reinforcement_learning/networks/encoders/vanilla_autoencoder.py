@@ -94,31 +94,25 @@ class VanillaAutoencoder(Autoencoder):
             **decoder_optimiser_params,
         )
 
-    def update_autoencoder(self, data: torch.Tensor) -> None:
+    def update_autoencoder(self, data: torch.Tensor) -> float:
         """
-        Update the autoencoder model by performing a forward pass and backpropagation.
+        Update the autoencoder parameters based on the given data.
 
         Args:
-            data (torch.Tensor): The input data for updating the autoencoder.
+            data (torch.Tensor): The input data used for updating the autoencoder.
 
         Returns:
-            None
+            float: The AE loss after updating the autoencoder.
         """
-        output = self.forward(data)
-        ae_loss = output["loss"]
 
-        self.encoder_optimizer.zero_grad()
-        self.decoder_optimizer.zero_grad()
-        ae_loss.backward()
-        self.encoder_optimizer.step()
-        self.decoder_optimizer.step()
+        ae_loss = self.loss_function.update_autoencoder(data, self)
+        return ae_loss
 
     def forward(
         self,
         observation: torch.Tensor,
         detach_cnn: bool = False,
         detach_output: bool = False,
-        **kwargs,
     ) -> torch.Tensor:
         """
         Perform a forward pass through the autoencoder model.
@@ -138,7 +132,7 @@ class VanillaAutoencoder(Autoencoder):
 
         reconstructed_observation = self.decoder(latent_observation)
 
-        loss = self.loss_function(
+        loss = self.loss_function.calculate_loss(
             data=observation,
             reconstructed_data=reconstructed_observation,
             latent_sample=latent_observation,
