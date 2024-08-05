@@ -2,9 +2,9 @@ import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks.encoders.autoencoder import Autoencoder
-from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
-from cares_reinforcement_learning.networks.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.autoencoder import Autoencoder
+from cares_reinforcement_learning.encoders.constants import Autoencoders
+from cares_reinforcement_learning.encoders.losses import AELoss
 
 
 def tie_weights(src, trg):

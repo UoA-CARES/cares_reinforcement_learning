@@ -12,7 +12,7 @@ from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
+from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 
 

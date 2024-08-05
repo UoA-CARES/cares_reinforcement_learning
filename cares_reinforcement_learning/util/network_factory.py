@@ -160,7 +160,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.networks.encoders.autoencoder_factory import (
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
         AEFactory,
     )
     from cares_reinforcement_learning.algorithm.policy import SACAE
@@ -244,7 +244,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.networks.encoders.autoencoder_factory import (
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
         AEFactory,
     )
     from cares_reinforcement_learning.algorithm.policy import TD3AE
@@ -280,7 +280,7 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.networks.encoders.autoencoder_factory import (
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
         AEFactory,
     )
     from cares_reinforcement_learning.algorithm.policy import NaSATD3

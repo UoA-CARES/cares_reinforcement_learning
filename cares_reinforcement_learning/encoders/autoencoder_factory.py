@@ -1,9 +1,9 @@
 import logging
 
-from cares_reinforcement_learning.networks.encoders.autoencoder import Autoencoder
-from cares_reinforcement_learning.networks.encoders.configurations import AEConfig
+from cares_reinforcement_learning.encoders.autoencoder import Autoencoder
+from cares_reinforcement_learning.encoders.configurations import AEConfig
 
-import cares_reinforcement_learning.networks.encoders.losses as losses
+import cares_reinforcement_learning.encoders.losses as losses
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -14,7 +14,9 @@ def create_vanilla_autoencoder(
     observation_size: tuple[int],
     config: AEConfig,
 ) -> Autoencoder:
-    from cares_reinforcement_learning.networks.encoders import VanillaAutoencoder
+    from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
+        VanillaAutoencoder,
+    )
 
     return VanillaAutoencoder(
         observation_size=observation_size,
@@ -31,7 +33,9 @@ def create_burgess_autoencoder(
     observation_size: tuple[int],
     config: AEConfig,
 ) -> Autoencoder:
-    from cares_reinforcement_learning.networks.encoders import BurgessAutoencoder
+    from cares_reinforcement_learning.encoders.burgess_autoencoder import (
+        BurgessAutoencoder,
+    )
 
     loss_function = losses.get_burgess_loss_function(config)
 

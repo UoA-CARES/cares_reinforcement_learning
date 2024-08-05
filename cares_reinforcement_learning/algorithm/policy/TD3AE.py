@@ -13,10 +13,10 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.encoders.configurations import (
+from cares_reinforcement_learning.encoders.configurations import (
     VanillaAEConfig,
 )
-from cares_reinforcement_learning.networks.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.losses import AELoss
 
 
 class TD3AE:

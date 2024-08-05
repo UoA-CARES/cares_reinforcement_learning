@@ -3,12 +3,12 @@ import abc
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.encoders.losses import (
+from cares_reinforcement_learning.encoders.losses import (
     AELoss,
     SqVaeLoss,
     BaseBurgessLoss,
 )
-from cares_reinforcement_learning.networks.encoders.constants import Autoencoders
+from cares_reinforcement_learning.encoders.constants import Autoencoders
 
 
 class Autoencoder(nn.Module, metaclass=abc.ABCMeta):

@@ -2,7 +2,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from cares_reinforcement_learning.networks.encoders.configurations import (
+from cares_reinforcement_learning.encoders.configurations import (
     AEConfig,
     VanillaAEConfig,
 )

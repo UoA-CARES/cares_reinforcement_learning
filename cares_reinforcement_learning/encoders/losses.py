@@ -8,9 +8,9 @@ import torch.optim as optim
 from torch import nn
 from torch.nn import functional as F
 
-from cares_reinforcement_learning.networks.encoders.configurations import BurgessConfig
-from cares_reinforcement_learning.networks.encoders.constants import Losses, ReconDist
-from cares_reinforcement_learning.networks.encoders.discriminator import Discriminator
+from cares_reinforcement_learning.encoders.configurations import BurgessConfig
+from cares_reinforcement_learning.encoders.constants import Losses, ReconDist
+from cares_reinforcement_learning.encoders.discriminator import Discriminator
 
 
 class AELoss:
