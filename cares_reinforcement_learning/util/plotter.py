@@ -193,8 +193,6 @@ def read_train_config(result_directory: str) -> dict:
 
 
 def get_param_value(param_tag: str, config: dict) -> str:
-    logging.info(f"{type(param_tag)} {type(config)}")
-    logging.info(f"{param_tag} {config}")
     if param_tag in config:
         return config[param_tag]
     return None
@@ -213,10 +211,8 @@ def get_param_tag(param_tags: dict, alg_config: dict, train_config: dict) -> str
 
         if isinstance(value, dict):
             tags = tags.split(",")
-            logging.info(f"{key=} {tags=}")
 
             for tag in tags:
-                logging.info(f"{tag=}")
                 tag = tag.strip()
                 secondary_value = get_param_value(tag, value)
                 if secondary_value is not None:
