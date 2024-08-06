@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from cares_reinforcement_learning.encoders.configurations import (
     AEConfig,
     VanillaAEConfig,
+    VAEConfig,
 )
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
@@ -258,6 +259,16 @@ class NaSATD3Config(AlgorithmConfig):
         encoder_optim_kwargs={"lr": 1e-3},
         decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
     )
+
+    # autoencoder_config: Optional[AEConfig] = VAEConfig(
+    #     latent_dim=200,
+    #     num_layers=4,
+    #     num_filters=32,
+    #     kernel_size=3,
+    #     latent_lambda=1e-6,
+    #     encoder_optim_kwargs={"lr": 1e-3},
+    #     decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    # )
 
 
 class REDQConfig(AlgorithmConfig):

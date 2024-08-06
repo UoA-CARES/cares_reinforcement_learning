@@ -24,6 +24,7 @@ def create_vanilla_autoencoder(
         num_layers=config.num_layers,
         num_filters=config.num_filters,
         kernel_size=config.kernel_size,
+        latent_lambda=config.latent_lambda,
         encoder_optimiser_params=config.encoder_optim_kwargs,
         decoder_optimiser_params=config.decoder_optim_kwargs,
     )

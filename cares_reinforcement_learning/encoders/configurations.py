@@ -1,5 +1,4 @@
-from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -47,17 +46,17 @@ class VanillaAEConfig(AEConfig):
     latent_lambda: float = 1e-6
 
 
-class SQVAEConfig(AEConfig):
-    """
-    Configuration class for the sqvae autoencoder.
+# class SQVAEConfig(AEConfig):
+#     """
+#     Configuration class for the sqvae autoencoder.
 
-    Attributes:
+#     Attributes:
 
-    """
+#     """
 
-    type: str = "sqvae"
-    flg_arelbo: bool = Field(description="Flag to use arelbo loss function")
-    loss_latent: str = Field(description="")
+#     type: str = "sqvae"
+#     flg_arelbo: bool = Field(description="Flag to use arelbo loss function")
+#     loss_latent: str = Field(description="")
 
 
 class BurgessConfig(AEConfig):
