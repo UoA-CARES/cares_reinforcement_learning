@@ -54,7 +54,7 @@ class EnsembleWorldRewardDone:
                                   range(self.num_reward_models)]
 
         # Bring all reward prediction and dynamic rediction networks to device.
-        for reward_model in self.world_models:
+        for reward_model in self.reward_models:
             reward_model.to(self.device)
         for world_model in self.world_models:
             world_model.to(self.device)
