@@ -11,6 +11,7 @@ import logging
 import os
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
@@ -19,7 +20,7 @@ from cares_reinforcement_learning.networks.world_models.ensemble_all import (
 )
 
 
-class STEVE:
+class STEVE_MEAN:
     def __init__(
             self,
             actor_network: torch.nn.Module,
@@ -98,111 +99,54 @@ class STEVE:
     ) -> None:
         ##################     Update the Critic First     ####################
         with torch.no_grad():
-            # cumulative_rewards = rewards
-            # pred_s = next_states
-            # tree_mask = dones.squeeze().bool()
-            # q_means = []
-            # q_vars = []
+            not_dones = (1 - dones)
+            q_means = []
+            q_weights = []
+            accum_dist_rewards = torch.repeat_interleave(rewards.unsqueeze(dim=0), repeats=25, dim=0)
+            # 5 * 5 * 4 = 100
+            for hori in range(self.horizon):
+                curr_hori_action, curr_hori_log_pi, _ = self.actor_net(next_states)
+                mean_predictions, all_mean_next, _, _ = self.world_model.pred_next_states(next_states, curr_hori_action)
+                pred_rewards, _ = self.world_model.pred_multiple_rewards(observation=next_states,
+                                                                         action=curr_hori_action,
+                                                                         next_observation=all_mean_next)
+                pred_rewards *= (self.gamma ** (hori + 1))
+                accum_dist_rewards += pred_rewards
 
-            # for hori in range(self.horizon):
-            #     # As normal
-            #     pred_a, _, _ = self.actor_net(pred_s)
-            #     # Pred the future
-            #     pred_s, pred_r, pred_done = self.env.tensor_query(pred_s, pred_a)
-            #     pred_s = pred_s.to(self.device)
-            #     pred_r = pred_r.to(self.device)
-            #     pred_done = pred_done.bool().to(self.device)
-            #     # Before adding pred to mask
-            #     pred_r[tree_mask, :] = 0.0
-            #     cumulative_rewards += pred_r * (self.gamma ** (hori + 1))
-            #     # Kill the branch with the previous
-            #     tree_mask = torch.logical_or(tree_mask, pred_done.squeeze())
-            # q_target = cumulative_rewards
+                # V = Q - alpha * logi
+                pred_q1, pred_q2 = self.target_critic_net(next_states, curr_hori_action)
+                pred_q3, pred_q4 = self.critic_net(next_states, curr_hori_action)
+                pred_v1 = pred_q1 - self._alpha * curr_hori_log_pi
+                pred_v2 = pred_q2 - self._alpha * curr_hori_log_pi
+                pred_v3 = pred_q3 - self._alpha * curr_hori_log_pi
+                pred_v4 = pred_q4 - self._alpha * curr_hori_log_pi
+                q_0 = []
+                for i in range(pred_rewards.shape[0]):
+                    pred_tq1 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v1
+                    pred_tq2 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v2
+                    pred_tq3 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v3
+                    pred_tq4 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v4
+                    q_0.append(pred_tq1)
+                    q_0.append(pred_tq2)
+                    q_0.append(pred_tq3)
+                    q_0.append(pred_tq4)
+                q_0 = torch.stack(q_0)
+                # Compute var, mean and add them to the queue
+                # [100, 256, 1] -> [256, 1]
+                mean_0 = torch.mean(q_0, dim=0)
+                q_means.append(mean_0)
+                var_0 = torch.var(q_0, dim=0)
+                var_0[torch.abs(var_0) < 0.0001] = 0.0001
+                weights_0 = 1.0 / var_0
+                q_weights.append(weights_0)
 
-            # Expand the value estimation here to STEVE.
-            # Maintain a list of Q values for each horizon with the same size!
-            # Q = r + yr + y^2 * (q - pi)
-            # Propagate uncertainty with sampling. [256, 17] -> [10, 256, 17] -> [100, 256, 17] -> [1000, 256, 17]
-            # Q : [256, 1], [256, 1], [256, 1]
-
-            # not_dones = (1 - dones).squeeze().bool()
-            # pred_all_next_obs = next_states.unsqueeze(dim=0)
-            # pred_all_next_rewards = torch.zeros(rewards.shape).unsqueeze(dim=0)
-            #
-            # q_means = []
-            # q_vars = []
-            #
-            # for hori in range(self.horizon):
-            #     horizon_rewards_list = []
-            #     horizon_obs_list = []
-            #     horizon_q_list = []
-            #
-            #     for stat in range(pred_all_next_obs.shape[0]):
-            #         # Optimal sampling
-            #         pred_action, pred_log_pi, _ = self.actor_net.sample(pred_all_next_obs[stat])
-            #
-            #         pred_q1, pred_q2 = self.target_critic_net(pred_all_next_obs[stat], pred_action)
-            #         # V = Q - alpha * logi
-            #         pred_v1 = pred_q1 - self._alpha * pred_log_pi
-            #         pred_v2 = pred_q2 - self._alpha * pred_log_pi
-            #
-            #         # Predict a set of reward first
-            #         _, pred_rewards = self.world_model.pred_rewards(observation=pred_all_next_obs[stat],
-            #                                                         action=pred_action)
-            #
-            #         temp_disc_rewards = []
-            #         # For each predict reward.
-            #         for rwd in range(pred_rewards.shape[0]):
-            #             disc_pred_reward = not_dones * (self.gamma ** (hori + 1)) * pred_rewards[rwd]
-            #             if hori > 0:
-            #                 # Horizon = 1, 2, 3, 4, 5
-            #                 disc_sum_reward = pred_all_next_rewards[stat] + disc_pred_reward
-            #             else:
-            #                 disc_sum_reward = not_dones * disc_pred_reward
-            #             temp_disc_rewards.append(disc_sum_reward)
-            #             assert rewards.shape == not_dones.shape == disc_sum_reward.shape
-            #             # Q = r + disc_rewards + pred_v
-            #             pred_tq1 = rewards + disc_sum_reward + not_dones * (self.gamma ** (hori + 2)) * pred_v1
-            #             pred_tq2 = rewards + disc_sum_reward + not_dones * (self.gamma ** (hori + 2)) * pred_v2
-            #             horizon_q_list.append(pred_tq1)
-            #             horizon_q_list.append(pred_tq2)
-            #
-            #         # Observation Level
-            #         if hori < (self.horizon - 1):
-            #             _, pred_obs, _, _ = self.world_model.pred_next_states(pred_all_next_obs[stat], pred_action)
-            #
-            #             horizon_obs_list.append(pred_obs)
-            #             horizon_rewards_list.append(torch.stack(temp_disc_rewards))
-            #
-            #     # Horizon level.
-            #     if hori < (self.horizon - 1):
-            #         pred_all_next_obs = torch.vstack(horizon_obs_list)
-            #         pred_all_next_rewards = torch.vstack(horizon_rewards_list)
-            #
-            #     # Statistics of target q
-            #     h_0 = torch.stack(horizon_q_list)
-            #     mean_0 = torch.mean(h_0, dim=0)
-            #     q_means.append(mean_0)
-            #     var_0 = torch.var(h_0, dim=0)
-            #     var_0[torch.abs(var_0) < 0.001] = 0.001
-            #     var_0 = 1.0 / var_0
-            #     q_vars.append(var_0)
-            # all_means = torch.stack(q_means)
-            # all_vars = torch.stack(q_vars)
-            # total_vars = torch.sum(all_vars, dim=0)
-            # for n in range(self.horizon):
-            #     all_vars[n] /= total_vars
-            # q_target = torch.sum(all_vars * all_means, dim=0)
-
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
-
-            target_q_one, target_q_two = self.target_critic_net(
-                next_states, next_actions
-            )
-            target_q_values = (
-                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
-            )
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+                next_states = mean_predictions
+            all_means = torch.stack(q_means)
+            all_weights = torch.stack(q_weights)
+            total_weights = torch.sum(all_weights, dim=0)
+            for n in range(self.horizon):
+                all_weights[n] /= total_weights
+            q_target = torch.sum(all_weights * all_means, dim=0)
 
         q_values_one, q_values_two = self.critic_net(states, actions)
         critic_loss_one = ((q_values_one - q_target).pow(2)).mean()
@@ -253,9 +197,6 @@ class STEVE:
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
 
-        # Brief Evaluate the world model and reward prediciton.
-        next_s, _, _, _ = self.world_model.pred_next_states(states, actions)
-
         self.world_model.train_world(
             states=states,
             actions=actions,
@@ -265,30 +206,30 @@ class STEVE:
             states=states,
             actions=actions,
             rewards=rewards,
+            next_states=next_states
         )
-
 
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
-        # experiences = memory.sample_uniform(batch_size)
-        # states, actions, rewards, next_states, dones, _ = experiences
-        #
-        # # Convert into tensor
-        # states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        # actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        # rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
-        # next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        # dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
-        #
-        # # Step 2 train as usual
-        # self._train_policy(
-        #     states=states,
-        #     actions=actions,
-        #     rewards=rewards,
-        #     next_states=next_states,
-        #     dones=dones,
-        # )
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
+
+        # Step 2 train as usual
+        self._train_policy(
+            states=states,
+            actions=actions,
+            rewards=rewards,
+            next_states=next_states,
+            dones=dones,
+        )
 
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)

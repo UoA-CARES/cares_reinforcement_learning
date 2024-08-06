@@ -138,19 +138,23 @@ class SACConfig(AlgorithmConfig):
     reward_scale: Optional[float] = 1.0
 
 
-class STEVEConfig(AlgorithmConfig):
-    algorithm: str = Field("STEVE", Literal=True)
+class STEVE_MEANConfig(AlgorithmConfig):
+    algorithm: str = Field("STEVE_MEAN", Literal=True)
+    # SAC Parameters.
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
     alpha_lr: Optional[float] = 3e-4
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
-
+    # World Model Parameters
+    world_model_lr: Optional[float] = 0.001
+    num_samples: Optional[int] = 10
+    # STEVE Parameters.
     horizon = 3
     num_world_models: Optional[int] = 5
     num_reward_models: Optional[int] = 5
-    num_critic_models: Optional[int] = 5
+    num_critic_models: Optional[int] = 4
 
 
 class DynaSAC_SAConfig(AlgorithmConfig):

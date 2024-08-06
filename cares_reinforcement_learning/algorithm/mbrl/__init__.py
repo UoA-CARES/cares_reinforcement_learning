@@ -6,4 +6,4 @@ from .DynaSAC_UWAC_Reweight import DynaSAC_UWACReweight
 from .DynaSAC_BIV_Reweight import DynaSAC_BIVReweight
 from .DynaSAC_SA import DynaSAC_SA
 from .DynaSAC_SA_Immerse_Reweight import DynaSAC_SABR
-from .STEVESAC import STEVE
+from .STEVE_MEAN_SAC import STEVE_MEAN

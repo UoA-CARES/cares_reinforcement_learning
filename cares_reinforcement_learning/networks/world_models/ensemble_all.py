@@ -33,12 +33,10 @@ class EnsembleWorldRewardDone:
             num_actions: int,
             num_world_models: int,
             num_reward_models: int,
-            num_done_models: int,
             lr: float,
             device: str,
             hidden_size: int = 128,
     ):
-        self.num_done_models = num_done_models
         self.num_reward_models = num_reward_models
         self.num_world_models = num_world_models
 
@@ -51,7 +49,7 @@ class EnsembleWorldRewardDone:
         self.reward_models = [Probabilistic_SAS_Reward(observation_size=observation_size, num_actions=num_actions,
                                                        hidden_size=hidden_size) for _ in range(self.num_reward_models)]
         self.world_optimizers = [optim.Adam(self.world_models[i].parameters(), lr=lr) for i in
-                                 range(self.num_done_models)]
+                                 range(self.num_world_models)]
         self.reward_optimizers = [optim.Adam(self.reward_models[i].parameters(), lr=lr) for i in
                                   range(self.num_reward_models)]
 
@@ -81,23 +79,59 @@ class EnsembleWorldRewardDone:
         for model in self.world_models:
             model.statistics = statistics
 
-    def pred_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation: torch.Tensor):
+    def pred_multiple_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation: torch.Tensor):
         """
         predict reward based on current observation and action and next state
         """
-        pred_rewards = []
+        assert len(next_observation.shape) == 3
+        pred_reward_means = []
+        pred_reward_vars = []
+        # 5
+        for j in range(next_observation.shape[0]):
+            next_obs = next_observation[j]
+            # 5
+            for i in range(self.num_reward_models):
+                pred_reward, reward_var = self.reward_models[i].forward(observation, action, next_obs)
+                pred_reward_means.append(pred_reward)
+                pred_reward_vars.append(reward_var)
+        pred_reward_means = torch.stack(pred_reward_means)
+        pred_reward_vars = torch.stack(pred_reward_vars)
+        return pred_reward_means, pred_reward_vars
+
+    def pred_rewards(self, observation: torch.Tensor,
+                     action: torch.Tensor, next_observation: torch.Tensor):
+        """
+        predict reward based on current observation and action and next state
+        """
+        pred_reward_means = []
         pred_reward_vars = []
         for i in range(self.num_reward_models):
             pred_reward, reward_var = self.reward_models[i].forward(observation, action, next_observation)
-            pred_rewards.append(pred_reward)
+            pred_reward_means.append(pred_reward)
             pred_reward_vars.append(reward_var)
-        pred_rewards = torch.vstack(pred_rewards)
-        pred_reward_vars = torch.vstack(pred_reward_vars)
-        return pred_rewards, pred_reward_vars
+        pred_reward_means = torch.stack(pred_reward_means)
+        pred_reward_vars = torch.stack(pred_reward_vars)
+        pred_rewards = torch.mean(pred_reward_means, dim=0)
+
+        return pred_rewards, pred_reward_means, pred_reward_vars
 
     def pred_next_states(
             self, observation: torch.Tensor, actions: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Predict the next state based on the current state and action.
+
+        The output is
+        Args:
+            observation:
+            actions:
+
+        Returns:
+            prediction: Single prediction, probably mean.
+            all_predictions: all means from different model.
+            predictions_norm_means: normalized means.
+            predictions_vars: normalized vars.
+        """
         assert (
                 observation.shape[1] + actions.shape[1]
                 == self.observation_size + self.num_actions
@@ -132,6 +166,7 @@ class EnsembleWorldRewardDone:
         all_predictions = torch.stack(means)
         for j in range(all_predictions.shape[0]):
             all_predictions[j] += observation
+
         return prediction, all_predictions, predictions_norm_means, predictions_vars
 
     def train_world(
@@ -140,6 +175,14 @@ class EnsembleWorldRewardDone:
             actions: torch.Tensor,
             next_states: torch.Tensor,
     ) -> None:
+        """
+        Train the world with S, A, SN. Different sub-batch.
+
+        Args:
+            states:
+            actions:
+            next_states:
+        """
         assert len(states.shape) >= 2
         assert len(actions.shape) == 2
         assert (
@@ -168,6 +211,15 @@ class EnsembleWorldRewardDone:
             next_states: torch.Tensor,
             rewards: torch.Tensor,
     ) -> None:
+        """
+        Train the reward with S, A, SN to eliminate difference between them.
+
+        Args:
+            states:
+            actions:
+            next_states:
+            rewards:
+        """
         mini_batch_size = int(math.floor(states.shape[0] / self.num_reward_models))
         for i in range(self.num_reward_models):
             sub_states = states[i * mini_batch_size: (i + 1) * mini_batch_size]

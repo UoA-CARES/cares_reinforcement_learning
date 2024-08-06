@@ -77,13 +77,13 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_STEVE(observation_size, action_num, config: AlgorithmConfig):
+def create_STEVE_MEAN(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
 
     """
-    from cares_reinforcement_learning.algorithm.mbrl import STEVE
+    from cares_reinforcement_learning.algorithm.mbrl import STEVE_MEAN
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models.ensemble_all import EnsembleWorldRewardDone
 
@@ -97,12 +97,11 @@ def create_STEVE(observation_size, action_num, config: AlgorithmConfig):
         num_actions=action_num,
         num_world_models=config.num_world_models,
         num_reward_models=config.num_reward_models,
-        num_done_models=config.num_done_models,
         lr=config.world_model_lr,
         device=device,
     )
 
-    agent = STEVE(
+    agent = STEVE_MEAN(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
