@@ -96,17 +96,23 @@ class SACD:
         dones: torch.Tensor,
     ) -> None:
         with torch.no_grad():
-            actions_bro, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
-
-            qf1_next_target, qf2_next_target = self.target_critic_net(
+            actions_bro, (action_probs, log_actions_probs), _ = self.actor_net(
                 next_states
             )
 
-            temp_min_qf_next_target = action_probs * (torch.minimum(qf1_next_target, qf2_next_target) - self.alpha * log_actions_probs)
+            qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
+
+            temp_min_qf_next_target = action_probs * (
+                torch.minimum(qf1_next_target, qf2_next_target)
+                - self.alpha * log_actions_probs
+            )
 
             min_qf_next_target = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
             # TODO: Investigate
-            next_q_value = rewards * self.reward_scale + (1.0 - dones) * min_qf_next_target * self.gamma
+            next_q_value = (
+                rewards * self.reward_scale
+                + (1.0 - dones) * min_qf_next_target * self.gamma
+            )
 
         q_values_one, q_values_two = self.critic_net(states)
 
@@ -137,7 +143,9 @@ class SACD:
         self.actor_net_optimiser.step()
 
         # update the temperature (alpha)
-        alpha_loss = -(self.log_alpha * (new_log_action_probs + self.target_entropy).detach()).mean()
+        alpha_loss = -(
+            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
+        ).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
