@@ -136,7 +136,7 @@ class FactorKConfig(BurgessConfig):
     loss_function_type: str = "factor"
     rec_dist: str = "bernoulli"
     steps_anneal: int = 0
-    gamma: float = 10.0
+    gamma: float = 6.0
     disc_kwargs: Optional[dict[str, float]] = Field(default_factory=lambda: None)
     optim_kwargs: Optional[dict[str, float]] = Field(
         default_factory=lambda: {"lr": 5e-5, "betas": (0.5, 0.9)}
@@ -160,7 +160,7 @@ class BetaBConfig(BurgessConfig):
     rec_dist: str = "bernoulli"
     steps_anneal: int = 0
     c_init: float = 0.0
-    c_fin: float = 20.0
+    c_fin: float = 25.0
     gamma: float = 100.0
 
 
