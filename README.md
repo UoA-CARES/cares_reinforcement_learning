@@ -116,7 +116,7 @@ cares_reinforcement_learning/
 An autoencoder consists of an encoder that compresses input data into a latent representation and a decoder that reconstructs the original data from this compressed form. Variants of autoencoders, such as Variational Autoencoders (VAEs) and Beta-VAEs, introduce probabilistic elements and regularization techniques to enhance the quality and interpretability of the latent space. While standard autoencoders focus on reconstruction accuracy, advanced variants like Beta-VAE and Squared VAE (SqVAE) aim to improve latent space disentanglement and sparsity, making them valuable for generating more meaningful and structured representations.
 
 We have re-implemented a range of autoencoder/variational-autoencoder methodologies for use with the RL algorithms implemented within this library.
-For more information on the encoders available in this package, please refer to the [README](./encoders/README.md) in the encoders folder.
+For more information on the encoders available in this package, please refer to the [README](./cares_reinforcement_learning/encoders/README.md) in the encoders folder.
 These algorithms can be used stand-alone beyond their use here for RL. 
 
 # Utilities
