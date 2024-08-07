@@ -651,11 +651,11 @@ class BtcvaeLoss(BaseBurgessLoss):
 
 
 def _reconstruction_loss(
-    data,
-    reconstructed_data,
-    reduction="none",
-    distribution=ReconDist.GAUSSIAN,
-):
+    data: torch.Tensor,
+    reconstructed_data: torch.Tensor,
+    reduction: str = "none",
+    distribution: ReconDist = ReconDist.GAUSSIAN,
+) -> torch.Tensor:
     """
     Calculates the per image reconstruction loss for a batch of data. I.e. negative
     log likelihood.
@@ -707,9 +707,8 @@ def _reconstruction_loss(
             if reduction != "sum"
             else F.l1_loss(reconstructed_data, data, reduction=reduction)
         )
-        loss = (
-            loss * 3
-        )  # emperical value to give similar values than bernoulli => use same hyperparam
+        # emperical value to give similar values than bernoulli => use same hyperparam
+        loss = loss * 3
         loss = loss * (loss != 0)  # masking to avoid nan
     else:
         assert distribution not in iter(ReconDist)
@@ -721,7 +720,7 @@ def _reconstruction_loss(
     return loss
 
 
-def _kl_normal_loss(mean, logvar):
+def _kl_normal_loss(mean: torch.Tensor, logvar: torch.Tensor) -> torch.Tensor:
     """
     Calculates the KL divergence between a normal distribution
     with diagonal covariance and a unit normal distribution.
@@ -746,7 +745,7 @@ def _kl_normal_loss(mean, logvar):
     return total_kl
 
 
-def _permute_dims(latent_sample):
+def _permute_dims(latent_sample: torch.Tensor) -> torch.Tensor:
     """
     Implementation of Algorithm 1 in ref [1]. Randomly permutes the sample from
     q(z) (latent_dist) across the batch for each of the latent dimensions (mean
@@ -756,6 +755,11 @@ def _permute_dims(latent_sample):
     ----------
     latent_sample: torch.Tensor
         sample from the latent dimension using the reparameterisation trick
+
+    Returns
+    -------
+    perm: torch.Tensor
+        permuted latent sample
 
     References
     ----------
@@ -773,8 +777,31 @@ def _permute_dims(latent_sample):
     return perm
 
 
-def _linear_annealing(init, fin, step, annealing_steps):
-    """Linear annealing of a parameter."""
+def _linear_annealing(
+    init: float, fin: float, step: int, annealing_steps: int
+) -> float:
+    """
+    Linear annealing of a parameter.
+
+    Parameters
+    ----------
+    init : float
+        Initial value of the parameter.
+
+    fin : float
+        Final value of the parameter.
+
+    step : int
+        Current step in the annealing process.
+
+    annealing_steps : int
+        Total number of annealing steps.
+
+    Returns
+    -------
+    annealed : float
+        Annealed value of the parameter.
+    """
     if annealing_steps == 0:
         return fin
     assert fin > init
@@ -784,23 +811,62 @@ def _linear_annealing(init, fin, step, annealing_steps):
 
 
 # Batch TC specific
-def _get_log_pz_qz_prodzi_qzcx(latent_sample, latent_dist, n_data, is_mss=True):
+def _get_log_pz_qz_prodzi_qzcx(
+    latent_sample: torch.Tensor,
+    latent_dist: tuple[torch.Tensor, torch.Tensor, torch.Tensor],
+    n_data: int,
+    is_mss: bool = True,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    """
+    Calculates the log probabilities for p(z), q(z), prod(q(z_i)), and q(z|x).
+
+    Parameters
+    ----------
+    latent_sample : torch.Tensor
+        Sample from the latent dimension using the reparameterization trick.
+        Shape: (batch_size, latent_dim).
+
+    latent_dist : Tuple[torch.Tensor, torch.Tensor, torch.Tensor]
+        Tuple containing the mean, log variance, and standard deviation of the
+        latent distribution. Shape: (batch_size, latent_dim).
+
+    n_data : int
+        Number of data in the training set.
+
+    is_mss : bool, optional
+        Whether to use minibatch stratified sampling instead of minibatch weighted
+        sampling. Default is True.
+
+    Returns
+    -------
+    log_pz : torch.Tensor
+        Log probability of p(z). Shape: (batch_size,).
+
+    log_qz : torch.Tensor
+        Log probability of q(z). Shape: (batch_size,).
+
+    log_prod_qzi : torch.Tensor
+        Log probability of prod(q(z_i)). Shape: (batch_size,).
+
+    log_q_zCx : torch.Tensor
+        Log probability of q(z|x). Shape: (batch_size,).
+    """
     batch_size, _ = latent_sample.shape
 
     # calculate log q(z|x)
     mean, logvar, _ = latent_dist
-    log_q_zCx = log_density_gaussian(latent_sample, mean, logvar).sum(dim=1)
+    log_q_zCx = _log_density_gaussian(latent_sample, mean, logvar).sum(dim=1)
 
     # calculate log p(z)
     # mean and log var is 0
     zeros = torch.zeros_like(latent_sample)
-    log_pz = log_density_gaussian(latent_sample, zeros, zeros).sum(1)
+    log_pz = _log_density_gaussian(latent_sample, zeros, zeros).sum(1)
 
-    mat_log_qz = matrix_log_density_gaussian(latent_sample, mean, logvar)
+    mat_log_qz = _matrix_log_density_gaussian(latent_sample, mean, logvar)
 
     if is_mss:
         # use stratification
-        log_iw_mat = log_importance_weight_matrix(batch_size, n_data).to(
+        log_iw_mat = _log_importance_weight_matrix(batch_size, n_data).to(
             latent_sample.device
         )
         mat_log_qz = mat_log_qz + log_iw_mat.view(batch_size, batch_size, 1)
@@ -811,8 +877,10 @@ def _get_log_pz_qz_prodzi_qzcx(latent_sample, latent_dist, n_data, is_mss=True):
     return log_pz, log_qz, log_prod_qzi, log_q_zCx
 
 
-def matrix_log_density_gaussian(x, mu, logvar):
-    """Calculates log density of a Gaussian for all combination of bacth pairs of
+def _matrix_log_density_gaussian(
+    x: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor
+) -> torch.Tensor:
+    """Calculates log density of a Gaussian for all combination of batch pairs of
     `x` and `mu`. I.e. return tensor of shape `(batch_size, batch_size, dim)`
     instead of (batch_size, dim) in the usual log density.
 
@@ -827,28 +895,32 @@ def matrix_log_density_gaussian(x, mu, logvar):
     logvar: torch.Tensor
         Log variance. Shape: (batch_size, dim).
 
-    batch_size: int
-        number of training images in the batch
+    Returns
+    -------
+    log_density: torch.Tensor
+        Log density of a Gaussian. Shape: (batch_size, batch_size, dim).
     """
     batch_size, dim = x.shape
     x = x.view(batch_size, 1, dim)
     mu = mu.view(1, batch_size, dim)
     logvar = logvar.view(1, batch_size, dim)
-    return log_density_gaussian(x, mu, logvar)
+    return _log_density_gaussian(x, mu, logvar)
 
 
-def log_density_gaussian(x, mu, logvar):
+def _log_density_gaussian(
+    x: torch.Tensor, mu: torch.Tensor, logvar: torch.Tensor
+) -> torch.Tensor:
     """Calculates log density of a Gaussian.
 
     Parameters
     ----------
-    x: torch.Tensor or np.ndarray or float
+    x: torch.Tensor
         Value at which to compute the density.
 
-    mu: torch.Tensor or np.ndarray or float
+    mu: torch.Tensor
         Mean.
 
-    logvar: torch.Tensor or np.ndarray or float
+    logvar: torch.Tensor
         Log variance.
     """
     normalization = -0.5 * (math.log(2 * math.pi) + logvar)
@@ -857,7 +929,7 @@ def log_density_gaussian(x, mu, logvar):
     return log_density
 
 
-def log_importance_weight_matrix(batch_size, dataset_size):
+def _log_importance_weight_matrix(batch_size: int, dataset_size: int) -> torch.Tensor:
     """
     Calculates a log importance weight matrix
 
@@ -867,7 +939,7 @@ def log_importance_weight_matrix(batch_size, dataset_size):
         number of training images in the batch
 
     dataset_size: int
-    number of training images in the dataset
+        number of training images in the dataset
     """
     N = dataset_size
     M = batch_size - 1 if batch_size > 1 else 1
