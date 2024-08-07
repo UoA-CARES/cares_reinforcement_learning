@@ -29,21 +29,20 @@ class Actor(nn.Module):
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
+            nn.Linear(self.hidden_size[1], num_actions),
+            nn.Softmax(dim=-1)
         )
-
-
-        self.action_linear = nn.Linear(self.hidden_size[1], num_actions)
 
     def forward(
         self, state: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x = self.act_net(state)
-        
-        logits = self.action_linear(x)
-        action_probs = torch.softmax(logits, dim=-1)
+        action_probs = self.act_net(state)
+        max_probability_action = torch.argmax(action_probs)
         dist = torch.distributions.Categorical(action_probs)
-        sample = dist.sample()
-        log_pi = dist.log_prob(sample)
-        maxp_action = dist.probs.argmax() / len(dist.probs[0])
+        action = dist.sample()
+        # Offset any values which are zero by a small amount so no nan nonsense
+        zero_offset = action_probs == 0.0
+        zero_offset = zero_offset.float() * 1e-8
+        log_action_probs = torch.log(action_probs + zero_offset)
 
-        return sample, log_pi, maxp_action
+        return action, (action_probs, log_action_probs), max_probability_action

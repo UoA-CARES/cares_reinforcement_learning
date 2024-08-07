@@ -19,31 +19,24 @@ class Critic(nn.Module):
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
+            nn.Linear(observation_size, self.hidden_size[0]),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1),
+            nn.Linear(self.hidden_size[1], self.num_actions),
         )
 
         # Q2 architecture
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
+            nn.Linear(observation_size, self.hidden_size[0]),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1),
+            nn.Linear(self.hidden_size[1], self.num_actions),
         )
 
-    def forward(
-        self, state: torch.Tensor, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        # Convert action to one-hot encoding
-        action_one_hot = torch.nn.functional.one_hot(action, self.num_actions).float()
-        obs_action = torch.cat([state, action_one_hot], dim=1)
-
-        q1 = self.Q1(obs_action)
-        q2 = self.Q2(obs_action)
-
+    def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        q1 = self.Q1(state)
+        q2 = self.Q2(state)
         return q1, q2

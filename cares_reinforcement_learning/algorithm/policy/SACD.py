@@ -31,7 +31,7 @@ class SACD:
         alpha_lr: float,
         device: torch.device,
     ):
-        self.type = "policy"
+        self.type = "discrete_policy"
         self.device = device
 
         # this may be called policy_net in other implementations
@@ -48,7 +48,7 @@ class SACD:
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.target_entropy = -np.log(1.0 / action_num) * 0.98
+        self.target_entropy = -np.log(1.0 / action_num) * 0.1
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -80,7 +80,6 @@ class SACD:
             else:
                 (action, _, _) = self.actor_net(state_tensor)
                 # action = np.random.choice(a=self.action_num, p=action_probs)
-            action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
 
@@ -97,26 +96,25 @@ class SACD:
         dones: torch.Tensor,
     ) -> None:
         with torch.no_grad():
-            next_action_probs, next_log_pi, _ = self.actor_net(next_states)
-            next_actions = torch.multinomial(next_action_probs, 1).squeeze()
-            next_log_pi = torch.log(next_action_probs.gather(1, next_actions.unsqueeze(1)))
+            actions_bro, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
-            target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states, next_actions
-            )
-            target_q_values = (
-                torch.minimum(target_q_values_one, target_q_values_two)
-                - self.alpha * next_log_pi
+            qf1_next_target, qf2_next_target = self.target_critic_net(
+                next_states
             )
 
-            q_target = (
-                rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
-            )
+            temp_min_qf_next_target = action_probs * (torch.minimum(qf1_next_target, qf2_next_target) - self.alpha * log_actions_probs)
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+            min_qf_next_target = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
+            # TODO: Investigate
+            next_q_value = rewards * self.reward_scale + (1.0 - dones) * min_qf_next_target * self.gamma
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        q_values_one, q_values_two = self.critic_net(states)
+
+        gathered_q_values_one = q_values_one.gather(1, actions.long().unsqueeze(-1))
+        gathered_q_values_two = q_values_two.gather(1, actions.long().unsqueeze(-1))
+
+        critic_loss_one = F.mse_loss(gathered_q_values_one, next_q_value)
+        critic_loss_two = F.mse_loss(gathered_q_values_two, next_q_value)
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
@@ -124,21 +122,22 @@ class SACD:
         self.critic_net_optimiser.step()
 
     def _update_actor_alpha(self, states: torch.Tensor) -> None:
-        action_probs = self.actor_net(states)
-        actions = torch.multinomial(action_probs, 1).squeeze()
-        log_pi = torch.log(action_probs.gather(1, actions.unsqueeze(1)))
+        action, (action_probs, log_action_probs), _ = self.actor_net(states)
 
-        qf1_pi, qf2_pi = self.critic_net(states, actions)
+        qf1_pi, qf2_pi = self.critic_net(states)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        inside_term = self.alpha * log_action_probs - min_qf_pi
+        actor_loss = (action_probs * inside_term).sum(dim=1).mean()
+
+        new_log_action_probs = torch.sum(log_action_probs * action_probs, dim=1)
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
         # update the temperature (alpha)
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        alpha_loss = -(self.log_alpha * (new_log_action_probs + self.target_entropy).detach()).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
