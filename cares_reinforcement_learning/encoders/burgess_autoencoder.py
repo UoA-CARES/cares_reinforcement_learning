@@ -1,4 +1,7 @@
 """
+The Burgess Autoencoder implementations and the variations of loss functions has been sourced from the link below.
+
+We have adapted their work into a generalised form for our use case in RL.
 
 Original Code: https://github.com/YannDubs/disentangling-vae/tree/master
 """

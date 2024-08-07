@@ -74,6 +74,51 @@ The Autonomous F1Tenth package contains all the code for training our F1Tenth pl
     <img alt="f one tenth" src="./media/f1tenth-min.png" style="width: 80%;"/>
 </p>
 
+# Package Structure
+
+```text
+cares_reinforcement_learning/
+├─ algorithm/
+├─ encoders/
+│  ├─ autoencoder.py
+│  ├─ ...
+├─ policy/
+│  │  ├─ TD3.py
+│  │  ├─ ...
+│  ├─ value/
+│  │  ├─ DQN.py
+│  │  ├─ ...
+├─ memory/
+│  ├─ prioritised_replay_buffer.py
+├─ networks/
+│  ├─ DQN/
+│  │  ├─ network.py
+│  ├─ TD3.py/
+│  │  ├─ actor.py
+│  │  ├─ critic.py
+│  ├─ ...
+├─ util/
+│  ├─ network_factory.py
+│  ├─ ...
+```
+
+`algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
+
+`encoders`: contains the implementations for various autoencoders and variational autoencoders
+
+`memory`: contains the implementation of various memory buffers - e.g. Prioritised Experience Replay
+
+`networks`: contains standard neural networks that can be used with each algorithm
+
+`util`: contains common utility classes
+
+# Encoders
+An autoencoder consists of an encoder that compresses input data into a latent representation and a decoder that reconstructs the original data from this compressed form. Variants of autoencoders, such as Variational Autoencoders (VAEs) and Beta-VAEs, introduce probabilistic elements and regularization techniques to enhance the quality and interpretability of the latent space. While standard autoencoders focus on reconstruction accuracy, advanced variants like Beta-VAE and Squared VAE (SqVAE) aim to improve latent space disentanglement and sparsity, making them valuable for generating more meaningful and structured representations.
+
+We have re-implemented a range of autoencoder/variational-autoencoder methodologies for use with the RL algorithms implemented within this library.
+For more information on the encoders available in this package, please refer to the [README](./encoders/README.md) in the encoders folder.
+These algorithms can be used stand-alone beyond their use here for RL. 
+
 # Utilities
 
 CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new environments we build to test our approaches.
@@ -157,39 +202,6 @@ A factory class for creating a baseline RL algorithm that has been implemented i
 ## MemoryFactory.py
 
 A factory class for creating a memory buffer that has been implemented into the CARES RL package.
-
-# Package Structure
-
-```text
-cares_reinforcement_learning/
-├─ algorithm/
-├─ policy/
-│  │  ├─ TD3.py
-│  │  ├─ ...
-│  ├─ value/
-│  │  ├─ DQN.py
-│  │  ├─ ...
-├─ networks/
-│  ├─ DQN/
-│  │  ├─ network.py
-│  ├─ TD3.py/
-│  │  ├─ actor.py
-│  │  ├─ critic.py
-│  ├─ ...
-├─ memory/
-│  ├─ prioritised_replay_buffer.py
-├─ util/
-│  ├─ network_factory.py
-│  ├─ ...
-```
-
-`algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
-
-`networks`: contains standard neural networks that can be used with each algorithm
-
-`memory`: contains the implementation of various memory buffers - e.g. Prioritised Experience Replay
-
-`util`: contains common utility classes
 
 # Supported Algorithms
 
