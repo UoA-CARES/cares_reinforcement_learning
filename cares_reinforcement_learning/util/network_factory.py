@@ -244,7 +244,7 @@ def create_DynaSAC_SAS(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_DynaSAC_SAS_Immerssive_Weight(observation_size, action_num, config: AlgorithmConfig):
+def create_DynaSAC_SAS_Immersive_Weight(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
