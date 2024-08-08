@@ -218,6 +218,7 @@ class DynaSACConfig(AlgorithmConfig):
     world_model_lr: Optional[float] = 0.001
 
 
+
 class DynaSAC_SASConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_SAS", Literal=True)
     actor_lr: Optional[float] = 3e-4
