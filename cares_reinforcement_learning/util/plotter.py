@@ -429,16 +429,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# autoencoder_config: {
-#     "type": "burgess",
-#     "latent_dim": 200,
-#     "num_layers": 4,
-#     "num_filters": 32,
-#     "kernel_size": 3,
-#     "encoder_optim_kwargs": {"lr": 0.001},
-#     "decoder_optim_kwargs": {"lr": 0.001, "weight_decay": 1e-07},
-#     "rec_dist": "bernoulli",
-#     "loss_function_type": "vae",
-#     "steps_anneal": 0,
-# }
