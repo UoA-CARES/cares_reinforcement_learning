@@ -16,7 +16,7 @@ from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.networks.world_models.ensemble_ns_world import (
-    EnsembleWorldAndOneReward,
+    EnsembleWorldAndOneNSReward,
 )
 
 
@@ -29,7 +29,7 @@ class DynaSAC_SUNRISEReweight:
             self,
             actor_network: torch.nn.Module,
             critic_network: torch.nn.Module,
-            world_network: EnsembleWorldAndOneReward,
+            world_network: EnsembleWorldAndOneNSReward,
             gamma: float,
             tau: float,
             action_num: int,

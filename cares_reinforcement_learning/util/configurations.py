@@ -218,8 +218,26 @@ class DynaSACConfig(AlgorithmConfig):
     world_model_lr: Optional[float] = 0.001
 
 
-class DynaSAC_ScaleBatchReweightConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC_ScaleBatchReweight", Literal=True)
+class DynaSAC_SASConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_SAS", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    alpha_lr: Optional[float] = 3e-4
+    use_bounded_active: Optional[bool] = False
+    num_models: Optional[int] = 5
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    horizon: Optional[int] = 1
+    num_samples: Optional[int] = 10
+    world_model_lr: Optional[float] = 0.001
+
+
+class DynaSAC_SAS_Immersive_WeightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_SAS_Immersive_Weight", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 
@@ -243,8 +261,8 @@ class DynaSAC_ScaleBatchReweightConfig(AlgorithmConfig):
     sample_times: Optional[int] = 10
 
 
-class DynaSAC_Immerse_Reweight_ComboConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC_Immerse_Reweight_Combo", Literal=True)
+class DynaSAC_ScaleBatchReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_ScaleBatchReweight", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 
@@ -260,9 +278,11 @@ class DynaSAC_Immerse_Reweight_ComboConfig(AlgorithmConfig):
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
 
-    threshold_scale_critic: Optional[float] = 0.7
-    threshold_scale_actor: Optional[float] = 0.7
+    threshold_scale: Optional[float] = 0.7
+    reweight_critic: Optional[bool] = True
+    reweight_actor: Optional[bool] = False
 
+    mode: Optional[int] = 1
     sample_times: Optional[int] = 10
 
 

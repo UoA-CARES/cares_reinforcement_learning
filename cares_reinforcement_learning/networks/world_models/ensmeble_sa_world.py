@@ -10,7 +10,7 @@ import torch.utils
 from torch import optim
 
 from cares_reinforcement_learning.networks.world_models.probabilistic_dynamics import (
-    ProbabilisticDynamics,
+    Probabilistic_Dynamics,
 )
 from cares_reinforcement_learning.networks.world_models.simple_sa_reward import (
     Simple_SA_Reward,
@@ -19,6 +19,10 @@ from cares_reinforcement_learning.util.helpers import normalize_observation_delt
 
 
 class EnsembleWorldAndOneSAReward:
+    """
+    Specifications:
+
+    """
     def __init__(
             self,
             observation_size: int,
@@ -40,7 +44,7 @@ class EnsembleWorldAndOneSAReward:
         self.reward_optimizer = optim.Adam(self.reward_network.parameters(), lr=lr)
 
         self.models = [
-            ProbabilisticDynamics(
+            Probabilistic_Dynamics(
                 observation_size=observation_size,
                 num_actions=num_actions,
                 hidden_size=hidden_size,

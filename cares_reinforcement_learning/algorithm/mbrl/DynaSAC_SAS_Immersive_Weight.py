@@ -15,12 +15,12 @@ import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.networks.world_models.ensemble_ns_world import (
-    EnsembleWorldAndOneReward,
+from cares_reinforcement_learning.networks.world_models.ensemble_sas_world import (
+    EnsembleWorldAndOneSASReward,
 )
 
 
-class DynaSAC_ScaleBatchReweight:
+class DynaSAC_SAS_Immersive_Weight:
     """
     Max as ?
     """
@@ -29,7 +29,7 @@ class DynaSAC_ScaleBatchReweight:
             self,
             actor_network: torch.nn.Module,
             critic_network: torch.nn.Module,
-            world_network: EnsembleWorldAndOneReward,
+            world_network: EnsembleWorldAndOneSASReward,
             gamma: float,
             tau: float,
             action_num: int,
@@ -211,6 +211,8 @@ class DynaSAC_ScaleBatchReweight:
             next_states=next_states,
         )
         self.world_model.train_reward(
+            states=states,
+            actions=actions,
             next_states=next_states,
             rewards=rewards,
         )
@@ -261,11 +263,11 @@ class DynaSAC_ScaleBatchReweight:
                 pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-                uncert = self.sampling(pred_means=pred_mean, pred_vars=pred_var)
+                uncert = self.sampling(pred_state, pred_act, pred_means=pred_mean, pred_vars=pred_var)
                 uncert = uncert.unsqueeze(dim=1).to(self.device)
                 pred_uncerts.append(uncert)
 
-                pred_reward = self.world_model.pred_rewards(pred_next_state)
+                pred_reward = self.world_model.pred_rewards(pred_state, pred_acts, pred_next_state)
                 pred_states.append(pred_state)
                 pred_actions.append(pred_acts.detach())
                 pred_rs.append(pred_reward.detach())
@@ -283,13 +285,17 @@ class DynaSAC_ScaleBatchReweight:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
         )
 
-    def sampling(self, pred_means, pred_vars):
+    def sampling(self, pred_state, pred_act, pred_means, pred_vars):
         """
         High std means low uncertainty. Therefore, divided by 1
 
         :param pred_means:
         :param pred_vars:
         :return:
+
+        Args:
+            pred_act:
+            pred_state:
         """
         with torch.no_grad():
             # 5 models. Each predict 10 next_states.
@@ -310,11 +316,11 @@ class DynaSAC_ScaleBatchReweight:
             for i in range(self.sample_times):
                 if self.reweight_critic == 1:
                     # 5 models, each sampled 10 times = 50,
-                    pred_rwd1 = self.world_model.pred_rewards(sample1[i])
-                    pred_rwd2 = self.world_model.pred_rewards(sample2[i])
-                    pred_rwd3 = self.world_model.pred_rewards(sample3[i])
-                    pred_rwd4 = self.world_model.pred_rewards(sample4[i])
-                    pred_rwd5 = self.world_model.pred_rewards(sample5[i])
+                    pred_rwd1 = self.world_model.pred_rewards(pred_state, pred_act, sample1[i])
+                    pred_rwd2 = self.world_model.pred_rewards(pred_state, pred_act, sample2[i])
+                    pred_rwd3 = self.world_model.pred_rewards(pred_state, pred_act, sample3[i])
+                    pred_rwd4 = self.world_model.pred_rewards(pred_state, pred_act, sample4[i])
+                    pred_rwd5 = self.world_model.pred_rewards(pred_state, pred_act, sample5[i])
                     rs.append(pred_rwd1)
                     rs.append(pred_rwd2)
                     rs.append(pred_rwd3)
@@ -393,12 +399,6 @@ class DynaSAC_ScaleBatchReweight:
             # As (max-min) decrease, threshold should go down.
             threshold = self.threshold_scale * (max_var - min_var) + min_var
             total_var[total_var <= threshold] = threshold
-
-            # Exacerbate the sample difference.
-            # mean_var = torch.mean(total_var)
-            # ratio = mean_var / ((1.0 / total_var.shape[0]) * (torch.prod(total_var)))
-            # normalize vars to sum = 1
-            # total_var *= ()
 
             total_var += 0.00000001
             total_stds = 1 / total_var

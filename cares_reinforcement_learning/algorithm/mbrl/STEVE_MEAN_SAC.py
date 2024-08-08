@@ -15,8 +15,8 @@ import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 
-from cares_reinforcement_learning.networks.world_models.ensemble_all import (
-    EnsembleWorldRewardDone,
+from cares_reinforcement_learning.networks.world_models.ensemble_world_ensemble_sas_reward import (
+    EnsembleWorldEnsembleSASReward,
 )
 
 
@@ -25,7 +25,7 @@ class STEVE_MEAN:
             self,
             actor_network: torch.nn.Module,
             critic_network: torch.nn.Module,
-            world_network: EnsembleWorldRewardDone,
+            world_network: EnsembleWorldEnsembleSASReward,
             gamma: float,
             tau: float,
             action_num: int,
@@ -105,7 +105,7 @@ class STEVE_MEAN:
             accum_dist_rewards = torch.repeat_interleave(rewards.unsqueeze(dim=0), repeats=25, dim=0)
             # 5 * 5 * 4 = 100
             for hori in range(self.horizon):
-                curr_hori_action, curr_hori_log_pi, _ = self.actor_net(next_states)
+                _, curr_hori_log_pi, curr_hori_action= self.actor_net(next_states)
                 mean_predictions, all_mean_next, _, _ = self.world_model.pred_next_states(next_states, curr_hori_action)
                 pred_rewards, _ = self.world_model.pred_multiple_rewards(observation=next_states,
                                                                          action=curr_hori_action,
@@ -139,7 +139,6 @@ class STEVE_MEAN:
                 var_0[torch.abs(var_0) < 0.0001] = 0.0001
                 weights_0 = 1.0 / var_0
                 q_weights.append(weights_0)
-
                 next_states = mean_predictions
             all_means = torch.stack(q_means)
             all_weights = torch.stack(q_weights)

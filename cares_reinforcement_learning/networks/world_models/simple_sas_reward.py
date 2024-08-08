@@ -4,7 +4,7 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.util.helpers import weight_init
 
 
-class Simple_SAS_Done(nn.Module):
+class Simple_SAS_Reward(nn.Module):
     def __init__(self, observation_size: int, num_actions: int, hidden_size: int):
         """
         Note, This reward function is limited to 0 ~ 1 for dm_control.
@@ -45,6 +45,7 @@ class Simple_SAS_Done(nn.Module):
         x = F.relu(x)
         x = self.linear2(x)
         x = F.relu(x)
-        x = self.linear3(x)
-        prob_x = F.sigmoid(x)
-        return prob_x
+        rwd_mean = self.linear3(x)
+        if normalized:
+            rwd_mean = F.sigmoid(rwd_mean)
+        return rwd_mean

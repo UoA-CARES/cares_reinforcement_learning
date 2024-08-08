@@ -10,7 +10,7 @@ from cares_reinforcement_learning.util.helpers import (
 )
 
 
-class ProbabilisticDynamics(nn.Module):
+class Probabilistic_Dynamics(nn.Module):
     """
     A world model with fully connected layers. It takes current states (s) and
     current actions (a), and predict next states (s').

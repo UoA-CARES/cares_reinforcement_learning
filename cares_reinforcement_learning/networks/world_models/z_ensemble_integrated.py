@@ -10,7 +10,7 @@ import torch.utils
 from torch import optim
 
 from cares_reinforcement_learning.networks.world_models.probabilistic_dynamics import (
-    ProbabilisticDynamics,
+    Probabilistic_Dynamics,
 )
 from cares_reinforcement_learning.networks.world_models.simple_ns_reward import (
     Simple_NS_Reward,
@@ -36,7 +36,7 @@ class IntegratedWorldModel:
         hidden_size: int,
         lr: float = 0.001,
     ):
-        self.dyna_network = ProbabilisticDynamics(
+        self.dyna_network = Probabilistic_Dynamics(
             observation_size=observation_size,
             num_actions=num_actions,
             hidden_size=hidden_size,

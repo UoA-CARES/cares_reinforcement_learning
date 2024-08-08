@@ -12,13 +12,16 @@ from torch import optim
 from cares_reinforcement_learning.networks.world_models.probabilistic_dynamics import (
     Probabilistic_Dynamics,
 )
-from cares_reinforcement_learning.networks.world_models.simple_ns_reward import (
-    Simple_NS_Reward,
+from cares_reinforcement_learning.networks.world_models.simple_sas_reward import (
+    Simple_SAS_Reward,
 )
 from cares_reinforcement_learning.util.helpers import normalize_observation_delta
 
 
-class EnsembleWorldAndOneNSReward:
+class EnsembleWorldAndOneSASReward:
+    """
+
+    """
     def __init__(
             self,
             observation_size: int,
@@ -32,7 +35,7 @@ class EnsembleWorldAndOneNSReward:
         self.observation_size = observation_size
         self.num_actions = num_actions
 
-        self.reward_network = Simple_NS_Reward(
+        self.reward_network = Simple_SAS_Reward(
             observation_size=observation_size,
             num_actions=num_actions,
             hidden_size=hidden_size,
@@ -73,8 +76,9 @@ class EnsembleWorldAndOneNSReward:
         for model in self.models:
             model.statistics = statistics
 
-    def pred_rewards(self, observation: torch.Tensor):
-        pred_rewards = self.reward_network(observation)
+    def pred_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation:torch.Tensor):
+        comb = torch.cat((observation, action, next_observation), dim=1)
+        pred_rewards = self.reward_network(comb)
         return pred_rewards
 
     def pred_next_states(
@@ -148,17 +152,15 @@ class EnsembleWorldAndOneNSReward:
 
     def train_reward(
             self,
+            states: torch.Tensor,
+            actions: torch.Tensor,
             next_states: torch.Tensor,
             rewards: torch.Tensor,
     ) -> None:
         assert len(next_states.shape) >= 2
-        # assert len(actions.shape) == 2
-        # assert (
-        #         next_states.shape[1] + actions.shape[1]
-        #         == self.num_actions + self.observation_size
-        # )
         self.reward_optimizer.zero_grad()
-        rwd_mean = self.reward_network.forward(next_states)
+        comb = torch.cat((states, actions, next_states), dim=1)
+        rwd_mean = self.reward_network.forward(comb)
         reward_loss = F.mse_loss(rwd_mean, rewards)
         reward_loss.backward()
         self.reward_optimizer.step()

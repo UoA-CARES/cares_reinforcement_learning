@@ -9,18 +9,18 @@ import torch.utils
 from torch import optim
 
 from cares_reinforcement_learning.networks.world_models.probabilistic_dynamics import (
-    ProbabilisticDynamics,
+    Probabilistic_Dynamics,
 )
 from cares_reinforcement_learning.networks.world_models.probabilistic_sas_reward import (
     Probabilistic_SAS_Reward,
 )
-from cares_reinforcement_learning.networks.world_models.simple_sas_done import (
-    SASDone,
-)
+# from cares_reinforcement_learning.networks.world_models.simple_sas_done import (
+#     SASDone,
+# )
 from cares_reinforcement_learning.util.helpers import normalize_observation_delta
 
 
-class EnsembleWorldRewardDone:
+class EnsembleWorldEnsembleSASReward:
     """
     This class consist of an ensemble of all components for critic update.
     Q_label = REWARD + gamma * (1 - DONES) * Q(NEXT_STATES).
@@ -44,7 +44,7 @@ class EnsembleWorldRewardDone:
         self.num_actions = num_actions
         self.device = device
 
-        self.world_models = [ProbabilisticDynamics(observation_size=observation_size, num_actions=num_actions,
+        self.world_models = [Probabilistic_Dynamics(observation_size=observation_size, num_actions=num_actions,
                                                    hidden_size=hidden_size) for _ in range(self.num_world_models)]
         self.reward_models = [Probabilistic_SAS_Reward(observation_size=observation_size, num_actions=num_actions,
                                                        hidden_size=hidden_size) for _ in range(self.num_reward_models)]
@@ -59,10 +59,10 @@ class EnsembleWorldRewardDone:
         for world_model in self.world_models:
             world_model.to(self.device)
 
-        self.done_model = SASDone(observation_size=observation_size, num_actions=num_actions,
-                                  hidden_size=hidden_size)
-        self.done_optimizers = optim.Adam(self.done_model.parameters(), lr=lr)
-        self.done_model.to(self.device)
+        # self.done_model = SASDone(observation_size=observation_size, num_actions=num_actions,
+        #                           hidden_size=hidden_size)
+        # self.done_optimizers = optim.Adam(self.done_model.parameters(), lr=lr)
+        # self.done_model.to(self.device)
         self.statistics = {}
 
     def set_statistics(self, statistics: dict) -> None:

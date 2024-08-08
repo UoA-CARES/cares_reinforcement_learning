@@ -15,12 +15,13 @@ import torch
 from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.networks.world_models.ensmeble_sa_world import (
-    EnsembleWorldAndOneSAReward,
+from cares_reinforcement_learning.networks.world_models.ensemble_ns_world import (
+    EnsembleWorldAndOneNSReward,
 )
 
 
-class DynaSAC_SABR:
+
+class DynaSAC_ScaleBatchReweight:
     """
     Max as ?
     """
@@ -29,7 +30,7 @@ class DynaSAC_SABR:
             self,
             actor_network: torch.nn.Module,
             critic_network: torch.nn.Module,
-            world_network: EnsembleWorldAndOneSAReward,
+            world_network: EnsembleWorldAndOneNSReward,
             gamma: float,
             tau: float,
             action_num: int,
@@ -211,8 +212,7 @@ class DynaSAC_SABR:
             next_states=next_states,
         )
         self.world_model.train_reward(
-            states=states,
-            actions=actions,
+            next_states=next_states,
             rewards=rewards,
         )
 
@@ -266,7 +266,7 @@ class DynaSAC_SABR:
                 uncert = uncert.unsqueeze(dim=1).to(self.device)
                 pred_uncerts.append(uncert)
 
-                pred_reward = self.world_model.pred_rewards(pred_state, pred_acts)
+                pred_reward = self.world_model.pred_rewards(pred_next_state)
                 pred_states.append(pred_state)
                 pred_actions.append(pred_acts.detach())
                 pred_rs.append(pred_reward.detach())
@@ -304,10 +304,23 @@ class DynaSAC_SABR:
                 [self.sample_times])
             sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
                 [self.sample_times])
+            rs = []
             acts = []
             qs = []
             # Varying the next_state's distribution.
             for i in range(self.sample_times):
+                if self.reweight_critic == 1:
+                    # 5 models, each sampled 10 times = 50,
+                    pred_rwd1 = self.world_model.pred_rewards(sample1[i])
+                    pred_rwd2 = self.world_model.pred_rewards(sample2[i])
+                    pred_rwd3 = self.world_model.pred_rewards(sample3[i])
+                    pred_rwd4 = self.world_model.pred_rewards(sample4[i])
+                    pred_rwd5 = self.world_model.pred_rewards(sample5[i])
+                    rs.append(pred_rwd1)
+                    rs.append(pred_rwd2)
+                    rs.append(pred_rwd3)
+                    rs.append(pred_rwd4)
+                    rs.append(pred_rwd5)
                 # Each times, 5 models predict different actions.
                 # [2560, 17]
                 pred_act1, log_pi1, _ = self.actor_net(sample1[i])
@@ -339,35 +352,50 @@ class DynaSAC_SABR:
                 qs.append(qc)
                 qs.append(qd)
                 qs.append(qe)
+            if self.reweight_critic == 1:
+                rs = torch.stack(rs)
             acts = torch.stack(acts)
             qs = torch.stack(qs)
 
-            var_a = torch.var(acts, dim=0)
-            var_q = torch.var(qs, dim=0)
-            mean_a = torch.mean(acts, dim=0, keepdim=True)
-            mean_q = torch.mean(qs, dim=0, keepdim=True)
-            diff_a = acts - mean_a
-            diff_q = qs - mean_q
-            cov_aq = torch.mean(diff_a * diff_q, dim=0)
-
             if self.reweight_critic:
+                var_r = torch.var(rs, dim=0)
+                var_a = torch.var(acts, dim=0)
+                var_q = torch.var(qs, dim=0)
+
+                mean_a = torch.mean(acts, dim=0, keepdim=True)
+                mean_q = torch.mean(qs, dim=0, keepdim=True)
+                diff_a = acts - mean_a
+                diff_q = qs - mean_q
+                cov_aq = torch.mean(diff_a * diff_q, dim=0)
+
+                mean_r = torch.mean(rs, dim=0, keepdim=True)
+                diff_r = rs - mean_r
+                cov_rq = torch.mean(diff_r * diff_q, dim=0)
+                cov_ra = torch.mean(diff_r * diff_a, dim=0)
+
                 gamma_sq = self.gamma * self.gamma
-                total_var = gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
+                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
+                            gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
 
             if self.reweight_actor:
-                # For actor: alpha^2 * var_a + var_q
-                total_var = (self._alpha ** 2) * var_a + var_q + cov_aq
+                mean_a = torch.mean(acts, dim=0, keepdim=True)
+                mean_q = torch.mean(qs, dim=0, keepdim=True)
+                diff_a = acts - mean_a
+                diff_q = qs - mean_q
+                cov_aq = torch.mean(diff_a * diff_q, dim=0)
 
-            # Exacerbate the sample difference.
-            old_mean_var = torch.mean(total_var)
-            # normalize vars to sum = 1
-            total_var /= old_mean_var
-            total_var += 0.00000001
+                var_a = torch.var(acts, dim=0)
+                var_q = torch.var(qs, dim=0)
+                # For actor: alpha^2 * var_a + var_q
+                total_var = (self._alpha ** 2) * var_a + var_q + (self._alpha ** 2) * cov_aq
+
             min_var = torch.min(total_var)
             max_var = torch.max(total_var)
             # As (max-min) decrease, threshold should go down.
             threshold = self.threshold_scale * (max_var - min_var) + min_var
             total_var[total_var <= threshold] = threshold
+
+            total_var += 0.00000001
             total_stds = 1 / total_var
 
         return total_stds.detach()

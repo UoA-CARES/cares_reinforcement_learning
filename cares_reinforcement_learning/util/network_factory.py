@@ -85,14 +85,15 @@ def create_STEVE_MEAN(observation_size, action_num, config: AlgorithmConfig):
     """
     from cares_reinforcement_learning.algorithm.mbrl import STEVE_MEAN
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models.ensemble_all import EnsembleWorldRewardDone
+    from cares_reinforcement_learning.networks.world_models.ensemble_world_ensemble_sas_reward import \
+        EnsembleWorldEnsembleSASReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldRewardDone(
+    world_model = EnsembleWorldEnsembleSASReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_world_models=config.num_world_models,
@@ -203,6 +204,91 @@ def create_DynaSAC_SABR(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_DynaSAC_SAS(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_SAS
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneSASReward
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    world_model = EnsembleWorldAndOneSASReward(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        lr=config.world_model_lr,
+        device=device,
+    )
+
+    agent = DynaSAC_SAS(
+        actor_network=actor,
+        critic_network=critic,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
+        num_samples=config.num_samples,
+        device=device,
+    )
+    return agent
+
+
+def create_DynaSAC_SAS_Immerssive_Weight(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_SAS_Immersive_Weight
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneSASReward
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    world_model = EnsembleWorldAndOneSASReward(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        device=device,
+        lr=config.world_model_lr,
+    )
+
+    agent = DynaSAC_SAS_Immersive_Weight(
+        actor_network=actor,
+        critic_network=critic,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
+        num_samples=config.num_samples,
+        threshold_scale=config.threshold_scale,
+        reweight_critic=config.reweight_critic,
+        reweight_actor=config.reweight_actor,
+        mode=config.mode,
+        sample_times=config.sample_times,
+    )
+    return agent
+
+
 def create_DynaSAC_ScaleBatchReweight(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
@@ -211,14 +297,14 @@ def create_DynaSAC_ScaleBatchReweight(observation_size, action_num, config: Algo
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_ScaleBatchReweight
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldAndOneReward(
+    world_model = EnsembleWorldAndOneNSReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
@@ -248,49 +334,6 @@ def create_DynaSAC_ScaleBatchReweight(observation_size, action_num, config: Algo
     return agent
 
 
-def create_DynaSAC_Immerse_Reweight_Combo(observation_size, action_num, config: AlgorithmConfig):
-    """
-    Create networks for model-based SAC agent. The Actor and Critic is same.
-    An extra world model is added.
-
-    """
-    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_Immerse_Reweight_Combo
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
-
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    world_model = EnsembleWorldAndOneReward(
-        observation_size=observation_size,
-        num_actions=action_num,
-        num_models=config.num_models,
-        device=device,
-        lr=config.world_model_lr,
-    )
-
-    agent = DynaSAC_Immerse_Reweight_Combo(
-        actor_network=actor,
-        critic_network=critic,
-        world_network=world_model,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        action_num=action_num,
-        device=device,
-        alpha_lr=config.alpha_lr,
-        horizon=config.horizon,
-        num_samples=config.num_samples,
-        threshold_scale_critic=config.threshold_scale_critic,
-        threshold_scale_actor=config.threshold_scale_actor,
-        sample_times=config.sample_times,
-    )
-    return agent
-
-
 def create_DynaSAC_BIVReweight(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
@@ -299,14 +342,14 @@ def create_DynaSAC_BIVReweight(observation_size, action_num, config: AlgorithmCo
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_BIVReweight
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldAndOneReward(
+    world_model = EnsembleWorldAndOneNSReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
@@ -344,14 +387,14 @@ def create_DynaSAC_SUNRISEReweight(observation_size, action_num, config: Algorit
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_SUNRISEReweight
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldAndOneReward(
+    world_model = EnsembleWorldAndOneNSReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
@@ -389,14 +432,14 @@ def create_DynaSAC_UWACReweight(observation_size, action_num, config: AlgorithmC
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_UWACReweight
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldAndOneReward(
+    world_model = EnsembleWorldAndOneNSReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
@@ -432,16 +475,16 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
     An extra world model is added.
 
     """
-    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_NS
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneReward
+    from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    world_model = EnsembleWorldAndOneReward(
+    world_model = EnsembleWorldAndOneNSReward(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
@@ -449,7 +492,7 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
         device=device,
     )
 
-    agent = DynaSAC(
+    agent = DynaSAC_NS(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
