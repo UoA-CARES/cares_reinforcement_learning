@@ -77,8 +77,7 @@ class EnsembleWorldAndOneSASReward:
             model.statistics = statistics
 
     def pred_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation:torch.Tensor):
-        comb = torch.cat((observation, action, next_observation), dim=1)
-        pred_rewards = self.reward_network(comb)
+        pred_rewards = self.reward_network(observation, action, next_observation)
         return pred_rewards
 
     def pred_next_states(
@@ -159,8 +158,7 @@ class EnsembleWorldAndOneSASReward:
     ) -> None:
         assert len(next_states.shape) >= 2
         self.reward_optimizer.zero_grad()
-        comb = torch.cat((states, actions, next_states), dim=1)
-        rwd_mean = self.reward_network.forward(comb)
+        rwd_mean = self.reward_network(states, actions, next_states)
         reward_loss = F.mse_loss(rwd_mean, rewards)
         reward_loss.backward()
         self.reward_optimizer.step()
