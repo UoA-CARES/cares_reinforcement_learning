@@ -160,20 +160,19 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
-    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
+        AEFactory,
+    )
     from cares_reinforcement_learning.algorithm.policy import SACAE
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 
-    encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size,
-        latent_dim=config.latent_size,
-        num_layers=4,
-        num_filters=32,
-        kernel_size=3,
+    ae_factory = AEFactory()
+    autoencoder = ae_factory.create_autoencoder(
+        observation_size=observation_size, config=config.autoencoder_config
     )
 
-    actor_encoder = copy.deepcopy(encoder)
-    critic_encoder = copy.deepcopy(encoder)
+    actor_encoder = copy.deepcopy(autoencoder.encoder)
+    critic_encoder = copy.deepcopy(autoencoder.encoder)
 
     actor = Actor(
         actor_encoder,
@@ -187,20 +186,17 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
     agent = SACAE(
         actor_network=actor,
         critic_network=critic,
-        decoder_network=decoder,
+        decoder_network=autoencoder.decoder,
         gamma=config.gamma,
         tau=config.tau,
         reward_scale=config.reward_scale,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
-        encoder_lr=config.encoder_lr,
-        encoder_tau=config.encoder_tau,
-        decoder_lr=config.decoder_lr,
-        decoder_latent_lambda=config.decoder_latent_lambda,
-        decoder_weight_decay=config.decoder_weight_decay,
-        decoder_update_freq=config.decoder_update_freq,
         alpha_lr=config.alpha_lr,
+        encoder_tau=config.encoder_tau,
+        decoder_update_freq=config.decoder_update_freq,
+        ae_config=config.autoencoder_config,
         device=device,
     )
     return agent
@@ -248,20 +244,19 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
-    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
+        AEFactory,
+    )
     from cares_reinforcement_learning.algorithm.policy import TD3AE
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 
-    encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size,
-        latent_dim=config.latent_size,
-        num_layers=4,
-        num_filters=32,
-        kernel_size=3,
+    ae_factory = AEFactory()
+    autoencoder = ae_factory.create_autoencoder(
+        observation_size=observation_size, config=config.autoencoder_config
     )
 
-    actor_encoder = copy.deepcopy(encoder)
-    critic_encoder = copy.deepcopy(encoder)
+    actor_encoder = copy.deepcopy(autoencoder.encoder)
+    critic_encoder = copy.deepcopy(autoencoder.encoder)
 
     actor = Actor(actor_encoder, action_num, hidden_size=config.hidden_size)
     critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
@@ -270,59 +265,55 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
     agent = TD3AE(
         actor_network=actor,
         critic_network=critic,
-        decoder_network=decoder,
+        decoder_network=autoencoder.decoder,
         gamma=config.gamma,
         tau=config.tau,
         action_num=action_num,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
-        encoder_lr=config.encoder_lr,
         encoder_tau=config.encoder_tau,
-        decoder_lr=config.decoder_lr,
-        decoder_latent_lambda=config.decoder_latent_lambda,
-        decoder_weight_decay=config.decoder_weight_decay,
         decoder_update_freq=config.decoder_update_freq,
+        ae_config=config.autoencoder_config,
         device=device,
     )
     return agent
 
 
 def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
-    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
+        AEFactory,
+    )
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
     from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 
-    encoder, decoder = ae.create_autoencoder(
-        observation_size=observation_size,
-        latent_dim=config.latent_size,
-        num_layers=4,
-        num_filters=32,
-        kernel_size=3,
+    ae_factory = AEFactory()
+    autoencoder = ae_factory.create_autoencoder(
+        observation_size=observation_size, config=config.autoencoder_config
     )
 
     actor = Actor(
-        config.latent_size, action_num, encoder, hidden_size=config.hidden_size
+        action_num,
+        autoencoder,
+        hidden_size=config.hidden_size,
     )
     critic = Critic(
-        config.latent_size, action_num, encoder, hidden_size=config.hidden_size
+        action_num,
+        autoencoder,
+        hidden_size=config.hidden_size,
     )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = NaSATD3(
-        encoder_network=encoder,
-        decoder_network=decoder,
+        autoencoder=autoencoder,
         actor_network=actor,
         critic_network=critic,
         gamma=config.gamma,
         tau=config.tau,
         ensemble_size=config.ensemble_size,
         action_num=action_num,
-        latent_size=config.latent_size,
         intrinsic_on=config.intrinsic_on,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
-        encoder_lr=config.encoder_lr,
-        decoder_lr=config.decoder_lr,
         epm_lr=config.epm_lr,
         device=device,
     )
@@ -716,6 +707,6 @@ class NetworkFactory:
                     agent = obj(observation_size, action_num, config)
 
         if agent is None:
-            logging.warning(f"Unkown failed to return None: returned {agent}")
+            logging.warning(f"Unkown {agent} algorithm.")
 
         return agent

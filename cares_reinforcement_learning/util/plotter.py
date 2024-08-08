@@ -1,4 +1,5 @@
 import argparse
+import ast
 import json
 import logging
 import os
@@ -191,6 +192,38 @@ def read_train_config(result_directory: str) -> dict:
     return train_config
 
 
+def get_param_value(param_tag: str, config: dict) -> str:
+    if param_tag in config:
+        return config[param_tag]
+    return None
+
+
+def get_param_tag(param_tags: dict, alg_config: dict, train_config: dict) -> str:
+    if len(param_tags) == 0:
+        return ""
+
+    param_tag = ""
+    for key, tags in param_tags.items():
+
+        value = get_param_value(key, alg_config)
+        if value is None:
+            value = get_param_value(key, train_config)
+
+        if isinstance(value, dict):
+            tags = tags.split(",")
+
+            for tag in tags:
+                tag = tag.strip()
+                secondary_value = get_param_value(tag, value)
+                if secondary_value is not None:
+                    param_tag += f"_{tag}_{secondary_value}"
+
+        elif value is not None:
+            param_tag += f"_{key}_{value}"
+
+    return param_tag
+
+
 def generate_labels(
     args, title: str, result_directory: str
 ) -> tuple[str, str, str, str]:
@@ -203,11 +236,8 @@ def generate_labels(
     task = env_config["task"]
     task = task if domain == "" else f"{domain}-{task}"
 
-    param_tag = args["param_tag"]
-    param = str(alg_config[param_tag]) if param_tag in alg_config else ""
-    param += str(train_config[param_tag]) if param_tag in train_config else ""
-    param = f"_{param_tag}_{param}" if param else ""
-    label = algorithm + param
+    param_tag = get_param_tag(args["param_tag"], alg_config, train_config)
+    label = algorithm + param_tag
 
     title = task if title == "" else title
     return title, algorithm, task, label
@@ -272,8 +302,8 @@ def parse_args() -> dict:
 
     parser.add_argument(
         "--param_tag",
-        type=str,
-        default="",
+        type=ast.literal_eval,
+        default="{}",
         help="Tag to add to labels based on algorithm or training parameter",
     )
 
