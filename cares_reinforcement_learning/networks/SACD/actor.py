@@ -13,16 +13,12 @@ class Actor(nn.Module):
         observation_size: int,
         num_actions: int,
         hidden_size: list[int] = None,
-        log_std_bounds: list[int] = None,
     ):
         super().__init__()
         if hidden_size is None:
             hidden_size = [512, 512]
-        if log_std_bounds is None:
-            log_std_bounds = [-20, 2]
 
         self.hidden_size = hidden_size
-        self.log_std_bounds = log_std_bounds
 
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, self.hidden_size[0]),
