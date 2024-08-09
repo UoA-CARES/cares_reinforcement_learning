@@ -1,6 +1,6 @@
 """
 Original Paper: https://arxiv.org/pdf/1910.07207
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+Code based on: https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py
 
 This code runs automatic entropy tuning
 """
@@ -48,7 +48,8 @@ class SACD:
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.target_entropy = -np.log(1.0 / action_num) * 0.1
+        # For smaller action spaces, set the multiplier to lower values (probs should be a config option)
+        self.target_entropy = -np.log(1.0 / action_num) * 0.98
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr

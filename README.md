@@ -205,31 +205,32 @@ A factory class for creating a memory buffer that has been implemented into the 
 
 # Supported Algorithms
 
-| Algorithm   | Observation Space          | Action Space | Paper Reference |
-| ----------- | -------------------------- | ------------ | --------------- |
-| DQN         | Vector                     | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602) |
-| DoubleDQN   | Vector                     | Discrete     | [DoubleDQN Paper](https://arxiv.org/abs/1509.06461) |
-| DuelingDQN  | Vector                     | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581) |
-| ----------- | -------------------------- | ------------ | --------------- |
-| PPO         | Vector                     | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347) |
-| DDPG        | Vector                     | Continuous   | [DDPG Paper](https://arxiv.org/pdf/1509.02971v5.pdf) |
-| TD3         | Vector                     | Continuous   | [TD3 Paper](https://arxiv.org/abs/1802.09477v3) |
-| SAC         | Vector                     | Continuous   | [SAC Paper](https://arxiv.org/abs/1812.05905) |
-| PERTD3      | Vector                     | Continuous   | [PERTD3 Paper](https://arxiv.org/abs/1511.05952) |
-| PERSAC      | Vector                     | Continuous   | [PERSAC Paper](https://arxiv.org/abs/1511.05952) |
-| PALTD3      | Vector                     | Continuous   | [PALTD3 Paper](https://arxiv.org/abs/2007.06049) |
-| LAPTD3      | Vector                     | Continuous   | [LAPTD3 Paper](https://arxiv.org/abs/2007.06049) |
-| LAPSAC      | Vector                     | Continuous   | [LAPSAC Paper](https://arxiv.org/abs/2007.06049) |
-| LA3PTD3     | Vector                     | Continuous   | [LA3PTD3 Paper](https://arxiv.org/abs/2209.00532) |
-| LA3PSAC     | Vector                     | Continuous   | [LA3PSAC Paper](https://arxiv.org/abs/2209.00532) |
+| Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
+| ----------- | -------------------------- | ------------ | ----------------------------------------------------------- |
+| DQN         | Vector                     | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602)                |
+| DoubleDQN   | Vector                     | Discrete     | [DoubleDQN Paper](https://arxiv.org/abs/1509.06461)         |
+| DuelingDQN  | Vector                     | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581)        |
+| SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
+| ----------- | -------------------------- | ------------ | ---------------                                             |
+| PPO         | Vector                     | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347)               |
+| DDPG        | Vector                     | Continuous   | [DDPG Paper](https://arxiv.org/pdf/1509.02971v5.pdf)        |
+| TD3         | Vector                     | Continuous   | [TD3 Paper](https://arxiv.org/abs/1802.09477v3)             |
+| SAC         | Vector                     | Continuous   | [SAC Paper](https://arxiv.org/abs/1812.05905)               |
+| PERTD3      | Vector                     | Continuous   | [PERTD3 Paper](https://arxiv.org/abs/1511.05952)            |
+| PERSAC      | Vector                     | Continuous   | [PERSAC Paper](https://arxiv.org/abs/1511.05952)            |
+| PALTD3      | Vector                     | Continuous   | [PALTD3 Paper](https://arxiv.org/abs/2007.06049)            |
+| LAPTD3      | Vector                     | Continuous   | [LAPTD3 Paper](https://arxiv.org/abs/2007.06049)            |
+| LAPSAC      | Vector                     | Continuous   | [LAPSAC Paper](https://arxiv.org/abs/2007.06049)            |
+| LA3PTD3     | Vector                     | Continuous   | [LA3PTD3 Paper](https://arxiv.org/abs/2209.00532)           |
+| LA3PSAC     | Vector                     | Continuous   | [LA3PSAC Paper](https://arxiv.org/abs/2209.00532)           |
 | MAPERTD3    | Vector                     | Continuous   | [MAPERTD3 Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
 | MAPERSAC    | Vector                     | Continuous   | [MAPERSAC Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
-| RDTD3       | Vector                     | Continuous   | WIP |
-| RDSAC       | Vector                     | Continuous   | WIP |
-| REDQ        | Vector                     | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf) |
-| TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/abs/1812.05905) |
-| CTD4        | Vector                     | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576) |
-| ----------- | -------------------------- | ------------ | --------------- |
-| NaSATD3     | Image                      | Continuous   | In Submission |
-| TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741) |
-| SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741) |
+| RDTD3       | Vector                     | Continuous   | WIP                                                         |
+| RDSAC       | Vector                     | Continuous   | WIP                                                         |
+| REDQ        | Vector                     | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf)          |
+| TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/abs/1812.05905)               |
+| CTD4        | Vector                     | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576)              |
+| ----------- | -------------------------- | ------------ | ---------------                                             |
+| NaSATD3     | Image                      | Continuous   | In Submission                                               |
+| TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |
+| SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741)             |

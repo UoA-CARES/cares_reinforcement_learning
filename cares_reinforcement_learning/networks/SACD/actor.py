@@ -17,7 +17,7 @@ class Actor(nn.Module):
     ):
         super().__init__()
         if hidden_size is None:
-            hidden_size = [256, 256]
+            hidden_size = [512, 512]
         if log_std_bounds is None:
             log_std_bounds = [-20, 2]
 
