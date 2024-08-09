@@ -1,6 +1,6 @@
 """
 Original Paper: https://arxiv.org/pdf/1910.07207
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+Code based on: https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py
 
 This code runs automatic entropy tuning
 """
