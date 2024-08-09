@@ -19,6 +19,9 @@ from cares_reinforcement_learning.util.helpers import normalize_observation_delt
 
 
 class EnsembleWorldAndOneNSReward:
+    """
+    Spec
+    """
     def __init__(
             self,
             observation_size: int,
