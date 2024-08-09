@@ -29,6 +29,7 @@ class SACD:
         actor_lr: float,
         critic_lr: float,
         alpha_lr: float,
+        target_entropy_multiplier: float,
         device: torch.device,
     ):
         self.type = "discrete_policy"
@@ -49,7 +50,7 @@ class SACD:
         self.policy_update_freq = 1
 
         # For smaller action spaces, set the multiplier to lower values (probs should be a config option)
-        self.target_entropy = -np.log(1.0 / action_num) * 0.98
+        self.target_entropy = -np.log(1.0 / action_num) * target_entropy_multiplier
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr

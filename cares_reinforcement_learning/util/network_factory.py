@@ -224,6 +224,7 @@ def create_SACD(observation_size, action_num, config: AlgorithmConfig):
         tau=config.tau,
         reward_scale=config.reward_scale,
         action_num=action_num,
+        target_entropy_multiplier=config.target_entropy_multiplier,
         device=device,
     )
     return agent

@@ -217,6 +217,8 @@ class SACDConfig(AlgorithmConfig):
 
     batch_size = 64
 
+    target_entropy_multiplier = 0.98
+
     max_steps_exploration = 20000
     number_steps_per_train_policy = 4
 
