@@ -21,6 +21,7 @@ from cares_reinforcement_learning.networks.world_models import (
 
 from cares_reinforcement_learning.util.helpers import denormalize_observation_delta
 
+
 class DynaSAC_UWACReweight:
     """
     Max as ?
@@ -262,7 +263,7 @@ class DynaSAC_UWACReweight:
                 pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-                uncert = self.sampling(curr_states = pred_state, pred_means=pred_mean, pred_vars=pred_var)
+                uncert = self.sampling(curr_states=pred_state, pred_means=pred_mean, pred_vars=pred_var)
                 uncert = uncert.unsqueeze(dim=1).to(self.device)
                 pred_uncerts.append(uncert)
 
@@ -395,7 +396,8 @@ class DynaSAC_UWACReweight:
             if self.mode == 1:
                 total_var = gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
 
-            total_stds = torch.minimum(self.threshold_scale/total_var, torch.ones(total_var.shape).to(self.device) * 1.5)
+            total_stds = torch.minimum(self.threshold_scale / total_var,
+                                       torch.ones(total_var.shape).to(self.device) * 1.5)
 
         return total_stds.detach()
 
