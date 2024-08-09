@@ -263,7 +263,7 @@ class DynaSAC_SAS_Immersive_Weight:
                 pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-                uncert = self.sampling(pred_state, pred_act, pred_means=pred_mean, pred_vars=pred_var)
+                uncert = self.sampling(pred_state, pred_acts, pred_means=pred_mean, pred_vars=pred_var)
                 uncert = uncert.unsqueeze(dim=1).to(self.device)
                 pred_uncerts.append(uncert)
 
