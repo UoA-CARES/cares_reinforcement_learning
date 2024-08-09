@@ -215,6 +215,11 @@ class SACDConfig(AlgorithmConfig):
     critic_lr: Optional[float] = 3e-4
     alpha_lr: Optional[float] = 3e-4
 
+    batch_size = 64
+
+    max_steps_exploration = 20000
+    number_steps_per_train_policy = 4
+
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
