@@ -48,7 +48,8 @@ class SACD:
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.target_entropy = -np.log(1.0 / action_num) * 0.1
+        # For smaller action spaces, set the multiplier to lower values (probs should be a config option)
+        self.target_entropy = -np.log(1.0 / action_num) * 0.98
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
