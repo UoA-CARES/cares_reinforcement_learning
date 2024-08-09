@@ -13,6 +13,10 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.encoders.configurations import (
+    VanillaAEConfig,
+)
+from cares_reinforcement_learning.encoders.losses import AELoss
 
 
 class TD3AE:
@@ -26,12 +30,9 @@ class TD3AE:
         action_num: int,
         actor_lr: float,
         critic_lr: float,
-        encoder_lr: float,
         encoder_tau: float,
-        decoder_lr: float,
-        decoder_latent_lambda: float,
-        decoder_weight_decay: float,
         decoder_update_freq: int,
+        ae_config: VanillaAEConfig,
         device: torch.device,
     ):
         self.type = "policy"
@@ -49,7 +50,7 @@ class TD3AE:
         self.encoder_tau = encoder_tau
 
         self.decoder_net = decoder_network.to(device)
-        self.decoder_latent_lambda = decoder_latent_lambda
+        self.decoder_latent_lambda = ae_config.latent_lambda
         self.decoder_update_freq = decoder_update_freq
 
         self.gamma = gamma
@@ -70,13 +71,14 @@ class TD3AE:
             self.critic_net.parameters(), lr=critic_lr
         )
 
+        self.loss_function = AELoss(latent_lambda=ae_config.latent_lambda)
+
         self.encoder_net_optimiser = torch.optim.Adam(
-            self.critic_net.encoder.parameters(), lr=encoder_lr
+            self.critic_net.encoder.parameters(), **ae_config.encoder_optim_kwargs
         )
         self.decoder_net_optimiser = torch.optim.Adam(
             self.decoder_net.parameters(),
-            lr=decoder_lr,
-            weight_decay=decoder_weight_decay,
+            **ae_config.decoder_optim_kwargs,
         )
 
     def select_action_from_policy(
@@ -142,16 +144,15 @@ class TD3AE:
         self.actor_net_optimiser.step()
 
     def _update_autoencoder(self, states: torch.Tensor) -> None:
-        states_latent = self.critic_net.encoder(states)
-        rec_observations = self.decoder_net(states_latent)
+        latent_samples = self.critic_net.encoder(states)
+        reconstructed_data = self.decoder_net(latent_samples)
 
-        rec_loss = F.mse_loss(states, rec_observations)
+        loss = self.loss_function.calculate_loss(
+            data=states,
+            reconstructed_data=reconstructed_data,
+            latent_sample=latent_samples,
+        )
 
-        # add L2 penalty on latent representation
-        # see https://arxiv.org/pdf/1903.12436.pdf
-        latent_loss = (0.5 * states_latent.pow(2).sum(1)).mean()
-
-        loss = rec_loss + self.decoder_latent_lambda * latent_loss
         self.encoder_net_optimiser.zero_grad()
         self.decoder_net_optimiser.zero_grad()
         loss.backward()
