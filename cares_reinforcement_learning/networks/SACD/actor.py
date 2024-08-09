@@ -1,8 +1,6 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.util.common import SquashedNormal
-
 
 class Actor(nn.Module):
     # DiagGaussianActor
