@@ -286,7 +286,7 @@ class DynaSAC_SAS_Immersive_Weight:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
         )
 
-    def sampling(self, pred_state, pred_act, pred_means, pred_vars):
+    def sampling(self, curr_state, curr_act, pred_means, pred_vars):
         """
         High std means low uncertainty. Therefore, divided by 1
 
@@ -316,18 +316,22 @@ class DynaSAC_SAS_Immersive_Weight:
             # Varying the next_state's distribution.
             for i in range(self.sample_times):
                 sample1i = denormalize_observation_delta(sample1[i], self.world_model.statistics)
+                sample1i += curr_state
                 sample2i = denormalize_observation_delta(sample2[i], self.world_model.statistics)
+                sample2i += curr_state
                 sample3i = denormalize_observation_delta(sample3[i], self.world_model.statistics)
+                sample3i += curr_state
                 sample4i = denormalize_observation_delta(sample4[i], self.world_model.statistics)
+                sample4i += curr_state
                 sample5i = denormalize_observation_delta(sample5[i], self.world_model.statistics)
-
+                sample5i += curr_state
                 if self.reweight_critic == 1:
                     # 5 models, each sampled 10 times = 50,
-                    pred_rwd1 = self.world_model.pred_rewards(pred_state, pred_act, sample1i)
-                    pred_rwd2 = self.world_model.pred_rewards(pred_state, pred_act, sample2i)
-                    pred_rwd3 = self.world_model.pred_rewards(pred_state, pred_act, sample3i)
-                    pred_rwd4 = self.world_model.pred_rewards(pred_state, pred_act, sample4i)
-                    pred_rwd5 = self.world_model.pred_rewards(pred_state, pred_act, sample5i)
+                    pred_rwd1 = self.world_model.pred_rewards(curr_state, curr_act, sample1i)
+                    pred_rwd2 = self.world_model.pred_rewards(curr_state, curr_act, sample2i)
+                    pred_rwd3 = self.world_model.pred_rewards(curr_state, curr_act, sample3i)
+                    pred_rwd4 = self.world_model.pred_rewards(curr_state, curr_act, sample4i)
+                    pred_rwd5 = self.world_model.pred_rewards(curr_state, curr_act, sample5i)
                     rs.append(pred_rwd1)
                     rs.append(pred_rwd2)
                     rs.append(pred_rwd3)

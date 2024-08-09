@@ -263,7 +263,7 @@ class DynaSAC_ScaleBatchReweight:
                 pred_next_state, _, pred_mean, pred_var = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-                uncert = self.sampling(pred_means=pred_mean, pred_vars=pred_var)
+                uncert = self.sampling(curr_states = pred_state, pred_means=pred_mean, pred_vars=pred_var)
                 uncert = uncert.unsqueeze(dim=1).to(self.device)
                 pred_uncerts.append(uncert)
 
@@ -285,7 +285,7 @@ class DynaSAC_ScaleBatchReweight:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, pred_weights
         )
 
-    def sampling(self, pred_means, pred_vars):
+    def sampling(self, curr_states, pred_means, pred_vars):
         """
         High std means low uncertainty. Therefore, divided by 1
 
@@ -312,10 +312,16 @@ class DynaSAC_ScaleBatchReweight:
             # Varying the next_state's distribution.
             for i in range(self.sample_times):
                 sample1i = denormalize_observation_delta(sample1[i], self.world_model.statistics)
+                sample1i += curr_states
                 sample2i = denormalize_observation_delta(sample2[i], self.world_model.statistics)
+                sample2i += curr_states
                 sample3i = denormalize_observation_delta(sample3[i], self.world_model.statistics)
+                sample3i += curr_states
                 sample4i = denormalize_observation_delta(sample4[i], self.world_model.statistics)
+                sample4i += curr_states
                 sample5i = denormalize_observation_delta(sample5[i], self.world_model.statistics)
+                sample5i += curr_states
+
                 if self.reweight_critic == 1:
                     # 5 models, each sampled 10 times = 50,
                     pred_rwd1 = self.world_model.pred_rewards(sample1i)
