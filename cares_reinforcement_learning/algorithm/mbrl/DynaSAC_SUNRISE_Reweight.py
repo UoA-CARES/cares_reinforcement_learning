@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.networks.world_models import (
     EnsembleWorldAndOneNSReward,
 )
+from cares_reinforcement_learning.util.helpers import denormalize_observation_delta
 
 
 class DynaSAC_SUNRISEReweight:
@@ -308,12 +309,18 @@ class DynaSAC_SUNRISEReweight:
             qs = []
             # Varying the next_state's distribution.
             for i in range(self.sample_times):
+                sample1i = denormalize_observation_delta(sample1[i], self.world_model.statistics)
+                sample2i = denormalize_observation_delta(sample2[i], self.world_model.statistics)
+                sample3i = denormalize_observation_delta(sample3[i], self.world_model.statistics)
+                sample4i = denormalize_observation_delta(sample4[i], self.world_model.statistics)
+                sample5i = denormalize_observation_delta(sample5[i], self.world_model.statistics)
+
                 # 5 models, each sampled 10 times = 50,
-                pred_rwd1 = self.world_model.pred_rewards(sample1[i])
-                pred_rwd2 = self.world_model.pred_rewards(sample2[i])
-                pred_rwd3 = self.world_model.pred_rewards(sample3[i])
-                pred_rwd4 = self.world_model.pred_rewards(sample4[i])
-                pred_rwd5 = self.world_model.pred_rewards(sample5[i])
+                pred_rwd1 = self.world_model.pred_rewards(sample1i)
+                pred_rwd2 = self.world_model.pred_rewards(sample2i)
+                pred_rwd3 = self.world_model.pred_rewards(sample3i)
+                pred_rwd4 = self.world_model.pred_rewards(sample4i)
+                pred_rwd5 = self.world_model.pred_rewards(sample5i)
                 rs.append(pred_rwd1)
                 rs.append(pred_rwd2)
                 rs.append(pred_rwd3)
@@ -321,11 +328,11 @@ class DynaSAC_SUNRISEReweight:
                 rs.append(pred_rwd5)
                 # Each times, 5 models predict different actions.
                 # [2560, 17]
-                pred_act1, log_pi1, _ = self.actor_net(sample1[i])
-                pred_act2, log_pi2, _ = self.actor_net(sample2[i])
-                pred_act3, log_pi3, _ = self.actor_net(sample3[i])
-                pred_act4, log_pi4, _ = self.actor_net(sample4[i])
-                pred_act5, log_pi5, _ = self.actor_net(sample5[i])
+                pred_act1, log_pi1, _ = self.actor_net(sample1i)
+                pred_act2, log_pi2, _ = self.actor_net(sample2i)
+                pred_act3, log_pi3, _ = self.actor_net(sample3i)
+                pred_act4, log_pi4, _ = self.actor_net(sample4i)
+                pred_act5, log_pi5, _ = self.actor_net(sample5i)
                 acts.append(log_pi1)
                 acts.append(log_pi2)
                 acts.append(log_pi3)
@@ -335,15 +342,15 @@ class DynaSAC_SUNRISEReweight:
                 # Now: sample1 sample2... same next state, different model.
                 # Pred_act1 pred_act2 same next_state, different actions.
                 # 5[] * 10[var of state]
-                qa1, qa2 = self.target_critic_net(sample1[i], pred_act1)
+                qa1, qa2 = self.target_critic_net(sample1i, pred_act1)
                 qa = torch.minimum(qa1, qa2)
-                qb1, qb2 = self.target_critic_net(sample2[i], pred_act2)
+                qb1, qb2 = self.target_critic_net(sample2i, pred_act2)
                 qb = torch.minimum(qb1, qb2)
-                qc1, qc2 = self.target_critic_net(sample3[i], pred_act3)
+                qc1, qc2 = self.target_critic_net(sample3i, pred_act3)
                 qc = torch.minimum(qc1, qc2)
-                qd1, qd2 = self.target_critic_net(sample4[i], pred_act4)
+                qd1, qd2 = self.target_critic_net(sample4i, pred_act4)
                 qd = torch.minimum(qd1, qd2)
-                qe1, qe2 = self.target_critic_net(sample5[i], pred_act5)
+                qe1, qe2 = self.target_critic_net(sample5i, pred_act5)
                 qe = torch.minimum(qe1, qe2)
                 qs.append(qa)
                 qs.append(qb)
