@@ -317,8 +317,6 @@ class DynaSAC_SAS_Immersive_Weight:
             for i in range(self.sample_times):
                 if self.reweight_critic == 1:
                     # 5 models, each sampled 10 times = 50,
-                    denormalize_observation_delta(sample1[i], self.world_model.statistics)
-
                     pred_rwd1 = self.world_model.pred_rewards(pred_state, pred_act, denormalize_observation_delta(sample1[i], self.world_model.statistics))
                     pred_rwd2 = self.world_model.pred_rewards(pred_state, pred_act, denormalize_observation_delta(sample2[i], self.world_model.statistics))
                     pred_rwd3 = self.world_model.pred_rewards(pred_state, pred_act, denormalize_observation_delta(sample3[i], self.world_model.statistics))
