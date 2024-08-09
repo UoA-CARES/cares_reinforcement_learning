@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.networks.world_models import (
     EnsembleWorldAndOneNSReward,
 )
+from cares_reinforcement_learning.util.helpers import denormalize_observation_delta
 
 
 
@@ -311,11 +312,11 @@ class DynaSAC_ScaleBatchReweight:
             for i in range(self.sample_times):
                 if self.reweight_critic == 1:
                     # 5 models, each sampled 10 times = 50,
-                    pred_rwd1 = self.world_model.pred_rewards(sample1[i])
-                    pred_rwd2 = self.world_model.pred_rewards(sample2[i])
-                    pred_rwd3 = self.world_model.pred_rewards(sample3[i])
-                    pred_rwd4 = self.world_model.pred_rewards(sample4[i])
-                    pred_rwd5 = self.world_model.pred_rewards(sample5[i])
+                    pred_rwd1 = self.world_model.pred_rewards(denormalize_observation_delta(sample1[i], self.world_model.statistics))
+                    pred_rwd2 = self.world_model.pred_rewards(denormalize_observation_delta(sample2[i], self.world_model.statistics))
+                    pred_rwd3 = self.world_model.pred_rewards(denormalize_observation_delta(sample3[i], self.world_model.statistics))
+                    pred_rwd4 = self.world_model.pred_rewards(denormalize_observation_delta(sample4[i], self.world_model.statistics))
+                    pred_rwd5 = self.world_model.pred_rewards(denormalize_observation_delta(sample5[i], self.world_model.statistics))
                     rs.append(pred_rwd1)
                     rs.append(pred_rwd2)
                     rs.append(pred_rwd3)
