@@ -98,18 +98,16 @@ class SACD:
         dones: torch.Tensor,
     ) -> None:
         with torch.no_grad():
-            actions_bro, (action_probs, log_actions_probs), _ = self.actor_net(
-                next_states
-            )
+            _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
             qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
 
-            temp_min_qf_next_target = action_probs * (
+            min_qf_next_target = action_probs * (
                 torch.minimum(qf1_next_target, qf2_next_target)
                 - self.alpha * log_actions_probs
             )
 
-            min_qf_next_target = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
+            min_qf_next_target = min_qf_next_target.sum(dim=1).unsqueeze(-1)
             # TODO: Investigate
             next_q_value = (
                 rewards * self.reward_scale
@@ -130,7 +128,7 @@ class SACD:
         self.critic_net_optimiser.step()
 
     def _update_actor_alpha(self, states: torch.Tensor) -> None:
-        action, (action_probs, log_action_probs), _ = self.actor_net(states)
+        _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
         qf1_pi, qf2_pi = self.critic_net(states)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
