@@ -27,7 +27,7 @@ def create_path_from_format_string(
     :return: The path
     """
 
-    base_dir = os.environ.get("CARES_LOG_DIR", f"{Path.home()}/cares_rl_logs")
+    base_dir = os.environ.get("CARES_LOG_BASE_DIR", f"{Path.home()}/cares_rl_logs")
 
     domain_with_hyphen_or_empty = f"{domain}-" if domain != "" else ""
     domain_task = domain_with_hyphen_or_empty + task
