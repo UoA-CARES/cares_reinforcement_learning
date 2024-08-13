@@ -129,9 +129,7 @@ The Record class allows data to be saved into a consistent format during trainin
 
 All data from a training run is saved into the directory specified in the `CARES_LOG_BASE_DIR` environment variable. If not specified, this will default to `'~/cares_rl_logs'`.
 
-You may specify a custom log directory format using the `log_path_template` config option. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"` so that each run is saved as a new seed under the algorithm and domain-task pair for that algorithm.
-
-Alternatively, instead of providing the `log_path_template` config option in the command line, you can set the `CARES_LOG_PATH_TEMPLATE` environment variable and this will be used instead. The environment variable will take precedence over the config option, mainly because it was easier to implement. It should probably be the other way around. Feel free to update the code accordingly
+You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"` so that each run is saved as a new seed under the algorithm and domain-task pair for that algorithm.
 
 The following variables are supported for log path template variable interpolation:
 
