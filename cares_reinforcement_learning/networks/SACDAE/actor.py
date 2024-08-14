@@ -5,6 +5,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.SACD import Actor as SACDActor
 
+
 class Actor(SACDActor):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""

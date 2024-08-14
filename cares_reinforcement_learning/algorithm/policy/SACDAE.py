@@ -20,6 +20,7 @@ from cares_reinforcement_learning.encoders.configurations import (
 )
 from cares_reinforcement_learning.encoders.losses import AELoss
 
+
 class SACDAE:
     def __init__(
         self,
@@ -71,7 +72,9 @@ class SACDAE:
         alpha_beta = 0.5
 
         # set target entropy to -|A|
-        self.target_entropy = -np.prod(np.log(1.0 / action_num) * target_entropy_multiplier)
+        self.target_entropy = -np.prod(
+            np.log(1.0 / action_num) * target_entropy_multiplier
+        )
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr, betas=(critic_beta, 0.999)
@@ -97,7 +100,7 @@ class SACDAE:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999)
-            )
+        )
 
         self.action_num = action_num
 
@@ -165,7 +168,9 @@ class SACDAE:
         self.critic_net_optimiser.step()
 
     def _update_actor_alpha(self, states: torch.Tensor) -> None:
-        action, (action_probs, log_action_probs), _ = self.actor_net(states, detach_encoder=True)
+        action, (action_probs, log_action_probs), _ = self.actor_net(
+            states, detach_encoder=True
+        )
 
         qf1_pi, qf2_pi = self.critic_net(states, detach_encoder=True)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)

@@ -4,6 +4,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.SACD import Critic as SACDCritic
 
+
 class Critic(SACDCritic):
     def __init__(
         self,
@@ -21,8 +22,8 @@ class Critic(SACDCritic):
         self.apply(hlp.weight_init)
 
     def forward(
-            self, state: torch.Tensor, detach_encoder: bool = False
-        ) -> tuple[torch.Tensor, torch.Tensor]:
+        self, state: torch.Tensor, detach_encoder: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor]:
 
         state_latent = self.encoder(state, detach_cnn=detach_encoder)
         return super().forward(state_latent)
