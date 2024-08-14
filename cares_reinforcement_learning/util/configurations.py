@@ -223,12 +223,46 @@ class SACDConfig(AlgorithmConfig):
 
     target_entropy_multiplier = 0.98
 
-    max_steps_exploration = 20000
+    max_steps_exploration = 5000
     number_steps_per_train_policy = 4
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
+
+
+class SACDAEConfig(AlgorithmConfig):
+    algorithm: str = Field("SACDAE", Literal=True)
+
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+
+    batch_size = 64
+
+    target_entropy_multiplier = 0.98
+
+    max_steps_exploration = 5000
+    number_steps_per_train_policy = 4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    image_observation: Optional[int] = 1
+
+    encoder_tau: Optional[float] = 0.05
+    decoder_update_freq: Optional[int] = 1
+
+    autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
+        latent_dim=50,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
 
 
 class DynaSACConfig(AlgorithmConfig):

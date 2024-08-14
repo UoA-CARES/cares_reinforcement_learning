@@ -226,6 +226,45 @@ def create_SACD(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_SACDAE(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
+        AEFactory,
+    )
+    from cares_reinforcement_learning.algorithm.policy import SACD
+    from cares_reinforcement_learning.networks.SACDAE import Actor, Critic
+
+    ae_factory = AEFactory()
+    autoencoder = ae_factory.create_autoencoder(
+        observation_size=observation_size, config=config.autoencoder_config
+    )
+
+    actor_encoder = copy.deepcopy(autoencoder.encoder)
+    critic_encoder = copy.deepcopy(autoencoder.encoder)
+
+    actor = Actor(
+        actor_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+    )
+    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = SACD(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        reward_scale=config.reward_scale,
+        action_num=action_num,
+        target_entropy_multiplier=config.target_entropy_multiplier,
+        device=device,
+    )
+    return agent
+
+
 def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor, Critic
