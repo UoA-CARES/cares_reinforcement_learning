@@ -213,6 +213,24 @@ class SACAEConfig(AlgorithmConfig):
     )
 
 
+class SACDConfig(AlgorithmConfig):
+    algorithm: str = Field("SACD", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+
+    batch_size = 64
+
+    target_entropy_multiplier = 0.98
+
+    max_steps_exploration = 20000
+    number_steps_per_train_policy = 4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+
 class DynaSACConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: Optional[float] = 3e-4
