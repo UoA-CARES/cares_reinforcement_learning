@@ -14,11 +14,9 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.encoders.configurations import (
-    VanillaAEConfig,
-)
+from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class SACAE:
@@ -129,7 +127,7 @@ class SACAE:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
 
@@ -155,7 +153,9 @@ class SACAE:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> None:
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+
+    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
         qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
@@ -173,11 +173,13 @@ class SACAE:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def _update_autoencoder(self, states: torch.Tensor) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def _update_autoencoder(self, states: torch.Tensor) -> float:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
 
-        loss = self.loss_function.calculate_loss(
+        ae_loss = self.loss_function.calculate_loss(
             data=states,
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,
@@ -185,11 +187,13 @@ class SACAE:
 
         self.encoder_net_optimiser.zero_grad()
         self.decoder_net_optimiser.zero_grad()
-        loss.backward()
+        ae_loss.backward()
         self.encoder_net_optimiser.step()
         self.decoder_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return ae_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -213,14 +217,22 @@ class SACAE:
         states_normalised = states / 255
         next_states_normalised = next_states / 255
 
+        info = {}
+
         # Update the Critic
-        self._update_critic(
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
             states_normalised, actions, rewards, next_states_normalised, dones
         )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["critic_loss"] = critic_loss_total
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            self._update_actor_alpha(states_normalised)
+            actor_loss, alpha_loss = self._update_actor_alpha(states_normalised)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update the target networks - Soft Update
@@ -237,7 +249,10 @@ class SACAE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            self._update_autoencoder(states_normalised)
+            ae_loss = self._update_autoencoder(states_normalised)
+            info["ae_loss"] = ae_loss
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

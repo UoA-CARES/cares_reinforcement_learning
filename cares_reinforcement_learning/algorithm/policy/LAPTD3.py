@@ -74,7 +74,14 @@ class LAPTD3:
         self.actor_net.train()
         return action
 
-    def _update_critic(self, states, actions, rewards, next_states, dones):
+    def _update_critic(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> tuple[float, float, float, np.ndarray]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -110,9 +117,14 @@ class LAPTD3:
             .data.numpy()
             .flatten()
         )
-        return priorities
+        return (
+            huber_lose_one.item(),
+            huber_lose_two.item(),
+            critic_loss_total.item(),
+            priorities,
+        )
 
-    def _update_actor(self, states):
+    def _update_actor(self, states: torch.Tensor) -> float:
         actor_q_values, _ = self.critic_net(states, self.actor_net(states))
         actor_loss = -actor_q_values.mean()
 
@@ -120,7 +132,9 @@ class LAPTD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size, sampling="simple")
@@ -139,18 +153,27 @@ class LAPTD3:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update the Critic
-        priorities = self._update_critic(states, actions, rewards, next_states, dones)
+        huber_lose_one, huber_lose_two, critic_loss_total, priorities = (
+            self._update_critic(states, actions, rewards, next_states, dones)
+        )
+        info["huber_lose_one"] = huber_lose_one
+        info["huber_lose_two"] = huber_lose_two
+        info["critic_loss_total"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
         memory.update_priorities(indices, priorities)
+        return info
 
     def save_models(self, filename, filepath="models"):
         path = f"{filepath}/models" if filepath != "models" else filepath

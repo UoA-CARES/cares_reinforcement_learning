@@ -103,7 +103,7 @@ class REDQ:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> list[float]:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
 
@@ -122,6 +122,8 @@ class REDQ:
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
+        critic_loss_totals = []
+
         for critic_net, critic_net_optimiser in zip(
             self.ensemble_critics, self.ensemble_critics_optimizers
         ):
@@ -133,7 +135,13 @@ class REDQ:
             critic_loss_total.backward()
             critic_net_optimiser.step()
 
-    def _update_actor_alpha(self, idx: list[int], states: torch.Tensor) -> None:
+            critic_loss_totals.append(critic_loss_total.item())
+
+        return critic_loss_totals
+
+    def _update_actor_alpha(
+        self, idx: list[int], states: torch.Tensor
+    ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
 
         qf1_pi = self.target_ensemble_critics[idx[0]](states, pi)
@@ -153,7 +161,9 @@ class REDQ:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -177,11 +187,19 @@ class REDQ:
             self.ensemble_size, self.num_sample_critics, replace=False
         )
 
+        info = {}
+
         # Update the Critics
-        self._update_critics(idx, states, actions, rewards, next_states, dones)
+        critic_loss_totals = self._update_critics(
+            idx, states, actions, rewards, next_states, dones
+        )
+        info["critic_loss_totals"] = critic_loss_totals
 
         # Update the Actor
-        self._update_actor_alpha(idx, states)
+        actor_loss, alpha_loss = self._update_actor_alpha(idx, states)
+        info["actor_loss"] = actor_loss
+        info["alpha_loss"] = alpha_loss
+        info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update ensemble of target critics
@@ -189,6 +207,8 @@ class REDQ:
                 self.ensemble_critics, self.target_ensemble_critics
             ):
                 hlp.soft_update_params(critic_net, target_critic_net, self.tau)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

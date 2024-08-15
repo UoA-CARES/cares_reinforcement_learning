@@ -91,7 +91,7 @@ class LA3PTD3:
         next_states: np.ndarray,
         dones: np.ndarray,
         uniform_sampling: bool,
-    ) -> np.ndarray:
+    ) -> tuple[float, np.ndarray]:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -158,9 +158,9 @@ class LA3PTD3:
             .flatten()
         )
 
-        return priorities
+        return critic_loss_total.item(), priorities
 
-    def _update_actor(self, states: np.ndarray) -> None:
+    def _update_actor(self, states: np.ndarray) -> float:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
@@ -172,7 +172,9 @@ class LA3PTD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -184,7 +186,9 @@ class LA3PTD3:
         experiences = memory.sample_uniform(uniform_batch_size)
         states, actions, rewards, next_states, dones, indices = experiences
 
-        priorities = self._update_critic(
+        info_uniform = {}
+
+        critic_loss_total, priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -192,18 +196,23 @@ class LA3PTD3:
             dones,
             uniform_sampling=True,
         )
+        info_uniform["critic_loss_total"] = critic_loss_total
 
         memory.update_priorities(indices, priorities)
 
         if policy_update:
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info_uniform["actor_loss"] = actor_loss
+
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
         experiences = memory.sample_priority(priority_batch_size, sampling="simple")
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        priorities = self._update_critic(
+        info_priority = {}
+
+        critic_loss_total, priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -211,6 +220,7 @@ class LA3PTD3:
             dones,
             uniform_sampling=False,
         )
+        info_priority["critic_loss_total"] = critic_loss_total
 
         memory.update_priorities(indices, priorities)
 
@@ -219,8 +229,13 @@ class LA3PTD3:
             experiences = memory.sample_inverse_priority(priority_batch_size)
             states, actions, rewards, next_states, dones, indices, _ = experiences
 
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info_priority["actor_loss"] = actor_loss
+
             self._update_target_network()
+
+        info = {"uniform": info_uniform, "priority": info_priority}
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

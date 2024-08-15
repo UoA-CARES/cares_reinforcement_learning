@@ -94,7 +94,7 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> dict[str, any]:
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences
 
@@ -145,6 +145,13 @@ class PPO:
             self.critic_net_optimiser.zero_grad()
             critic_loss.backward()
             self.critic_net_optimiser.step()
+
+        info = {}
+        info["td_errors"] = td_errors
+        info["critic_loss"] = critic_loss.item()
+        info["actor_loss"] = actor_loss.item()
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models"):
         path = f"{filepath}/models" if filepath != "models" else filepath

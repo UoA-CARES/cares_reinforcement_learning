@@ -155,7 +155,7 @@ class CTD4:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> list[float]:
         batch_size = len(states)
 
         with torch.no_grad():
@@ -188,6 +188,8 @@ class CTD4:
                 u_target, std_target
             )
 
+        critic_loss_totals = []
+
         for critic_net, critic_net_optimiser in zip(
             self.ensemble_critics, self.ensemble_critics_optimizers
         ):
@@ -205,7 +207,11 @@ class CTD4:
             critic_individual_loss.backward()
             critic_net_optimiser.step()
 
-    def _update_actor(self, states: torch.Tensor) -> None:
+            critic_loss_totals.append(critic_individual_loss.item())
+
+        return critic_loss_totals
+
+    def _update_actor(self, states: torch.Tensor) -> float:
         batch_size = len(states)
 
         actor_q_u_set = []
@@ -237,7 +243,9 @@ class CTD4:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
         self.learn_counter += 1
 
         self.target_policy_noise_scale *= self.policy_noise_decay
@@ -261,12 +269,18 @@ class CTD4:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update Critics
-        self._update_critics(states, actions, rewards, next_states, dones)
+        critic_loss_totals = self._update_critics(
+            states, actions, rewards, next_states, dones
+        )
+        info["critic_loss_totals"] = critic_loss_totals
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
 
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
@@ -276,6 +290,8 @@ class CTD4:
 
             # Update target actor
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

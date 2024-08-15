@@ -162,7 +162,11 @@ class Record:
 
         data_frame.to_csv(path, index=False)
 
-        string = [f"{key}: {str(val)[0:10]:6s}" for key, val in logs.items()]
+        string = []
+        for key, val in logs.items():
+            if key != "info":
+                string.append(f"{key}: {str(val)[0:10]:6s}")
+
         string = " | ".join(string)
         string = "| " + string + " |"
 

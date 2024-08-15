@@ -79,7 +79,7 @@ class TD3:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -105,7 +105,9 @@ class TD3:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor(self, states: torch.Tensor) -> None:
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+
+    def _update_actor(self, states: torch.Tensor) -> float:
         actor_q_values, _ = self.critic_net(states, self.actor_net(states))
         actor_loss = -actor_q_values.mean()
 
@@ -113,7 +115,9 @@ class TD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -132,16 +136,26 @@ class TD3:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update the Critic
-        self._update_critc(states, actions, rewards, next_states, dones)
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critc(
+            states, actions, rewards, next_states, dones
+        )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

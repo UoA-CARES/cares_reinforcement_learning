@@ -92,7 +92,7 @@ class LA3PSAC:
         next_states: np.ndarray,
         dones: np.ndarray,
         uniform_sampling: bool,
-    ) -> np.ndarray:
+    ) -> tuple[float, np.ndarray]:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -158,9 +158,9 @@ class LA3PSAC:
             .flatten()
         )
 
-        return priorities
+        return critic_loss_total.item(), priorities
 
-    def _update_actor_alpha(self, states: np.ndarray) -> None:
+    def _update_actor_alpha(self, states: np.ndarray) -> tuple[float, float]:
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
@@ -185,7 +185,9 @@ class LA3PSAC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -197,7 +199,9 @@ class LA3PSAC:
         experiences = memory.sample_uniform(uniform_batch_size)
         states, actions, rewards, next_states, dones, indices = experiences
 
-        priorities = self._update_critic(
+        info_uniform = {}
+
+        critic_loss_total, priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -205,11 +209,15 @@ class LA3PSAC:
             dones,
             uniform_sampling=True,
         )
+        info_uniform["critic_loss_total"] = critic_loss_total
 
         memory.update_priorities(indices, priorities)
 
         # Train Actor
-        self._update_actor_alpha(states)
+        actor_loss, alpha_loss = self._update_actor_alpha(states)
+        info_uniform["actor_loss"] = actor_loss
+        info_uniform["alpha_loss"] = alpha_loss
+        info_uniform["alpha"] = self.alpha.item()
 
         if policy_update:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
@@ -218,7 +226,9 @@ class LA3PSAC:
         experiences = memory.sample_priority(priority_batch_size, sampling="simple")
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        priorities = self._update_critic(
+        info_priority = {}
+
+        critic_loss_total, priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -226,6 +236,7 @@ class LA3PSAC:
             dones,
             uniform_sampling=False,
         )
+        info_priority["critic_loss_total"] = critic_loss_total
 
         memory.update_priorities(indices, priorities)
 
@@ -236,7 +247,13 @@ class LA3PSAC:
         experiences = memory.sample_inverse_priority(priority_batch_size)
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        self._update_actor_alpha(states)
+        actor_loss, alpha_loss = self._update_actor_alpha(states)
+        info_priority["actor_loss"] = actor_loss
+        info_priority["alpha_loss"] = alpha_loss
+        info_priority["alpha"] = self.alpha.item()
+
+        info = {"uniform": info_uniform, "priority": info_priority}
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
