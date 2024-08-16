@@ -7,6 +7,7 @@ https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithm
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -91,7 +92,7 @@ class MAPERSAC:
         return action
 
     @property
-    def alpha(self) -> float:
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def _update_critic(
@@ -102,7 +103,7 @@ class MAPERSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[float, np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, predicted_reward_one, next_states_one = self._split_output(
@@ -221,11 +222,11 @@ class MAPERSAC:
             self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
             self.scale_s = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
 
-        return priorities
+        return critic_loss_total.item(), priorities
 
     def _update_actor_alpha(
         self, states: torch.Tensor, weights: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         qf_pi_one, _, _ = self._split_output(qf1_pi)
@@ -249,7 +250,9 @@ class MAPERSAC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         # Sample replay buffer
@@ -273,18 +276,26 @@ class MAPERSAC:
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
         weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update the Critic
-        priorities = self._update_critic(
+        critic_loss_total, priorities = self._update_critic(
             states, actions, rewards, next_states, dones, weights
         )
+        info["critic_loss_total"] = critic_loss_total
 
         # Update the Actor
-        self._update_actor_alpha(states, weights)
+        actor_loss, alpha_loss = self._update_actor_alpha(states, weights)
+        info["actor_loss"] = actor_loss
+        info["alpha_loss"] = alpha_loss
+        info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.policy_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         memory.update_priorities(indices, priorities)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

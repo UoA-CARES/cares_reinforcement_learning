@@ -5,6 +5,7 @@ Original Paper: https://arxiv.org/abs/1511.05952
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -82,7 +83,7 @@ class PERTD3:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[float, list[float]]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -123,9 +124,9 @@ class PERTD3:
             .data.numpy()
             .flatten()
         )
-        return priorities
+        return critic_loss_total.item(), priorities
 
-    def _update_actor(self, states: torch.Tensor) -> None:
+    def _update_actor(self, states: torch.Tensor) -> float:
         actor_q_values, _ = self.critic_net(states, self.actor_net(states))
         actor_loss = -actor_q_values.mean()
 
@@ -133,7 +134,9 @@ class PERTD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)
@@ -154,24 +157,26 @@ class PERTD3:
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
         weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update the Critic
-        priorities = self._update_critic(
+        critic_loss_total, priorities = self._update_critic(
             states, actions, rewards, next_states, dones, weights
         )
+        info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
-            hlp.soft_update_of_target_network(
-                self.critic_net, self.target_critic_net, self.tau
-            )
-            hlp.soft_update_of_target_network(
-                self.actor_net, self.target_actor_net, self.tau
-            )
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
         memory.update_priorities(indices, priorities)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

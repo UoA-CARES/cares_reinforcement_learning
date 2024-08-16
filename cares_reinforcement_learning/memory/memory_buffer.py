@@ -304,7 +304,7 @@ class MemoryBuffer:
             reversed_priorities[indices].tolist(),
         )
 
-    def update_priorities(self, indices: list[int], priorities: list[float]) -> None:
+    def update_priorities(self, indices: list[int], priorities: np.ndarray) -> None:
         """
         Update the priorities of the replay buffer at the given indices.
 

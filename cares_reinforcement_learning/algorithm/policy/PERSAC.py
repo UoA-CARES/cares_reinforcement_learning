@@ -5,6 +5,7 @@ Original Paper: https://arxiv.org/abs/1511.05952
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -91,7 +92,7 @@ class PERSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[float, list[float]]:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -128,9 +129,9 @@ class PERSAC:
             .data.numpy()
             .flatten()
         )
-        return priorities
+        return critic_loss_total.item(), priorities
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> None:
+    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
@@ -147,7 +148,9 @@ class PERSAC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)
@@ -167,18 +170,25 @@ class PERSAC:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update the Critic
-        priorities = self._update_critic(
+        critic_loss_total, priorities = self._update_critic(
             states, actions, rewards, next_states, dones, weights
         )
+        info["critic_loss"] = critic_loss_total
 
         # Update the Actor
-        self._update_actor_alpha(states)
+        actor_loss = self._update_actor_alpha(states)
+        info["actor_loss"] = actor_loss
+        info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.policy_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         memory.update_priorities(indices, priorities)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

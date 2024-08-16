@@ -8,6 +8,7 @@ This code runs automatic entropy tuning
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -96,7 +97,7 @@ class SACD:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> float:
         with torch.no_grad():
             _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
@@ -127,7 +128,9 @@ class SACD:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> None:
+        return critic_loss_total.item()
+
+    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
         qf1_pi, qf2_pi = self.critic_net(states)
@@ -151,7 +154,9 @@ class SACD:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -170,14 +175,24 @@ class SACD:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update the Critic
-        self._update_critic(states, actions, rewards, next_states, dones)
+        critic_loss_total = self._update_critic(
+            states, actions, rewards, next_states, dones
+        )
+        info["critic_loss"] = critic_loss_total
 
         # Update the Actor and Alpha
-        self._update_actor_alpha(states)
+        actor_loss, alpha_loss = self._update_actor_alpha(states)
+        info["actor_loss"] = actor_loss
+        info["alpha_loss"] = alpha_loss
+        info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.policy_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

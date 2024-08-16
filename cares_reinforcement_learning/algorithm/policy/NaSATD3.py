@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -11,8 +12,8 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.encoders.constants import Autoencoders
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 
 
@@ -118,7 +119,7 @@ class NaSATD3:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
             next_actions = self.actor_target(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -143,11 +144,14 @@ class NaSATD3:
         critic_loss_total.backward()
         self.critic_optimizer.step()
 
-    def _update_autoencoder(self, states: torch.Tensor) -> None:
-        # Leaving this function in case this needs to be extended again in the future
-        self.autoencoder.update_autoencoder(states)
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
-    def _update_actor(self, states: torch.Tensor) -> None:
+    def _update_autoencoder(self, states: torch.Tensor) -> float:
+        # Leaving this function in case this needs to be extended again in the future
+        ae_loss = self.autoencoder.update_autoencoder(states)
+        return ae_loss.item()
+
+    def _update_actor(self, states: torch.Tensor) -> float:
         actor_q_one, actor_q_two = self.critic(
             states, self.actor(states, detach_encoder=True), detach_encoder=True
         )
@@ -157,6 +161,8 @@ class NaSATD3:
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
+
+        return actor_loss.item()
 
     def _get_latent_state(
         self, states: np.ndarray, detach_output: bool, sample_latent: bool = True
@@ -175,7 +181,7 @@ class NaSATD3:
 
     def _update_predictive_model(
         self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
-    ) -> None:
+    ) -> list[float]:
 
         with torch.no_grad():
             latent_state = self._get_latent_state(
@@ -186,6 +192,7 @@ class NaSATD3:
                 next_states, detach_output=True, sample_latent=True
             )
 
+        pred_losses = []
         for predictive_network, optimizer in zip(
             self.ensemble_predictive_model, self.epm_optimizers
         ):
@@ -199,7 +206,11 @@ class NaSATD3:
             loss.backward()
             optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+            pred_losses.append(loss.item())
+
+        return pred_losses
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.actor.train()
         self.critic.train()
         self.autoencoder.train()
@@ -229,17 +240,24 @@ class NaSATD3:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # Update the Critic
-        self._update_critic(states, actions, rewards, next_states, dones)
+        info = {}
 
-        # TODO Nadine modified to update autoencoder after G loop
+        # Update the Critic
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
+            states, actions, rewards, next_states, dones
+        )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["critic_loss_total"] = critic_loss_total
 
         # Update Autoencoder
-        self._update_autoencoder(states)
+        ae_loss = self._update_autoencoder(states)
+        info["ae_loss"] = ae_loss
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             # Note: the encoders in target networks are the same of main networks, so I wont update them
@@ -252,7 +270,10 @@ class NaSATD3:
 
         # Update intrinsic models
         if self.intrinsic_on:
-            self._update_predictive_model(states, actions, next_states)
+            pred_losses = self._update_predictive_model(states, actions, next_states)
+            info["pred_losses"] = pred_losses
+
+        return info
 
     def _get_surprise_rate(
         self,
