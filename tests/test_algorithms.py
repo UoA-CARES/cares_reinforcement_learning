@@ -1,5 +1,4 @@
 import inspect
-import os
 from random import randrange
 
 import numpy as np
@@ -8,28 +7,6 @@ import pytest
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
 from cares_reinforcement_learning.util import NetworkFactory, configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-
-# IN_GITHUB_ACTIONS = os.getenv("GITHUB_ACTIONS") == "true"
-
-
-# @pytest.mark.skipif(not IN_GITHUB_ACTIONS, reason="Running more complex test locally")
-# def test_network_factory():
-#     factory = NetworkFactory()
-
-#     algorithm_configurations = {}
-#     for name, cls in inspect.getmembers(configurations, inspect.isclass):
-#         if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
-#             name = name.replace("Config", "")
-#             algorithm_configurations[name] = cls
-
-#     for algorithm, config in algorithm_configurations.items():
-#         config = config()
-#         observation_size = (9, 84, 84) if config.image_observation else 10
-#         action_num = 2
-#         network = factory.create_network(
-#             observation_size=observation_size, action_num=action_num, config=config
-#         )
-#         assert network is not None, f"{algorithm} was not created successfully"
 
 
 def _policy_buffer(
