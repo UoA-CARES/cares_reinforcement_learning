@@ -7,6 +7,7 @@ code based on: https://github.com/dxyang/DQN_pytorch
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -47,7 +48,7 @@ class DoubleDQN:
         self.network.train()
         return action
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
@@ -71,6 +72,8 @@ class DoubleDQN:
 
         loss = F.mse_loss(q_value, q_target)
 
+        info = {}
+
         self.network_optimiser.zero_grad()
         loss.backward()
         self.network_optimiser.step()
@@ -81,6 +84,9 @@ class DoubleDQN:
             target_param.data.copy_(
                 param.data * self.tau + target_param.data * (1.0 - self.tau)
             )
+
+        info["loss"] = loss.item()
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

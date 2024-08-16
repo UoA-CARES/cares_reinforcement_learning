@@ -7,6 +7,7 @@ https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithm
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -236,7 +237,7 @@ class MAPERTD3:
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         # Sample replay buffer

@@ -10,7 +10,7 @@ Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learni
 import copy
 import logging
 import os
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -245,7 +245,7 @@ class CTD4:
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         self.target_policy_noise_scale *= self.policy_noise_decay

@@ -5,6 +5,7 @@ Original Paper: https://arxiv.org/pdf/2101.05982.pdf
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -92,7 +93,7 @@ class REDQ:
         return action
 
     @property
-    def alpha(self) -> float:
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def _update_critics(
@@ -163,7 +164,7 @@ class REDQ:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)

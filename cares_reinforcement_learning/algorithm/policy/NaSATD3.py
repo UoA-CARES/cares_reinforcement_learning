@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -11,8 +12,8 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.encoders.constants import Autoencoders
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 
 
@@ -209,7 +210,7 @@ class NaSATD3:
 
         return pred_losses
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.actor.train()
         self.critic.train()
         self.autoencoder.train()

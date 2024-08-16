@@ -5,7 +5,7 @@ Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
 import copy
 import logging
 import os
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -93,7 +93,7 @@ class DDPG:
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 

@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -90,7 +91,7 @@ class RDTD3:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[float, np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
@@ -192,12 +193,7 @@ class RDTD3:
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
 
-        return (
-            critic_one_loss.item(),
-            critic_two_loss.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        return critic_loss_total.item(), priorities
 
     def _update_actor(self, states: torch.Tensor) -> float:
         actor_q_one, actor_q_two = self.critic_net(
@@ -215,7 +211,7 @@ class RDTD3:
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         # Sample replay buffer
@@ -240,11 +236,9 @@ class RDTD3:
         info = {}
 
         # Update Critic
-        critic_one_loss, critic_two_loss, critic_loss_total, priorities = (
-            self._update_critic(states, actions, rewards, next_states, dones, weights)
+        critic_loss_total, priorities = self._update_critic(
+            states, actions, rewards, next_states, dones, weights
         )
-        info["critic_one_loss"] = critic_one_loss
-        info["critic_two_loss"] = critic_two_loss
         info["critic_loss_total"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:

@@ -5,6 +5,7 @@ Original Paper: https://arxiv.org/abs/1511.05952
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -91,7 +92,7 @@ class PERSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, list[float]]:
+    ) -> tuple[float, list[float]]:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -128,12 +129,7 @@ class PERSAC:
             .data.numpy()
             .flatten()
         )
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        return critic_loss_total.item(), priorities
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
@@ -154,7 +150,7 @@ class PERSAC:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)
@@ -177,11 +173,9 @@ class PERSAC:
         info = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(states, actions, rewards, next_states, dones, weights)
+        critic_loss_total, priorities = self._update_critic(
+            states, actions, rewards, next_states, dones, weights
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
         info["critic_loss"] = critic_loss_total
 
         # Update the Actor

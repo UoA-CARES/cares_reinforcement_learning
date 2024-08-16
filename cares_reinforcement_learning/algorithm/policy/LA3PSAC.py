@@ -7,6 +7,7 @@ https://github.com/h-yamani/RD-PER-baselines/blob/main/LA3P/LA3P/Code/SAC/LA3P_S
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -81,7 +82,7 @@ class LA3PSAC:
         return action
 
     @property
-    def alpha(self) -> float:
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def _update_critic(
@@ -187,7 +188,7 @@ class LA3PSAC:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))

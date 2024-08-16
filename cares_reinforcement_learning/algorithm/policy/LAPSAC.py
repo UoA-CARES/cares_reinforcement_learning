@@ -5,6 +5,7 @@ Original Paper: https://arxiv.org/abs/2007.06049
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -150,7 +151,7 @@ class LAPSAC:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)

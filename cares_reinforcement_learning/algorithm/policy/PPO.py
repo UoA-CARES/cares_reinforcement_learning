@@ -10,6 +10,7 @@ Code based on:
 
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -94,7 +95,7 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> dict[str, Any]:
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences
 

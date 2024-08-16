@@ -5,6 +5,7 @@ Original Paper: https://arxiv.org/abs/1511.05952
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -82,7 +83,7 @@ class PERTD3:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, list[float]]:
+    ) -> tuple[float, list[float]]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -123,12 +124,7 @@ class PERTD3:
             .data.numpy()
             .flatten()
         )
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        return critic_loss_total.item(), priorities
 
     def _update_actor(self, states: torch.Tensor) -> float:
         actor_q_values, _ = self.critic_net(states, self.actor_net(states))
@@ -140,7 +136,7 @@ class PERTD3:
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)
@@ -164,11 +160,9 @@ class PERTD3:
         info = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(states, actions, rewards, next_states, dones, weights)
+        critic_loss_total, priorities = self._update_critic(
+            states, actions, rewards, next_states, dones, weights
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
         info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:

@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -83,7 +84,7 @@ class RDSAC:
         return action
 
     @property
-    def alpha(self) -> float:
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def _update_critics(
@@ -94,7 +95,7 @@ class RDSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[float, np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
@@ -192,12 +193,7 @@ class RDSAC:
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
 
-        return (
-            critic_one_loss.item(),
-            critic_two_loss.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        return critic_loss_total.item(), priorities
 
     def _update_actor_alpha(
         self, states: torch.Tensor, weights: torch.Tensor
@@ -222,7 +218,7 @@ class RDSAC:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, any]:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_priority(batch_size)
@@ -246,11 +242,9 @@ class RDSAC:
         info = {}
 
         # Update the Critic
-        critic_one_loss, critic_two_loss, critic_loss_total, priorities = (
-            self._update_critics(states, actions, rewards, next_states, dones, weights)
+        critic_loss_total, priorities = self._update_critics(
+            states, actions, rewards, next_states, dones, weights
         )
-        info["critic_one_loss"] = critic_one_loss
-        info["critic_two_loss"] = critic_two_loss
         info["critic_loss_total"] = critic_loss_total
 
         # Update the Actor
