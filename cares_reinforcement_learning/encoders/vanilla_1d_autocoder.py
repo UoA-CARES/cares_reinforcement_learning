@@ -260,7 +260,7 @@ class Decoder1D(nn.Module):
                     stride=1,
                 )
             )
-        
+
         # last layer
         self.deconvs.append(
             nn.ConvTranspose1d(
