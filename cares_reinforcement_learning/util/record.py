@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Optional
+from typing import Optional
 
 import cv2
 import numpy as np
@@ -16,34 +16,39 @@ class Record:
     A class that represents a record for logging and saving data during training and evaluation.
 
     Args:
-        glob_log_dir (str): The global log directory.
+        glob_log_dir (str): DEPRECATED - Just use the log_dir
         log_dir (str): The log directory.
         algorithm (str): The algorithm name.
         task (str): The task name.
         plot_frequency (int, optional): The frequency at which to plot training data. Defaults to 10.
-        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. Defaults to 1000.
+        checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. If not set model will not auto-save, use save_model externally to save.
         network (Optional[nn.Module], optional): The neural network model. Defaults to None.
     """
 
     def __init__(
         self,
-        glob_log_dir: str,
         log_dir: str,
         algorithm: str,
         task: str,
         plot_frequency: int = 10,
-        checkpoint_frequency: int = 1000,
+        checkpoint_frequency: Optional[int] = None,
         network: Optional[nn.Module] = None,
     ) -> None:
-        self.glob_log_dir = glob_log_dir
+
         self.log_dir = log_dir
-        self.directory = f"{self.glob_log_dir}/{self.log_dir}"
+
+        self.directory = f"{log_dir}"
 
         self.algorithm = algorithm
         self.task = task
 
         self.plot_frequency = plot_frequency
         self.checkpoint_frequency = checkpoint_frequency
+
+        if self.checkpoint_frequency == None:
+            logging.warning(
+                "checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model."
+            )
 
         self.train_data_path = f"{self.directory}/data/train.csv"
         self.train_data = (
@@ -96,6 +101,9 @@ class Record:
     def stop_video(self) -> None:
         self.video.release()
 
+    def save_model(self, identifier):
+        self.network.save_models(f"{self.algorithm}-{identifier}", self.directory)
+
     def log_video(self, frame: np.ndarray) -> None:
         self.video.write(frame)
 
@@ -123,7 +131,11 @@ class Record:
                 20,
             )
 
-        if self.network is not None and self.log_count % self.checkpoint_frequency == 0:
+        if (
+            (self.network is not None)
+            and (self.checkpoint_frequency is not None)
+            and (self.log_count % self.checkpoint_frequency == 0)
+        ):
             self.network.save_models(
                 f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
             )
@@ -150,7 +162,11 @@ class Record:
 
         data_frame.to_csv(path, index=False)
 
-        string = [f"{key}: {str(val)[0:10]:6s}" for key, val in logs.items()]
+        string = []
+        for key, val in logs.items():
+            if key != "info":
+                string.append(f"{key}: {str(val)[0:10]:6s}")
+
         string = " | ".join(string)
         string = "| " + string + " |"
 
@@ -182,8 +198,6 @@ class Record:
             self.network.save_models(self.algorithm, self.directory)
 
     def __initialise_directories(self) -> None:
-        if not os.path.exists(self.glob_log_dir):
-            os.makedirs(self.glob_log_dir)
 
         if not os.path.exists(self.directory):
             os.makedirs(self.directory)

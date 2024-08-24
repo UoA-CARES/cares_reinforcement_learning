@@ -6,12 +6,15 @@ Code based on: https://github.com/denisyarats/pytorch_sac_ae/tree/master
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
+from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.memory import MemoryBuffer
 
 
@@ -26,12 +29,9 @@ class TD3AE:
         action_num: int,
         actor_lr: float,
         critic_lr: float,
-        encoder_lr: float,
         encoder_tau: float,
-        decoder_lr: float,
-        decoder_latent_lambda: float,
-        decoder_weight_decay: float,
         decoder_update_freq: int,
+        ae_config: VanillaAEConfig,
         device: torch.device,
         is_1d: bool = False,
     ):
@@ -50,7 +50,7 @@ class TD3AE:
         self.encoder_tau = encoder_tau
 
         self.decoder_net = decoder_network.to(device)
-        self.decoder_latent_lambda = decoder_latent_lambda
+        self.decoder_latent_lambda = ae_config.latent_lambda
         self.decoder_update_freq = decoder_update_freq
 
         self.gamma = gamma
@@ -71,13 +71,14 @@ class TD3AE:
             self.critic_net.parameters(), lr=critic_lr
         )
 
+        self.loss_function = AELoss(latent_lambda=ae_config.latent_lambda)
+
         self.encoder_net_optimiser = torch.optim.Adam(
-            self.critic_net.encoder.parameters(), lr=encoder_lr
+            self.critic_net.encoder.parameters(), **ae_config.encoder_optim_kwargs
         )
         self.decoder_net_optimiser = torch.optim.Adam(
             self.decoder_net.parameters(),
-            lr=decoder_lr,
-            weight_decay=decoder_weight_decay,
+            **ae_config.decoder_optim_kwargs,
         )
         # needed since tensor shapes need to be treated differently
         self.is_1d = is_1d
@@ -116,7 +117,7 @@ class TD3AE:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
 
             ##########################################################
@@ -148,10 +149,9 @@ class TD3AE:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor(self, states: torch.Tensor) -> None:
-        ######################################################################
-        # states = states.view(-1,1,684)
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
+    def _update_actor(self, states: torch.Tensor) -> float:
         actions = self.actor_net(states, detach_encoder=True)
         actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
         actor_loss = -actor_q_values.mean()
@@ -160,27 +160,27 @@ class TD3AE:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def _update_autoencoder(self, states: torch.Tensor) -> None:
-        ##################################################################
-        # states = states.view(-1,1,684)
+        return actor_loss.item()
 
-        states_latent = self.critic_net.encoder(states)
-        rec_observations = self.decoder_net(states_latent)
+    def _update_autoencoder(self, states: torch.Tensor) -> float:
+        latent_samples = self.critic_net.encoder(states)
+        reconstructed_data = self.decoder_net(latent_samples)
 
-        rec_loss = F.mse_loss(states, rec_observations)
+        ae_loss = self.loss_function.calculate_loss(
+            data=states,
+            reconstructed_data=reconstructed_data,
+            latent_sample=latent_samples,
+        )
 
-        # add L2 penalty on latent representation
-        # see https://arxiv.org/pdf/1903.12436.pdf
-        latent_loss = (0.5 * states_latent.pow(2).sum(1)).mean()
-
-        loss = rec_loss + self.decoder_latent_lambda * latent_loss
         self.encoder_net_optimiser.zero_grad()
         self.decoder_net_optimiser.zero_grad()
-        loss.backward()
+        ae_loss.backward()
         self.encoder_net_optimiser.step()
         self.decoder_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return ae_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -211,13 +211,19 @@ class TD3AE:
         states_normalised = states / 255
         next_states_normalised = next_states / 255
 
-        self._update_critic(
+        info = {}
+
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
             states_normalised, actions, rewards, next_states_normalised, dones
         )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states_normalised)
+            actor_loss = self._update_actor(states_normalised)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             hlp.soft_update_params(
@@ -242,7 +248,10 @@ class TD3AE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            self._update_autoencoder(states_normalised)
+            ae_loss = self._update_autoencoder(states_normalised)
+            info["ae_loss"] = ae_loss
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

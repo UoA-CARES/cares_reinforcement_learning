@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -90,7 +91,7 @@ class RDTD3:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[float, np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
@@ -192,9 +193,9 @@ class RDTD3:
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
 
-        return priorities
+        return critic_loss_total.item(), priorities
 
-    def _update_actor(self, states: torch.Tensor) -> torch.Tensor:
+    def _update_actor(self, states: torch.Tensor) -> float:
         actor_q_one, actor_q_two = self.critic_net(
             states.detach(), self.actor_net(states.detach())
         )
@@ -208,7 +209,9 @@ class RDTD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         # Sample replay buffer
@@ -230,20 +233,26 @@ class RDTD3:
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
         weights = weights.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update Critic
-        priorities = self._update_critic(
+        critic_loss_total, priorities = self._update_critic(
             states, actions, rewards, next_states, dones, weights
         )
+        info["critic_loss_total"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
         memory.update_priorities(indices, priorities)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

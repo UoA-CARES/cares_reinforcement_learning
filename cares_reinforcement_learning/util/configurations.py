@@ -1,11 +1,14 @@
-from pathlib import Path
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-# NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
+from cares_reinforcement_learning.encoders.configurations import (
+    AEConfig,
+    VanillaAEConfig,
+    VAEConfig,
+)
 
-file_path = Path(__file__).parent.resolve()
+# NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
 
 
 class SubscriptableClass(BaseModel):
@@ -37,7 +40,7 @@ class TrainingConfig(SubscriptableClass):
 
 
 class AlgorithmConfig(SubscriptableClass):
-    """
+    """f
     Configuration class for the algorithm.
 
     These attributes are common to all algorithms. They can be overridden by the specific algorithm configuration.
@@ -153,17 +156,18 @@ class TD3AEConfig(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
 
-    num_layers: Optional[int] = 4
-    num_filters: Optional[int] = 32
-
-    encoder_lr: Optional[float] = 1e-3
     encoder_tau: Optional[float] = 0.05
-    latent_size: Optional[int] = 50
-
-    decoder_lr: Optional[float] = 1e-3
-    decoder_latent_lambda: Optional[float] = 1e-6
-    decoder_weight_decay: Optional[float] = 1e-7
     decoder_update_freq: Optional[int] = 1
+
+    autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
+        latent_dim=50,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
 
     is_1d: Optional[bool] = False
 
@@ -197,19 +201,36 @@ class SACAEConfig(AlgorithmConfig):
 
     log_std_bounds: List[float] = [-20, 2]
 
-    num_layers: Optional[int] = 4
-    num_filters: Optional[int] = 32
-
-    encoder_lr: Optional[float] = 1e-3
     encoder_tau: Optional[float] = 0.05
-    latent_size: Optional[int] = 50
-
-    decoder_lr: Optional[float] = 1e-3
-    decoder_latent_lambda: Optional[float] = 1e-6
-    decoder_weight_decay: Optional[float] = 1e-7
     decoder_update_freq: Optional[int] = 1
 
-    is_1d: Optional[bool] = False
+    autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
+        latent_dim=50,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
+
+
+class SACDConfig(AlgorithmConfig):
+    algorithm: str = Field("SACD", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+
+    batch_size = 64
+
+    target_entropy_multiplier = 0.98
+
+    max_steps_exploration = 20000
+    number_steps_per_train_policy = 4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
 
 
 class DynaSACConfig(AlgorithmConfig):
@@ -240,18 +261,33 @@ class NaSATD3Config(AlgorithmConfig):
 
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
-
-    encoder_lr: Optional[float] = 1e-3
-    decoder_lr: Optional[float] = 1e-3
-
     epm_lr: Optional[float] = 1e-4
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     ensemble_size: Optional[int] = 3
 
-    latent_size: Optional[int] = 200
     intrinsic_on: Optional[int] = 1
+
+    autoencoder_config: Optional[AEConfig] = VanillaAEConfig(
+        latent_dim=200,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
+
+    # autoencoder_config: Optional[AEConfig] = VAEConfig(
+    #     latent_dim=200,
+    #     num_layers=4,
+    #     num_filters=32,
+    #     kernel_size=3,
+    #     latent_lambda=1e-6,
+    #     encoder_optim_kwargs={"lr": 1e-3},
+    #     decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    # )
 
 
 class REDQConfig(AlgorithmConfig):

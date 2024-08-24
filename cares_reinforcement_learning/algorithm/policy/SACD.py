@@ -1,5 +1,8 @@
 """
-Original Paper: https://arxiv.org/abs/2007.06049
+Original Paper: https://arxiv.org/pdf/1910.07207
+Code based on: https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py
+
+This code runs automatic entropy tuning
 """
 
 import copy
@@ -9,12 +12,13 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 
 
-class LAPSAC:
+class SACD:
     def __init__(
         self,
         actor_network: torch.nn.Module,
@@ -22,34 +26,32 @@ class LAPSAC:
         gamma: float,
         tau: float,
         reward_scale: float,
-        per_alpha: float,
-        min_priority: float,
         action_num: int,
         actor_lr: float,
         critic_lr: float,
         alpha_lr: float,
+        target_entropy_multiplier: float,
         device: torch.device,
     ):
+        self.type = "discrete_policy"
         self.device = device
-        self.type = "policy"
 
+        # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)
-        self.target_critic_net = copy.deepcopy(self.critic_net)
+        # this may be called soft_q_net in other implementations
+        self.critic_net = critic_network.to(device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
         self.gamma = gamma
         self.tau = tau
         self.reward_scale = reward_scale
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
-
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.target_entropy = -action_num
+        # For smaller action spaces, set the multiplier to lower values (probs should be a config option)
+        self.target_entropy = -np.log(1.0 / action_num) * target_entropy_multiplier
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr
@@ -58,13 +60,18 @@ class LAPSAC:
             self.critic_net.parameters(), lr=critic_lr
         )
 
+        # Temperature (alpha) for the entropy loss
+        # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
+        self.action_num = action_num
+
+    # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
@@ -72,9 +79,10 @@ class LAPSAC:
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
+                # action = np.argmax(action_probs)
             else:
                 (action, _, _) = self.actor_net(state_tensor)
-            action = action.cpu().data.numpy().flatten()
+                # action = np.random.choice(a=self.action_num, p=action_probs)
         self.actor_net.train()
         return action
 
@@ -89,62 +97,59 @@ class LAPSAC:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> float:
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
-            target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states, next_actions
-            )
-            target_q_values = (
-                torch.minimum(target_q_values_one, target_q_values_two)
-                - self.alpha * next_log_pi
-            )
+            _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
-            q_target = (
-                self.reward_scale * rewards + self.gamma * (1 - dones) * target_q_values
+            qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
+
+            min_qf_next_target = action_probs * (
+                torch.minimum(qf1_next_target, qf2_next_target)
+                - self.alpha * log_actions_probs
             )
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+            min_qf_next_target = min_qf_next_target.sum(dim=1).unsqueeze(-1)
+            # TODO: Investigate
+            next_q_value = (
+                rewards * self.reward_scale
+                + (1.0 - dones) * min_qf_next_target * self.gamma
+            )
 
-        td_error_one = (q_values_one - q_target).abs()
-        td_error_two = (q_values_two - q_target).abs()
+        q_values_one, q_values_two = self.critic_net(states)
 
-        huber_lose_one = hlp.huber(td_error_one, self.min_priority)
-        huber_lose_two = hlp.huber(td_error_two, self.min_priority)
-        critic_loss_total = huber_lose_one + huber_lose_two
+        gathered_q_values_one = q_values_one.gather(1, actions.long().unsqueeze(-1))
+        gathered_q_values_two = q_values_two.gather(1, actions.long().unsqueeze(-1))
 
-        # Update the Critic
+        critic_loss_one = F.mse_loss(gathered_q_values_one, next_q_value)
+        critic_loss_two = F.mse_loss(gathered_q_values_two, next_q_value)
+        critic_loss_total = critic_loss_one + critic_loss_two
+
         self.critic_net_optimiser.zero_grad()
-        torch.mean(critic_loss_total).backward()
+        critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        priorities = (
-            torch.max(td_error_one, td_error_two)
-            .pow(self.per_alpha)
-            .cpu()
-            .data.numpy()
-            .flatten()
-        )
-        return (
-            huber_lose_one.item(),
-            huber_lose_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        return critic_loss_total.item()
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
-        pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
+        _, (action_probs, log_action_probs), _ = self.actor_net(states)
+
+        qf1_pi, qf2_pi = self.critic_net(states)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        inside_term = self.alpha * log_action_probs - min_qf_pi
+        actor_loss = (action_probs * inside_term).sum(dim=1).mean()
+
+        new_log_action_probs = torch.sum(log_action_probs * action_probs, dim=1)
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        # Update the temperature
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        # update the temperature (alpha)
+        alpha_loss = -(
+            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
+        ).mean()
+
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
@@ -154,34 +159,31 @@ class LAPSAC:
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_priority(batch_size)
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        actions = torch.LongTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
-        # Reshape to batch_size
+        # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         info = {}
 
-        # Update the Criric
-        huber_lose_one, huber_lose_two, critic_loss_total, priorities = (
-            self._update_critic(states, actions, rewards, next_states, dones)
+        # Update the Critic
+        critic_loss_total = self._update_critic(
+            states, actions, rewards, next_states, dones
         )
-        info["huber_lose_one"] = huber_lose_one
-        info["huber_lose_two"] = huber_lose_two
-        info["critic_loss_total"] = critic_loss_total
+        info["critic_loss"] = critic_loss_total
 
-        # Update the Actor
+        # Update the Actor and Alpha
         actor_loss, alpha_loss = self._update_actor_alpha(states)
         info["actor_loss"] = actor_loss
         info["alpha_loss"] = alpha_loss
@@ -189,8 +191,6 @@ class LAPSAC:
 
         if self.learn_counter % self.policy_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-
-        memory.update_priorities(indices, priorities)
 
         return info
 
