@@ -87,42 +87,39 @@ class TD3AE:
     def select_action_from_policy(
         self, state: dict, evaluation: bool = False, noise_scale: float = 0.1
     ) -> np.ndarray:
-        
+
         # NOT TENSORS YET, JUST ARRAYS / NP ARRAYS
-        images = state['image']
+        images = state["image"]
         info = state["vector"]
 
         self.actor_net.eval()
         with torch.no_grad():
             # state_tensor = torch.FloatTensor(state).to(self.device)
 
-
             ## TODO: Doesn't make sense to normalize for non-image input this way, but not breaking
-            image_tensor = torch.FloatTensor(images).to(self.device)/255
+            image_tensor = torch.FloatTensor(images).to(self.device) / 255
 
             # all modules expect batched input, state pulled straight from source (not a sampler) does not have batch dim, thus fixing shapes here
             if self.is_1d:
-                correct_batched_dim = 3 # batch,channel,length
+                correct_batched_dim = 3  # batch,channel,length
             else:
-                correct_batched_dim = 4 # batch,channel,width,height
-            
+                correct_batched_dim = 4  # batch,channel,width,height
+
             # Using a loop since torch.Tensor([1,2,3]) or np.array([1,2,3]) yield shape of (3,) and NOT (1,3), but [[1,2,3],[4,5,6]] have shape (2,3)
             # both are 1d cases but one need to be unsqueezed twice instead of once, so might aswell generalize it
             while image_tensor.dim() < correct_batched_dim:
                 image_tensor = image_tensor.unsqueeze(0)
 
-           
             info_tensor = torch.FloatTensor(info).to(self.device)
             # let length be L: (L,) -> (1,L)
             while info_tensor.dim() < 2:
                 info_tensor = info_tensor.unsqueeze(0)
-            
-            composite_state:AECompositeState = {
-                'image': image_tensor,
-                'vector': info_tensor
+
+            composite_state: AECompositeState = {
+                "image": image_tensor,
+                "vector": info_tensor,
             }
 
-           
             # if self.is_1d:
             #     state_tensor = state_tensor.unsqueeze(0).unsqueeze(0)
             # else:
@@ -190,8 +187,8 @@ class TD3AE:
         return actor_loss.item()
 
     def _update_autoencoder(self, states: AECompositeState) -> float:
-        
-        image = states['image']
+
+        image = states["image"]
 
         latent_samples = self.critic_net.encoder(image)
 
@@ -216,8 +213,8 @@ class TD3AE:
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
-        
-        '''
+
+        """
         states: 
         [ 
             { 
@@ -226,7 +223,7 @@ class TD3AE:
             } ...
         ]
         CHANNELS INCLUDE STACK SIZE FOR TEMPORAL INFO. e.g. a stack of 3 RGB images have 9 channels
-        '''
+        """
 
         # Convert into tensor
         # TODO: can probably be optimized by using a np array with known size
@@ -235,10 +232,10 @@ class TD3AE:
         for state in states:
             image_arr.append(state["image"])
             vector_arr.append(state["vector"])
-        
-        states:AECompositeState = {
-            'image': torch.FloatTensor(np.array(image_arr)).to(self.device),
-            'vector': torch.FloatTensor(np.array(vector_arr)).to(self.device)
+
+        states: AECompositeState = {
+            "image": torch.FloatTensor(np.array(image_arr)).to(self.device),
+            "vector": torch.FloatTensor(np.array(vector_arr)).to(self.device),
         }
         # states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -250,9 +247,9 @@ class TD3AE:
         for next_state in next_states:
             next_image_arr.append(next_state["image"])
             next_vector_arr.append(next_state["vector"])
-        next_states:AECompositeState = {
-            'image': torch.FloatTensor(np.array(next_image_arr)).to(self.device),
-            'vector': torch.FloatTensor(np.array(next_vector_arr)).to(self.device)
+        next_states: AECompositeState = {
+            "image": torch.FloatTensor(np.array(next_image_arr)).to(self.device),
+            "vector": torch.FloatTensor(np.array(next_vector_arr)).to(self.device),
         }
         # next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
@@ -270,14 +267,14 @@ class TD3AE:
         # TODO: does not make sense for non-image cases. However some scaling does not break anything either.
         # Normalise states and next_states
         # This because the states are [0-255] and the predictions are [0-1]
-        states_normalised:AECompositeState = {
-            'image': states['image']/255,
-            'vector': states["vector"]
+        states_normalised: AECompositeState = {
+            "image": states["image"] / 255,
+            "vector": states["vector"],
         }
 
-        next_states_normalised:AECompositeState = {
-            'image': next_states['image']/255,
-            'vector': next_states['vector']
+        next_states_normalised: AECompositeState = {
+            "image": next_states["image"] / 255,
+            "vector": next_states["vector"],
         }
 
         info = {}

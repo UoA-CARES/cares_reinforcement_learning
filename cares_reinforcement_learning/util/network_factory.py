@@ -283,8 +283,18 @@ def create_TD3AE(observation_size, action_num, config: TD3AEConfig):
     actor_encoder = copy.deepcopy(autoencoder.encoder)
     critic_encoder = copy.deepcopy(autoencoder.encoder)
 
-    actor = Actor(actor_encoder, action_num, hidden_size=config.hidden_size, info_vector_size=config.info_vector_size)
-    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size, info_vector_size=config.info_vector_size)
+    actor = Actor(
+        actor_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+        info_vector_size=config.info_vector_size,
+    )
+    critic = Critic(
+        critic_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+        info_vector_size=config.info_vector_size,
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = TD3AE(
