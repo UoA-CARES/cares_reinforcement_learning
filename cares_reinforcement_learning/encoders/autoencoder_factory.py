@@ -68,11 +68,12 @@ def create_burgess_autoencoder(
         decoder_optimiser_params=config.decoder_optim_kwargs,
     )
 
+
 def create_vanilla_autoencoder_1d(
-        observation_size: int,
-        config: AEConfig,
+    observation_size: int,
+    config: AEConfig,
 ) -> Autoencoder:
-    
+
     from cares_reinforcement_learning.encoders.vanilla_1d_autocoder import (
         Vanilla1DAutoencoder,
     )

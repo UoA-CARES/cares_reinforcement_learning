@@ -1,6 +1,7 @@
 from typing import TypedDict, List
 import torch
 
+
 class AECompositeState(TypedDict):
     '''
     Contain 'image' and 'vector', both are torch.Tensor. 
