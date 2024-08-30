@@ -268,7 +268,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
+def create_TD3AE(observation_size, action_num, config: TD3AEConfig):
     from cares_reinforcement_learning.encoders.autoencoder_factory import (
         AEFactory,
     )
@@ -283,8 +283,8 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
     actor_encoder = copy.deepcopy(autoencoder.encoder)
     critic_encoder = copy.deepcopy(autoencoder.encoder)
 
-    actor = Actor(actor_encoder, action_num, hidden_size=config.hidden_size)
-    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+    actor = Actor(actor_encoder, action_num, hidden_size=config.hidden_size, info_vector_size=config.info_vector_size)
+    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size, info_vector_size=config.info_vector_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = TD3AE(
@@ -300,7 +300,6 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
         decoder_update_freq=config.decoder_update_freq,
         ae_config=config.autoencoder_config,
         device=device,
-        is_1d=config.is_1d,
     )
     return agent
 

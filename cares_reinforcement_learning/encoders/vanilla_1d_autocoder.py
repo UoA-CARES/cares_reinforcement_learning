@@ -161,11 +161,11 @@ class Encoder1D(nn.Module):
         self.num_filters = num_filters
         self.kernel_size = kernel_size
 
-        # initialize first convolution layer: 1 channel in, stride 2
+        # initialize first convolution layer: stride 2
         self.convs = nn.ModuleList(
             [
                 nn.Conv1d(
-                    1,
+                    observation_size[0], # num of channels
                     self.num_filters,
                     kernel_size=self.kernel_size,
                     stride=2,
@@ -174,7 +174,7 @@ class Encoder1D(nn.Module):
         )
 
         # size of each channel after convolution
-        self.out_dim = hlp.flatten(observation_size, k=self.kernel_size, s=2)
+        self.out_dim = hlp.flatten(observation_size[1], k=self.kernel_size, s=2)
 
         # Add rest of the layers
         for _ in range(self.num_layers - 1):
@@ -209,6 +209,7 @@ class Encoder1D(nn.Module):
     def forward(
         self, obs: torch.Tensor, detach_cnn: bool = False, detach_output: bool = False
     ) -> torch.Tensor:
+    
         h = self._forward_conv(obs)
 
         # SAC AE detaches at the CNN layer
@@ -222,7 +223,7 @@ class Encoder1D(nn.Module):
         # NaSATD3 detatches the encoder output
         if detach_output:
             latent_observation = latent_observation.detach()
-
+            
         return latent_observation
 
 
@@ -245,7 +246,8 @@ class Decoder1D(nn.Module):
         self.num_filters = num_filters
         self.kernel_size = kernel_size
 
-        self.n_flatten = self.out_dim * self.out_dim * self.num_filters
+        #           size of each filter     num of filters
+        self.n_flatten = self.out_dim * self.num_filters
 
         self.fc = nn.Linear(self.latent_dim, self.n_flatten)
 
@@ -261,14 +263,21 @@ class Decoder1D(nn.Module):
                 )
             )
         
+        # TODO: figure out why this is needed
+        if self.out_dim % 2 == 0:
+            final_deconv_padding = 1
+        else:
+            final_deconv_padding = 0
+
+
         # last layer
         self.deconvs.append(
             nn.ConvTranspose1d(
                 in_channels=self.num_filters,
-                out_channels=1,
+                out_channels=observation_size[0],
                 kernel_size=self.kernel_size,
                 stride=2,
-                output_padding=1,
+                output_padding=final_deconv_padding,
             )
         )
 
@@ -276,7 +285,7 @@ class Decoder1D(nn.Module):
         h_fc = self.fc(latent_observation)
         h_fc = torch.relu(h_fc)
 
-        deconv = h_fc.view(-1, self.num_filters, self.out_dim, self.out_dim)
+        deconv = h_fc.view(-1, self.num_filters, self.out_dim)
 
         for i in range(0, self.num_layers - 1):
             deconv = torch.relu(self.deconvs[i](deconv))

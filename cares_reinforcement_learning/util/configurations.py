@@ -159,6 +159,8 @@ class TD3AEConfig(AlgorithmConfig):
     encoder_tau: Optional[float] = 0.05
     decoder_update_freq: Optional[int] = 1
 
+    info_vector_size: Optional[int] = 0
+
     autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
         latent_dim=50,
         num_layers=4,
@@ -167,9 +169,10 @@ class TD3AEConfig(AlgorithmConfig):
         latent_lambda=1e-6,
         encoder_optim_kwargs={"lr": 1e-3},
         decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+        is_1d = False
     )
 
-    is_1d: Optional[bool] = False
+    
 
 
 class SACConfig(AlgorithmConfig):

@@ -687,7 +687,9 @@ def _reconstruction_loss(
         Per image cross entropy (i.e. normalized per batch but not pixel and
         channel)
     """
-    batch_size, _, _, _ = reconstructed_data.size()
+    # here to take 1D input into account. i.e. data with shape (batch,channels,length) vs (batch,channels,width,height)
+    # batch_size, _, _, _ = reconstructed_data.size()
+    batch_size = reconstructed_data.shape[0]
 
     if distribution == ReconDist.BERNOULLI:
         loss = (
