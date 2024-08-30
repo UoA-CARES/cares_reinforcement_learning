@@ -17,8 +17,9 @@ def create_vanilla_autoencoder(
     # create 1D variant if specified
     if config.is_1d:
         from cares_reinforcement_learning.encoders.vanilla_1d_autocoder import (
-            Vanilla1DAutoencoder
+            Vanilla1DAutoencoder,
         )
+
         return Vanilla1DAutoencoder(
             observation_size=observation_size,
             latent_dim=config.latent_dim,
@@ -32,9 +33,9 @@ def create_vanilla_autoencoder(
     # normal 2D autoencoder
     else:
         from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
-            VanillaAutoencoder
+            VanillaAutoencoder,
         )
-        
+
         return VanillaAutoencoder(
             observation_size=observation_size,
             latent_dim=config.latent_dim,
