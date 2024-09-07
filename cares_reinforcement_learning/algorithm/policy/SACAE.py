@@ -10,6 +10,7 @@ import logging
 import os
 from typing import Any
 
+from cares_reinforcement_learning.encoders.types import AECompositeState
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -37,7 +38,6 @@ class SACAE:
         decoder_update_freq: int,
         ae_config: VanillaAEConfig,
         device: torch.device,
-        is_1d: bool = False,
     ):
         self.type = "policy"
         self.device = device
@@ -91,7 +91,7 @@ class SACAE:
         )
 
         # needed since tensor shapes need to be treated differently
-        self.is_1d = is_1d
+        self.is_1d = ae_config.is_1d
 
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 0.1 according to other baselines.
@@ -104,27 +104,47 @@ class SACAE:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self, state: dict, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        
+        # NOT TENSORS YET, JUST ARRAYS / NP ARRAYS
+        images = state["image"]
+        info = state["vector"]
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
+            # state_tensor = torch.FloatTensor(state)
 
-            # normally input of shape [3,w,h] to [1,3,w,h] to account for batch size
-            # somehow in 1d case channel size of 1 is ommited, need to unsqueeze twice to get [1,1,num_of_features]
+             ## TODO: Doesn't make sense to normalize for non-image input this way, but not breaking
+            image_tensor = torch.FloatTensor(images).to(self.device) / 255
+
+            # all modules expect batched input, state pulled straight from source (not a sampler) does not have batch dim, thus fixing shapes here
             if self.is_1d:
-                state_tensor = state_tensor.unsqueeze(0).unsqueeze(0).to(self.device)
+                correct_batched_dim = 3  # batch,channel,length
             else:
-                state_tensor = state_tensor.unsqueeze(0).to(self.device)
+                correct_batched_dim = 4  # batch,channel,width,height
 
-            # TODO: Doesn't make sense for non-image input, but not breaking
-            state_tensor = state_tensor / 255
+            # Using a loop since torch.Tensor([1,2,3]) or np.array([1,2,3]) yield shape of (3,) and NOT (1,3), but [[1,2,3],[4,5,6]] have shape (2,3)
+            # both are 1d cases but one need to be unsqueezed twice instead of once, so might aswell generalize it
+            while image_tensor.dim() < correct_batched_dim:
+                image_tensor = image_tensor.unsqueeze(0)
+
+            info_tensor = torch.FloatTensor(info).to(self.device)
+            # let length be L: (L,) -> (1,L)
+            while info_tensor.dim() < 2:
+                info_tensor = info_tensor.unsqueeze(0)
+
+            composite_state: AECompositeState = {
+                "image": image_tensor,
+                "vector": info_tensor,
+            }
+
 
             if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
+                (_, _, action) = self.actor_net(composite_state)
             else:
-                (action, _, _) = self.actor_net(state_tensor)
+                (action, _, _) = self.actor_net(composite_state)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -135,7 +155,7 @@ class SACAE:
 
     def _update_critic(
         self,
-        states: torch.Tensor,
+        states: AECompositeState,
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
@@ -168,7 +188,7 @@ class SACAE:
 
         return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
+    def _update_actor_alpha(self, states: AECompositeState) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
         qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
@@ -188,12 +208,16 @@ class SACAE:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def _update_autoencoder(self, states: torch.Tensor) -> float:
-        latent_samples = self.critic_net.encoder(states)
+    def _update_autoencoder(self, states: AECompositeState) -> float:
+        
+        image = states["image"]
+
+        latent_samples = self.critic_net.encoder(image)
+
         reconstructed_data = self.decoder_net(latent_samples)
 
         ae_loss = self.loss_function.calculate_loss(
-            data=states,
+            data=image,
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,
         )
@@ -212,30 +236,68 @@ class SACAE:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
-        batch_size = len(states)
+        """
+        states: 
+        [ 
+            { 
+                'image': np.array, shape: (channels * dim1 * dim2), 1D case: (channels * length)
+                'vector': np.array, shape: (length)
+            } ...
+        ]
+        CHANNELS INCLUDE STACK SIZE FOR TEMPORAL INFO. e.g. a stack of 3 RGB images have 9 channels
+        """
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        # TODO: can probably be optimized by using a np array with known size
+        image_arr = []
+        vector_arr = []
+        for state in states:
+            image_arr.append(state["image"])
+            vector_arr.append(state["vector"])
+
+        states: AECompositeState = {
+            "image": torch.FloatTensor(np.array(image_arr)).to(self.device),
+            "vector": torch.FloatTensor(np.array(vector_arr)).to(self.device),
+        }
+        # states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+
+        # TODO: same here
+        next_image_arr = []
+        next_vector_arr = []
+        for next_state in next_states:
+            next_image_arr.append(next_state["image"])
+            next_vector_arr.append(next_state["vector"])
+        next_states: AECompositeState = {
+            "image": torch.FloatTensor(np.array(next_image_arr)).to(self.device),
+            "vector": torch.FloatTensor(np.array(next_vector_arr)).to(self.device),
+        }
+        # next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
         # Here since passing states directly in result in shape [1,batch_size,num_of_features] SOMEHOW
         # might be related to that weird omitting size of 1 issue
-        if self.is_1d:
-            states = states.view(batch_size, 1, -1)
-            next_states = next_states.view(batch_size, 1, -1)
-
-        # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        # if self.is_1d:
+        #     states = states.view(batch_size, 1, -1)
+        #     next_states = next_states.view(batch_size, 1, -1)
 
         # TODO: does not make sense for non-image cases. However some scaling does not break anything either.
         # Normalise states and next_states
         # This because the states are [0-255] and the predictions are [0-1]
-        states_normalised = states / 255
-        next_states_normalised = next_states / 255
+        states_normalised: AECompositeState = {
+            "image": states["image"] / 255,
+            "vector": states["vector"],
+        }
+
+        next_states_normalised: AECompositeState = {
+            "image": next_states["image"] / 255,
+            "vector": next_states["vector"],
+        }
 
         info = {}
 

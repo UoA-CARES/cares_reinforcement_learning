@@ -159,7 +159,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
+def create_SACAE(observation_size, action_num, config: SACAEConfig):
     from cares_reinforcement_learning.encoders.autoencoder_factory import (
         AEFactory,
     )
@@ -179,8 +179,14 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
         action_num,
         hidden_size=config.hidden_size,
         log_std_bounds=config.log_std_bounds,
+        info_vector_size=config.info_vector_size
     )
-    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+    critic = Critic(
+        critic_encoder, 
+        action_num, 
+        hidden_size=config.hidden_size,
+        info_vector_size=config.info_vector_size    
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = SACAE(
