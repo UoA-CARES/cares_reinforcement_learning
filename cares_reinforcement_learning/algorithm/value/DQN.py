@@ -4,11 +4,11 @@ Original Paper: https://arxiv.org/abs/1312.5602
 
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-
 
 from cares_reinforcement_learning.memory import MemoryBuffer
 
@@ -40,7 +40,7 @@ class DQN:
         self.network.train()
         return action
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
@@ -60,11 +60,17 @@ class DQN:
 
         q_target = rewards + self.gamma * (1 - dones) * best_next_q_values
 
+        info = {}
+
         # Update the Network
         loss = F.mse_loss(best_q_values, q_target)
         self.network_optimiser.zero_grad()
         loss.backward()
         self.network_optimiser.step()
+
+        info["loss"] = loss.item()
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

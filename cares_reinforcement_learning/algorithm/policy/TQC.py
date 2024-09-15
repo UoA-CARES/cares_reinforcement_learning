@@ -8,6 +8,7 @@ This code runs automatic entropy tuning
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -94,10 +95,17 @@ class TQC:
         return action
 
     @property
-    def alpha(self) -> float:
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def _update_critics(self, states, actions, rewards, next_states, dones):
+    def _update_critics(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> float:
         batch_size = len(states)
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -124,7 +132,9 @@ class TQC:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor(self, states):
+        return critic_loss_total.item()
+
+    def _update_actor(self, states: torch.Tensor) -> tuple[float, float]:
         new_action, log_pi, _ = self.actor_net(states)
 
         mean_qf_pi = self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
@@ -141,7 +151,9 @@ class TQC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -160,14 +172,24 @@ class TQC:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        info = {}
+
         # Update the Critics
-        self._update_critics(states, actions, rewards, next_states, dones)
+        critic_loss_total = self._update_critics(
+            states, actions, rewards, next_states, dones
+        )
+        info["critic_loss"] = critic_loss_total
 
         # Update the Actor
-        self._update_actor(states)
+        actor_loss, alpha_loss = self._update_actor(states)
+        info["actor_loss"] = actor_loss
+        info["alpha_loss"] = alpha_loss
+        info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.policy_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

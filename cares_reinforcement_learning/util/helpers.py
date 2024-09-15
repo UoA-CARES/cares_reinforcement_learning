@@ -296,8 +296,7 @@ def quantile_huber_loss_f(
     n_quantiles = quantiles.shape[2]
 
     tau = (
-        torch.arange(n_quantiles, device=pairwise_delta.get_device()).float()
-        / n_quantiles
+        torch.arange(n_quantiles, device=pairwise_delta.device).float() / n_quantiles
         + 1 / 2 / n_quantiles
     )
     loss = (
