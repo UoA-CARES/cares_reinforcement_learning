@@ -142,9 +142,6 @@ class Record:
         is_new_best_reward = reward > self.best_reward
 
         if is_new_best_reward:
-            logging.info(
-                f"New highest reward of {reward} during training! Saving models..."
-            )
             self.best_reward = reward
 
         if self.network is not None:
@@ -153,6 +150,9 @@ class Record:
                     f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
                 )
             if is_new_best_reward:
+                logging.info(
+                f"New highest reward of {reward} during training! Saving models..."
+                )
                 self.network.save_models(
                     f"{self.algorithm}-highest-reward-training", self.directory
                 )
