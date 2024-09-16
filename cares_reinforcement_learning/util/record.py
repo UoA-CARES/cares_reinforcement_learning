@@ -149,7 +149,7 @@ class Record:
 
         if (self.network is not None) and (is_at_checkpoint or is_new_best_reward):
             self.network.save_models(
-                f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
+                f"{self.algorithm}-highest-reward-training", self.directory
             )
 
     def log_eval(self, display: bool = False, **logs) -> None:
