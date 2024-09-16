@@ -151,7 +151,7 @@ class Record:
                 )
             if is_new_best_reward:
                 logging.info(
-                f"New highest reward of {reward} during training! Saving models..."
+                    f"New highest reward of {reward} during training! Saving models..."
                 )
                 self.network.save_models(
                     f"{self.algorithm}-highest-reward-training", self.directory
