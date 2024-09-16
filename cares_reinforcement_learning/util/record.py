@@ -147,7 +147,7 @@ class Record:
             )
             self.best_reward = reward
 
-        if (self.network is not None):
+        if self.network is not None:
             if is_at_checkpoint:
                 self.network.save_models(
                     f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
