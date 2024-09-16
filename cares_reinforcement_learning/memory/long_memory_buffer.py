@@ -61,12 +61,17 @@ class LongMemoryBuffer:
         #     input()
        
        # Randomly sample episodes from buffer of size batch_size
-        experience_batch = random.sample(self.memory_buffers, batch_size)
-        #print(f"experience_batch:{experience_batch}")
+        #experience_batch = random.sample(self.memory_buffers, batch_size)
+        
         #input()
-       
-        #input()
-        return  experience_batch
+        selected_experiences = []
+        buffer_length = len(self.memory_buffers)
+
+        for _ in range(batch_size):
+            index = random.randint(0, buffer_length - 1)
+            selected_experiences.append(self.memory_buffers[index])
+
+        return selected_experiences
     
     def sample_max_reward(self) -> tuple:
         
@@ -76,6 +81,17 @@ class LongMemoryBuffer:
                 # input()
                 return experience
         return None
+    
+    def sample_single(self) -> tuple:
+        """
+        Sample a single random experience from the buffer.
+        Returns:
+            tuple: A single random experience from the buffer.
+        """
+        if not self.memory_buffers:
+            raise ValueError("Buffer is empty")
+
+        return random.choice(self.memory_buffers)
         
     
     def get_min_reward(self) -> float:
@@ -87,7 +103,7 @@ class LongMemoryBuffer:
         """
         return self.min_high_reward
     
-    def get_crucial_path(self,number_of_crusial_episodes:int):
+    def get_max_crucial_path(self,number_of_crusial_episodes:int):
         # print (f"buffer rewards:{[experience[1] for experience in self.memory_buffers]}")
         # input()
         episode_batch = self.sample_max_reward()
@@ -95,12 +111,32 @@ class LongMemoryBuffer:
             raise ValueError("No episode with max reward found")
             
         episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps = episode_batch
-        print(f"total_reward:{total_reward}, max_reward:{self.max_reward}")
+        print(f"episode_num:{episode_num} total_reward:{total_reward}, max_reward:{self.max_reward}")
         #input()
         # print(f", rewards:{rewards}, episode_nums:{episode_nums}, episode_steps:{episode_steps}")
         # input()
-        return actions,episode_num,episode_steps
+        return actions, states, episode_num, episode_steps, rewards, total_reward
     
+    def get_crucial_path(self,number_of_crusial_episodes:int):
+      
+        episode_batch = self.sample_single()
+       
+        if(episode_batch is None):
+            raise ValueError("No episode found")
+            
+        episode_num,total_reward, states, actions,rewards, next_states, dones, episode_nums, episode_steps = episode_batch
+        
+        return actions, states, episode_num, episode_steps, rewards, total_reward
+    
+    def sample_neighbour(self, episode_num:int, episode_steps:int):
+        # print(f"episode_num:{episode_num}, episode_steps:{episode_steps}")
+        # input()
+        for experience in self.memory_buffers:
+            if experience[0] == episode_num and experience[7] == episode_steps:
+                # print (f"max_reward:{experience[1]}")
+                # input()
+                return experience
+        return Noneeeee
     
     # def get_replaced_episode_id_reward(self) -> int:
     #     """
@@ -111,4 +147,4 @@ class LongMemoryBuffer:
     #     """
     #     return self.replaced_episode_id, self.replaced_episode_reward
     
-   
+  
