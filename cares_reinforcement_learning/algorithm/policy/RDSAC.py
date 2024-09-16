@@ -87,8 +87,7 @@ class RDSAC:
 
     def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
         self.learn_counter += 1
-
-        experiences = memory.sample_priority(batch_size)
+        experiences = memory.sample_priority(batch_size, sampling="simple", weight_normalisation="batch")
         states, actions, rewards, next_states, dones, indices, weights = experiences
 
         batch_size = len(states)
