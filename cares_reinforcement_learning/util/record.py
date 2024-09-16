@@ -34,6 +34,8 @@ class Record:
         checkpoint_frequency: Optional[int] = None,
         network: Optional[nn.Module] = None,
     ) -> None:
+        
+        self.best_reward = float("-inf")
 
         self.log_dir = log_dir
 
@@ -131,10 +133,19 @@ class Record:
                 20,
             )
 
+
+        is_at_checkpoint = (self.checkpoint_frequency is not None) and (self.log_count % self.checkpoint_frequency == 0)
+
+        reward = logs["episode_reward"]
+
+        is_new_best_reward = reward > self.best_reward
+
+        if (is_new_best_reward):
+            logging.info(f"New highest reward of {reward} during training! Saving models...")
+            self.best_reward = reward
+
         if (
-            (self.network is not None)
-            and (self.checkpoint_frequency is not None)
-            and (self.log_count % self.checkpoint_frequency == 0)
+            (self.network is not None) and (is_at_checkpoint or is_new_best_reward)
         ):
             self.network.save_models(
                 f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
