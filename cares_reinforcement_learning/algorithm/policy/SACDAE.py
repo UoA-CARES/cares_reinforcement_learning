@@ -97,7 +97,9 @@ class SACDAE:
         init_temperature = 0.1
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999))
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999)
+        )
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
@@ -130,7 +132,9 @@ class SACDAE:
         with torch.no_grad():
             _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
-            target_q_values_one, target_q_values_two = self.target_critic_net(next_states)
+            target_q_values_one, target_q_values_two = self.target_critic_net(
+                next_states
+            )
 
             temp_min_qf_next_target = action_probs * (
                 torch.minimum(target_q_values_one, target_q_values_two)
@@ -175,7 +179,9 @@ class SACDAE:
         self.actor_net_optimiser.step()
 
         # Update the temperature (alpha)
-        alpha_loss = -(self.log_alpha * (new_log_action_probs + self.target_entropy).detach()).mean()
+        alpha_loss = -(
+            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
+        ).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()

@@ -97,7 +97,9 @@ class SACD:
         with torch.no_grad():
             _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
-            target_q_values_one, target_q_values_two = self.target_critic_net(next_states)
+            target_q_values_one, target_q_values_two = self.target_critic_net(
+                next_states
+            )
 
             temp_min_qf_next_target = action_probs * (
                 torch.minimum(target_q_values_one, target_q_values_two)
@@ -140,7 +142,9 @@ class SACD:
         self.actor_net_optimiser.step()
 
         # Update the temperature (alpha)
-        alpha_loss = -(self.log_alpha * (new_log_action_probs + self.target_entropy).detach()).mean()
+        alpha_loss = -(
+            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
+        ).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
