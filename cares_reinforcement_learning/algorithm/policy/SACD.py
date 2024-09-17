@@ -67,8 +67,6 @@ class SACD:
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
 
-        self.action_num = action_num
-
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
@@ -79,12 +77,10 @@ class SACD:
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
-                # action = np.argmax(action_probs)
             else:
                 (action, _, _) = self.actor_net(state_tensor)
-                # action = np.random.choice(a=self.action_num, p=action_probs)
         self.actor_net.train()
-        return action.item()
+        return action
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -97,22 +93,20 @@ class SACD:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> float:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
             _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
-            qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
+            target_q_values_one, target_q_values_two = self.target_critic_net(next_states)
 
-            min_qf_next_target = action_probs * (
-                torch.minimum(qf1_next_target, qf2_next_target)
+            temp_min_qf_next_target = action_probs * (
+                torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * log_actions_probs
             )
+            target_q_values = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
 
-            min_qf_next_target = min_qf_next_target.sum(dim=1).unsqueeze(-1)
-            # TODO: Investigate
-            next_q_value = (
-                rewards * self.reward_scale
-                + (1.0 - dones) * min_qf_next_target * self.gamma
+            q_target = (
+                rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
             )
 
         q_values_one, q_values_two = self.critic_net(states)
@@ -120,15 +114,15 @@ class SACD:
         gathered_q_values_one = q_values_one.gather(1, actions.long().unsqueeze(-1))
         gathered_q_values_two = q_values_two.gather(1, actions.long().unsqueeze(-1))
 
-        critic_loss_one = F.mse_loss(gathered_q_values_one, next_q_value)
-        critic_loss_two = F.mse_loss(gathered_q_values_two, next_q_value)
+        critic_loss_one = F.mse_loss(gathered_q_values_one, q_target)
+        critic_loss_two = F.mse_loss(gathered_q_values_two, q_target)
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        return critic_loss_total.item()
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
@@ -145,10 +139,8 @@ class SACD:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        # update the temperature (alpha)
-        alpha_loss = -(
-            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
-        ).mean()
+        # Update the temperature (alpha)
+        alpha_loss = -(self.log_alpha * (new_log_action_probs + self.target_entropy).detach()).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
@@ -178,9 +170,11 @@ class SACD:
         info = {}
 
         # Update the Critic
-        critic_loss_total = self._update_critic(
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
             states, actions, rewards, next_states, dones
         )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
         info["critic_loss"] = critic_loss_total
 
         # Update the Actor and Alpha

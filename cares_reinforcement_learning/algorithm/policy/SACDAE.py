@@ -1,6 +1,7 @@
 """
-Original Paper: https://arxiv.org/pdf/1910.07207
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+Original SACD Paper: https://arxiv.org/pdf/1910.07207
+Original SACAE Paper: https://arxiv.org/abs/1910.01741
+Code based on UoA-CARES SACD and SACAE implementations.
 
 This code runs automatic entropy tuning
 """
@@ -8,17 +9,16 @@ This code runs automatic entropy tuning
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.encoders.configurations import (
-    VanillaAEConfig,
-)
+from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class SACDAE:
@@ -77,10 +77,10 @@ class SACDAE:
         )
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr, betas=(critic_beta, 0.999)
+            self.actor_net.parameters(), lr=actor_lr, betas=(actor_beta, 0.999)
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr, betas=(actor_beta, 0.999)
+            self.critic_net.parameters(), lr=critic_lr, betas=(critic_beta, 0.999)
         )
 
         self.loss_function = AELoss(latent_lambda=ae_config.latent_lambda)
@@ -92,17 +92,12 @@ class SACDAE:
             self.decoder_net.parameters(),
             **ae_config.decoder_optim_kwargs,
         )
-
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 0.1 according to other baselines.
         init_temperature = 0.1
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999)
-        )
-
-        self.action_num = action_num
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999))
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
@@ -113,13 +108,10 @@ class SACDAE:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             state_tensor = state_tensor / 255
-
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
-                # action = np.argmax(action_probs)
             else:
                 (action, _, _) = self.actor_net(state_tensor)
-                # action = np.random.choice(a=self.action_num, p=action_probs)
         self.actor_net.train()
         return action
 
@@ -134,24 +126,20 @@ class SACDAE:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
-            actions_bro, (action_probs, log_actions_probs), _ = self.actor_net(
-                next_states
-            )
+            _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
-            qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
+            target_q_values_one, target_q_values_two = self.target_critic_net(next_states)
 
             temp_min_qf_next_target = action_probs * (
-                torch.minimum(qf1_next_target, qf2_next_target)
+                torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * log_actions_probs
             )
+            target_q_values = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
 
-            min_qf_next_target = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
-            # TODO: Investigate
-            next_q_value = (
-                rewards * self.reward_scale
-                + (1.0 - dones) * min_qf_next_target * self.gamma
+            q_target = (
+                rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
             )
 
         q_values_one, q_values_two = self.critic_net(states)
@@ -159,16 +147,18 @@ class SACDAE:
         gathered_q_values_one = q_values_one.gather(1, actions.long().unsqueeze(-1))
         gathered_q_values_two = q_values_two.gather(1, actions.long().unsqueeze(-1))
 
-        critic_loss_one = F.mse_loss(gathered_q_values_one, next_q_value)
-        critic_loss_two = F.mse_loss(gathered_q_values_two, next_q_value)
+        critic_loss_one = F.mse_loss(gathered_q_values_one, q_target)
+        critic_loss_two = F.mse_loss(gathered_q_values_two, q_target)
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> None:
-        action, (action_probs, log_action_probs), _ = self.actor_net(
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+
+    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
+        _, (action_probs, log_action_probs), _ = self.actor_net(
             states, detach_encoder=True
         )
 
@@ -185,19 +175,19 @@ class SACDAE:
         self.actor_net_optimiser.step()
 
         # Update the temperature (alpha)
-        alpha_loss = -(
-            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
-        ).mean()
+        alpha_loss = -(self.log_alpha * (new_log_action_probs + self.target_entropy).detach()).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def _update_autoencoder(self, states: torch.Tensor) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def _update_autoencoder(self, states: torch.Tensor) -> float:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
 
-        loss = self.loss_function.calculate_loss(
+        ae_loss = self.loss_function.calculate_loss(
             data=states,
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,
@@ -205,11 +195,13 @@ class SACDAE:
 
         self.encoder_net_optimiser.zero_grad()
         self.decoder_net_optimiser.zero_grad()
-        loss.backward()
+        ae_loss.backward()
         self.encoder_net_optimiser.step()
         self.decoder_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return ae_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -224,23 +216,31 @@ class SACDAE:
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
+        # Reshape to batch_size x whatever
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
         # Normalise states and next_states
         # This because the states are [0-255] and the predictions are [0-1]
         states_normalised = states / 255
         next_states_normalised = next_states / 255
 
-        # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        info = {}
 
         # Update the Critic
-        self._update_critic(
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
             states_normalised, actions, rewards, next_states_normalised, dones
         )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["critic_loss"] = critic_loss_total
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            self._update_actor_alpha(states_normalised)
+            actor_loss, alpha_loss = self._update_actor_alpha(states_normalised)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update the target networks - Soft Update
@@ -257,7 +257,10 @@ class SACDAE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            self._update_autoencoder(states_normalised)
+            ae_loss = self._update_autoencoder(states_normalised)
+            info["ae_loss"] = ae_loss
+
+        return info
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath
