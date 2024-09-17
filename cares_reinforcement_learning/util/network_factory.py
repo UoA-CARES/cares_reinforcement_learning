@@ -230,7 +230,7 @@ def create_SACDAE(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.encoders.autoencoder_factory import (
         AEFactory,
     )
-    from cares_reinforcement_learning.algorithm.policy import SACD
+    from cares_reinforcement_learning.algorithm.policy import SACDAE
     from cares_reinforcement_learning.networks.SACDAE import Actor, Critic
 
     ae_factory = AEFactory()
@@ -249,9 +249,10 @@ def create_SACDAE(observation_size, action_num, config: AlgorithmConfig):
     critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = SACD(
+    agent = SACDAE(
         actor_network=actor,
         critic_network=critic,
+        decoder_network=autoencoder.decoder,
         actor_lr=config.actor_lr,
         critic_lr=config.critic_lr,
         alpha_lr=config.alpha_lr,
@@ -260,6 +261,9 @@ def create_SACDAE(observation_size, action_num, config: AlgorithmConfig):
         reward_scale=config.reward_scale,
         action_num=action_num,
         target_entropy_multiplier=config.target_entropy_multiplier,
+        encoder_tau=config.encoder_tau,
+        decoder_update_freq=config.decoder_update_freq,
+        ae_config=config.autoencoder_config,
         device=device,
     )
     return agent

@@ -113,7 +113,7 @@ class SACDAE:
             else:
                 (action, _, _) = self.actor_net(state_tensor)
         self.actor_net.train()
-        return action
+        return action.item()
 
     @property
     def alpha(self) -> torch.Tensor:
