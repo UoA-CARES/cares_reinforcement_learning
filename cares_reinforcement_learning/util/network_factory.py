@@ -594,6 +594,29 @@ def create_ReTD3(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
+def create_RESAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import RESAC
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = RESAC(
+        
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        reward_scale=config.reward_scale,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
 
 
 class NetworkFactory:

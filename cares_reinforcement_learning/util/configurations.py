@@ -397,4 +397,14 @@ class ReTD3Config(AlgorithmConfig):
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+    
+class RESACConfig(AlgorithmConfig):
+    algorithm: str = Field("RESAC", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
 
