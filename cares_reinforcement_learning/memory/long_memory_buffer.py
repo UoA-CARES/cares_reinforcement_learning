@@ -102,6 +102,8 @@ class LongMemoryBuffer:
             float: The minimum reward in the buffer.
         """
         return self.min_high_reward
+    def is_empty(self):
+        return len(self.memory_buffers) == 0
     
     def get_max_crucial_path(self,number_of_crusial_episodes:int):
         # print (f"buffer rewards:{[experience[1] for experience in self.memory_buffers]}")
