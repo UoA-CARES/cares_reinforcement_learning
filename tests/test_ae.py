@@ -3,13 +3,14 @@ import inspect
 import pytest
 import torch
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders import configurations
 from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
 from cares_reinforcement_learning.encoders.configurations import AEConfig, BurgessConfig
 
 
 def test_ae():
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = hlp.get_device()
 
     observation_size = (3, 32, 32)
 
