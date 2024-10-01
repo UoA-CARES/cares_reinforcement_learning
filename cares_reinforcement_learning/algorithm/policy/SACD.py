@@ -142,7 +142,9 @@ class SACD:
         self.actor_net_optimiser.step()
 
         # Update the temperature (alpha)
-        alpha_loss = -(self.log_alpha * (log_action_probs + self.target_entropy).detach()).mean()
+        alpha_loss = -(
+            self.log_alpha * (log_action_probs + self.target_entropy).detach()
+        ).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
