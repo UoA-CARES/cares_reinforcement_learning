@@ -172,16 +172,14 @@ class SACDAE:
         inside_term = self.alpha * log_action_probs - min_qf_pi
         actor_loss = (action_probs * inside_term).sum(dim=1).mean()
 
-        new_log_action_probs = torch.sum(log_action_probs * action_probs, dim=1)
+        log_action_probs = torch.sum(log_action_probs * action_probs, dim=1)
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
         # Update the temperature (alpha)
-        alpha_loss = -(
-            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
-        ).mean()
+        alpha_loss = -(self.log_alpha * (log_action_probs + self.target_entropy).detach()).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
