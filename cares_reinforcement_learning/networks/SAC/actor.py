@@ -21,6 +21,7 @@ class Actor(nn.Module):
         if log_std_bounds is None:
             log_std_bounds = [-20, 2]
 
+        self.num_actions = num_actions
         self.hidden_size = hidden_size
         self.log_std_bounds = log_std_bounds
 

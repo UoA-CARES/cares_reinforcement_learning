@@ -15,6 +15,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
 class NaSATD3:
@@ -23,32 +24,23 @@ class NaSATD3:
         autoencoder: nn.Module,
         actor_network: nn.Module,
         critic_network: nn.Module,
-        gamma: float,
-        tau: float,
-        ensemble_size: int,
-        action_num: int,
-        intrinsic_on: bool,
-        actor_lr: float,
-        critic_lr: float,
-        epm_lr: float,
+        config: NaSATD3Config,
         device: str,
     ):
         self.type = "policy"
         self.device = device
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
-        self.ensemble_size = ensemble_size
-        self.intrinsic_on = intrinsic_on
+        self.ensemble_size = config.ensemble_size
+        self.intrinsic_on = config.intrinsic_on
 
         self.learn_counter = 0
         self.policy_update_freq = 2
-
-        self.action_num = action_num
 
         self.autoencoder = autoencoder.to(device)
 
@@ -57,6 +49,8 @@ class NaSATD3:
 
         self.actor_target = copy.deepcopy(self.actor)
         self.critic_target = copy.deepcopy(self.critic)
+
+        self.action_num = self.actor.num_actions
 
         # Necessary to make the same autoencoder in the whole algorithm
         self.actor_target.autoencoder = self.autoencoder
@@ -70,8 +64,8 @@ class NaSATD3:
         self.ensemble_predictive_model.extend(networks)
         self.ensemble_predictive_model.to(self.device)
 
-        self.actor_lr = actor_lr
-        self.critic_lr = critic_lr
+        self.actor_lr = config.actor_lr
+        self.critic_lr = config.critic_lr
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=self.actor_lr
         )
@@ -79,7 +73,7 @@ class NaSATD3:
             self.critic.parameters(), lr=self.critic_lr
         )
 
-        self.epm_lr = epm_lr
+        self.epm_lr = config.epm_lr
         self.epm_optimizers = [
             torch.optim.Adam(
                 self.ensemble_predictive_model[i].parameters(),

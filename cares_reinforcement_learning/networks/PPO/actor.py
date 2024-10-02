@@ -13,6 +13,7 @@ class Actor(nn.Module):
         if hidden_size is None:
             hidden_size = [1024, 1024]
 
+        self.num_actions = num_actions
         self.hidden_size = hidden_size
 
         self.act_net = nn.Sequential(

@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import PERSACConfig
 
 
 class PERSAC:
@@ -20,13 +21,7 @@ class PERSAC:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        per_alpha: float,
-        min_priority: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
+        config: PERSACConfig,
         device: torch.device,
     ):
         self.type = "policy"
@@ -39,22 +34,22 @@ class PERSAC:
         self.critic_net = critic_network.to(self.device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.target_entropy = -action_num
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
         # Set to initial alpha to 1.0 according to other baselines.

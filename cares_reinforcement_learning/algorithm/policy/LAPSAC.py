@@ -12,6 +12,7 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import LAPSACConfig
 
 
 class LAPSAC:
@@ -19,15 +20,7 @@ class LAPSAC:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        reward_scale: float,
-        per_alpha: float,
-        min_priority: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
+        config: LAPSACConfig,
         device: torch.device,
     ):
         self.device = device
@@ -39,29 +32,31 @@ class LAPSAC:
         self.target_actor_net = copy.deepcopy(self.actor_net)
         self.target_critic_net = copy.deepcopy(self.critic_net)
 
-        self.gamma = gamma
-        self.tau = tau
-        self.reward_scale = reward_scale
+        self.gamma = config.gamma
+        self.tau = config.tau
+        self.reward_scale = config.reward_scale
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.learn_counter = 0
         self.policy_update_freq = 1
 
-        self.target_entropy = -action_num
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr
+        )
 
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
