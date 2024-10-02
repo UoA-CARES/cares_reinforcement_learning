@@ -19,6 +19,7 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
     EnsembleWorldReward,
 )
+from cares_reinforcement_learning.util.configurations import DynaSACConfig
 
 
 class DynaSAC:
@@ -27,14 +28,7 @@ class DynaSAC:
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
         world_network: EnsembleWorldReward,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        num_samples: int,
-        horizon: int,
+        config: DynaSACConfig,
         device: torch.device,
     ):
         self.type = "mbrl"
@@ -46,28 +40,30 @@ class DynaSAC:
         self.critic_net = critic_network.to(self.device)
         self.target_critic_net = copy.deepcopy(self.critic_net)
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
-        self.num_samples = num_samples
-        self.horizon = horizon
-        self.action_num = action_num
+        self.num_samples = config.num_samples
+        self.horizon = config.horizon
+        self.action_num = self.actor_net.num_actions
 
         self.learn_counter = 0
         self.policy_update_freq = 1
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
         self.log_alpha = torch.tensor(np.log(1.0)).to(device)
         self.log_alpha.requires_grad = True
-        self.target_entropy = -action_num
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+        self.target_entropy = -self.action_num
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr
+        )
 
         # World model
         self.world_model = world_network

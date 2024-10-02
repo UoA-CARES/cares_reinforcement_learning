@@ -14,15 +14,14 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import DoubleDQNConfig
 
 
 class DoubleDQN:
     def __init__(
         self,
         network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        network_lr: float,
+        config: DoubleDQNConfig,
         device: torch.device,
     ):
         self.type = "value"
@@ -31,11 +30,11 @@ class DoubleDQN:
         self.network = network.to(self.device)
         self.target_network = copy.deepcopy(self.network).to(self.device)
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.network_optimiser = torch.optim.Adam(
-            self.network.parameters(), lr=network_lr
+            self.network.parameters(), lr=config.lr
         )
 
     def select_action_from_policy(self, state: np.ndarray) -> int:
