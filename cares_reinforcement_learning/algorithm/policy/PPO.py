@@ -18,6 +18,7 @@ import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import PPOConfig
 
 
 class PPO:
@@ -25,32 +26,29 @@ class PPO:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        gamma: float,
-        updates_per_iteration: int,
-        eps_clip: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
+        config: PPOConfig,
         device: torch.device,
     ):
         self.type = "policy"
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
-        self.gamma = gamma
-        self.action_num = action_num
+        self.gamma = config.gamma
+        self.action_num = self.actor_net.num_actions
         self.device = device
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
-        self.updates_per_iteration = updates_per_iteration
-        self.eps_clip = eps_clip
-        self.cov_var = torch.full(size=(action_num,), fill_value=0.5).to(self.device)
+        self.updates_per_iteration = config.updates_per_iteration
+        self.eps_clip = config.eps_clip
+        self.cov_var = torch.full(size=(self.action_num,), fill_value=0.5).to(
+            self.device
+        )
         self.cov_mat = torch.diag(self.cov_var)
 
     def select_action_from_policy(

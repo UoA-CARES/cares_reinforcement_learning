@@ -23,9 +23,7 @@ def create_DQN(observation_size, action_num, config: AlgorithmConfig):
     network = Network(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = hlp.get_device()
-    agent = DQN(
-        network=network, gamma=config.gamma, network_lr=config.lr, device=device
-    )
+    agent = DQN(network=network, config=config, device=device)
     return agent
 
 
@@ -41,9 +39,7 @@ def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
     )
 
     device = hlp.get_device()
-    agent = DQN(
-        network=network, gamma=config.gamma, network_lr=config.lr, device=device
-    )
+    agent = DQN(network=network, config=config, device=device)
     return agent
 
 
@@ -56,9 +52,7 @@ def create_DoubleDQN(observation_size, action_num, config: AlgorithmConfig):
     device = hlp.get_device()
     agent = DoubleDQN(
         network=network,
-        gamma=config.gamma,
-        network_lr=config.lr,
-        tau=config.tau,
+        config=config,
         device=device,
     )
     return agent
@@ -75,12 +69,7 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     agent = PPO(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        gamma=config.gamma,
-        updates_per_iteration=config.updates_per_iteration,
-        eps_clip=config.eps_clip,
-        action_num=action_num,
+        config=config,
         device=device,
     )
     return agent
@@ -117,14 +106,7 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        action_num=action_num,
-        alpha_lr=config.alpha_lr,
-        horizon=config.horizon,
-        num_samples=config.num_samples,
+        config=config,
         device=device,
     )
     return agent
@@ -146,13 +128,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     agent = SAC(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        reward_scale=config.reward_scale,
-        action_num=action_num,
+        config=config,
         device=device,
     )
     return agent
@@ -184,16 +160,7 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
         actor_network=actor,
         critic_network=critic,
         decoder_network=autoencoder.decoder,
-        gamma=config.gamma,
-        tau=config.tau,
-        reward_scale=config.reward_scale,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
-        encoder_tau=config.encoder_tau,
-        decoder_update_freq=config.decoder_update_freq,
-        ae_config=config.autoencoder_config,
+        config=config,
         device=device,
     )
     return agent
@@ -210,14 +177,7 @@ def create_SACD(observation_size, action_num, config: AlgorithmConfig):
     agent = SACD(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        reward_scale=config.reward_scale,
-        action_num=action_num,
-        target_entropy_multiplier=config.target_entropy_multiplier,
+        config=config,
         device=device,
     )
     return agent
@@ -234,10 +194,7 @@ def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     agent = DDPG(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        gamma=config.gamma,
-        tau=config.tau,
+        config=config,
         device=device,
     )
     return agent
@@ -254,11 +211,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     agent = TD3(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        action_num=action_num,
+        config=config,
         device=device,
     )
     return agent
@@ -285,14 +238,7 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
         actor_network=actor,
         critic_network=critic,
         decoder_network=autoencoder.decoder,
-        gamma=config.gamma,
-        tau=config.tau,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        encoder_tau=config.encoder_tau,
-        decoder_update_freq=config.decoder_update_freq,
-        ae_config=config.autoencoder_config,
+        config=config,
         device=device,
     )
     return agent
@@ -324,14 +270,7 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
         autoencoder=autoencoder,
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        ensemble_size=config.ensemble_size,
-        action_num=action_num,
-        intrinsic_on=config.intrinsic_on,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        epm_lr=config.epm_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -355,12 +294,7 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     agent = CTD4(
         actor_network=actor,
         ensemble_critics=ensemble_critics,
-        action_num=action_num,
-        gamma=config.gamma,
-        tau=config.tau,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        fusion_method=config.fusion_method,
+        config=config,
         device=device,
     )
 
@@ -378,13 +312,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
     agent = RDTD3(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -406,12 +334,7 @@ def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
     agent = RDSAC(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -428,13 +351,7 @@ def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
     agent = PERTD3(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -456,13 +373,7 @@ def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
     agent = PERSAC(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -479,13 +390,7 @@ def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
     agent = LAPTD3(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -507,15 +412,7 @@ def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
     agent = LAPSAC(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        reward_scale=config.reward_scale,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -532,13 +429,7 @@ def create_PALTD3(observation_size, action_num, config: AlgorithmConfig):
     agent = PALTD3(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -555,13 +446,7 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
     agent = MAPERTD3(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -583,14 +468,7 @@ def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
     agent = MAPERSAC(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -607,13 +485,7 @@ def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
     agent = REDQ(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        ensemble_size=config.ensemble_size,
-        num_sample_critics=config.num_sample_critics,
-        action_num=action_num,
+        config=config,
         device=device,
     )
     return agent
@@ -641,13 +513,7 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
     agent = TQC(
         actor_network=actor,
         critic_network=critic,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
-        gamma=config.gamma,
-        tau=config.tau,
-        top_quantiles_to_drop=config.top_quantiles_to_drop,
-        action_num=action_num,
+        config=config,
         device=device,
     )
     return agent
@@ -664,14 +530,7 @@ def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
     agent = LA3PTD3(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        prioritized_fraction=config.prioritized_fraction,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
+        config=config,
         device=device,
     )
     return agent
@@ -693,16 +552,7 @@ def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
     agent = LA3PSAC(
         actor_network=actor,
         critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        reward_scale=config.reward_scale,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        prioritized_fraction=config.prioritized_fraction,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
+        config=config,
         device=device,
     )
     return agent

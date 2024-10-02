@@ -11,23 +11,23 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import DQNConfig, DuelingDQNConfig
 
 
 class DQN:
     def __init__(
         self,
         network: torch.nn.Module,
-        gamma: float,
-        network_lr: float,
+        config: DQNConfig | DuelingDQNConfig,
         device: torch.device,
     ):
         self.type = "value"
         self.network = network.to(device)
         self.device = device
-        self.gamma = gamma
+        self.gamma = config.gamma
 
         self.network_optimiser = torch.optim.Adam(
-            self.network.parameters(), lr=network_lr
+            self.network.parameters(), lr=config.lr
         )
 
     def select_action_from_policy(self, state):

@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
 class REDQ:
@@ -20,36 +21,30 @@ class REDQ:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        ensemble_size: int,
-        num_sample_critics: int,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
+        config: REDQConfig,
         device: torch.device,
     ):
         self.type = "policy"
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.learn_counter = 0
         self.policy_update_freq = 1
 
         self.device = device
 
-        self.target_entropy = -action_num
-
-        self.num_sample_critics = num_sample_critics
+        self.num_sample_critics = config.num_sample_critics
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
 
+        self.target_entropy = -self.actor_net.num_actions
+
         # ------------- Ensemble of critics ------------------#
-        self.ensemble_size = ensemble_size
+        self.ensemble_size = config.ensemble_size
         self.ensemble_critics = torch.nn.ModuleList()
 
         critics = [critic_network for _ in range(self.ensemble_size)]
@@ -59,7 +54,7 @@ class REDQ:
         # Ensemble of target critics
         self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(device)
 
-        lr_ensemble_critic = critic_lr
+        lr_ensemble_critic = config.critic_lr
         self.ensemble_critics_optimizers = [
             torch.optim.Adam(
                 self.ensemble_critics[i].parameters(), lr=lr_ensemble_critic

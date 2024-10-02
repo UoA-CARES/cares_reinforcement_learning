@@ -12,6 +12,7 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import LAPTD3Config
 
 
 class LAPTD3:
@@ -19,13 +20,7 @@ class LAPTD3:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        per_alpha: float,
-        min_priority: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
+        config: LAPTD3Config,
         device: torch.device,
     ):
         self.type = "policy"
@@ -37,11 +32,11 @@ class LAPTD3:
         self.target_actor_net = copy.deepcopy(self.actor_net)
         self.target_critic_net = copy.deepcopy(self.critic_net)
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -49,13 +44,13 @@ class LAPTD3:
         self.learn_counter = 0
         self.policy_update_freq = 2
 
-        self.action_num = action_num
+        self.action_num = self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
     def select_action_from_policy(

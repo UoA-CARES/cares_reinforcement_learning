@@ -15,6 +15,7 @@ import torch
 
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util import helpers as hlp
+from cares_reinforcement_learning.util.configurations import TQCConfig
 
 
 class TQC:
@@ -22,13 +23,7 @@ class TQC:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        top_quantiles_to_drop: int,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
+        config: TQCConfig,
         device: str,
     ):
         self.type = "policy"
@@ -40,9 +35,9 @@ class TQC:
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
 
-        self.gamma = gamma
-        self.tau = tau
-        self.top_quantiles_to_drop = top_quantiles_to_drop
+        self.gamma = config.gamma
+        self.tau = config.tau
+        self.top_quantiles_to_drop = config.top_quantiles_to_drop
 
         self.quantiles_total = (
             self.critic_net.num_quantiles * self.critic_net.num_critics
@@ -53,20 +48,22 @@ class TQC:
 
         self.device = device
 
-        self.target_entropy = -action_num
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr
+        )
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
