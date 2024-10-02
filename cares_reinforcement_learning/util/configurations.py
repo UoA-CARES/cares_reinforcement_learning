@@ -4,8 +4,8 @@ from pydantic import BaseModel, Field
 
 from cares_reinforcement_learning.encoders.configurations import (
     AEConfig,
-    VanillaAEConfig,
     VAEConfig,
+    VanillaAEConfig,
 )
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
@@ -40,7 +40,7 @@ class TrainingConfig(SubscriptableClass):
 
 
 class AlgorithmConfig(SubscriptableClass):
-    """f
+    """
     Configuration class for the algorithm.
 
     These attributes are common to all algorithms. They can be overridden by the specific algorithm configuration.
@@ -80,9 +80,6 @@ class AlgorithmConfig(SubscriptableClass):
     image_observation: Optional[int] = 0
 
     hidden_size: List[int] = None
-
-    # Determines how much prioritization is used, α = 0 corresponding to the uniform case
-    # per_alpha
 
 
 class DQNConfig(AlgorithmConfig):
@@ -201,6 +198,8 @@ class SACAEConfig(AlgorithmConfig):
 
     encoder_tau: Optional[float] = 0.05
     decoder_update_freq: Optional[int] = 1
+
+    include_vector_observation: Optional[int] = 0
 
     autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
         latent_dim=50,
