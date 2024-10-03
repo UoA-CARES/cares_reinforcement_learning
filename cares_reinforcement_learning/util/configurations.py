@@ -215,7 +215,7 @@ class SACAEConfig(AlgorithmConfig):
         latent_lambda=1e-6,
         encoder_optim_kwargs={"lr": 1e-3},
         decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
-        is_1d=False
+        is_1d=False,
     )
 
 
