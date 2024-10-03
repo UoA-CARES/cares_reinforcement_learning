@@ -100,7 +100,7 @@ class SACAE:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0, info: dict[str, float] = {}
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
@@ -109,10 +109,13 @@ class SACAE:
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             state_tensor = state_tensor / 255
 
-            if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
-            else:
-                (action, _, _) = self.actor_net(state_tensor)
+            (sample, std_dev, mean) = self.actor_net(state_tensor)
+            info["sacae_sample"] = sample.item()
+            info["sacae_std_dev"] = std_dev.item()
+            info["sacae_mean"] = mean.item()
+
+            action = mean if evaluation else sample
+
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
