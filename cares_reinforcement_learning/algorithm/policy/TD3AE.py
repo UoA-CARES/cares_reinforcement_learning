@@ -79,7 +79,7 @@ class TD3AE:
             **config.autoencoder_config.decoder_optim_kwargs,
         )
         # needed since tensor shapes need to be treated differently, read this info from autoencoder config
-        self.is_1d = ae_config.is_1d
+        self.is_1d = config.autoencoder_config.is_1d
 
     def select_action_from_policy(
         self, state: dict, evaluation: bool = False, noise_scale: float = 0.1

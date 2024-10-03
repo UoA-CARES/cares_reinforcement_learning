@@ -88,7 +88,7 @@ class SACAE:
         )
 
         # needed since tensor shapes need to be treated differently
-        self.is_1d = ae_config.is_1d
+        self.is_1d = config.autoencoder_config.is_1d
 
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 0.1 according to other baselines.
