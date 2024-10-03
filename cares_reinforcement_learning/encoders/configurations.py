@@ -36,6 +36,8 @@ class AEConfig(SubscriptableClass):
         default_factory=lambda: {"lr": 1e-3}
     )
 
+    is_1d: Optional[bool] = False
+
 
 class VanillaAEConfig(AEConfig):
     """

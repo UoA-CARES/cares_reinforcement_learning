@@ -9,7 +9,7 @@ import logging
 import sys
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.util.configurations import *  # AlgorithmConfig
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -134,7 +134,10 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
+def create_SACAE(observation_size, action_num, config: SACAEConfig):
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
+        AEFactory,
+    )
     from cares_reinforcement_learning.algorithm.policy import SACAE
     from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
@@ -152,8 +155,14 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
         action_num,
         hidden_size=config.hidden_size,
         log_std_bounds=config.log_std_bounds,
+        info_vector_size=config.info_vector_size,
     )
-    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+    critic = Critic(
+        critic_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+        info_vector_size=config.info_vector_size,
+    )
 
     device = hlp.get_device()
     agent = SACAE(
@@ -179,6 +188,7 @@ def create_SACD(observation_size, action_num, config: AlgorithmConfig):
         critic_network=critic,
         config=config,
         device=device,
+        is_1d=config.is_1d,
     )
     return agent
 
@@ -217,7 +227,10 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
+def create_TD3AE(observation_size, action_num, config: TD3AEConfig):
+    from cares_reinforcement_learning.encoders.autoencoder_factory import (
+        AEFactory,
+    )
     from cares_reinforcement_learning.algorithm.policy import TD3AE
     from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
@@ -230,8 +243,19 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
     actor_encoder = copy.deepcopy(autoencoder.encoder)
     critic_encoder = copy.deepcopy(autoencoder.encoder)
 
-    actor = Actor(actor_encoder, action_num, hidden_size=config.hidden_size)
-    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+    actor = Actor(
+        actor_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+        info_vector_size=config.info_vector_size,
+    )
+
+    critic = Critic(
+        critic_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+        info_vector_size=config.info_vector_size,
+    )
 
     device = hlp.get_device()
     agent = TD3AE(

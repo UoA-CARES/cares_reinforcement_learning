@@ -14,20 +14,38 @@ def create_vanilla_autoencoder(
     observation_size: tuple[int],
     config: AEConfig,
 ) -> Autoencoder:
-    from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
-        VanillaAutoencoder,
-    )
+    # create 1D variant if specified
+    if config.is_1d:
+        from cares_reinforcement_learning.encoders.vanilla_1d_autocoder import (
+            Vanilla1DAutoencoder,
+        )
 
-    return VanillaAutoencoder(
-        observation_size=observation_size,
-        latent_dim=config.latent_dim,
-        num_layers=config.num_layers,
-        num_filters=config.num_filters,
-        kernel_size=config.kernel_size,
-        latent_lambda=config.latent_lambda,
-        encoder_optimiser_params=config.encoder_optim_kwargs,
-        decoder_optimiser_params=config.decoder_optim_kwargs,
-    )
+        return Vanilla1DAutoencoder(
+            observation_size=observation_size,
+            latent_dim=config.latent_dim,
+            num_layers=config.num_layers,
+            num_filters=config.num_filters,
+            kernel_size=config.kernel_size,
+            latent_lambda=config.latent_lambda,
+            encoder_optimiser_params=config.encoder_optim_kwargs,
+            decoder_optimiser_params=config.decoder_optim_kwargs,
+        )
+    # normal 2D autoencoder
+    else:
+        from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
+            VanillaAutoencoder,
+        )
+
+        return VanillaAutoencoder(
+            observation_size=observation_size,
+            latent_dim=config.latent_dim,
+            num_layers=config.num_layers,
+            num_filters=config.num_filters,
+            kernel_size=config.kernel_size,
+            latent_lambda=config.latent_lambda,
+            encoder_optimiser_params=config.encoder_optim_kwargs,
+            decoder_optimiser_params=config.decoder_optim_kwargs,
+        )
 
 
 def create_burgess_autoencoder(
@@ -47,6 +65,27 @@ def create_burgess_autoencoder(
         num_layers=config.num_layers,
         num_filters=config.num_filters,
         kernel_size=config.kernel_size,
+        encoder_optimiser_params=config.encoder_optim_kwargs,
+        decoder_optimiser_params=config.decoder_optim_kwargs,
+    )
+
+
+def create_vanilla_autoencoder_1d(
+    observation_size: int,
+    config: AEConfig,
+) -> Autoencoder:
+
+    from cares_reinforcement_learning.encoders.vanilla_1d_autocoder import (
+        Vanilla1DAutoencoder,
+    )
+
+    return Vanilla1DAutoencoder(
+        observation_size=observation_size,
+        latent_dim=config.latent_dim,
+        num_layers=config.num_layers,
+        num_filters=config.num_filters,
+        kernel_size=config.kernel_size,
+        latent_lambda=config.latent_lambda,
         encoder_optimiser_params=config.encoder_optim_kwargs,
         decoder_optimiser_params=config.decoder_optim_kwargs,
     )
