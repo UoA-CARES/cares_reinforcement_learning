@@ -19,6 +19,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
 class SACAE:
@@ -27,16 +28,7 @@ class SACAE:
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
         decoder_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        reward_scale: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        encoder_tau: float,
-        decoder_update_freq: int,
-        ae_config: VanillaAEConfig,
+        config: SACAEConfig,
         device: torch.device,
     ):
         self.type = "policy"
@@ -52,15 +44,15 @@ class SACAE:
         # tie the encoder weights
         self.actor_net.encoder.copy_conv_weights_from(self.critic_net.encoder)
 
-        self.encoder_tau = encoder_tau
+        self.encoder_tau = config.encoder_tau
 
         self.decoder_net = decoder_network.to(device)
-        self.decoder_update_freq = decoder_update_freq
-        self.decoder_latent_lambda = ae_config.latent_lambda
+        self.decoder_update_freq = config.decoder_update_freq
+        self.decoder_latent_lambda = config.autoencoder_config.latent_lambda
 
-        self.gamma = gamma
-        self.tau = tau
-        self.reward_scale = reward_scale
+        self.gamma = config.gamma
+        self.tau = config.tau
+        self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
         self.policy_update_freq = 2
@@ -71,23 +63,28 @@ class SACAE:
         alpha_beta = 0.5
 
         # set target entropy to -|A|
-        self.target_entropy = -np.prod(action_num)
+        self.target_entropy = -np.prod(self.actor_net.num_actions)
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr, betas=(actor_beta, 0.999)
+            self.actor_net.parameters(), lr=config.actor_lr, betas=(actor_beta, 0.999)
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr, betas=(critic_beta, 0.999)
+            self.critic_net.parameters(),
+            lr=config.critic_lr,
+            betas=(critic_beta, 0.999),
         )
 
-        self.loss_function = AELoss(latent_lambda=ae_config.latent_lambda)
+        self.loss_function = AELoss(
+            latent_lambda=config.autoencoder_config.latent_lambda
+        )
 
         self.encoder_net_optimiser = torch.optim.Adam(
-            self.critic_net.encoder.parameters(), **ae_config.encoder_optim_kwargs
+            self.critic_net.encoder.parameters(),
+            **config.autoencoder_config.encoder_optim_kwargs,
         )
         self.decoder_net_optimiser = torch.optim.Adam(
             self.decoder_net.parameters(),
-            **ae_config.decoder_optim_kwargs,
+            **config.autoencoder_config.decoder_optim_kwargs,
         )
 
         # needed since tensor shapes need to be treated differently
@@ -99,7 +96,7 @@ class SACAE:
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999)
+            [self.log_alpha], lr=config.alpha_lr, betas=(alpha_beta, 0.999)
         )
 
     # pylint: disable-next=unused-argument

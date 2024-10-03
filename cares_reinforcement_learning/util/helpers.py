@@ -1,3 +1,4 @@
+import logging
 import random
 import os
 from datetime import datetime
@@ -5,6 +6,17 @@ from pathlib import Path
 
 import numpy as np
 import torch
+
+
+def get_device() -> torch.device:
+    device = torch.device("cpu")
+
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+
+    return device
 
 
 def create_path_from_format_string(

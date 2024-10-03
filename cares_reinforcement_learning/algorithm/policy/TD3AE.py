@@ -17,6 +17,7 @@ from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.types import AECompositeState
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import TD3AEConfig
 from typing import List
 
 
@@ -26,14 +27,7 @@ class TD3AE:
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
         decoder_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        encoder_tau: float,
-        decoder_update_freq: int,
-        ae_config: VanillaAEConfig,
+        config: TD3AEConfig,
         device: torch.device,
     ):
         self.type = "policy"
@@ -48,14 +42,14 @@ class TD3AE:
         # tie the encoder weights
         self.actor_net.encoder.copy_conv_weights_from(self.critic_net.encoder)
 
-        self.encoder_tau = encoder_tau
+        self.encoder_tau = config.encoder_tau
 
         self.decoder_net = decoder_network.to(device)
-        self.decoder_latent_lambda = ae_config.latent_lambda
-        self.decoder_update_freq = decoder_update_freq
+        self.decoder_latent_lambda = config.autoencoder_config.latent_lambda
+        self.decoder_update_freq = config.decoder_update_freq
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
@@ -63,23 +57,26 @@ class TD3AE:
         self.learn_counter = 0
         self.policy_update_freq = 2
 
-        self.action_num = action_num
+        self.action_num = self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
-        self.loss_function = AELoss(latent_lambda=ae_config.latent_lambda)
+        self.loss_function = AELoss(
+            latent_lambda=config.autoencoder_config.latent_lambda
+        )
 
         self.encoder_net_optimiser = torch.optim.Adam(
-            self.critic_net.encoder.parameters(), **ae_config.encoder_optim_kwargs
+            self.critic_net.encoder.parameters(),
+            **config.autoencoder_config.encoder_optim_kwargs,
         )
         self.decoder_net_optimiser = torch.optim.Adam(
             self.decoder_net.parameters(),
-            **ae_config.decoder_optim_kwargs,
+            **config.autoencoder_config.decoder_optim_kwargs,
         )
         # needed since tensor shapes need to be treated differently, read this info from autoencoder config
         self.is_1d = ae_config.is_1d

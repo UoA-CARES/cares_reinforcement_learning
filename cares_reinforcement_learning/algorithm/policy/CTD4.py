@@ -17,6 +17,7 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
 class CTD4:
@@ -24,12 +25,7 @@ class CTD4:
         self,
         actor_network: torch.nn.Module,
         ensemble_critics: torch.nn.ModuleList,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        fusion_method: Literal["kalman", "average", "minimum"],
+        config: CTD4Config,
         device: torch.device,
     ):
 
@@ -42,8 +38,8 @@ class CTD4:
         self.ensemble_critics = ensemble_critics.to(self.device)
         self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics)
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.noise_clip = 0.5
         self.policy_noise_decay = 0.999999
@@ -51,19 +47,19 @@ class CTD4:
 
         self.target_policy_noise_scale = 0.2
 
-        self.fusion_method = fusion_method
+        self.fusion_method = config.fusion_method
 
         self.learn_counter = 0
         self.policy_update_freq = 2
 
-        self.action_num = action_num
+        self.action_num = self.actor_net.num_actions
 
-        self.actor_lr = actor_lr
+        self.actor_lr = config.actor_lr
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=self.actor_lr
         )
 
-        self.lr_ensemble_critic = critic_lr
+        self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critics_optimizers = [
             torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
             for critic_net in self.ensemble_critics

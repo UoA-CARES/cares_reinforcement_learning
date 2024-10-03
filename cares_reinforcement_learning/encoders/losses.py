@@ -8,6 +8,7 @@ import torch.optim as optim
 from torch import nn
 from torch.nn import functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.configurations import BurgessConfig
 from cares_reinforcement_learning.encoders.constants import Losses, ReconDist
 from cares_reinforcement_learning.encoders.discriminator import Discriminator
@@ -173,7 +174,7 @@ def get_burgess_loss_function(config: BurgessConfig):
             gamma=config.gamma,
         )
     elif loss_name == Losses.FACTOR:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = hlp.get_device()
 
         disc_kwargs = {} if config.disc_kwargs is None else config.disc_kwargs
         disc_kwargs["latent_dim"] = config.latent_dim

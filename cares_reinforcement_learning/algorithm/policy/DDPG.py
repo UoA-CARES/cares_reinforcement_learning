@@ -13,6 +13,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
 class DDPG:
@@ -20,10 +21,7 @@ class DDPG:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        actor_lr: float,
-        critic_lr: float,
+        config: DDPGConfig,
         device: torch.device,
     ):
         self.type = "policy"
@@ -35,14 +33,14 @@ class DDPG:
         self.target_actor_net = copy.deepcopy(self.actor_net)
         self.target_critic_net = copy.deepcopy(self.critic_net)
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
     # pylint: disable-next=unused-argument
