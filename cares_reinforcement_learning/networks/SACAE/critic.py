@@ -13,12 +13,14 @@ class Critic(SACCritic):
         encoder: Encoder,
         num_actions: int,
         hidden_size: list[int] = None,
-        info_vector_size: Optional[int] = 0
+        info_vector_size: Optional[int] = 0,
     ):
         if hidden_size is None:
             hidden_size = [1024, 1024]
 
-        super().__init__(encoder.latent_dim + info_vector_size, num_actions, hidden_size)
+        super().__init__(
+            encoder.latent_dim + info_vector_size, num_actions, hidden_size
+        )
 
         self.encoder = encoder
         self.info_vector_size = info_vector_size
@@ -26,7 +28,10 @@ class Critic(SACCritic):
         self.apply(hlp.weight_init)
 
     def forward(
-        self, state: AECompositeState, action: torch.Tensor, detach_encoder: bool = False
+        self,
+        state: AECompositeState,
+        action: torch.Tensor,
+        detach_encoder: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
 
         state_latent_list = []

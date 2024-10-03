@@ -103,7 +103,7 @@ class SACAE:
     def select_action_from_policy(
         self, state: dict, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
-        
+
         # NOT TENSORS YET, JUST ARRAYS / NP ARRAYS
         images = state["image"]
         info = state["vector"]
@@ -113,7 +113,7 @@ class SACAE:
         with torch.no_grad():
             # state_tensor = torch.FloatTensor(state)
 
-             ## TODO: Doesn't make sense to normalize for non-image input this way, but not breaking
+            ## TODO: Doesn't make sense to normalize for non-image input this way, but not breaking
             image_tensor = torch.FloatTensor(images).to(self.device) / 255
 
             # all modules expect batched input, state pulled straight from source (not a sampler) does not have batch dim, thus fixing shapes here
@@ -136,7 +136,6 @@ class SACAE:
                 "image": image_tensor,
                 "vector": info_tensor,
             }
-
 
             if evaluation:
                 (_, _, action) = self.actor_net(composite_state)
@@ -206,7 +205,7 @@ class SACAE:
         return actor_loss.item(), alpha_loss.item()
 
     def _update_autoencoder(self, states: AECompositeState) -> float:
-        
+
         image = states["image"]
 
         latent_samples = self.critic_net.encoder(image)
