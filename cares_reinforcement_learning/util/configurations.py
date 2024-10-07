@@ -223,7 +223,7 @@ class SACDConfig(AlgorithmConfig):
 
     target_entropy_multiplier = 0.98
 
-    max_steps_exploration = 5000
+    max_steps_exploration = 1000
     number_steps_per_train_policy = 4
 
     gamma: Optional[float] = 0.99

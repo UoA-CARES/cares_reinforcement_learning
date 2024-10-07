@@ -245,7 +245,7 @@ def create_SACDAE(observation_size, action_num, config: AlgorithmConfig):
     )
     critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = hlp.get_device()
     agent = SACDAE(
         actor_network=actor,
         critic_network=critic,
