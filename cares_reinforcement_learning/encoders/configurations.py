@@ -50,29 +50,6 @@ class VanillaAEConfig(AEConfig):
     latent_lambda: float = 1e-6
 
 
-# sqVAE = parser.add_argument_group('SQ-VAE specific parameters')
-# sqVAE.add_argument('--dim_z', type=int, default=16)
-# sqVAE.add_argument('--size_dict', type=int, default=512)
-# sqVAE.add_argument('--param_var_q', type=str, default=ParamVarQ.GAUSSIAN_1.value,
-#                     choices=[pvq.value for pvq in ParamVarQ])
-# sqVAE.add_argument('--num_rb', type=int, default=6)
-# sqVAE.add_argument('--flg_arelbo', type=bool, default=True)
-# sqVAE.add_argument('--log_param_q_init', type=float, default=0.0)
-# sqVAE.add_argument('--temperature_init', type=float, default=1.0)
-
-# class SQVAEConfig(AEConfig):
-#     """
-#     Configuration class for the sqvae autoencoder.
-
-#     Attributes:
-
-#     """
-
-#     type: str = "sqvae"
-#     flg_arelbo: bool = Field(description="Flag to use arelbo loss function")
-#     loss_latent: str = Field(description="")
-
-
 class BurgessConfig(AEConfig):
     """
     Configuration class for the Burgess autoencoder.
