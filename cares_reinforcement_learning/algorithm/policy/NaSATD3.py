@@ -84,14 +84,22 @@ class NaSATD3:
         ]
 
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+        self,
+        state: dict[str, np.ndarray],
+        evaluation: bool = False,
+        noise_scale: float = 0.1,
     ) -> np.ndarray:
         self.actor.eval()
         self.autoencoder.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            state_tensor = state_tensor / 255
+            vector_tensor = torch.FloatTensor(state["vector"])
+            vector_tensor = vector_tensor.unsqueeze(0).to(self.device)
+
+            image_tensor = torch.FloatTensor(state["image"])
+            image_tensor = image_tensor.unsqueeze(0).to(self.device)
+            image_tensor = image_tensor / 255
+
+            state_tensor = {"image": image_tensor, "vector": vector_tensor}
 
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy().flatten()
@@ -108,7 +116,7 @@ class NaSATD3:
 
     def _update_critic(
         self,
-        states: torch.Tensor,
+        states: dict[str, torch.Tensor],
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
@@ -145,7 +153,7 @@ class NaSATD3:
         ae_loss = self.autoencoder.update_autoencoder(states)
         return ae_loss.item()
 
-    def _update_actor(self, states: torch.Tensor) -> float:
+    def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
         actor_q_one, actor_q_two = self.critic(
             states, self.actor(states, detach_encoder=True), detach_encoder=True
         )
@@ -174,16 +182,19 @@ class NaSATD3:
         return latent_state
 
     def _update_predictive_model(
-        self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
+        self,
+        states: dict[str, torch.Tensor],
+        actions: np.ndarray,
+        next_states: dict[str, torch.Tensor],
     ) -> list[float]:
 
         with torch.no_grad():
             latent_state = self._get_latent_state(
-                states, detach_output=True, sample_latent=True
+                states["image"], detach_output=True, sample_latent=True
             )
 
             latent_next_state = self._get_latent_state(
-                next_states, detach_output=True, sample_latent=True
+                next_states["image"], detach_output=True, sample_latent=True
             )
 
         pred_losses = []
@@ -216,19 +227,41 @@ class NaSATD3:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
-        batch_size = len(states)
+        states_images = [state["image"] for state in states]
+        states_vector = [state["vector"] for state in states]
+
+        next_states_images = [next_state["image"] for next_state in next_states]
+        next_states_vector = [next_state["vector"] for next_state in next_states]
+
+        batch_size = len(states_images)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        states_images = torch.FloatTensor(np.asarray(states_images)).to(self.device)
+        states_vector = torch.FloatTensor(np.asarray(states_vector)).to(self.device)
+
+        # Normalise states and next_states - image portion
+        # This because the states are [0-255] and the predictions are [0-1]
+        states_images = states_images / 255
+
+        states = {"image": states_images, "vector": states_vector}
+
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
-        # Normalise states and next_states
+        next_states_images = torch.FloatTensor(np.asarray(next_states_images)).to(
+            self.device
+        )
+        next_states_vector = torch.FloatTensor(np.asarray(next_states_vector)).to(
+            self.device
+        )
+
+        # Normalise states and next_states - image portion
         # This because the states are [0-255] and the predictions are [0-1]
-        states /= 255
-        next_states /= 255
+        next_states_images = next_states_images / 255
+
+        next_states = {"image": next_states_images, "vector": next_states_vector}
+
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
@@ -245,7 +278,7 @@ class NaSATD3:
         info["critic_loss_total"] = critic_loss_total
 
         # Update Autoencoder
-        ae_loss = self._update_autoencoder(states)
+        ae_loss = self._update_autoencoder(states["image"])
         info["ae_loss"] = ae_loss
 
         if self.learn_counter % self.policy_update_freq == 0:
@@ -322,26 +355,40 @@ class NaSATD3:
         return novelty_rate
 
     def get_intrinsic_reward(
-        self, state: np.ndarray, action: np.ndarray, next_state: np.ndarray
+        self,
+        state: dict[str, np.ndarray],
+        action: np.ndarray,
+        next_state: dict[str, np.ndarray],
     ) -> float:
         with torch.no_grad():
-            # Normalise states and next_states
-            # This because the states are [0-255] and the predictions are [0-1]
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            state_tensor = state_tensor / 255
+            vector_tensor = torch.FloatTensor(state["vector"])
+            vector_tensor = vector_tensor.unsqueeze(0).to(self.device)
 
-            next_state_tensor = torch.FloatTensor(next_state).to(self.device)
-            next_state_tensor = next_state_tensor.unsqueeze(0)
-            next_state_tensor = next_state_tensor / 255
+            image_tensor = torch.FloatTensor(state["image"])
+            image_tensor = image_tensor.unsqueeze(0).to(self.device)
+            image_tensor = image_tensor / 255
+
+            state_tensor = {"image": image_tensor, "vector": vector_tensor}
+
+            next_vector_tensor = torch.FloatTensor(next_state["vector"])
+            next_vector_tensor = vector_tensor.unsqueeze(0).to(self.device)
+
+            next_image_tensor = torch.FloatTensor(next_state["image"])
+            next_image_tensor = next_image_tensor.unsqueeze(0).to(self.device)
+            next_image_tensor = next_image_tensor / 255
+
+            next_state_tensor = {
+                "image": next_image_tensor,
+                "vector": next_vector_tensor,
+            }
 
             action_tensor = torch.FloatTensor(action).to(self.device)
             action_tensor = action_tensor.unsqueeze(0)
 
             surprise_rate = self._get_surprise_rate(
-                state_tensor, action_tensor, next_state_tensor
+                state_tensor["image"], action_tensor, next_state_tensor["image"]
             )
-            novelty_rate = self._get_novelty_rate(state_tensor)
+            novelty_rate = self._get_novelty_rate(state_tensor["image"])
 
         # TODO make these parameters - i.e. Tony's work
         a = 1.0

@@ -275,15 +275,21 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
 
     ae_factory = AEFactory()
     autoencoder = ae_factory.create_autoencoder(
-        observation_size=observation_size, config=config.autoencoder_config
+        observation_size=observation_size["image"], config=config.autoencoder_config
+    )
+
+    vector_observation_size = (
+        observation_size["vector"] if config.vector_observation else 0
     )
 
     actor = Actor(
+        vector_observation_size,
         action_num,
         autoencoder,
         hidden_size=config.hidden_size,
     )
     critic = Critic(
+        vector_observation_size,
         action_num,
         autoencoder,
         hidden_size=config.hidden_size,

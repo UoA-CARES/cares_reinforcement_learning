@@ -139,10 +139,7 @@ class TD3AE:
 
         return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
-    def _update_actor(
-        self,
-        states: dict[str, torch.Tensor],
-    ) -> float:
+    def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
         actions = self.actor_net(states, detach_encoder=True)
         actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
         actor_loss = -actor_q_values.mean()

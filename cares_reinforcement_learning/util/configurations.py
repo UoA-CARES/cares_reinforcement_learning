@@ -268,6 +268,8 @@ class NaSATD3Config(AlgorithmConfig):
 
     intrinsic_on: Optional[int] = 1
 
+    vector_observation: Optional[int] = 0
+
     autoencoder_config: Optional[AEConfig] = VanillaAEConfig(
         latent_dim=200,
         num_layers=4,
