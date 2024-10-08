@@ -104,15 +104,7 @@ class SACAE:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-
-            vector_tensor = torch.FloatTensor(state["vector"])
-            vector_tensor = vector_tensor.unsqueeze(0).to(self.device)
-
-            image_tensor = torch.FloatTensor(state["image"])
-            image_tensor = image_tensor.unsqueeze(0).to(self.device)
-            image_tensor = image_tensor / 255
-
-            state_tensor = {"image": image_tensor, "vector": vector_tensor}
+            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
 
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
@@ -208,39 +200,14 @@ class SACAE:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
-        states_images = [state["image"] for state in states]
-        states_vector = [state["vector"] for state in states]
+        batch_size = len(states)
 
-        next_states_images = [next_state["image"] for next_state in next_states]
-        next_states_vector = [next_state["vector"] for next_state in next_states]
-
-        batch_size = len(states_images)
-
-        # Convert into tensor
-        states_images = torch.FloatTensor(np.asarray(states_images)).to(self.device)
-        states_vector = torch.FloatTensor(np.asarray(states_vector)).to(self.device)
-
-        # Normalise states and next_states - image portion
-        # This because the states are [0-255] and the predictions are [0-1]
-        states_images = states_images / 255
-
-        states = {"image": states_images, "vector": states_vector}
+        states = hlp.image_states_dict_to_tensor(states, self.device)
 
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
 
-        next_states_images = torch.FloatTensor(np.asarray(next_states_images)).to(
-            self.device
-        )
-        next_states_vector = torch.FloatTensor(np.asarray(next_states_vector)).to(
-            self.device
-        )
-
-        # Normalise states and next_states - image portion
-        # This because the states are [0-255] and the predictions are [0-1]
-        next_states_images = next_states_images / 255
-
-        next_states = {"image": next_states_images, "vector": next_states_vector}
+        next_states = hlp.image_states_dict_to_tensor(next_states, self.device)
 
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
