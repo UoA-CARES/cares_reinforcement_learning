@@ -100,7 +100,7 @@ class SACAE:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0, info: dict[str, float] = {}
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0, info: dict[str, any] = {}
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
@@ -118,7 +118,7 @@ class SACAE:
 
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
-        return action
+        return action.item()
 
     @property
     def alpha(self) -> torch.Tensor:

@@ -71,10 +71,7 @@ class SACDAE:
         critic_beta = 0.9
         alpha_beta = 0.5
 
-        # set target entropy to -|A|
-        self.target_entropy = -np.prod(
-            np.log(1.0 / action_num) * target_entropy_multiplier
-        )
+        self.target_entropy = -np.log(1.0 / action_num) * target_entropy_multiplier
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr, betas=(actor_beta, 0.999)
@@ -103,17 +100,23 @@ class SACDAE:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0, info: dict[str, any] = {}
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             state_tensor = state_tensor / 255
-            if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
-            else:
-                (action, _, _) = self.actor_net(state_tensor)
+
+
+            sample_action, action_probs, _, max_prob_action = self.actor_net(state_tensor)
+
+            info["sample_action"] = sample_action.item()
+            info["action_probabilities"] = action_probs[0].cpu().numpy()
+            info["max_prob_action"] = max_prob_action.item()
+
+            action = max_prob_action if evaluation else sample_action
+
         self.actor_net.train()
         return action.item()
 
@@ -130,17 +133,16 @@ class SACDAE:
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
         with torch.no_grad():
-            _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
+            _, action_probs, log_actions_probs, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states
             )
 
-            temp_min_qf_next_target = action_probs * (
+            target_q_values = action_probs * (
                 torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * log_actions_probs
             )
-            target_q_values = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
 
             q_target = (
                 rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
@@ -148,11 +150,8 @@ class SACDAE:
 
         q_values_one, q_values_two = self.critic_net(states)
 
-        gathered_q_values_one = q_values_one.gather(1, actions.long().unsqueeze(-1))
-        gathered_q_values_two = q_values_two.gather(1, actions.long().unsqueeze(-1))
-
-        critic_loss_one = F.mse_loss(gathered_q_values_one, q_target)
-        critic_loss_two = F.mse_loss(gathered_q_values_two, q_target)
+        critic_loss_one = F.mse_loss(q_values_one, q_target)
+        critic_loss_two = F.mse_loss(q_values_two, q_target)
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
@@ -162,7 +161,7 @@ class SACDAE:
         return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
-        _, (action_probs, log_action_probs), _ = self.actor_net(
+        _, action_probs, log_action_probs, _ = self.actor_net(
             states, detach_encoder=True
         )
 

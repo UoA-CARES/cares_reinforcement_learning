@@ -39,4 +39,4 @@ class Actor(nn.Module):
         zero_offset = zero_offset.float() * 1e-8
         log_action_probs = torch.log(action_probs + zero_offset)
 
-        return action, (action_probs, log_action_probs), max_probability_action
+        return action, action_probs, log_action_probs, max_probability_action
