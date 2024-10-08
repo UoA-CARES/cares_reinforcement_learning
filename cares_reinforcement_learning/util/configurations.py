@@ -199,7 +199,7 @@ class SACAEConfig(AlgorithmConfig):
     encoder_tau: Optional[float] = 0.05
     decoder_update_freq: Optional[int] = 1
 
-    include_vector_observation: Optional[int] = 0
+    vector_observation: Optional[int] = 0
 
     autoencoder_config: Optional[VanillaAEConfig] = VanillaAEConfig(
         latent_dim=50,

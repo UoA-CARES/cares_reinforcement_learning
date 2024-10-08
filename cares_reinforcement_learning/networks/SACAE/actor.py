@@ -8,6 +8,7 @@ from cares_reinforcement_learning.networks.SAC import Actor as SACActor
 class Actor(SACActor):
     def __init__(
         self,
+        vector_observation: int,
         encoder: Encoder,
         num_actions: int,
         hidden_size: list[int] = None,
@@ -18,15 +19,27 @@ class Actor(SACActor):
         if log_std_bounds is None:
             log_std_bounds = [-10, 2]
 
-        super().__init__(encoder.latent_dim, num_actions, hidden_size, log_std_bounds)
+        super().__init__(
+            encoder.latent_dim + vector_observation,
+            num_actions,
+            hidden_size,
+            log_std_bounds,
+        )
 
         self.encoder = encoder
+
+        self.vector_observation = vector_observation
 
         self.apply(hlp.weight_init)
 
     def forward(
-        self, state: torch.Tensor, detach_encoder: bool = False
+        self, state: dict[str, torch.Tensor], detach_encoder: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state, detach_cnn=detach_encoder)
-        return super().forward(state_latent)
+        state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
+
+        actor_input = state_latent
+        if self.vector_observation > 0:
+            actor_input = torch.cat([state["vector"], actor_input], dim=1)
+
+        return super().forward(actor_input)

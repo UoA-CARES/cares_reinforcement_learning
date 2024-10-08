@@ -97,19 +97,28 @@ class SACAE:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self,
+        state: dict[str, np.ndarray],
+        evaluation: bool = False,
+        noise_scale: float = 0,
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            state_tensor = state_tensor / 255
+
+            vector_tensor = torch.FloatTensor(state["vector"])
+            vector_tensor = vector_tensor.unsqueeze(0).to(self.device)
+
+            image_tensor = torch.FloatTensor(state["image"])
+            image_tensor = image_tensor.unsqueeze(0).to(self.device)
+            image_tensor = image_tensor / 255
+
+            state = {"image": image_tensor, "vector": vector_tensor}
 
             if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
+                (_, _, action) = self.actor_net(state)
             else:
-                (action, _, _) = self.actor_net(state_tensor)
+                (action, _, _) = self.actor_net(state)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -120,12 +129,13 @@ class SACAE:
 
     def _update_critic(
         self,
-        states: torch.Tensor,
+        states: dict[str, torch.Tensor],
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
+
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
 
@@ -153,7 +163,9 @@ class SACAE:
 
         return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
+    def _update_actor_alpha(
+        self, states: dict[str, torch.Tensor]
+    ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
         qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
@@ -197,29 +209,51 @@ class SACAE:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
-        batch_size = len(states)
+        states_images = [state["image"] for state in states]
+        states_vector = [state["vector"] for state in states]
+
+        next_states_images = [next_state["image"] for next_state in next_states]
+        next_states_vector = [next_state["vector"] for next_state in next_states]
+
+        batch_size = len(states_images)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        states_images = torch.FloatTensor(np.asarray(states_images)).to(self.device)
+        states_vector = torch.FloatTensor(np.asarray(states_vector)).to(self.device)
+
+        # Normalise states and next_states - image portion
+        # This because the states are [0-255] and the predictions are [0-1]
+        states_images = states_images / 255
+
+        states = {"image": states_images, "vector": states_vector}
+
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+
+        next_states_images = torch.FloatTensor(np.asarray(next_states_images)).to(
+            self.device
+        )
+        next_states_vector = torch.FloatTensor(np.asarray(next_states_vector)).to(
+            self.device
+        )
+
+        # Normalise states and next_states - image portion
+        # This because the states are [0-255] and the predictions are [0-1]
+        next_states_images = next_states_images / 255
+
+        next_states = {"image": next_states_images, "vector": next_states_vector}
+
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # Normalise states and next_states
-        # This because the states are [0-255] and the predictions are [0-1]
-        states_normalised = states / 255
-        next_states_normalised = next_states / 255
-
         info = {}
 
         # Update the Critic
         critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states_normalised, actions, rewards, next_states_normalised, dones
+            states, actions, rewards, next_states, dones
         )
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
@@ -227,7 +261,7 @@ class SACAE:
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            actor_loss, alpha_loss = self._update_actor_alpha(states_normalised)
+            actor_loss, alpha_loss = self._update_actor_alpha(states)
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()
@@ -247,7 +281,7 @@ class SACAE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_loss = self._update_autoencoder(states_normalised)
+            ae_loss = self._update_autoencoder(states["image"])
             info["ae_loss"] = ae_loss
 
         return info
