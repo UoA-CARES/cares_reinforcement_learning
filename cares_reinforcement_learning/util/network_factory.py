@@ -147,17 +147,19 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
     actor_encoder = copy.deepcopy(autoencoder.encoder)
     critic_encoder = copy.deepcopy(autoencoder.encoder)
 
-    vector_observation = observation_size["vector"] if config.vector_observation else 0
+    vector_observation_size = (
+        observation_size["vector"] if config.vector_observation else 0
+    )
 
     actor = Actor(
-        vector_observation,
+        vector_observation_size,
         actor_encoder,
         action_num,
         hidden_size=config.hidden_size,
         log_std_bounds=config.log_std_bounds,
     )
     critic = Critic(
-        vector_observation,
+        vector_observation_size,
         critic_encoder,
         action_num,
         hidden_size=config.hidden_size,
@@ -232,14 +234,28 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
 
     ae_factory = AEFactory()
     autoencoder = ae_factory.create_autoencoder(
-        observation_size=observation_size, config=config.autoencoder_config
+        observation_size=observation_size["image"], config=config.autoencoder_config
     )
 
     actor_encoder = copy.deepcopy(autoencoder.encoder)
     critic_encoder = copy.deepcopy(autoencoder.encoder)
 
-    actor = Actor(actor_encoder, action_num, hidden_size=config.hidden_size)
-    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+    vector_observation_size = (
+        observation_size["vector"] if config.vector_observation else 0
+    )
+
+    actor = Actor(
+        vector_observation_size,
+        actor_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+    )
+    critic = Critic(
+        vector_observation_size,
+        critic_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+    )
 
     device = hlp.get_device()
     agent = TD3AE(

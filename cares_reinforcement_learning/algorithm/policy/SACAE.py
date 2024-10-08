@@ -15,7 +15,6 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SACAEConfig
@@ -113,12 +112,12 @@ class SACAE:
             image_tensor = image_tensor.unsqueeze(0).to(self.device)
             image_tensor = image_tensor / 255
 
-            state = {"image": image_tensor, "vector": vector_tensor}
+            state_tensor = {"image": image_tensor, "vector": vector_tensor}
 
             if evaluation:
-                (_, _, action) = self.actor_net(state)
+                (_, _, action) = self.actor_net(state_tensor)
             else:
-                (action, _, _) = self.actor_net(state)
+                (action, _, _) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
