@@ -9,6 +9,7 @@ import pandas as pd
 import torch.nn as nn
 
 import cares_reinforcement_learning.util.plotter as plt
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class Record:
@@ -33,6 +34,7 @@ class Record:
         plot_frequency: int = 10,
         checkpoint_frequency: Optional[int] = None,
         network: Optional[nn.Module] = None,
+        memory_buffer: Optional[MemoryBuffer] = None,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -80,6 +82,8 @@ class Record:
 
         self.network = network
 
+        self.memory_buffer = memory_buffer
+
         self.log_count = 0
 
         self.video = None
@@ -103,6 +107,9 @@ class Record:
     def stop_video(self) -> None:
         self.video.release()
 
+    def save_memory(self):
+        self.memory_buffer.save(self.directory)
+
     def save_model(self, identifier):
         self.network.save_models(f"{self.algorithm}-{identifier}", self.directory)
 
@@ -122,6 +129,9 @@ class Record:
             [self.train_data, pd.DataFrame([logs])], ignore_index=True
         )
         self.save_data(self.train_data, self.train_data_path, logs, display=display)
+
+        if self.memory_buffer is not None:
+            self.save_memory()
 
         if self.log_count % self.plot_frequency == 0:
             plt.plot_train(
@@ -149,6 +159,7 @@ class Record:
                 self.network.save_models(
                     f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
                 )
+
             if is_new_best_reward:
                 logging.info(
                     f"New highest reward of {reward} during training! Saving models..."

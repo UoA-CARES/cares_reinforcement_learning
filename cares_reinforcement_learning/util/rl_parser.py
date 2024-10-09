@@ -78,7 +78,9 @@ class RLParser:
         parser = argparse.ArgumentParser(usage="<command> [<args>]")
         # Add an argument
         parser.add_argument(
-            "command", choices=["config", "run"], help="Commands to run this package"
+            "command",
+            choices=["config", "run"],
+            help="Commands to run this package",
         )
         # parse_args defaults to [1:] for args, but you need to
         # exclude the rest of the args too, or validation will fail
