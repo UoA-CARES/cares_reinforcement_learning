@@ -8,6 +8,8 @@ from cares_reinforcement_learning.encoders.configurations import (
     VanillaAEConfig,
 )
 
+# pylint disbale-next=unused-import
+
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
 
 

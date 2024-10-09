@@ -1,9 +1,8 @@
 import logging
 
+from cares_reinforcement_learning.encoders import losses
 from cares_reinforcement_learning.encoders.autoencoder import Autoencoder
 from cares_reinforcement_learning.encoders.configurations import AEConfig
-
-import cares_reinforcement_learning.encoders.losses as losses
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel

@@ -62,6 +62,8 @@ class LA3PSAC:
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():

@@ -67,10 +67,11 @@ class SACD:
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)

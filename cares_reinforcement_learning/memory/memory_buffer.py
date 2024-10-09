@@ -62,6 +62,8 @@ class MemoryBuffer:
         d_beta: float = 6e-7,
         **priority_params,
     ):
+        # pylint: disable-next=unused-argument
+
         self.max_capacity = max_capacity
 
         # size is the current size of the buffer

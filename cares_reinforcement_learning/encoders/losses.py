@@ -4,8 +4,7 @@ from typing import Optional
 
 import numpy as np
 import torch
-import torch.optim as optim
-from torch import nn
+from torch import nn, optim
 from torch.nn import functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
@@ -161,11 +160,13 @@ def get_burgess_loss_function(config: BurgessConfig):
 
     if loss_name == Losses.VAE:
         return VAELoss(rec_dist=config.rec_dist, steps_anneal=config.steps_anneal)
-    elif loss_name == Losses.BETA_H:
+
+    if loss_name == Losses.BETA_H:
         return BetaHLoss(
             rec_dist=config.rec_dist, steps_anneal=config.steps_anneal, beta=config.beta
         )
-    elif loss_name == Losses.BETA_B:
+
+    if loss_name == Losses.BETA_B:
         return BetaBLoss(
             rec_dist=config.rec_dist,
             steps_anneal=config.steps_anneal,
@@ -173,7 +174,7 @@ def get_burgess_loss_function(config: BurgessConfig):
             c_fin=config.c_fin,
             gamma=config.gamma,
         )
-    elif loss_name == Losses.FACTOR:
+    if loss_name == Losses.FACTOR:
         device = hlp.get_device()
 
         disc_kwargs = {} if config.disc_kwargs is None else config.disc_kwargs
@@ -187,7 +188,8 @@ def get_burgess_loss_function(config: BurgessConfig):
             disc_kwargs=disc_kwargs,
             optim_kwargs=config.optim_kwargs,
         )
-    elif loss_name == Losses.BTCVAE:
+
+    if loss_name == Losses.BTCVAE:
         # TODO n_data should be passed as argument
         return BtcvaeLoss(
             n_data=1000,
@@ -198,9 +200,9 @@ def get_burgess_loss_function(config: BurgessConfig):
             gamma=config.gamma,
             is_mss=config.is_mss,
         )
-    else:
-        assert loss_name not in iter(Losses)
-        raise ValueError(f"Unknown loss function: {loss_name}")
+
+    assert loss_name not in iter(Losses)
+    raise ValueError(f"Unknown loss function: {loss_name}")
 
 
 class BaseBurgessLoss(metaclass=abc.ABCMeta):
@@ -391,7 +393,7 @@ class FactorKLoss(BaseBurgessLoss):
         if disc_kwargs is None:
             disc_kwargs = {}
         if optim_kwargs is None:
-            optim_kwargs = dict(lr=5e-5, betas=(0.5, 0.9))
+            optim_kwargs = {"lr": 5e-5, "betas": (0.5, 0.9)}
 
         self.gamma = gamma
         self.device = device

@@ -6,7 +6,7 @@ from typing import Optional
 import cv2
 import numpy as np
 import pandas as pd
-import torch.nn as nn
+from torch import nn
 
 import cares_reinforcement_learning.util.plotter as plt
 
@@ -47,7 +47,7 @@ class Record:
         self.plot_frequency = plot_frequency
         self.checkpoint_frequency = checkpoint_frequency
 
-        if self.checkpoint_frequency == None:
+        if self.checkpoint_frequency is None:
             logging.warning(
                 "checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model."
             )

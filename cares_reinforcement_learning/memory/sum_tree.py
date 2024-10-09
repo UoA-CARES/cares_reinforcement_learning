@@ -1,10 +1,9 @@
-import math
 import random
 
 import numpy as np
 
 
-class SumTree(object):
+class SumTree:
     """
     A sum tree data structure for storing replay priorities.
 

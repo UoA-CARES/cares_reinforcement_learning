@@ -271,6 +271,7 @@ class EnsembleWorldReward:
         next_actions: torch.Tensor,
         next_rewards: torch.Tensor,
     ) -> None:
+        # pylint: disable-next=unused-argument
         """
         This function decides how to train both reward prediciton and dynamic
         prediction.
