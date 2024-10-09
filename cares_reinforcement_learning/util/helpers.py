@@ -19,6 +19,36 @@ def get_device() -> torch.device:
     return device
 
 
+def image_state_dict_to_tensor(
+    state: dict[str, np.ndarray], device: str
+) -> dict[str, torch.Tensor]:
+    vector_tensor = torch.FloatTensor(state["vector"])
+    vector_tensor = vector_tensor.unsqueeze(0).to(device)
+
+    image_tensor = torch.FloatTensor(state["image"])
+    image_tensor = image_tensor.unsqueeze(0).to(device)
+    image_tensor = image_tensor / 255
+
+    return {"image": image_tensor, "vector": vector_tensor}
+
+
+def image_states_dict_to_tensor(
+    states: list[dict[str, np.ndarray]], device: str
+) -> dict[str, torch.Tensor]:
+    states_images = [state["image"] for state in states]
+    states_vector = [state["vector"] for state in states]
+
+    # Convert into tensor
+    states_images = torch.FloatTensor(np.asarray(states_images)).to(device)
+    states_vector = torch.FloatTensor(np.asarray(states_vector)).to(device)
+
+    # Normalise states and next_states - image portion
+    # This because the states are [0-255] and the predictions are [0-1]
+    states_images = states_images / 255
+
+    return {"image": states_images, "vector": states_vector}
+
+
 def create_path_from_format_string(
     format_str: str,
     algorithm: str,

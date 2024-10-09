@@ -15,7 +15,6 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SACAEConfig
@@ -97,14 +96,15 @@ class SACAE:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self,
+        state: dict[str, np.ndarray],
+        evaluation: bool = False,
+        noise_scale: float = 0,
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            state_tensor = state_tensor / 255
+            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
 
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
@@ -120,12 +120,13 @@ class SACAE:
 
     def _update_critic(
         self,
-        states: torch.Tensor,
+        states: dict[str, torch.Tensor],
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
+
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
 
@@ -153,7 +154,9 @@ class SACAE:
 
         return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
+    def _update_actor_alpha(
+        self, states: dict[str, torch.Tensor]
+    ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
         qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
@@ -199,27 +202,24 @@ class SACAE:
 
         batch_size = len(states)
 
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        states = hlp.image_states_dict_to_tensor(states, self.device)
+
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+
+        next_states = hlp.image_states_dict_to_tensor(next_states, self.device)
+
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # Normalise states and next_states
-        # This because the states are [0-255] and the predictions are [0-1]
-        states_normalised = states / 255
-        next_states_normalised = next_states / 255
-
         info = {}
 
         # Update the Critic
         critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states_normalised, actions, rewards, next_states_normalised, dones
+            states, actions, rewards, next_states, dones
         )
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
@@ -227,7 +227,7 @@ class SACAE:
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            actor_loss, alpha_loss = self._update_actor_alpha(states_normalised)
+            actor_loss, alpha_loss = self._update_actor_alpha(states)
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()
@@ -247,7 +247,7 @@ class SACAE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_loss = self._update_autoencoder(states_normalised)
+            ae_loss = self._update_autoencoder(states["image"])
             info["ae_loss"] = ae_loss
 
         return info

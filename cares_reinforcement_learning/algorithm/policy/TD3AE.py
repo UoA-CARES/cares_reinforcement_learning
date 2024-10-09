@@ -13,7 +13,6 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
@@ -78,13 +77,14 @@ class TD3AE:
         )
 
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+        self,
+        state: dict[str, np.ndarray],
+        evaluation: bool = False,
+        noise_scale: float = 0.1,
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            state_tensor = state_tensor / 255
+            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
 
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
@@ -98,7 +98,7 @@ class TD3AE:
 
     def _update_critic(
         self,
-        states: torch.Tensor,
+        states: dict[str, torch.Tensor],
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
@@ -132,7 +132,7 @@ class TD3AE:
 
         return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
-    def _update_actor(self, states: torch.Tensor) -> float:
+    def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
         actions = self.actor_net(states, detach_encoder=True)
         actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
         actor_loss = -actor_q_values.mean()
@@ -169,26 +169,23 @@ class TD3AE:
 
         batch_size = len(states)
 
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        states = hlp.image_states_dict_to_tensor(states, self.device)
+
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+
+        next_states = hlp.image_states_dict_to_tensor(next_states, self.device)
+
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # Normalise states and next_states
-        # This because the states are [0-255] and the predictions are [0-1]
-        states_normalised = states / 255
-        next_states_normalised = next_states / 255
-
         info = {}
 
         critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states_normalised, actions, rewards, next_states_normalised, dones
+            states, actions, rewards, next_states, dones
         )
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
@@ -196,7 +193,7 @@ class TD3AE:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states_normalised)
+            actor_loss = self._update_actor(states)
             info["actor_loss"] = actor_loss
 
             # Update target network params
@@ -222,7 +219,7 @@ class TD3AE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_loss = self._update_autoencoder(states_normalised)
+            ae_loss = self._update_autoencoder(states["image"])
             info["ae_loss"] = ae_loss
 
         return info

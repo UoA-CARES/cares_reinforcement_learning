@@ -11,6 +11,7 @@ from cares_reinforcement_learning.encoders.autoencoder import (
 class Critic(nn.Module):
     def __init__(
         self,
+        vector_observation_size: int,
         num_actions: int,
         autoencoder: Autoencoder,
         hidden_size: list[int] = None,
@@ -21,10 +22,16 @@ class Critic(nn.Module):
 
         self.autoencoder = autoencoder
         self.hidden_size = hidden_size
+        self.vector_observation_size = vector_observation_size
 
         # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
-            nn.Linear(self.autoencoder.latent_dim + num_actions, self.hidden_size[0]),
+            nn.Linear(
+                self.autoencoder.latent_dim
+                + num_actions
+                + self.vector_observation_size,
+                self.hidden_size[0],
+            ),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
@@ -33,7 +40,12 @@ class Critic(nn.Module):
 
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
-            nn.Linear(self.autoencoder.latent_dim + num_actions, self.hidden_size[0]),
+            nn.Linear(
+                self.autoencoder.latent_dim
+                + num_actions
+                + self.vector_observation_size,
+                self.hidden_size[0],
+            ),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1]),
             nn.ReLU(),
@@ -43,18 +55,27 @@ class Critic(nn.Module):
         self.apply(hlp.weight_init)
 
     def forward(
-        self, state: torch.Tensor, action: torch.Tensor, detach_encoder: bool = False
+        self,
+        state: dict[str, torch.Tensor],
+        action: torch.Tensor,
+        detach_encoder: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
         # NaSATD3 detatches the encoder at the output
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
             # take the mean value for stability
             z_vector, _, _ = self.autoencoder.encoder(
-                state, detach_output=detach_encoder
+                state["image"], detach_output=detach_encoder
             )
         else:
-            z_vector = self.autoencoder.encoder(state, detach_output=detach_encoder)
+            z_vector = self.autoencoder.encoder(
+                state["image"], detach_output=detach_encoder
+            )
 
-        obs_action = torch.cat([z_vector, action], dim=1)
+        critic_input = z_vector
+        if self.vector_observation_size > 0:
+            critic_input = torch.cat([state["vector"], critic_input], dim=1)
+
+        obs_action = torch.cat([critic_input, action], dim=1)
         q1 = self.Q1(obs_action)
         q2 = self.Q2(obs_action)
         return q1, q2
