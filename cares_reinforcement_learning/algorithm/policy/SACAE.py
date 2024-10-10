@@ -118,7 +118,7 @@ class SACAE:
 
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
-        return action.item()
+        return action
 
     @property
     def alpha(self) -> torch.Tensor:

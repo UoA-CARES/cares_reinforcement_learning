@@ -71,7 +71,9 @@ class SACDAE:
         critic_beta = 0.9
         alpha_beta = 0.5
 
-        self.target_entropy = -np.log(1.0 / action_num) * target_entropy_multiplier
+        target_entropy_multiplier = 0.7
+
+        self.target_entropy = np.log(1.0 / action_num) * target_entropy_multiplier
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=actor_lr, betas=(actor_beta, 0.999)
