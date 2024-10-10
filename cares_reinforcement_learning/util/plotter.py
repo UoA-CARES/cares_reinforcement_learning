@@ -192,7 +192,7 @@ def read_train_config(result_directory: str) -> dict:
     return train_config
 
 
-def get_param_value(param_tag: str, config: dict) -> str:
+def get_param_value(param_tag: str, config: dict) -> str | None:
     if param_tag in config:
         return config[param_tag]
     return None
