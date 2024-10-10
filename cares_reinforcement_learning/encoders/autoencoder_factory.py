@@ -1,8 +1,7 @@
-import logging
-
+import cares_reinforcement_learning.encoders.configurations as acf
 from cares_reinforcement_learning.encoders import losses
-from cares_reinforcement_learning.encoders.autoencoder import Autoencoder
-from cares_reinforcement_learning.encoders.configurations import AEConfig
+from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -11,11 +10,8 @@ from cares_reinforcement_learning.encoders.configurations import AEConfig
 
 def create_vanilla_autoencoder(
     observation_size: tuple[int],
-    config: AEConfig,
-) -> Autoencoder:
-    from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
-        VanillaAutoencoder,
-    )
+    config: acf.VanillaAEConfig,
+) -> VanillaAutoencoder:
 
     return VanillaAutoencoder(
         observation_size=observation_size,
@@ -31,11 +27,8 @@ def create_vanilla_autoencoder(
 
 def create_burgess_autoencoder(
     observation_size: tuple[int],
-    config: AEConfig,
-) -> Autoencoder:
-    from cares_reinforcement_learning.encoders.burgess_autoencoder import (
-        BurgessAutoencoder,
-    )
+    config: acf.BurgessConfig,
+) -> BurgessAutoencoder:
 
     loss_function = losses.get_burgess_loss_function(config)
 
@@ -55,16 +48,15 @@ class AEFactory:
     def create_autoencoder(
         self,
         observation_size: tuple[int],
-        config: AEConfig,
-    ) -> Autoencoder:
+        config: acf.VanillaAEConfig | acf.BurgessConfig,
+    ) -> BurgessAutoencoder | VanillaAutoencoder:
 
-        autoencoder = None
-        if config.type == "vanilla":
-            autoencoder = create_vanilla_autoencoder(observation_size, config)
-        elif config.type == "burgess":
-            autoencoder = create_burgess_autoencoder(observation_size, config)
+        if isinstance(config, acf.VanillaAEConfig):
+            return create_vanilla_autoencoder(observation_size, config)
 
-        if autoencoder is None:
-            logging.warning(f"Unkown autoencoder {autoencoder}.")
+        if isinstance(config, acf.BurgessConfig):
+            return create_burgess_autoencoder(observation_size, config)
 
-        return autoencoder
+        raise ValueError(
+            f"Invalid autoencoder configuration: {type(config)=} {config=}"
+        )

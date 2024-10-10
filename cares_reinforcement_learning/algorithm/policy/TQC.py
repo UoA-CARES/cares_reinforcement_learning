@@ -24,7 +24,7 @@ class TQC:
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
         config: TQCConfig,
-        device: str,
+        device: torch.device,
     ):
         self.type = "policy"
 

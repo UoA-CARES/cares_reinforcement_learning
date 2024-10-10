@@ -145,7 +145,7 @@ class EnsembleWorldReward:
         num_actions: int,
         num_models: int,
         lr: float,
-        device: str,
+        device: torch.device,
         hidden_size: int = 128,
     ):
         self.num_models = num_models

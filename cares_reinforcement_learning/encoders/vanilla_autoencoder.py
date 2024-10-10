@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torch import nn
 
@@ -51,8 +53,8 @@ class VanillaAutoencoder(Autoencoder):
         num_filters: int = 32,
         kernel_size: int = 3,
         latent_lambda: float = 1e-6,
-        encoder_optimiser_params: dict[str, any] = None,
-        decoder_optimiser_params: dict[str, any] = None,
+        encoder_optimiser_params: dict[str, Any] | None = None,
+        decoder_optimiser_params: dict[str, Any] | None = None,
     ):
         if encoder_optimiser_params is None:
             encoder_optimiser_params = {"lr": 1e-4}

@@ -4,6 +4,7 @@ from cares_reinforcement_learning.encoders.configurations import (
     AEConfig,
     VAEConfig,
     VanillaAEConfig,
+    BurgessConfig,
 )
 
 # pylint disbale-next=unused-import
@@ -270,7 +271,7 @@ class NaSATD3Config(AlgorithmConfig):
 
     vector_observation: int = 0
 
-    autoencoder_config: AEConfig = VanillaAEConfig(
+    autoencoder_config: VanillaAEConfig | BurgessConfig = VanillaAEConfig(
         latent_dim=200,
         num_layers=4,
         num_filters=32,

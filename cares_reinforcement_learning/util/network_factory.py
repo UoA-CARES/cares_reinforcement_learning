@@ -588,6 +588,7 @@ def create_LA3PSAC(observation_size, action_num, config: acf.LA3PSACConfig):
     return agent
 
 
+# TODO return type base "Algorithm" class?
 class NetworkFactory:
     def create_network(
         self,

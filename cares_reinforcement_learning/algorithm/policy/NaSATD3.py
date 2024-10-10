@@ -25,7 +25,7 @@ class NaSATD3:
         actor_network: nn.Module,
         critic_network: nn.Module,
         config: NaSATD3Config,
-        device: str,
+        device: torch.device,
     ):
         self.type = "policy"
         self.device = device
