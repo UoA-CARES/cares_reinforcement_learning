@@ -16,12 +16,14 @@ from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 
 
 class NaSATD3:
     def __init__(
         self,
-        autoencoder: nn.Module,
+        autoencoder: VanillaAutoencoder | BurgessAutoencoder,
         actor_network: nn.Module,
         critic_network: nn.Module,
         config: NaSATD3Config,

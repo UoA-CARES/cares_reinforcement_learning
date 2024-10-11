@@ -6,11 +6,12 @@ We have adapted their work into a generalised form for our use case in RL.
 Original Code: https://github.com/YannDubs/disentangling-vae/tree/master
 """
 
+from typing import Any
+
 import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.encoders.autoencoder import Autoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.losses import BaseBurgessLoss
 
@@ -20,7 +21,7 @@ def tie_weights(src, trg):
     trg.bias = src.bias
 
 
-class BurgessAutoencoder(Autoencoder):
+class BurgessAutoencoder(nn.Module):
     """
     Implementation of the Burgess Autoencoder.
 
@@ -58,20 +59,21 @@ class BurgessAutoencoder(Autoencoder):
         num_layers: int = 4,
         num_filters: int = 32,
         kernel_size: int = 3,
-        encoder_optimiser_params: dict[str, any] = None,
-        decoder_optimiser_params: dict[str, any] = None,
+        encoder_optimiser_params: dict[str, Any] | None = None,
+        decoder_optimiser_params: dict[str, Any] | None = None,
     ):
+        super().__init__()
+
         if encoder_optimiser_params is None:
             encoder_optimiser_params = {"lr": 1e-3}
         if decoder_optimiser_params is None:
             decoder_optimiser_params = {"lr": 1e-3, "weight_decay": 1e-7}
 
-        super().__init__(
-            ae_type=Autoencoders.BURGESS,
-            loss_function=loss_function,
-            observation_size=observation_size,
-            latent_dim=latent_dim,
-        )
+        self.ae_type = Autoencoders.BURGESS
+
+        self.loss_function = loss_function
+        self.observation_size = observation_size
+        self.latent_dim = latent_dim
 
         self.encoder = BurgessEncoder(
             observation_size,
@@ -100,7 +102,7 @@ class BurgessAutoencoder(Autoencoder):
             **decoder_optimiser_params,
         )
 
-    def update_autoencoder(self, data: torch.Tensor) -> float:
+    def update_autoencoder(self, data: torch.Tensor) -> torch.Tensor:
         """
         Update the autoencoder parameters based on the given data.
 
@@ -108,7 +110,7 @@ class BurgessAutoencoder(Autoencoder):
             data (torch.Tensor): The input data used for updating the autoencoder.
 
         Returns:
-            float: The VAE loss after updating the autoencoder.
+            torch.Tensor: The VAE loss after updating the autoencoder.
         """
         vae_loss = self.loss_function.update_autoencoder(data, self)
         return vae_loss
@@ -190,7 +192,7 @@ class BurgessEncoder(nn.Module):
         )
 
         self.out_dim = hlp.flatten(
-            observation_size[1], k=self.kernel_size, s=stride, p=padding
+            observation_size[1], k=self.kernel_size, s=stride, p=padding  # type: ignore
         )
 
         stride = 1

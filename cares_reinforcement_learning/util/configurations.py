@@ -1,10 +1,8 @@
 from pydantic import BaseModel, Field
 
 from cares_reinforcement_learning.encoders.configurations import (
-    AEConfig,
-    VAEConfig,
-    VanillaAEConfig,
     BurgessConfig,
+    VanillaAEConfig,
 )
 
 # pylint disbale-next=unused-import

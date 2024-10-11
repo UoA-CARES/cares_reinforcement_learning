@@ -32,7 +32,7 @@ class Actor(SACActor):
 
         self.apply(hlp.weight_init)
 
-    def forward(
+    def forward(  # type: ignore
         self, state: dict[str, torch.Tensor], detach_encoder: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder

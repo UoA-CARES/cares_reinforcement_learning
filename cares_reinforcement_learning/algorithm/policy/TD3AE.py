@@ -14,6 +14,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
@@ -23,7 +24,7 @@ class TD3AE:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        decoder_network: torch.nn.Module,
+        decoder_network: Decoder,
         config: TD3AEConfig,
         device: torch.device,
     ):

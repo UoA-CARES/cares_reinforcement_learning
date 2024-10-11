@@ -1,10 +1,9 @@
 import abc
 import math
-from typing import Optional
+from typing import Any
 
-import numpy as np
 import torch
-from torch import nn, optim
+from torch import optim
 from torch.nn import functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
@@ -77,84 +76,6 @@ class AELoss:
         return loss
 
 
-class SqVaeLoss:
-    """
-    Calculates the squared VAE loss.
-
-    Args:
-        None
-
-    Returns:
-        Tuple: A tuple containing the reconstruction loss and the total loss.
-    """
-
-    def __init__(self):
-        pass
-
-    def calculate_loss(
-        self,
-        data,
-        reconstructed_data,
-        flg_arelbo=True,
-        loss_latent=0.0,
-    ):
-        """
-        Calculates the loss for the given data and reconstructed data.
-
-        Args:
-            data (torch.Tensor): The original data.
-            reconstructed_data (torch.Tensor): The reconstructed data.
-            flg_arelbo (bool, optional): Flag to indicate whether to use the ARELBO loss calculation. Defaults to True.
-            loss_latent (float, optional): The loss for the latent space. Defaults to 0.0.
-
-        Returns:
-            tuple: A tuple containing the reconstruction loss and the total loss.
-        """
-
-        logvar_x = nn.Parameter(torch.tensor(np.log(0.1)))
-
-        # TODO dim_x should be passed as argument as currently hard coded to 3 * 64 * 64
-        dim_x = 3 * 64 * 64
-
-        mse = _reconstruction_loss(
-            data,
-            reconstructed_data,
-            reduction="sum",
-            distribution=ReconDist.GAUSSIAN,
-        )
-
-        if flg_arelbo:
-            # "Preventing Posterior Collapse Induced by Oversmoothing in Gaussian VAE"
-            # https://arxiv.org/abs/2102.08663
-            loss_reconst = dim_x * torch.log(mse) / 2
-        else:
-            loss_reconst = mse / (2 * logvar_x.exp()) + dim_x * logvar_x / 2
-
-        loss = loss_reconst + loss_latent
-
-        return loss_reconst, loss
-
-    # TODO implement for SQVAE
-    # def update_autoencoder(self, data, autoencoder):
-    #     latent_observation = autoencoder.encoder(data)
-
-    #     reconstructed_observation = autoencoder.decoder(latent_observation)
-
-    #     loss_reconst, loss = self.calculate_loss(
-    #         data=data,
-    #         reconstructed_data=reconstructed_observation,
-    #         latent_sample=reconstructed_observation,
-    #     )
-
-    #     autoencoder.encoder_optimizer.zero_grad()
-    #     autoencoder.decoder_optimizer.zero_grad()
-    #     loss.backward()
-    #     autoencoder.encoder_optimizer.step()
-    #     autoencoder.decoder_optimizer.step()
-
-    #     return loss_reconst, loss
-
-
 def get_burgess_loss_function(config: BurgessConfig):
     loss_name = config.loss_function_type
 
@@ -201,7 +122,6 @@ def get_burgess_loss_function(config: BurgessConfig):
             is_mss=config.is_mss,
         )
 
-    assert loss_name not in iter(Losses)
     raise ValueError(f"Unknown loss function: {loss_name}")
 
 
@@ -385,8 +305,8 @@ class FactorKLoss(BaseBurgessLoss):
         rec_dist: ReconDist = ReconDist.BERNOULLI,
         steps_anneal: int = 0,
         gamma: float = 10.0,
-        disc_kwargs: Optional[dict[str, any]] = None,
-        optim_kwargs: Optional[dict[str, any]] = None,
+        disc_kwargs: dict[str, Any] | None = None,
+        optim_kwargs: dict[str, Any] | None = None,
     ):
         super().__init__(rec_dist=rec_dist, steps_anneal=steps_anneal)
 

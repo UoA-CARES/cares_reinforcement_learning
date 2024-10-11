@@ -1,5 +1,4 @@
 import random
-from typing import Optional
 
 import numpy as np
 
@@ -49,7 +48,7 @@ class SumTree:
             level_size *= 2
             self.levels.append(np.zeros(level_size))
 
-    def sample_value(self, query_value: Optional[int] = None) -> int:
+    def sample_value(self, query_value: float | None = None) -> int:
         """Samples an element from the sum tree.
 
         Each element has probability p_i / sum_j p_j of being picked, where p_i is

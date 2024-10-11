@@ -70,7 +70,7 @@ class MemoryBuffer:
         self.current_size = 0
 
         # Functionally is an array of buffers for each experience type
-        self.memory_buffers = []
+        self.memory_buffers = []  # type: ignore
         # 0 state = []
         # 1 action = []
         # 2 reward = []
@@ -195,6 +195,7 @@ class MemoryBuffer:
 
         weights = (probabilities * self.current_size) ** (-self.beta)
 
+        max_weight = 1.0
         # Batch normalisation is the default and normalises the weights by the maximum weight in the batch
         if weight_normalisation == "batch":
             max_weight = weights.max()
@@ -353,7 +354,7 @@ class MemoryBuffer:
         candididate_indices = list(range(self.current_size - 1))
 
         # A list of candidate indices includes all indices.
-        sampled_indices = []  # randomly sampled indices that is okay.
+        sampled_indices: list[int] = []  # randomly sampled indices that is okay.
         # In this way, the sampling time depends on the batch size rather than buffer size.
 
         # Add in only experiences that are not done and not already sampled.

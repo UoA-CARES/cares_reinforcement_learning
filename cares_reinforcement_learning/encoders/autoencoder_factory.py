@@ -1,3 +1,5 @@
+from typing import overload
+
 import cares_reinforcement_learning.encoders.configurations as acf
 from cares_reinforcement_learning.encoders import losses
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
@@ -45,6 +47,20 @@ def create_burgess_autoencoder(
 
 
 class AEFactory:
+    @overload
+    def create_autoencoder(
+        self,
+        observation_size: tuple[int],
+        config: acf.VanillaAEConfig,
+    ) -> VanillaAutoencoder: ...
+
+    @overload
+    def create_autoencoder(
+        self,
+        observation_size: tuple[int],
+        config: acf.BurgessConfig,
+    ) -> BurgessAutoencoder: ...
+
     def create_autoencoder(
         self,
         observation_size: tuple[int],

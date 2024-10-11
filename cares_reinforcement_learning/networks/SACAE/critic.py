@@ -26,7 +26,7 @@ class Critic(SACCritic):
 
         self.apply(hlp.weight_init)
 
-    def forward(
+    def forward(  # type: ignore
         self,
         state: dict[str, torch.Tensor],
         action: torch.Tensor,

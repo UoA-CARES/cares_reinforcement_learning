@@ -593,7 +593,7 @@ class NetworkFactory:
     def create_network(
         self,
         observation_size,
-        action_num,
+        action_num: int,
         config: acf.AlgorithmConfig,
     ):
         algorithm = config.algorithm
