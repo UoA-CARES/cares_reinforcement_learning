@@ -12,8 +12,8 @@ class Actor(nn.Module):
         self,
         observation_size: int,
         num_actions: int,
-        hidden_size: list[int] = None,
-        log_std_bounds: list[int] = None,
+        hidden_size: list[int] | None = None,
+        log_std_bounds: list[float] | None = None,
     ):
         super().__init__()
         if hidden_size is None:

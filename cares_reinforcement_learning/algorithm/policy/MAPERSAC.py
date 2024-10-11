@@ -12,7 +12,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torch.optim as optim
+from torch import optim
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
@@ -76,6 +76,8 @@ class MAPERSAC:
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():

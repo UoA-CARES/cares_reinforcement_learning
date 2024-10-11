@@ -9,14 +9,14 @@ import logging
 import sys
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+import cares_reinforcement_learning.util.configurations as acf
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
 # pylint: disable=invalid-name
 
 
-def create_DQN(observation_size, action_num, config: AlgorithmConfig):
+def create_DQN(observation_size, action_num, config: acf.DQNConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
 
@@ -27,7 +27,7 @@ def create_DQN(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
+def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig):
     """
     Original paper https://arxiv.org/abs/1511.06581
     """
@@ -43,7 +43,7 @@ def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_DoubleDQN(observation_size, action_num, config: AlgorithmConfig):
+def create_DoubleDQN(observation_size, action_num, config: acf.DoubleDQNConfig):
     from cares_reinforcement_learning.algorithm.value import DoubleDQN
     from cares_reinforcement_learning.networks.DoubleDQN import Network
 
@@ -58,7 +58,7 @@ def create_DoubleDQN(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_PPO(observation_size, action_num, config: AlgorithmConfig):
+def create_PPO(observation_size, action_num, config: acf.PPOConfig):
     from cares_reinforcement_learning.algorithm.policy import PPO
     from cares_reinforcement_learning.networks.PPO import Actor, Critic
 
@@ -75,7 +75,7 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
+def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
@@ -112,7 +112,7 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_SAC(observation_size, action_num, config: AlgorithmConfig):
+def create_SAC(observation_size, action_num, config: acf.SACConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
@@ -134,7 +134,7 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
+def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
     from cares_reinforcement_learning.algorithm.policy import SACAE
     from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
@@ -176,7 +176,7 @@ def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_SACD(observation_size, action_num, config: AlgorithmConfig):
+def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
 
@@ -193,7 +193,7 @@ def create_SACD(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
+def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 
@@ -210,7 +210,7 @@ def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_TD3(observation_size, action_num, config: AlgorithmConfig):
+def create_TD3(observation_size, action_num, config: acf.TD3Config):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 
@@ -227,7 +227,7 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
+def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3AE
     from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
@@ -268,7 +268,7 @@ def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
+def create_NaSATD3(observation_size, action_num, config: acf.NaSATD3Config):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
     from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
     from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
@@ -306,7 +306,7 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
+def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     from cares_reinforcement_learning.algorithm.policy import CTD4
     from cares_reinforcement_learning.networks.CTD4 import Actor, EnsembleCritic
 
@@ -331,7 +331,7 @@ def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
+def create_RDTD3(observation_size, action_num, config: acf.RDTD3Config):
     from cares_reinforcement_learning.algorithm.policy import RDTD3
     from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 
@@ -348,7 +348,7 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
+def create_RDSAC(observation_size, action_num, config: acf.RDSACConfig):
     from cares_reinforcement_learning.algorithm.policy import RDSAC
     from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
 
@@ -370,7 +370,7 @@ def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
+def create_PERTD3(observation_size, action_num, config: acf.PERTD3Config):
     from cares_reinforcement_learning.algorithm.policy import PERTD3
     from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
@@ -387,7 +387,7 @@ def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
+def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
     from cares_reinforcement_learning.algorithm.policy import PERSAC
     from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
 
@@ -409,7 +409,7 @@ def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
+def create_LAPTD3(observation_size, action_num, config: acf.LAPTD3Config):
     from cares_reinforcement_learning.algorithm.policy import LAPTD3
     from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
 
@@ -426,7 +426,7 @@ def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
+def create_LAPSAC(observation_size, action_num, config: acf.LAPSACConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPSAC
     from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 
@@ -448,7 +448,7 @@ def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_PALTD3(observation_size, action_num, config: AlgorithmConfig):
+def create_PALTD3(observation_size, action_num, config: acf.PALTD3Config):
     from cares_reinforcement_learning.algorithm.policy import PALTD3
     from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 
@@ -465,7 +465,7 @@ def create_PALTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
+def create_MAPERTD3(observation_size, action_num, config: acf.MAPERTD3Config):
     from cares_reinforcement_learning.algorithm.policy import MAPERTD3
     from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 
@@ -482,7 +482,7 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
+def create_MAPERSAC(observation_size, action_num, config: acf.MAPERSACConfig):
     from cares_reinforcement_learning.algorithm.policy import MAPERSAC
     from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 
@@ -504,7 +504,7 @@ def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
+def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
     from cares_reinforcement_learning.algorithm.policy import REDQ
     from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
@@ -521,7 +521,7 @@ def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_TQC(observation_size, action_num, config: AlgorithmConfig):
+def create_TQC(observation_size, action_num, config: acf.TQCConfig):
     from cares_reinforcement_learning.algorithm.policy import TQC
     from cares_reinforcement_learning.networks.TQC import Actor, Critic
 
@@ -549,7 +549,7 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
+def create_LA3PTD3(observation_size, action_num, config: acf.LA3PTD3Config):
     from cares_reinforcement_learning.algorithm.policy import LA3PTD3
     from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 
@@ -566,7 +566,7 @@ def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
+def create_LA3PSAC(observation_size, action_num, config: acf.LA3PSACConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PSAC
     from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 
@@ -588,12 +588,13 @@ def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+# TODO return type base "Algorithm" class?
 class NetworkFactory:
     def create_network(
         self,
         observation_size,
-        action_num,
-        config: AlgorithmConfig,
+        action_num: int,
+        config: acf.AlgorithmConfig,
     ):
         algorithm = config.algorithm
 

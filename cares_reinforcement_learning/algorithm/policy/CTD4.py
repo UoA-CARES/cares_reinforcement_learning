@@ -10,7 +10,7 @@ Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learni
 import copy
 import logging
 import os
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import torch
@@ -219,19 +219,15 @@ class CTD4:
 
         if self.fusion_method == "kalman":
             # Kalman filter combination of all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._kalman(actor_q_u_set, actor_q_std_set)
+            fusion_u_a, _ = self._kalman(actor_q_u_set, actor_q_std_set)
 
         elif self.fusion_method == "average":
             # Average combination of all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._average(
-                actor_q_u_set, actor_q_std_set, batch_size
-            )
+            fusion_u_a, _ = self._average(actor_q_u_set, actor_q_std_set, batch_size)
 
         elif self.fusion_method == "minimum":
             # Minimum all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._minimum(
-                actor_q_u_set, actor_q_std_set, batch_size
-            )
+            fusion_u_a, _ = self._minimum(actor_q_u_set, actor_q_std_set, batch_size)
 
         actor_loss = -fusion_u_a.mean()
 

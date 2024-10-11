@@ -6,7 +6,7 @@ class Critic(nn.Module):
     def __init__(
         self,
         observation_size: int,
-        hidden_size: list[int] = None,
+        hidden_size: list[int] | None = None,
     ):
         super().__init__()
         if hidden_size is None:

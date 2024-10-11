@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
@@ -25,7 +26,7 @@ class SACAE:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        decoder_network: torch.nn.Module,
+        decoder_network: Decoder,
         config: SACAEConfig,
         device: torch.device,
     ):
@@ -94,13 +95,14 @@ class SACAE:
             [self.log_alpha], lr=config.alpha_lr, betas=(alpha_beta, 0.999)
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self,
         state: dict[str, np.ndarray],
         evaluation: bool = False,
         noise_scale: float = 0,
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():

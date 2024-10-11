@@ -7,7 +7,7 @@ class Actor(nn.Module):
         self,
         observation_size: int,
         num_actions: int,
-        hidden_size: list[int] = None,
+        hidden_size: list[int] | None = None,
     ):
         super().__init__()
         if hidden_size is None:

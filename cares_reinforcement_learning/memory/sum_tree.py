@@ -1,10 +1,9 @@
-import math
 import random
 
 import numpy as np
 
 
-class SumTree(object):
+class SumTree:
     """
     A sum tree data structure for storing replay priorities.
 
@@ -49,7 +48,7 @@ class SumTree(object):
             level_size *= 2
             self.levels.append(np.zeros(level_size))
 
-    def sample_value(self, query_value: int = None) -> int:
+    def sample_value(self, query_value: float | None = None) -> int:
         """Samples an element from the sum tree.
 
         Each element has probability p_i / sum_j p_j of being picked, where p_i is
@@ -62,6 +61,7 @@ class SumTree(object):
         Returns:
             int, a random element from the sum tree.
         """
+
         # Sample a value in range [0, R), where R is the value stored at the root.
         query_value = random.random() if query_value is None else query_value
         query_value *= self.levels[0][0]

@@ -34,7 +34,7 @@ class Discriminator(nn.Module):
             arXiv preprint arXiv:1802.05983 (2018).
 
         """
-        super(Discriminator, self).__init__()
+        super().__init__()
 
         # Activation parameters
         self.neg_slope = neg_slope

@@ -1,6 +1,6 @@
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
+from torch import nn
 
 
 class Critic(nn.Module):
@@ -8,9 +8,9 @@ class Critic(nn.Module):
         self,
         observation_size: int,
         num_actions: int,
-        hidden_size: list[int] = None,
+        hidden_size: list[int] | None = None,
     ):
-        super(Critic, self).__init__()
+        super().__init__()
         if hidden_size is None:
             hidden_size = [256, 256]
 

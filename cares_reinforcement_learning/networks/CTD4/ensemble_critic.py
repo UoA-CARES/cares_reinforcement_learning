@@ -10,7 +10,7 @@ class EnsembleCritic(nn.ModuleList):
         ensemble_size: int,
         observation_size: int,
         action_num: int,
-        hidden_size: list[int] = None,
+        hidden_size: list[int] | None = None,
     ):
         super().__init__()
         if hidden_size is None:

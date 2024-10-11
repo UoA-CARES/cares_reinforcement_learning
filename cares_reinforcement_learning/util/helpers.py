@@ -1,6 +1,5 @@
-import logging
-import random
 import os
+import random
 from datetime import datetime
 from pathlib import Path
 
@@ -20,7 +19,7 @@ def get_device() -> torch.device:
 
 
 def image_state_dict_to_tensor(
-    state: dict[str, np.ndarray], device: str
+    state: dict[str, np.ndarray], device: torch.device
 ) -> dict[str, torch.Tensor]:
     vector_tensor = torch.FloatTensor(state["vector"])
     vector_tensor = vector_tensor.unsqueeze(0).to(device)
@@ -33,7 +32,7 @@ def image_state_dict_to_tensor(
 
 
 def image_states_dict_to_tensor(
-    states: list[dict[str, np.ndarray]], device: str
+    states: list[dict[str, np.ndarray]], device: torch.device
 ) -> dict[str, torch.Tensor]:
     states_images = [state["image"] for state in states]
     states_vector = [state["vector"] for state in states]

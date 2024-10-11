@@ -72,10 +72,11 @@ class DynaSAC:
     def _alpha(self) -> float:
         return self.log_alpha.exp()
 
-    # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
         with torch.no_grad():

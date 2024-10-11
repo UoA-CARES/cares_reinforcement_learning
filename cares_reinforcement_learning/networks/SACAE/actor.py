@@ -11,8 +11,8 @@ class Actor(SACActor):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int] = None,
-        log_std_bounds: list[int] = None,
+        hidden_size: list[int] | None = None,
+        log_std_bounds: list[float] | None = None,
     ):
         if hidden_size is None:
             hidden_size = [1024, 1024]
@@ -32,7 +32,7 @@ class Actor(SACActor):
 
         self.apply(hlp.weight_init)
 
-    def forward(
+    def forward(  # type: ignore
         self, state: dict[str, torch.Tensor], detach_encoder: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
