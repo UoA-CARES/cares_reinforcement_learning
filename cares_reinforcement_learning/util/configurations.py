@@ -218,7 +218,7 @@ class CrossQConfig(AlgorithmConfig):
     algorithm: str = Field("CrossQ", Literal=True)
     actor_lr: Optional[float] = 1e-3
     critic_lr: Optional[float] = 1e-3
-    alpha_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 1e-3
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005

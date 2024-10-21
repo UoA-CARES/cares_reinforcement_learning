@@ -43,7 +43,7 @@ class CrossQ:
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
 
-        self.target_entropy = -self.actor_net.num_actions
+        self.target_entropy = -np.prod(self.actor_net.num_actions)
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
@@ -54,7 +54,7 @@ class CrossQ:
 
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
+        init_temperature = 0.1
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
@@ -90,13 +90,16 @@ class CrossQ:
         next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
-        with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
 
-        bb_observations = torch.cat([states, next_states], dim=0)
+        with torch.no_grad():
+            self.actor_net.eval()
+            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            self.actor_net.train()
+
+        bb_states = torch.cat([states, next_states], dim=0)
         bb_actions = torch.cat([actions, next_actions], dim=0)
 
-        bb_q_values_one, bb_q_values_two = self.critic_net(bb_observations, bb_actions)
+        bb_q_values_one, bb_q_values_two = self.critic_net(bb_states, bb_actions)
 
         q_values_one, q_values_one_next = torch.chunk(bb_q_values_one, chunks=2, dim=0)
         q_values_two, q_values_two_next = torch.chunk(bb_q_values_two, chunks=2, dim=0)
@@ -109,6 +112,7 @@ class CrossQ:
         q_target = (
             rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
         )
+        torch.detach(q_target)
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
