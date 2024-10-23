@@ -221,7 +221,6 @@ class CrossQConfig(AlgorithmConfig):
     alpha_lr: Optional[float] = 1e-3
 
     gamma: Optional[float] = 0.99
-    tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
 
     log_std_bounds: List[float] = [-20, 2]

@@ -5,7 +5,6 @@ Code based on: https://github.com/modelbased/minirllab/blob/main/agents/sac_cros
 This code runs automatic entropy tuning
 """
 
-import copy
 import logging
 import os
 from typing import Any
@@ -14,7 +13,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import CrossQConfig
 
@@ -37,7 +35,6 @@ class CrossQ:
         self.critic_net = critic_network.to(device)
 
         self.gamma = config.gamma
-        self.tau = config.tau
         self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
@@ -45,10 +42,10 @@ class CrossQ:
 
         self.target_entropy = -np.prod(self.actor_net.num_actions)
 
-        self.actor_net_optimiser = torch.optim.Adam(
+        self.actor_net_optimiser = torch.optim.AdamW(
             self.actor_net.parameters(), lr=config.actor_lr
         )
-        self.critic_net_optimiser = torch.optim.Adam(
+        self.critic_net_optimiser = torch.optim.AdamW(
             self.critic_net.parameters(), lr=config.critic_lr, betas=(0.5, 0.999)
         )
 
@@ -57,7 +54,7 @@ class CrossQ:
         init_temperature = 0.1
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam(
+        self.log_alpha_optimizer = torch.optim.AdamW(
             [self.log_alpha], lr=config.alpha_lr
         )
 
@@ -96,13 +93,13 @@ class CrossQ:
             next_actions, next_log_pi, _ = self.actor_net(next_states)
             self.actor_net.train()
 
-        bb_states = torch.cat([states, next_states], dim=0)
-        bb_actions = torch.cat([actions, next_actions], dim=0)
+        cat_states = torch.cat([states, next_states], dim=0)
+        cat_actions = torch.cat([actions, next_actions], dim=0)
 
-        bb_q_values_one, bb_q_values_two = self.critic_net(bb_states, bb_actions)
+        cat_q_values_one, cat_q_values_two = self.critic_net(cat_states, cat_actions)
 
-        q_values_one, q_values_one_next = torch.chunk(bb_q_values_one, chunks=2, dim=0)
-        q_values_two, q_values_two_next = torch.chunk(bb_q_values_two, chunks=2, dim=0)
+        q_values_one, q_values_one_next = torch.chunk(cat_q_values_one, chunks=2, dim=0)
+        q_values_two, q_values_two_next = torch.chunk(cat_q_values_two, chunks=2, dim=0)
 
         target_q_values = (
             torch.minimum(q_values_one_next, q_values_two_next)
@@ -127,7 +124,11 @@ class CrossQ:
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
+
+        self.critic_net.eval()
         qf1_pi, qf2_pi = self.critic_net(states, pi)
+        self.critic_net.train()
+
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
@@ -135,6 +136,11 @@ class CrossQ:
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
+
+        with torch.no_grad():
+            self.actor_net.eval()
+            _, log_pi, _ = self.actor_net(states)
+            self.actor_net.train()
 
         # update the temperature (alpha)
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
