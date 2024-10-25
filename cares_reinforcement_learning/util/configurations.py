@@ -223,7 +223,7 @@ class CrossQConfig(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     reward_scale: Optional[float] = 1.0
 
-    log_std_bounds: List[float] = [-20, 2]
+    log_std_bounds: List[float] = [-5, 2]
 
     policy_update_freq: Optional[int] = 3
 

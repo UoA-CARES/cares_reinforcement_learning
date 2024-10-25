@@ -42,19 +42,19 @@ class CrossQ:
 
         self.target_entropy = -np.prod(self.actor_net.num_actions)
 
-        self.actor_net_optimiser = torch.optim.AdamW(
+        self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
         )
-        self.critic_net_optimiser = torch.optim.AdamW(
+        self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=config.critic_lr, betas=(0.5, 0.999)
         )
 
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 0.1
+        init_temperature = 0.2
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.AdamW(
+        self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr
         )
 
