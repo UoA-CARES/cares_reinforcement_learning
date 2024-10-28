@@ -1,4 +1,5 @@
 import torch
+from batchrenorm import BatchRenorm1d
 from torch import nn
 
 from cares_reinforcement_learning.util.common import SquashedNormal
@@ -25,12 +26,13 @@ class Actor(nn.Module):
         self.hidden_size = hidden_size
         self.log_std_bounds = log_std_bounds
 
+        momentum = 0.01
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, self.hidden_size[0], bias=False),
-            nn.BatchNorm1d(self.hidden_size[0], momentum=0.01),
+            BatchRenorm1d(self.hidden_size[0], momentum=momentum),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1], bias=False),
-            nn.BatchNorm1d(self.hidden_size[1], momentum=0.01),
+            BatchRenorm1d(self.hidden_size[1], momentum=momentum),
             nn.ReLU(),
         )
 

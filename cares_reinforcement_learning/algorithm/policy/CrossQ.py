@@ -51,7 +51,7 @@ class CrossQ:
 
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 0.2
+        init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(

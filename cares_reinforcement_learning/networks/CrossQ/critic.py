@@ -1,4 +1,5 @@
 import torch
+from batchrenorm import BatchRenorm1d
 from torch import nn
 
 
@@ -17,12 +18,13 @@ class Critic(nn.Module):
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
+        momentum = 0.01
         self.Q1 = nn.Sequential(
             nn.Linear(observation_size + num_actions, self.hidden_size[0], bias=False),
-            nn.BatchNorm1d(self.hidden_size[0], momentum=0.01),
+            BatchRenorm1d(self.hidden_size[0], momentum=momentum),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1], bias=False),
-            nn.BatchNorm1d(self.hidden_size[1], momentum=0.01),
+            BatchRenorm1d(self.hidden_size[1], momentum=momentum),
             nn.ReLU(),
             nn.Linear(self.hidden_size[1], 1),
         )
@@ -31,10 +33,10 @@ class Critic(nn.Module):
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
             nn.Linear(observation_size + num_actions, self.hidden_size[0], bias=False),
-            nn.BatchNorm1d(self.hidden_size[0], momentum=0.01),
+            BatchRenorm1d(self.hidden_size[0], momentum=momentum),
             nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1], bias=False),
-            nn.BatchNorm1d(self.hidden_size[1], momentum=0.01),
+            BatchRenorm1d(self.hidden_size[1], momentum=momentum),
             nn.ReLU(),
             nn.Linear(self.hidden_size[1], 1),
         )
