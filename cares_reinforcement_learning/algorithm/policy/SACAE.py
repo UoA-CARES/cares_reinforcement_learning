@@ -54,8 +54,8 @@ class SACAE:
         self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
-        self.target_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         actor_beta = 0.9
         critic_beta = 0.9

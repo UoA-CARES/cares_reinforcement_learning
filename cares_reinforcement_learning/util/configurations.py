@@ -180,6 +180,9 @@ class SACConfig(AlgorithmConfig):
 
     log_std_bounds: list[float] = [-20, 2]
 
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
 
 class SACAEConfig(AlgorithmConfig):
     algorithm: str = Field("SACAE", Literal=True)
@@ -196,6 +199,9 @@ class SACAEConfig(AlgorithmConfig):
     reward_scale: float = 1.0
 
     log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 2
+    target_update_freq: int = 2
 
     encoder_tau: float = 0.05
     decoder_update_freq: int = 1
@@ -230,6 +236,9 @@ class SACDConfig(AlgorithmConfig):
     tau: float = 0.005
     reward_scale: float = 1.0
 
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
 
 class DynaSACConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
@@ -246,6 +255,9 @@ class DynaSACConfig(AlgorithmConfig):
     tau: float = 0.005
 
     log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
 
     horizon: int = 3
     num_samples: int = 10
@@ -269,7 +281,7 @@ class NaSATD3Config(AlgorithmConfig):
 
     vector_observation: int = 0
 
-    autoencoder_config: VanillaAEConfig | BurgessConfig = VanillaAEConfig(
+    autoencoder_config: VanillaAEConfig = VanillaAEConfig(
         latent_dim=200,
         num_layers=4,
         num_filters=32,
@@ -302,6 +314,9 @@ class REDQConfig(AlgorithmConfig):
 
     G: int = 20
 
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
 
 class TQCConfig(AlgorithmConfig):
     algorithm: str = Field("TQC", Literal=True)
@@ -316,6 +331,9 @@ class TQCConfig(AlgorithmConfig):
     num_nets: int = 5
 
     log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
 
 
 class CTD4Config(AlgorithmConfig):
@@ -361,6 +379,9 @@ class PERSACConfig(AlgorithmConfig):
 
     log_std_bounds: list[float] = [-20, 2]
 
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
 
 class LAPTD3Config(AlgorithmConfig):
     algorithm: str = Field("LAPTD3", Literal=True)
@@ -389,6 +410,9 @@ class LAPSACConfig(AlgorithmConfig):
     min_priority: float = 1.0
 
     log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
 
 
 class PALTD3Config(AlgorithmConfig):
@@ -435,6 +459,8 @@ class LA3PSACConfig(AlgorithmConfig):
 
     log_std_bounds: list[float] = [-20, 2]
 
+    target_update_freq: int = 1
+
 
 class MAPERTD3Config(AlgorithmConfig):
     algorithm: str = Field("MAPERTD3", Literal=True)
@@ -477,6 +503,9 @@ class MAPERSACConfig(AlgorithmConfig):
     hidden_size: list[int] = [400, 300]
     log_std_bounds: list[float] = [-20, 2]
 
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
 
 class RDTD3Config(AlgorithmConfig):
     algorithm: str = Field("RDTD3", Literal=True)
@@ -504,3 +533,6 @@ class RDSACConfig(AlgorithmConfig):
     min_priority: float = 1.0
 
     log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1

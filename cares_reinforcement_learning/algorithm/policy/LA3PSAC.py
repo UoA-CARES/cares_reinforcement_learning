@@ -42,7 +42,7 @@ class LA3PSAC:
         self.prioritized_fraction = config.prioritized_fraction
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.target_update_freq = config.target_update_freq
 
         self.target_entropy = -self.actor_net.num_actions
 
@@ -190,7 +190,7 @@ class LA3PSAC:
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
         priority_batch_size = int(batch_size * self.prioritized_fraction)
 
-        policy_update = self.learn_counter % self.policy_update_freq == 0
+        policy_update = self.learn_counter % self.target_update_freq == 0
 
         ######################### UNIFORM SAMPLING #########################
         experiences = memory.sample_uniform(uniform_batch_size)

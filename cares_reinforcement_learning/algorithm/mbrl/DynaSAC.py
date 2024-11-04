@@ -48,7 +48,8 @@ class DynaSAC:
         self.action_num = self.actor_net.num_actions
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
@@ -93,10 +94,11 @@ class DynaSAC:
         # Update Critic
         self._update_critic(states, actions, rewards, next_states, dones)
 
-        # Update Actor
-        self._update_actor(states)
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update Actor
+            self._update_actor(states)
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
     def _update_critic(self, states, actions, rewards, next_states, dones):

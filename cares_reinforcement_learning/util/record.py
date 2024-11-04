@@ -31,8 +31,8 @@ class Record:
         algorithm: str,
         task: str,
         plot_frequency: int = 10,
-        checkpoint_frequency: Optional[int] = None,
-        network: Optional[nn.Module] = None,
+        checkpoint_frequency: int | None = None,
+        network: nn.Module | None = None,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -82,7 +82,7 @@ class Record:
 
         self.log_count = 0
 
-        self.video = None
+        self.video: cv2.VideoWriter = None
 
         self.__initialise_directories()
 

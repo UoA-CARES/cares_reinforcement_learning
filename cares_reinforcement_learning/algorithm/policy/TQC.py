@@ -44,7 +44,8 @@ class TQC:
         )
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         self.device = device
 
@@ -178,13 +179,14 @@ class TQC:
         )
         info["critic_loss"] = critic_loss_total
 
-        # Update the Actor
-        actor_loss, alpha_loss = self._update_actor(states)
-        info["actor_loss"] = actor_loss
-        info["alpha_loss"] = alpha_loss
-        info["alpha"] = self.alpha.item()
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor
+            actor_loss, alpha_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info

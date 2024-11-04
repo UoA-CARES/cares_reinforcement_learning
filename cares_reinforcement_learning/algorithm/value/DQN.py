@@ -30,7 +30,7 @@ class DQN:
             self.network.parameters(), lr=config.lr
         )
 
-    def select_action_from_policy(self, state):
+    def select_action_from_policy(self, state) -> int:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)

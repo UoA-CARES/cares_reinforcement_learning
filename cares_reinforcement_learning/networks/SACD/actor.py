@@ -30,11 +30,12 @@ class Actor(nn.Module):
 
     def forward(
         self, state: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         action_probs = self.act_net(state)
         max_probability_action = torch.argmax(action_probs)
         dist = torch.distributions.Categorical(action_probs)
         action = dist.sample()
+
         # Offset any values which are zero by a small amount so no nan nonsense
         zero_offset = action_probs == 0.0
         zero_offset = zero_offset.float() * 1e-8
