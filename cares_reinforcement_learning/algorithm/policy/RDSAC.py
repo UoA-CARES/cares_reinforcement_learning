@@ -38,7 +38,7 @@ class RDSAC:
         self.policy_update_freq = config.policy_update_freq
         self.target_update_freq = config.target_update_freq
 
-        self.target_entropy = -np.prod(self.actor_net.num_actions)
+        self.target_entropy = -self.actor_net.num_actions
 
         # RD-PER parameters
         self.scale_r = 1.0

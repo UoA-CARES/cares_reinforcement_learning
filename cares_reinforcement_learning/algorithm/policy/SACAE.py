@@ -61,7 +61,7 @@ class SACAE:
         critic_beta = 0.9
         alpha_beta = 0.5
 
-        self.target_entropy = -np.prod(self.actor_net.num_actions)
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr, betas=(actor_beta, 0.999)
