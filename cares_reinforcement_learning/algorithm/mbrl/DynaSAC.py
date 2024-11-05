@@ -51,6 +51,8 @@ class DynaSAC:
         self.policy_update_freq = config.policy_update_freq
         self.target_update_freq = config.target_update_freq
 
+        self.target_entropy = -np.prod(self.actor_net.num_actions)
+
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
         )
@@ -61,7 +63,6 @@ class DynaSAC:
         # Set to initial alpha to 1.0 according to other baselines.
         self.log_alpha = torch.tensor(np.log(1.0)).to(device)
         self.log_alpha.requires_grad = True
-        self.target_entropy = -self.action_num
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr
         )
