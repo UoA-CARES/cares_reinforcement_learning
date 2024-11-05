@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 from argparse import Namespace
-from typing import Optional, get_origin
+from typing import get_origin
 
 from pydantic import Field
 
@@ -159,31 +159,31 @@ class RLParser:
 #  in this case the LAMO envrionment and task with LAMO algorithm
 
 
-class LMAOConfig(AlgorithmConfig):
+class ExampleConfig(AlgorithmConfig):
     algorithm: str = Field("LMAO", Literal=True)
-    lr: Optional[float] = 1e-3
-    gamma: Optional[float] = 0.99
-    memory: Optional[str] = "MemoryBuffer"
+    lr: float = 1e-3
+    gamma: float = 0.99
+    memory: str = "MemoryBuffer"
 
-    exploration_min: Optional[float] = 1e-3
-    exploration_decay: Optional[float] = 0.95
+    exploration_min: float = 1e-3
+    exploration_decay: float = 0.95
 
 
-class LMAOEnvironmentConfig(EnvironmentConfig):
+class ExampleEnvironmentConfig(EnvironmentConfig):
     gym: str = Field("LMAO-Gym", Literal=True)
     task: str
-    domain: Optional[str] = None
-    image_observation: Optional[bool] = False
+    domain: str | None = None
+    image_observation: int | None = 0
 
 
-class LMAOHardwareConfig(SubscriptableClass):
+class ExampleHardwareConfig(SubscriptableClass):
     value: str = "rofl-copter"
 
 
 def main():
-    parser = RLParser(LMAOEnvironmentConfig)
-    parser.add_configuration("lmao_config", LMAOHardwareConfig)
-    parser.add_algorithm_config(LMAOConfig)
+    parser = RLParser(ExampleEnvironmentConfig)
+    parser.add_configuration("lmao_config", ExampleHardwareConfig)
+    parser.add_algorithm_config(ExampleConfig)
     configs = parser.parse_args()
     print(configs)
 

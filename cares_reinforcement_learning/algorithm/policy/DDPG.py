@@ -5,7 +5,7 @@ Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
 import copy
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -46,7 +46,7 @@ class DDPG:
     def select_action_from_policy(
         self,
         state: np.ndarray,
-        evaluation: Optional[bool] = False,
+        evaluation: bool = False,
         noise_scale: float = 0,
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument

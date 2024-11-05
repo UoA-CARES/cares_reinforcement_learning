@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from typing import Optional
 
 import cv2
 import numpy as np
@@ -22,7 +21,7 @@ class Record:
         task (str): The task name.
         plot_frequency (int, optional): The frequency at which to plot training data. Defaults to 10.
         checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. If not set model will not auto-save, use save_model externally to save.
-        network (Optional[nn.Module], optional): The neural network model. Defaults to None.
+        network (nn.Module, optional): The neural network model. Defaults to None.
     """
 
     def __init__(
