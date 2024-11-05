@@ -90,7 +90,7 @@ class PERSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, np.ndarray]:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(

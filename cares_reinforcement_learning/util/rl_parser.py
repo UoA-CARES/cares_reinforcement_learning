@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 from argparse import Namespace
-from typing import get_origin
+from typing import get_origin, Any
 
 from pydantic import Field
 
@@ -18,23 +18,23 @@ from cares_reinforcement_learning.util.configurations import (
 
 
 class RLParser:
-    def __init__(self, environment_config: EnvironmentConfig) -> None:
-        self.configurations = {}
+    def __init__(self, environment_config: type[EnvironmentConfig]) -> None:
+        self.configurations: dict[str, Any] = {}
 
-        self.algorithm_parser, self.algorithm_parsers = self._get_algorithm_parser()
+        self.algorithm_parser, self.sub_algorithm_parsers = self._get_algorithm_parser()
 
         self.algorithm_configurations = {}
         for name, cls in inspect.getmembers(configurations, inspect.isclass):
             if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
                 self.algorithm_configurations[name] = cls
 
-        self.args = {}
+        self.args: dict[str, Any] = {}
 
         self.add_configuration("env_config", environment_config)
         self.add_configuration("training_config", TrainingConfig)
 
     def add_model(
-        self, parser: argparse.ArgumentParser, model: AlgorithmConfig
+        self, parser: argparse.ArgumentParser, model: type[AlgorithmConfig]
     ) -> None:
         fields = model.__fields__
         for name, field in fields.items():
@@ -49,9 +49,11 @@ class RLParser:
                 nargs=nargs,
             )
 
-    def _get_algorithm_parser(self) -> None:
+    def _get_algorithm_parser(
+        self,
+    ) -> tuple[argparse.ArgumentParser, argparse._SubParsersAction]:
         alg_parser = argparse.ArgumentParser()
-        alg_parsers = alg_parser.add_subparsers(
+        sub_alg_parsers = alg_parser.add_subparsers(
             help="Select which RL algorith you want to use",
             dest="algorithm",
             required=True,
@@ -60,18 +62,20 @@ class RLParser:
         for name, cls in inspect.getmembers(configurations, inspect.isclass):
             if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
                 name = name.replace("Config", "")
-                cls_parser = alg_parsers.add_parser(name, help=name)
+                cls_parser = sub_alg_parsers.add_parser(name, help=name)
                 self.add_model(cls_parser, cls)
 
-        return alg_parser, alg_parsers
+        return alg_parser, sub_alg_parsers
 
-    def add_algorithm_config(self, algorithm_config: AlgorithmConfig) -> None:
+    def add_algorithm_config(self, algorithm_config: type[AlgorithmConfig]) -> None:
         name = algorithm_config.__name__.replace("Config", "")
-        parser = self.algorithm_parsers.add_parser(f"{name}", help=f"{name}")
+        parser = self.sub_algorithm_parsers.add_parser(f"{name}", help=f"{name}")
         self.add_model(parser, algorithm_config)
         self.algorithm_configurations[algorithm_config.__name__] = algorithm_config
 
-    def add_configuration(self, name: str, configuration: SubscriptableClass) -> None:
+    def add_configuration(
+        self, name: str, configuration: type[SubscriptableClass]
+    ) -> None:
         self.configurations[name] = configuration
 
     def parse_args(self) -> dict:

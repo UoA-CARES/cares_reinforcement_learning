@@ -167,7 +167,7 @@ class MemoryBuffer:
         return (*experiences, indices.tolist())
 
     def _importance_sampling_prioritised_weights(
-        self, indices: list[int], weight_normalisation="batch"
+        self, indices: np.ndarray, weight_normalisation="batch"
     ) -> np.ndarray:
         """
         Calculates the importance-sampling weights for prioritized replay and prioritises based on population max.
@@ -175,7 +175,7 @@ class MemoryBuffer:
         PER Paper: https://arxiv.org/pdf/1511.05952.pdf
 
         Args:
-            indices (list[int]): A list of indices representing the transitions to calculate weights for.
+            indices (np.ndarray): A list of indices representing the transitions to calculate weights for.
             weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
@@ -307,7 +307,7 @@ class MemoryBuffer:
             reversed_priorities[indices].tolist(),
         )
 
-    def update_priorities(self, indices: list[int], priorities: np.ndarray) -> None:
+    def update_priorities(self, indices: np.ndarray, priorities: np.ndarray) -> None:
         """
         Update the priorities of the replay buffer at the given indices.
 
@@ -367,20 +367,18 @@ class MemoryBuffer:
                 if (not done) and (i not in sampled_indices):
                     sampled_indices.append(i)
 
-        sampled_indices = np.array(sampled_indices)
-
         experiences = []
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[sampled_indices].tolist())
+            experiences.append(buffer[np.array(sampled_indices)].tolist())
 
-        next_sampled_indices = sampled_indices + 1
+        next_sampled_indices = (np.array(sampled_indices) + 1).tolist()
 
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[next_sampled_indices].tolist())
+            experiences.append(buffer[np.array(next_sampled_indices)].tolist())
 
-        return (*experiences, sampled_indices.tolist())
+        return (*experiences, sampled_indices)
 
     def get_statistics(self) -> dict[str, np.ndarray]:
         """
