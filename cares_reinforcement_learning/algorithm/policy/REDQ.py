@@ -29,7 +29,8 @@ class REDQ:
         self.tau = config.tau
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         self.device = device
 
@@ -73,6 +74,8 @@ class REDQ:
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         # so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
@@ -191,13 +194,14 @@ class REDQ:
         )
         info["critic_loss_totals"] = critic_loss_totals
 
-        # Update the Actor
-        actor_loss, alpha_loss = self._update_actor_alpha(idx, states)
-        info["actor_loss"] = actor_loss
-        info["alpha_loss"] = alpha_loss
-        info["alpha"] = self.alpha.item()
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor
+            actor_loss, alpha_loss = self._update_actor_alpha(idx, states)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
                 self.ensemble_critics, self.target_ensemble_critics

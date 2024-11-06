@@ -41,7 +41,8 @@ class PERSAC:
         self.min_priority = config.min_priority
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         self.target_entropy = -self.actor_net.num_actions
 
@@ -62,6 +63,8 @@ class PERSAC:
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
@@ -87,7 +90,7 @@ class PERSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, list[float]]:
+    ) -> tuple[float, np.ndarray]:
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -173,12 +176,13 @@ class PERSAC:
         )
         info["critic_loss"] = critic_loss_total
 
-        # Update the Actor
-        actor_loss = self._update_actor_alpha(states)
-        info["actor_loss"] = actor_loss
-        info["alpha"] = self.alpha.item()
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor
+            actor_loss = self._update_actor_alpha(states)
+            info["actor_loss"] = actor_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         memory.update_priorities(indices, priorities)

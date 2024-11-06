@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
@@ -25,7 +26,7 @@ class SACAE:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        decoder_network: torch.nn.Module,
+        decoder_network: Decoder,
         config: SACAEConfig,
         device: torch.device,
     ):
@@ -53,15 +54,14 @@ class SACAE:
         self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
-        self.target_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         actor_beta = 0.9
         critic_beta = 0.9
         alpha_beta = 0.5
 
-        # set target entropy to -|A|
-        self.target_entropy = -np.prod(self.actor_net.num_actions)
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr, betas=(actor_beta, 0.999)
@@ -94,13 +94,14 @@ class SACAE:
             [self.log_alpha], lr=config.alpha_lr, betas=(alpha_beta, 0.999)
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self,
         state: dict[str, np.ndarray],
         evaluation: bool = False,
         noise_scale: float = 0,
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():

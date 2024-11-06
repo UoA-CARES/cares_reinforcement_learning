@@ -2,10 +2,9 @@ import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
-from cares_reinforcement_learning.encoders.autoencoder import (
-    Autoencoder,
-)
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 
 
 class Actor(nn.Module):
@@ -13,8 +12,8 @@ class Actor(nn.Module):
         self,
         vector_observation_size: int,
         num_actions: int,
-        autoencoder: Autoencoder,
-        hidden_size: list[int] = None,
+        autoencoder: VanillaAutoencoder | BurgessAutoencoder,
+        hidden_size: list[int] | None = None,
     ):
         super().__init__()
         if hidden_size is None:

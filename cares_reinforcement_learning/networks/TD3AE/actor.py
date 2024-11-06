@@ -11,7 +11,7 @@ class Actor(TD3Actor):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int] = None,
+        hidden_size: list[int] | None = None,
     ):
         if hidden_size is None:
             hidden_size = [1024, 1024]
@@ -26,7 +26,7 @@ class Actor(TD3Actor):
 
         self.vector_observation_size = vector_observation_size
 
-    def forward(
+    def forward(  # type: ignore
         self, state: dict[str, torch.Tensor], detach_encoder: bool = False
     ) -> torch.Tensor:
         # Detach at the CNN layer to prevent backpropagation through the encoder

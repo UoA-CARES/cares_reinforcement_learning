@@ -121,7 +121,7 @@ def test_sample_inverse_sample_values(memory_buffer_1e6):
 
 
 def test_sample_consecutive_values(memory_buffer_1e6):
-    for i in range(10):
+    for i in range(20):
         memory_buffer_1e6.add(i, i, i, i, i % 2)
 
     (

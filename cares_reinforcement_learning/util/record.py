@@ -1,12 +1,11 @@
 import json
 import logging
 import os
-from typing import Optional
 
 import cv2
 import numpy as np
 import pandas as pd
-import torch.nn as nn
+from torch import nn
 
 import cares_reinforcement_learning.util.plotter as plt
 
@@ -22,7 +21,7 @@ class Record:
         task (str): The task name.
         plot_frequency (int, optional): The frequency at which to plot training data. Defaults to 10.
         checkpoint_frequency (int, optional): The frequency at which to save model checkpoints. If not set model will not auto-save, use save_model externally to save.
-        network (Optional[nn.Module], optional): The neural network model. Defaults to None.
+        network (nn.Module, optional): The neural network model. Defaults to None.
     """
 
     def __init__(
@@ -31,8 +30,8 @@ class Record:
         algorithm: str,
         task: str,
         plot_frequency: int = 10,
-        checkpoint_frequency: Optional[int] = None,
-        network: Optional[nn.Module] = None,
+        checkpoint_frequency: int | None = None,
+        network: nn.Module | None = None,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -47,7 +46,7 @@ class Record:
         self.plot_frequency = plot_frequency
         self.checkpoint_frequency = checkpoint_frequency
 
-        if self.checkpoint_frequency == None:
+        if self.checkpoint_frequency is None:
             logging.warning(
                 "checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model."
             )
@@ -82,7 +81,7 @@ class Record:
 
         self.log_count = 0
 
-        self.video = None
+        self.video: cv2.VideoWriter = None
 
         self.__initialise_directories()
 

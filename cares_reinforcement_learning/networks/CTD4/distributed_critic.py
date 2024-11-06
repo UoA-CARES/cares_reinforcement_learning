@@ -7,7 +7,7 @@ class DistributedCritic(nn.Module):
         self,
         observation_size: int,
         action_num: int,
-        hidden_size: list[int] = None,
+        hidden_size: list[int] | None = None,
     ):
         super().__init__()
         if hidden_size is None:

@@ -11,7 +11,7 @@ class Critic(SACCritic):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int] = None,
+        hidden_size: list[int] | None = None,
     ):
         if hidden_size is None:
             hidden_size = [1024, 1024]
@@ -26,7 +26,7 @@ class Critic(SACCritic):
 
         self.apply(hlp.weight_init)
 
-    def forward(
+    def forward(  # type: ignore
         self,
         state: dict[str, torch.Tensor],
         action: torch.Tensor,

@@ -94,6 +94,8 @@ class PPO:
         return batch_rtgs
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> dict[str, Any]:
+        # pylint: disable-next=unused-argument
+
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences
 

@@ -48,7 +48,10 @@ class DynaSAC:
         self.action_num = self.actor_net.num_actions
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
+
+        self.target_entropy = -self.action_num
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
@@ -60,7 +63,6 @@ class DynaSAC:
         # Set to initial alpha to 1.0 according to other baselines.
         self.log_alpha = torch.tensor(np.log(1.0)).to(device)
         self.log_alpha.requires_grad = True
-        self.target_entropy = -self.action_num
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr
         )
@@ -72,10 +74,11 @@ class DynaSAC:
     def _alpha(self) -> float:
         return self.log_alpha.exp()
 
-    # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
         with torch.no_grad():
@@ -92,10 +95,11 @@ class DynaSAC:
         # Update Critic
         self._update_critic(states, actions, rewards, next_states, dones)
 
-        # Update Actor
-        self._update_actor(states)
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update Actor
+            self._update_actor(states)
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
     def _update_critic(self, states, actions, rewards, next_states, dones):

@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
@@ -17,24 +15,20 @@ class AEConfig(SubscriptableClass):
     Attributes:
         type (str): Type of the autoencoder - vanilla or burgess.
         latent_dim (int): Dimension of the latent space.
-        num_layers (Optional[int]): Number of layers in the encoder and decoder. Default is 4.
-        num_filters (Optional[int]): Number of filters in each layer. Default is 32.
-        kernel_size (Optional[int]): Size of the convolutional kernel. Default is 3.
+        num_layers (int): Number of layers in the encoder and decoder. Default is 4.
+        num_filters (int): Number of filters in each layer. Default is 32.
+        kernel_size (int): Size of the convolutional kernel. Default is 3.
     """
 
     type: str = Field(description="Type of the autoencoder")
     latent_dim: int
-    num_layers: Optional[int] = 4
-    num_filters: Optional[int] = 32
-    kernel_size: Optional[int] = 3
+    num_layers: int = 4
+    num_filters: int = 32
+    kernel_size: int = 3
 
-    encoder_optim_kwargs: Optional[dict[str, float]] = Field(
-        default_factory=lambda: {"lr": 1e-3}
-    )
+    encoder_optim_kwargs: dict[str, float] = Field(default_factory=lambda: {"lr": 1e-3})
 
-    decoder_optim_kwargs: Optional[dict[str, float]] = Field(
-        default_factory=lambda: {"lr": 1e-3}
-    )
+    decoder_optim_kwargs: dict[str, float] = Field(default_factory=lambda: {"lr": 1e-3})
 
 
 class VanillaAEConfig(AEConfig):
@@ -106,16 +100,16 @@ class FactorKConfig(BurgessConfig):
         rec_dist (str): Reconstruction distribution type.
         steps_anneal (int): Number of steps to anneal the loss function.
         gamma (float): Gamma value for the loss function.
-        disc_kwargs (Optional[dict[str, float]]): Keyword arguments for the discriminator.
-        optim_kwargs (Optional[dict[str, float]]): Keyword arguments for the optimizer.
+        disc_kwargs (dict[str, float]): Keyword arguments for the discriminator.
+        optim_kwargs (dict[str, float]): Keyword arguments for the optimizer.
     """
 
     loss_function_type: str = "factor"
     rec_dist: str = "bernoulli"
     steps_anneal: int = 0
     gamma: float = 6.0
-    disc_kwargs: Optional[dict[str, float]] = Field(default_factory=lambda: None)
-    optim_kwargs: Optional[dict[str, float]] = Field(
+    disc_kwargs: dict[str, float] = Field(default_factory=lambda: None)
+    optim_kwargs: dict[str, float] = Field(
         default_factory=lambda: {"lr": 5e-5, "betas": (0.5, 0.9)}
     )
 
