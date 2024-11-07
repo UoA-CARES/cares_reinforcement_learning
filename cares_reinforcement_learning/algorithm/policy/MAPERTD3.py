@@ -46,7 +46,7 @@ class MAPERTD3:
         self.policy_noise = 0.2
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
         self.action_num = self.actor_net.num_actions
 

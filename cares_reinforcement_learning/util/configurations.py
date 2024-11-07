@@ -59,8 +59,6 @@ class AlgorithmConfig(SubscriptableClass):
         noise_decay (float]): Noise decay.
 
         image_observation (int]): Whether the observation is an image.
-
-        hidden_size (list[int]): list of hidden layer sizes - e.g. [256, 256].
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")
@@ -78,8 +76,6 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: int = 0
 
-    hidden_size: list[int] | None = None
-
 
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
@@ -88,6 +84,8 @@ class DQNConfig(AlgorithmConfig):
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
+
+    hidden_size: list[int] = [512, 512]
 
 
 class DuelingDQNConfig(AlgorithmConfig):
@@ -98,6 +96,8 @@ class DuelingDQNConfig(AlgorithmConfig):
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
 
+    hidden_size: list[int] = [512, 512, 512]
+
 
 class DoubleDQNConfig(AlgorithmConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
@@ -107,6 +107,8 @@ class DoubleDQNConfig(AlgorithmConfig):
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
+
+    hidden_size: list[int] = [512, 512]
 
 
 class PPOConfig(AlgorithmConfig):
@@ -120,6 +122,9 @@ class PPOConfig(AlgorithmConfig):
 
     max_steps_per_batch: int = 5000
 
+    hidden_size_actor: list[int] = [1024, 1024]
+    hidden_size_critic: list[int] = [1024, 1024]
+
 
 class DDPGConfig(AlgorithmConfig):
     algorithm: str = Field("DDPG", Literal=True)
@@ -129,6 +134,9 @@ class DDPGConfig(AlgorithmConfig):
     gamma: float = 0.99
     tau: float = 0.005
 
+    hidden_size_actor: list[int] = [1024, 1024]
+    hidden_size_critic: list[int] = [1024, 1024]
+
 
 class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
@@ -137,6 +145,11 @@ class TD3Config(AlgorithmConfig):
 
     gamma: float = 0.99
     tau: float = 0.005
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
 
 class TD3AEConfig(AlgorithmConfig):
@@ -151,6 +164,11 @@ class TD3AEConfig(AlgorithmConfig):
 
     gamma: float = 0.99
     tau: float = 0.005
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [1024, 1024]
+    hidden_size_critic: list[int] = [1024, 1024]
 
     encoder_tau: float = 0.05
     decoder_update_freq: int = 1
@@ -183,6 +201,9 @@ class SACConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
 
 class SACAEConfig(AlgorithmConfig):
     algorithm: str = Field("SACAE", Literal=True)
@@ -202,6 +223,9 @@ class SACAEConfig(AlgorithmConfig):
 
     policy_update_freq: int = 2
     target_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [1024, 1024]
+    hidden_size_critic: list[int] = [1024, 1024]
 
     encoder_tau: float = 0.05
     decoder_update_freq: int = 1
@@ -239,6 +263,9 @@ class SACDConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [512, 512]
+    hidden_size_critic: list[int] = [512, 512]
+
 
 class DynaSACConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
@@ -259,6 +286,9 @@ class DynaSACConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
     horizon: int = 3
     num_samples: int = 10
     world_model_lr: float = 0.001
@@ -276,6 +306,12 @@ class NaSATD3Config(AlgorithmConfig):
     gamma: float = 0.99
     tau: float = 0.005
     ensemble_size: int = 3
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [1024, 1024]
+    hidden_size_critic: list[int] = [1024, 1024]
+    hidden_size_epdm: list[int] = [512, 512]
 
     intrinsic_on: int = 1
 
@@ -317,6 +353,9 @@ class REDQConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
 
 class TQCConfig(AlgorithmConfig):
     algorithm: str = Field("TQC", Literal=True)
@@ -335,6 +374,9 @@ class TQCConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [512, 512, 512]
+
 
 class CTD4Config(AlgorithmConfig):
     algorithm: str = Field("CTD4", Literal=True)
@@ -348,6 +390,11 @@ class CTD4Config(AlgorithmConfig):
     min_noise: float = 0.0
     noise_decay: float = 0.999999
     noise_scale: float = 0.1
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
     fusion_method: str = "kalman"  # kalman, minimum, average
 
@@ -363,6 +410,11 @@ class PERTD3Config(AlgorithmConfig):
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
 
 class PERSACConfig(AlgorithmConfig):
@@ -382,6 +434,9 @@ class PERSACConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
 
 class LAPTD3Config(AlgorithmConfig):
     algorithm: str = Field("LAPTD3", Literal=True)
@@ -394,6 +449,11 @@ class LAPTD3Config(AlgorithmConfig):
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
 
 class LAPSACConfig(AlgorithmConfig):
@@ -414,6 +474,9 @@ class LAPSACConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
 
 class PALTD3Config(AlgorithmConfig):
     algorithm: str = Field("PALTD3", Literal=True)
@@ -426,6 +489,11 @@ class PALTD3Config(AlgorithmConfig):
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
 
 class LA3PTD3Config(AlgorithmConfig):
@@ -440,6 +508,11 @@ class LA3PTD3Config(AlgorithmConfig):
     per_alpha: float = 0.4
     min_priority: float = 1.0
     prioritized_fraction: float = 0.5
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
 
 class LA3PSACConfig(AlgorithmConfig):
@@ -461,6 +534,9 @@ class LA3PSACConfig(AlgorithmConfig):
 
     target_update_freq: int = 1
 
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
 
 class MAPERTD3Config(AlgorithmConfig):
     algorithm: str = Field("MAPERTD3", Literal=True)
@@ -481,6 +557,11 @@ class MAPERTD3Config(AlgorithmConfig):
     G: int = 64
     number_steps_per_train_policy: int = 64
 
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
 
 class MAPERSACConfig(AlgorithmConfig):
     algorithm: str = Field("MAPERSAC", Literal=True)
@@ -500,11 +581,13 @@ class MAPERSACConfig(AlgorithmConfig):
     G: int = 64
     number_steps_per_train_policy: int = 64
 
-    hidden_size: list[int] = [400, 300]
     log_std_bounds: list[float] = [-20, 2]
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [400, 300]
+    hidden_size_critic: list[int] = [400, 300]
 
 
 class RDTD3Config(AlgorithmConfig):
@@ -518,6 +601,11 @@ class RDTD3Config(AlgorithmConfig):
     beta: float = 0.4
     per_alpha: float = 0.7
     min_priority: float = 1.0
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
 
 class RDSACConfig(AlgorithmConfig):
@@ -536,3 +624,6 @@ class RDSACConfig(AlgorithmConfig):
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]

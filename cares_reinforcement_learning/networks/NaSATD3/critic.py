@@ -13,11 +13,9 @@ class Critic(nn.Module):
         vector_observation_size: int,
         num_actions: int,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        hidden_size: list[int] | None = None,
+        hidden_size: list[int],
     ):
         super().__init__()
-        if hidden_size is None:
-            hidden_size = [1024, 1024]
 
         self.autoencoder = autoencoder
         self.hidden_size = hidden_size

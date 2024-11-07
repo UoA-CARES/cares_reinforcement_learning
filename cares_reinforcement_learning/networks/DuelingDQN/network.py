@@ -7,11 +7,9 @@ class DuelingNetwork(nn.Module):
         self,
         observation_space_size: int,
         action_num: int,
-        hidden_size: list[int] | None = None,
+        hidden_size: list[int],
     ):
         super().__init__()
-        if hidden_size is None:
-            hidden_size = [512, 512, 512]
 
         self.hidden_size = hidden_size
 

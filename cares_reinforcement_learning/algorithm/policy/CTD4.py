@@ -50,7 +50,7 @@ class CTD4:
         self.fusion_method = config.fusion_method
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
         self.action_num = self.actor_net.num_actions
 

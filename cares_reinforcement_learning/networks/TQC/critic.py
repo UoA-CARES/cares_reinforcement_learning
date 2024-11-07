@@ -11,11 +11,9 @@ class Critic(nn.Module):
         num_actions: int,
         num_quantiles: int,
         num_critics: int,
-        hidden_size: list[int] | None = None,
+        hidden_size: list[int],
     ):
         super().__init__()
-        if hidden_size is None:
-            hidden_size = [512, 512, 512]
 
         self.q_networks = []
         self.num_quantiles = num_quantiles

@@ -62,8 +62,8 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
     from cares_reinforcement_learning.algorithm.policy import PPO
     from cares_reinforcement_learning.networks.PPO import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = PPO(
@@ -87,10 +87,10 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
 
@@ -119,10 +119,10 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = SAC(
@@ -155,14 +155,14 @@ def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
         vector_observation_size,
         actor_encoder,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
     critic = Critic(
         vector_observation_size,
         critic_encoder,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_critic,
     )
 
     device = hlp.get_device()
@@ -180,8 +180,8 @@ def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = SACD(
@@ -197,8 +197,8 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = DDPG(
@@ -214,8 +214,8 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = TD3(
@@ -248,13 +248,13 @@ def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
         vector_observation_size,
         actor_encoder,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
     )
     critic = Critic(
         vector_observation_size,
         critic_encoder,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_critic,
     )
 
     device = hlp.get_device()
@@ -286,13 +286,13 @@ def create_NaSATD3(observation_size, action_num, config: acf.NaSATD3Config):
         vector_observation_size,
         action_num,
         autoencoder,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
     )
     critic = Critic(
         vector_observation_size,
         action_num,
         autoencoder,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_critic,
     )
 
     device = hlp.get_device()
@@ -316,10 +316,10 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
         config.ensemble_size,
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_critic,
     )
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
 
     agent = CTD4(
         actor_network=actor,
@@ -335,8 +335,8 @@ def create_RDTD3(observation_size, action_num, config: acf.RDTD3Config):
     from cares_reinforcement_learning.algorithm.policy import RDTD3
     from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = RDTD3(
@@ -355,10 +355,10 @@ def create_RDSAC(observation_size, action_num, config: acf.RDSACConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = RDSAC(
@@ -374,8 +374,8 @@ def create_PERTD3(observation_size, action_num, config: acf.PERTD3Config):
     from cares_reinforcement_learning.algorithm.policy import PERTD3
     from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = PERTD3(
@@ -394,10 +394,10 @@ def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = PERSAC(
@@ -413,8 +413,8 @@ def create_LAPTD3(observation_size, action_num, config: acf.LAPTD3Config):
     from cares_reinforcement_learning.algorithm.policy import LAPTD3
     from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = LAPTD3(
@@ -433,10 +433,10 @@ def create_LAPSAC(observation_size, action_num, config: acf.LAPSACConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = LAPSAC(
@@ -452,8 +452,8 @@ def create_PALTD3(observation_size, action_num, config: acf.PALTD3Config):
     from cares_reinforcement_learning.algorithm.policy import PALTD3
     from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = PALTD3(
@@ -469,8 +469,8 @@ def create_MAPERTD3(observation_size, action_num, config: acf.MAPERTD3Config):
     from cares_reinforcement_learning.algorithm.policy import MAPERTD3
     from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = MAPERTD3(
@@ -489,10 +489,10 @@ def create_MAPERSAC(observation_size, action_num, config: acf.MAPERSACConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = MAPERSAC(
@@ -508,8 +508,8 @@ def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
     from cares_reinforcement_learning.algorithm.policy import REDQ
     from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = REDQ(
@@ -528,7 +528,7 @@ def create_TQC(observation_size, action_num, config: acf.TQCConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
     critic = Critic(
@@ -536,7 +536,7 @@ def create_TQC(observation_size, action_num, config: acf.TQCConfig):
         action_num,
         config.num_quantiles,
         config.num_nets,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_critic,
     )
 
     device = hlp.get_device()
@@ -553,8 +553,8 @@ def create_LA3PTD3(observation_size, action_num, config: acf.LA3PTD3Config):
     from cares_reinforcement_learning.algorithm.policy import LA3PTD3
     from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size_actor)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = LA3PTD3(
@@ -573,10 +573,10 @@ def create_LA3PSAC(observation_size, action_num, config: acf.LA3PSACConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = LA3PSAC(
