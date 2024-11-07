@@ -11,11 +11,8 @@ class Critic(SACCritic):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int] | None = None,
+        hidden_size: list[int],
     ):
-        if hidden_size is None:
-            hidden_size = [1024, 1024]
-
         super().__init__(
             encoder.latent_dim + vector_observation_size, num_actions, hidden_size
         )

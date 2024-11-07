@@ -11,12 +11,12 @@ import cares_reinforcement_learning.util.helpers as hlp
 
 # pylint: disable-next=invalid-name
 class EPDM(nn.Module):
-    def __init__(self, latent_size: int, num_actions: int):
+    def __init__(self, latent_size: int, num_actions: int, hidden_size: list[int]):
         super().__init__()
 
         self.input_dim = latent_size + num_actions
         self.output_dim = latent_size
-        self.hidden_size = [512, 512]
+        self.hidden_size = hidden_size
 
         self.prediction_net = nn.Sequential(
             nn.Linear(in_features=self.input_dim, out_features=self.hidden_size[0]),

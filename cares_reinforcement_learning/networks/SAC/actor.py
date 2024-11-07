@@ -12,12 +12,10 @@ class Actor(nn.Module):
         self,
         observation_size: int,
         num_actions: int,
-        hidden_size: list[int] | None = None,
+        hidden_size: list[int],
         log_std_bounds: list[float] | None = None,
     ):
         super().__init__()
-        if hidden_size is None:
-            hidden_size = [256, 256]
         if log_std_bounds is None:
             log_std_bounds = [-20, 2]
 

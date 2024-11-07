@@ -42,7 +42,7 @@ class NaSATD3:
         self.intrinsic_on = config.intrinsic_on
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
         self.autoencoder = autoencoder.to(device)
 
@@ -60,7 +60,11 @@ class NaSATD3:
 
         self.ensemble_predictive_model = nn.ModuleList()
         networks = [
-            EPDM(self.autoencoder.latent_dim, self.action_num)
+            EPDM(
+                self.autoencoder.latent_dim,
+                self.action_num,
+                hidden_size=config.hidden_size_epdm,
+            )
             for _ in range(self.ensemble_size)
         ]
         self.ensemble_predictive_model.extend(networks)

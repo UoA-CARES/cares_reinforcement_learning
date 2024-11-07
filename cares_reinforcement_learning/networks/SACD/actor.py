@@ -6,15 +6,8 @@ class Actor(nn.Module):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
-    def __init__(
-        self,
-        observation_size: int,
-        num_actions: int,
-        hidden_size: list[int] | None = None,
-    ):
+    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
         super().__init__()
-        if hidden_size is None:
-            hidden_size = [512, 512]
 
         self.num_actions = num_actions
         self.hidden_size = hidden_size

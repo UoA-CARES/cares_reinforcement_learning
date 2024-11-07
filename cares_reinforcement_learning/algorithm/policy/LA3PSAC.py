@@ -190,7 +190,7 @@ class LA3PSAC:
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
         priority_batch_size = int(batch_size * self.prioritized_fraction)
 
-        policy_update = self.learn_counter % self.target_update_freq == 0
+        target_update = self.learn_counter % self.target_update_freq == 0
 
         ######################### UNIFORM SAMPLING #########################
         experiences = memory.sample_uniform(uniform_batch_size)
@@ -216,7 +216,7 @@ class LA3PSAC:
         info_uniform["alpha_loss"] = alpha_loss
         info_uniform["alpha"] = self.alpha.item()
 
-        if policy_update:
+        if target_update:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
@@ -237,7 +237,7 @@ class LA3PSAC:
 
         memory.update_priorities(indices, priorities)
 
-        if policy_update:
+        if target_update:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### ACTOR PRIORITIZED SAMPLING #########################

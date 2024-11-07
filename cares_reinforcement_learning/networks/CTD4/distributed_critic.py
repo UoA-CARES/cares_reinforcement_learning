@@ -3,15 +3,8 @@ from torch import nn
 
 
 class DistributedCritic(nn.Module):
-    def __init__(
-        self,
-        observation_size: int,
-        action_num: int,
-        hidden_size: list[int] | None = None,
-    ):
+    def __init__(self, observation_size: int, action_num: int, hidden_size: list[int]):
         super().__init__()
-        if hidden_size is None:
-            hidden_size = [256, 256]
 
         self.hidden_size = hidden_size
 
