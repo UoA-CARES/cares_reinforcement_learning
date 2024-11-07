@@ -118,7 +118,7 @@ class RLParser:
             "--data_path",
             type=str,
             required=True,
-            help="Path to training configuration files",
+            help="Path to training configuration files - e.g. alg_config.json, env_config.json, train_config.json",
         )
 
         config_args = parser.parse_args(sys.argv[2:])
@@ -126,10 +126,6 @@ class RLParser:
         args = {}
 
         data_path = config_args.data_path
-
-        # alg_config.json
-        # env_config.json
-        # training_config.json
 
         with open(f"{data_path}/alg_config.json", encoding="utf-8") as f:
             algorithm_config = json.load(f)
