@@ -1,6 +1,5 @@
 import os
 import random
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -56,6 +55,7 @@ def create_path_from_format_string(
     gym: str,
     seed: int,
     run_name: str,
+    date: str,
 ) -> str:
     """
     Create a path from a format string
@@ -72,8 +72,6 @@ def create_path_from_format_string(
 
     domain_with_hyphen_or_empty = f"{domain}-" if domain != "" else ""
     domain_task = domain_with_hyphen_or_empty + task
-
-    date = datetime.now().strftime("%y_%m_%d_%H-%M-%S")
 
     run_name_else_date = run_name if run_name != "" else date
     run_name_else_unnamed = run_name if run_name != "" else "unnamed"
