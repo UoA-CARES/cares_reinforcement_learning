@@ -97,9 +97,10 @@ class RLParser:
 
         # use dispatch pattern to invoke method with same name
         self.args = getattr(self, f"_{cmd_arg.command}")()
-        print(self.args)
+        logging.debug(self.args)
 
         configs = {}
+        configs["command"] = cmd_arg.command
 
         for name, configuration in self.configurations.items():
             configuration = configuration(**self.args)
@@ -175,9 +176,11 @@ class RLParser:
 
         load_arg = parser.parse_args(sys.argv[2:3])
         if load_arg.load == "cli":
-            return self._cli(initial_index=3)
+            args = self._cli(initial_index=3)
         else:
-            return self._config(initial_index=3)
+            args = self._config(initial_index=3)
+
+        return args
 
 
 ## Example of how to use the RLParser for custom environments -
