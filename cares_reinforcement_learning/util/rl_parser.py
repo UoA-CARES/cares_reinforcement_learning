@@ -82,8 +82,11 @@ class RLParser:
         parser = argparse.ArgumentParser(usage="<command> [<args>]")
         # Add an argument
         parser.add_argument(
-            "command", choices=["config", "run"], help="Commands to run this package"
+            "command",
+            choices=["train", "evaluate"],
+            help="Commands to run this package",
         )
+
         # parse_args defaults to [1:] for args, but you need to
         # exclude the rest of the args too, or validation will fail
         cmd_arg = parser.parse_args(sys.argv[1:2])
@@ -109,7 +112,26 @@ class RLParser:
 
         return configs
 
-    def _config(self) -> dict:
+    def _cli(self, initial_index) -> dict:
+        parser = argparse.ArgumentParser()
+
+        for _, configuration in self.configurations.items():
+            self.add_model(parser, configuration)
+
+        first_args, rest = parser.parse_known_args(sys.argv[initial_index:])
+
+        alg_args, rest = self.algorithm_parser.parse_known_args(rest)
+
+        if len(rest) > 0:
+            logging.warning(
+                f"Arugements not being passed properly and have been left over: {rest}"
+            )
+
+        args = Namespace(**vars(first_args), **vars(alg_args))
+
+        return vars(args)
+
+    def _config(self, initial_index) -> dict:
         parser = argparse.ArgumentParser()
 
         required = parser.add_argument_group("required arguments")
@@ -121,7 +143,7 @@ class RLParser:
             help="Path to training configuration files - e.g. alg_config.json, env_config.json, train_config.json",
         )
 
-        config_args = parser.parse_args(sys.argv[2:])
+        config_args = parser.parse_args(sys.argv[initial_index:])
 
         args = {}
 
@@ -139,23 +161,23 @@ class RLParser:
 
         return args
 
-    def _run(self) -> dict:
+    def _evaluate(self) -> dict:
+        return self._config(initial_index=2)
+
+    def _train(self) -> dict:
         parser = argparse.ArgumentParser()
 
-        for _, configuration in self.configurations.items():
-            self.add_model(parser, configuration)
+        parser.add_argument(
+            "load",
+            choices=["cli", "config"],
+            help="Set training configuration from CLI or config files",
+        )
 
-        firt_args, rest = parser.parse_known_args(sys.argv[2:])
-
-        alg_args, rest = self.algorithm_parser.parse_known_args(rest)
-
-        if len(rest) > 0:
-            logging.warning(
-                f"Arugements not being passed properly and have been left over: {rest}"
-            )
-
-        args = Namespace(**vars(firt_args), **vars(alg_args))
-        return vars(args)
+        load_arg = parser.parse_args(sys.argv[2:3])
+        if load_arg.load == "cli":
+            return self._cli(initial_index=3)
+        else:
+            return self._config(initial_index=3)
 
 
 ## Example of how to use the RLParser for custom environments -
