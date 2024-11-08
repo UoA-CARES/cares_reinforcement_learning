@@ -31,7 +31,7 @@ class RLParser:
         self.args: dict[str, Any] = {}
 
         self.add_configuration("env_config", environment_config)
-        self.add_configuration("training_config", TrainingConfig)
+        self.add_configuration("train_config", TrainingConfig)
 
     def add_model(
         self, parser: argparse.ArgumentParser, model: type[AlgorithmConfig]
@@ -91,6 +91,7 @@ class RLParser:
             logging.error(f"Unrecognized command: {cmd_arg.command}")
             parser.print_help()
             sys.exit(1)
+
         # use dispatch pattern to invoke method with same name
         self.args = getattr(self, f"_{cmd_arg.command}")()
         print(self.args)
@@ -110,31 +111,29 @@ class RLParser:
 
     def _config(self) -> dict:
         parser = argparse.ArgumentParser()
+
         required = parser.add_argument_group("required arguments")
+
         required.add_argument(
-            "--algorithm_config",
+            "--data_path",
             type=str,
             required=True,
-            help="Configuration path that defines the algorithm and its learning parameters",
+            help="Path to training configuration files - e.g. alg_config.json, env_config.json, train_config.json",
         )
-
-        for name, _ in self.configurations.items():
-            required.add_argument(
-                f"--{name}", required=True, help=f"Configuration path for {name}"
-            )
 
         config_args = parser.parse_args(sys.argv[2:])
 
         args = {}
 
-        with open(config_args.algorithm_config, encoding="utf-8") as f:
+        data_path = config_args.data_path
+
+        with open(f"{data_path}/alg_config.json", encoding="utf-8") as f:
             algorithm_config = json.load(f)
 
         args.update(algorithm_config)
 
-        config_args = vars(config_args)
         for name, _ in self.configurations.items():
-            with open(config_args[name], encoding="utf-8") as f:
+            with open(f"{data_path}/{name}.json", encoding="utf-8") as f:
                 config = json.load(f)
                 args.update(config)
 
