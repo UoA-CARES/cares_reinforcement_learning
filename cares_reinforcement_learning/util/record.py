@@ -194,21 +194,23 @@ class Record:
         self.save_data(self.train_data, self.train_data_path, {}, display=False)
         self.save_data(self.eval_data, self.eval_data_path, {}, display=False)
 
-        plt.plot_eval(
-            self.eval_data,
-            f"Evaluation-{self.algorithm}-{self.task}",
-            f"{self.algorithm}",
-            self.directory,
-            "eval",
-        )
-        plt.plot_train(
-            self.train_data,
-            f"Training-{self.algorithm}-{self.task}",
-            f"{self.algorithm}",
-            self.directory,
-            "train",
-            20,
-        )
+        if not self.eval_data.empty:
+            plt.plot_eval(
+                self.eval_data,
+                f"Evaluation-{self.algorithm}-{self.task}",
+                f"{self.algorithm}",
+                self.directory,
+                "eval",
+            )
+        if not self.train_data.empty:
+            plt.plot_train(
+                self.train_data,
+                f"Training-{self.algorithm}-{self.task}",
+                f"{self.algorithm}",
+                self.directory,
+                "train",
+                20,
+            )
 
         if self.network is not None:
             self.network.save_models(self.algorithm, self.directory)
