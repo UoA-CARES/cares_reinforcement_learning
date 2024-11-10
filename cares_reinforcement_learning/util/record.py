@@ -30,7 +30,6 @@ class Record:
         algorithm: str,
         task: str,
         plot_frequency: int = 10,
-        checkpoint_frequency: int | None = None,
         network: nn.Module | None = None,
     ) -> None:
 
@@ -44,12 +43,6 @@ class Record:
         self.task = task
 
         self.plot_frequency = plot_frequency
-        self.checkpoint_frequency = checkpoint_frequency
-
-        if self.checkpoint_frequency is None:
-            logging.warning(
-                "checkpoint_frequency not provided. Model will not be auto-saved and saving should be managed externally with save_model."
-            )
 
         self.train_data_path = f"{self.directory}/data/train.csv"
         self.train_data = (
@@ -63,18 +56,8 @@ class Record:
             if os.path.exists(self.eval_data_path)
             else pd.DataFrame()
         )
-        self.info_data_path = f"{self.directory}/data/info.csv"
-        self.info_data = (
-            pd.read_csv(self.info_data_path)
-            if os.path.exists(self.info_data_path)
-            else pd.DataFrame()
-        )
 
-        if (
-            not self.train_data.empty
-            or not self.eval_data.empty
-            or not self.info_data.empty
-        ):
+        if not self.train_data.empty or not self.eval_data.empty:
             logging.warning("Data files not empty. Appending to existing data")
 
         self.network = network
@@ -102,17 +85,12 @@ class Record:
     def stop_video(self) -> None:
         self.video.release()
 
-    def save_model(self, identifier):
-        self.network.save_models(f"{self.algorithm}-{identifier}", self.directory)
+    def save_model(self, file_name):
+        if self.network is not None:
+            self.network.save_models(f"{file_name}", self.directory)
 
     def log_video(self, frame: np.ndarray) -> None:
         self.video.write(frame)
-
-    def log_info(self, info: dict, display: bool = False) -> None:
-        self.info_data = pd.concat(
-            [self.info_data, pd.DataFrame([info])], ignore_index=True
-        )
-        self.save_data(self.info_data, self.info_data_path, info, display=display)
 
     def log_train(self, display: bool = False, **logs) -> None:
         self.log_count += 1
@@ -132,29 +110,15 @@ class Record:
                 20,
             )
 
-        is_at_checkpoint = (self.checkpoint_frequency is not None) and (
-            self.log_count % self.checkpoint_frequency == 0
-        )
-
         reward = logs["episode_reward"]
 
-        is_new_best_reward = reward > self.best_reward
-
-        if is_new_best_reward:
+        if reward > self.best_reward:
+            logging.info(
+                f"New highest reward of {reward} during training! Saving model..."
+            )
             self.best_reward = reward
 
-        if self.network is not None:
-            if is_at_checkpoint:
-                self.network.save_models(
-                    f"{self.algorithm}-checkpoint-{self.log_count}", self.directory
-                )
-            if is_new_best_reward:
-                logging.info(
-                    f"New highest reward of {reward} during training! Saving models..."
-                )
-                self.network.save_models(
-                    f"{self.algorithm}-highest-reward-training", self.directory
-                )
+            self.save_model(f"{self.algorithm}-highest-reward-training")
 
     def log_eval(self, display: bool = False, **logs) -> None:
         self.eval_data = pd.concat(
@@ -169,6 +133,8 @@ class Record:
             self.directory,
             "eval",
         )
+
+        self.save_model(f"{self.algorithm}-eval-{logs['total_steps']}")
 
     def save_data(
         self, data_frame: pd.DataFrame, path: str, logs: dict, display: bool = True
@@ -212,8 +178,7 @@ class Record:
                 20,
             )
 
-        if self.network is not None:
-            self.network.save_models(self.algorithm, self.directory)
+        self.save_model(self.algorithm)
 
     def __initialise_directories(self) -> None:
 
