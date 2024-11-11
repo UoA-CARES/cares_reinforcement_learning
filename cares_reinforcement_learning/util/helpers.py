@@ -53,7 +53,6 @@ def create_path_from_format_string(
     domain: str,
     task: str,
     gym: str,
-    seed: int,
     run_name: str,
     date: str,
 ) -> str:
@@ -83,7 +82,6 @@ def create_path_from_format_string(
         gym=gym,
         run_name=run_name_else_unnamed,
         run_name_else_date=run_name_else_date,
-        seed=seed,
         domain_task=domain_task,
         date=date,
     )

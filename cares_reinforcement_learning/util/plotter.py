@@ -13,6 +13,9 @@ import seaborn as sns
 logging.basicConfig(level=logging.INFO)
 
 
+# TODO: Update for new folder structure from Record class
+
+
 def plot_data(
     plot_frame: pd.DataFrame,
     title: str,

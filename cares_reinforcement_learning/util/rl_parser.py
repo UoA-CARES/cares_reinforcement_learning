@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 from argparse import Namespace
-from typing import get_origin, Any
+from typing import Any, get_origin
 
 from pydantic import Field
 
@@ -15,6 +15,11 @@ from cares_reinforcement_learning.util.configurations import (
     SubscriptableClass,
     TrainingConfig,
 )
+
+
+class RunConfig(SubscriptableClass):
+    command: str
+    data_path: str | None
 
 
 class RLParser:
@@ -33,7 +38,7 @@ class RLParser:
         self.add_configuration("env_config", environment_config)
         self.add_configuration("train_config", TrainingConfig)
 
-    def add_model(
+    def _add_model(
         self, parser: argparse.ArgumentParser, model: type[AlgorithmConfig]
     ) -> None:
         fields = model.__fields__
@@ -63,14 +68,14 @@ class RLParser:
             if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
                 name = name.replace("Config", "")
                 cls_parser = sub_alg_parsers.add_parser(name, help=name)
-                self.add_model(cls_parser, cls)
+                self._add_model(cls_parser, cls)
 
         return alg_parser, sub_alg_parsers
 
     def add_algorithm_config(self, algorithm_config: type[AlgorithmConfig]) -> None:
         name = algorithm_config.__name__.replace("Config", "")
         parser = self.sub_algorithm_parsers.add_parser(f"{name}", help=f"{name}")
-        self.add_model(parser, algorithm_config)
+        self._add_model(parser, algorithm_config)
         self.algorithm_configurations[algorithm_config.__name__] = algorithm_config
 
     def add_configuration(
@@ -100,7 +105,8 @@ class RLParser:
         logging.debug(self.args)
 
         configs = {}
-        configs["command"] = cmd_arg.command
+        data_path = self.args["data_path"] if "data_path" in self.args else None
+        configs["run_config"] = RunConfig(command=cmd_arg.command, data_path=data_path)
 
         for name, configuration in self.configurations.items():
             configuration = configuration(**self.args)
@@ -109,7 +115,7 @@ class RLParser:
         algorithm_config = self.algorithm_configurations[
             f"{self.args['algorithm']}Config"
         ](**self.args)
-        configs["algorithm_config"] = algorithm_config
+        configs["alg_config"] = algorithm_config
 
         return configs
 
@@ -117,7 +123,7 @@ class RLParser:
         parser = argparse.ArgumentParser()
 
         for _, configuration in self.configurations.items():
-            self.add_model(parser, configuration)
+            self._add_model(parser, configuration)
 
         first_args, rest = parser.parse_known_args(sys.argv[initial_index:])
 
@@ -147,6 +153,7 @@ class RLParser:
         config_args = parser.parse_args(sys.argv[initial_index:])
 
         args = {}
+        args["data_path"] = config_args.data_path
 
         data_path = config_args.data_path
 
