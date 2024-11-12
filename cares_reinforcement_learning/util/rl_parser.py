@@ -191,7 +191,7 @@ class RLParser:
 
 
 ## Example of how to use the RLParser for custom environments -
-#  in this case the LAMO envrionment and task with LAMO algorithm
+#  in this case the Example envrionment and task with Example algorithm
 
 
 class ExampleConfig(AlgorithmConfig):

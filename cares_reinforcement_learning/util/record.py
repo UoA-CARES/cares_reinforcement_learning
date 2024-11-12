@@ -90,7 +90,7 @@ class Record:
     def save_agent(self, file_name, folder_name) -> None:
         if self.agent is not None:
             self.agent.save_models(
-                f"{file_name}", f"{self.current_sub_directory}/models/{folder_name}"
+                f"{self.current_sub_directory}/models/{folder_name}", f"{file_name}"
             )
 
     def log_video(self, frame: np.ndarray) -> None:

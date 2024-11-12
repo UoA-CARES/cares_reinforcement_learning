@@ -392,34 +392,31 @@ class NaSATD3:
 
     #     return original_img, rec_img
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-        torch.save(self.actor.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic.state_dict(), f"{filepath}/{filename}_critic.pht")
         torch.save(
-            self.autoencoder.encoder.state_dict(), f"{path}/{filename}_encoder.pht"
+            self.autoencoder.encoder.state_dict(), f"{filepath}/{filename}_encoder.pht"
         )
         torch.save(
-            self.autoencoder.decoder.state_dict(), f"{path}/{filename}_decoder.pht"
+            self.autoencoder.decoder.state_dict(), f"{filepath}/{filename}_decoder.pht"
         )
         torch.save(
             self.ensemble_predictive_model.state_dict(),
-            f"{path}/{filename}_ensemble.pht",
+            f"{filepath}/{filename}_ensemble.pht",
         )
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         self.autoencoder.encoder.load_state_dict(
-            torch.load(f"{path}/{filename}_encoder.pht")
+            torch.load(f"{filepath}/{filename}_encoder.pht")
         )
         self.autoencoder.decoder.load_state_dict(
-            torch.load(f"{path}/{filename}_decoder.pht")
+            torch.load(f"{filepath}/{filename}_decoder.pht")
         )
         logging.info("models has been loaded...")

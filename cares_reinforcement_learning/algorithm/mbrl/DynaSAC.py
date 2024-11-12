@@ -238,17 +238,15 @@ class DynaSAC:
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-        if not dir_exists:
-            os.makedirs(path)
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pth")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pth")
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pth")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pth")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pth"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pth"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pth"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pth"))
         logging.info("models has been loaded...")

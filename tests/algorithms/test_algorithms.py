@@ -80,8 +80,7 @@ def _value_buffer(memory_buffer, capacity, observation_size, action_num, image_s
     return memory_buffer
 
 
-# @pytest.mark.skipif(IN_GITHUB_ACTIONS, reason="Test doesn't work in Github Actions.")
-def test_algorithms():
+def test_algorithms(tmp_path):
     factory = NetworkFactory()
     memory_factory = MemoryFactory()
 
@@ -116,6 +115,9 @@ def test_algorithms():
             observation_size=observation_size, action_num=action_num, config=alg_config
         )
         assert agent is not None, f"{algorithm} was not created successfully"
+
+        agent.save_models(tmp_path, f"{algorithm}")
+        agent.load_models(tmp_path, f"{algorithm}")
 
         if agent.type == "policy":
             memory_buffer = _policy_buffer(

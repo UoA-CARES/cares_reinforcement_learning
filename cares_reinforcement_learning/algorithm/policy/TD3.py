@@ -155,7 +155,7 @@ class TD3:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
+    def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
