@@ -1,6 +1,8 @@
 import json
 import logging
 import os
+from datetime import datetime
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -76,7 +78,7 @@ class Record:
             logging.info(f"Saving {config_name} configuration")
             self.save_config(config, config_name)
 
-    def start_video(self, file_name, frame, fps=30):
+    def start_video(self, file_name: str, frame, fps=30):
         video_name = f"{self.current_sub_directory}/videos/{file_name}.mp4"
         height, width, _ = frame.shape
         self.video = cv2.VideoWriter(
@@ -87,7 +89,7 @@ class Record:
     def stop_video(self) -> None:
         self.video.release()
 
-    def save_agent(self, file_name, folder_name) -> None:
+    def save_agent(self, file_name: str, folder_name: str) -> None:
         if self.agent is not None:
             self.agent.save_models(
                 f"{self.current_sub_directory}/models/{folder_name}", f"{file_name}"
@@ -106,7 +108,10 @@ class Record:
 
         string = []
         for key, val in logs.items():
-            if key != "info":
+            if isinstance(val, list):
+                formatted_list = [f"{str(i)[0:10]:6s}" for i in val]
+                string.append(f"{key}: {formatted_list}")
+            else:
                 string.append(f"{key}: {str(val)[0:10]:6s}")
 
         string = " | ".join(string)
@@ -197,3 +202,64 @@ class Record:
 
         if not os.path.exists(f"{self.current_sub_directory}/videos"):
             os.makedirs(f"{self.current_sub_directory}/videos")
+
+    @staticmethod
+    def create_base_directory(
+        gym: str,
+        domain: str,
+        task: str,
+        algorithm: str,
+        run_name: str = "",
+        base_dir: str | None = None,
+        format_str: str | None = None,
+        **names: dict[str, str],
+    ) -> str:
+        """
+        Creates a base directory path for logging based on the provided parameters and environment variables.
+        Args:
+            gym (str): The name of the gym environment.
+            domain (str): The domain of the task.
+            task (str): The specific task within the domain.
+            algorithm (str): The name of the algorithm being used.
+            run_name (str): The name of the run.
+            base_dir (str, optional): The base directory for logs overrides CARES_LOG_BASE_DIR variable.
+            format_str (str, optional): Template for the log path overrides CARES_LOG_PATH_TEMPLATE variable.
+            names (dict): Additional names to be included in the log path.
+        Returns:
+            str: The constructed base directory path for logging.
+        Environment Variables:
+            CARES_LOG_PATH_TEMPLATE (str): Template for the log path. Defaults to "{algorithm}/{algorithm}-{gym}-{domain_task}-{run_name}{date}".
+            CARES_LOG_BASE_DIR (str): Base directory for logs. Defaults to "{Path.home()}/cares_rl_logs".
+        """
+
+        default_log_path = os.environ.get(
+            "CARES_LOG_PATH_TEMPLATE",
+            "{algorithm}/{algorithm}-{domain_task}-{run_name}{date}",
+        )
+
+        format_str = default_log_path if format_str == None else format_str
+
+        default_base_dir = os.environ.get(
+            "CARES_LOG_BASE_DIR", f"{Path.home()}/cares_rl_logs"
+        )
+
+        base_dir = default_base_dir if base_dir == None else base_dir
+
+        date = datetime.now().strftime("%y_%m_%d_%H-%M-%S")
+
+        domain_with_hyphen_or_empty = f"{domain}-" if domain != "" else ""
+        domain_task = domain_with_hyphen_or_empty + task
+
+        run_name_with_hypen_or_empty = f"{run_name}-" if run_name != "" else ""
+
+        log_dir = format_str.format(
+            algorithm=algorithm,
+            domain=domain,
+            task=task,
+            gym=gym,
+            run_name=run_name_with_hypen_or_empty,
+            domain_task=domain_task,
+            date=date,
+            **names,
+        )
+        return f"{base_dir}/{log_dir}"

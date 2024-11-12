@@ -129,40 +129,44 @@ The Record class allows data to be saved into a consistent format during trainin
 
 All data from a training run is saved into the directory specified in the `CARES_LOG_BASE_DIR` environment variable. If not specified, this will default to `'~/cares_rl_logs'`.
 
-You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"` so that each run is saved as a new seed under the algorithm and domain-task pair for that algorithm.
+You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}"`.
 
 The following variables are supported for log path template variable interpolation:
 
-- `algorithm`
-- `domain`
-- `task`
-- `domain_task`: The domain and task or just task if domain does not exist
-- `gym`
-- `seed`
-- `date`: The current date in the `YY_MM_DD-HH-MM-SS` format
-- `run_name`: The run name if it is provided, otherwise "unnamed"
-- `run_name_else_date`: The run name if it is provided, otherwise the date
+- gym (str): The name of the gym environment.
+- domain (str): The domain of the task.
+- task (str): The specific task within the domain.
+- algorithm (str): The name of the algorithm being used.
+- run_name (str): The name of the run.
+- base_dir (str, optional): The base directory for logs overrides CARES_LOG_BASE_DIR variable.
+- format_str (str, optional): Template for the log path overrides CARES_LOG_PATH_TEMPLATE variable.
+- names (dict): Additional names to be included in the log path.
 
 This folder will contain the following directories and information saved during the training session:
 
 ```text
 ├─ <log_path>
-|  ├─ env_config.py
-|  ├─ alg_config.py
-|  ├─ train_config.py
-|  ├─ data
-|  |  ├─ train.csv
-|  |  ├─ eval.csv
-|  ├─ figures
-|  |  ├─ eval.png
-|  |  ├─ train.png
-|  ├─ models
-|  |  ├─ model.pht
-|  |  ├─ CHECKPOINT_N.pht
+|  ├─ env_config.json
+|  ├─ alg_config.json
+|  ├─ train_config.json
+|  ├─ *_config.json
+|  ├─ SEED_N
+|  |  ├─ data
+|  |  |  ├─ train.csv
+|  |  |  ├─ eval.csv
+|  |  ├─ figures
+|  |  |  ├─ eval.png
+|  |  |  ├─ train.png
+|  |  ├─ models
+|  |  |  ├─ model.pht
+|  |  |  ├─ CHECKPOINT_N.pht
+|  |  |  ├─ ...
+|  |  ├─ videos
+|  |  |  ├─ STEP.mp4
+|  |  |  ├─ ...
+|  ├─ SEED_N
 |  |  ├─ ...
-|  ├─ videos
-|  |  ├─ STEP.mp4
-├─ ...
+|  ├─ ...
 ```
 
 ## plotting.py

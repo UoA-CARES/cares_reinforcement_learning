@@ -3,7 +3,7 @@ import ast
 import json
 import logging
 import os
-from glob import glob
+from pathlib import Path
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -11,9 +11,6 @@ import pandas as pd
 import seaborn as sns
 
 logging.basicConfig(level=logging.INFO)
-
-
-# TODO: Update for new folder structure from Record class
 
 
 def plot_data(
@@ -44,10 +41,11 @@ def plot_data(
 
     sns.lineplot(
         data=plot_frame,
-        x=plot_frame["steps"],
+        x="steps",
         y="avg",
         label=label,
-        errorbar="sd",
+        estimator="mean",
+        errorbar=("sd", 1),
     )
 
     plt.legend(loc="best").set_draggable(True)
@@ -66,7 +64,7 @@ def plot_data(
         plt.close()
 
 
-def plot_comparisons(
+def plot_eval_comparisons(
     plot_frames: list[pd.DataFrame],
     title: str,
     labels: list[str],
@@ -101,9 +99,10 @@ def plot_comparisons(
     plt.close()
 
 
-def prepare_eval_plot_frame(eval_data: pd.DataFrame) -> pd.DataFrame:
+def prepare_eval_plot_frame(
+    eval_data: pd.DataFrame, y_data: str = "episode_reward"
+) -> pd.DataFrame:
     x_data: str = "total_steps"
-    y_data: str = "episode_reward"
 
     plot_frame: pd.DataFrame = pd.DataFrame()
     plot_frame["steps"] = eval_data[x_data]
@@ -138,10 +137,9 @@ def plot_eval(
 
 
 def prepare_train_plot_frame(
-    train_data: pd.DataFrame, window_size: int
+    train_data: pd.DataFrame, window_size: int, y_data: str = "episode_reward"
 ) -> pd.DataFrame:
     x_data: str = "total_steps"
-    y_data: str = "episode_reward"
 
     plot_frame: pd.DataFrame = pd.DataFrame()
     plot_frame["steps"] = train_data[x_data]
@@ -162,9 +160,10 @@ def plot_train(
     directory: str,
     filename: str,
     window_size: int,
+    y_data: str = "episode_reward",
     display: bool = False,
 ) -> None:
-    train_plot_frame = prepare_train_plot_frame(train_data, window_size)
+    train_plot_frame = prepare_train_plot_frame(train_data, window_size, y_data)
     plot_data(
         train_plot_frame,
         title,
@@ -258,49 +257,69 @@ def parse_args() -> dict:
         help="List of Specific Directories with data you want to compare",
     )
 
-    group.add_argument(
-        "-a",
-        "--algorithm_directories",
-        type=str,
-        nargs="+",
-        help="List of Algorithm Directories with data you want to compare",
-    )
+    # group.add_argument(
+    #     "-a",
+    #     "--algorithm_directories",
+    #     type=str,
+    #     nargs="+",
+    #     help="List of Algorithm Directories with data you want to compare",
+    # )
 
-    group.add_argument(
-        "-t",
-        "--task_directories",
-        type=str,
-        nargs="+",
-        help="List of Task Directories with data you want to compare",
-    )
+    # group.add_argument(
+    #     "-t",
+    #     "--task_directories",
+    #     type=str,
+    #     nargs="+",
+    #     help="List of Task Directories with data you want to compare",
+    # )
 
     parser.add_argument(
         "-s",
         "--save_directory",
         type=str,
         required=True,
-        help="Directory you want to save the data into",
+        help="Save directory for the plots",
+    )
+
+    parser.add_argument(
+        "--y_data",
+        type=str,
+        default="episode_reward",
+        help="Data you want to plot - default is episode_reward",
     )
 
     parser.add_argument(
         "--title",
         type=str,
         default="",
-        help="Title for the plot - default will be taken from the task name",
+        help="Title for the plot - default is task name",
     )
 
     parser.add_argument(
-        "--x_axis",
-        type=str,
-        default="Steps",
-        help="X Axis Label for the plot",
+        "--x_label", type=str, default="Steps", help="X Axis Label for the plot"
     )
 
     parser.add_argument(
-        "--y_axis",
+        "--y_label",
         type=str,
         default="Average Reward",
         help="Y Axis Label for the plot",
+    )
+
+    parser.add_argument(
+        "--label_fontsize", type=int, default=15, help="Fontsize for the x-axis label"
+    )
+
+    parser.add_argument(
+        "--title_fontsize", type=int, default=20, help="Fontsize for the title"
+    )
+
+    parser.add_argument(
+        "--ticks_fontsize", type=int, default=10, help="Fontsize for the ticks"
+    )
+
+    parser.add_argument(
+        "--window_size", type=int, default=20, help="Window Size for the training plot"
     )
 
     parser.add_argument(
@@ -316,27 +335,6 @@ def parse_args() -> dict:
         help="Plot Individual Seeds for each algorithm in addition to the average of all seeds",
     )
 
-    parser.add_argument(
-        "--label_fontsize",
-        type=int,
-        default=15,
-        help="Fontsize for the x-axis label",
-    )
-
-    parser.add_argument(
-        "--title_fontsize",
-        type=int,
-        default=20,
-        help="Fontsize for the title",
-    )
-
-    parser.add_argument(
-        "--ticks_fontsize",
-        type=int,
-        default=10,
-        help="Fontsize for the ticks",
-    )
-
     # converts into a dictionary
     args = vars(parser.parse_args())
     return args
@@ -345,26 +343,33 @@ def parse_args() -> dict:
 def plot_evaluations():
     args = parse_args()
 
-    title = args["title"]
-    label_x = args["x_axis"]
-    label_y = args["y_axis"]
+    y_data = args["y_data"]
 
-    directory = args["save_directory"]
+    title = args["title"]
+    x_label = args["x_label"]
+    y_label = args["y_label"]
+
+    window_size = args["window_size"]
+
+    save_directory = args["save_directory"]
 
     eval_plot_frames = []
+    train_plot_frames = []
     labels = []
 
-    for d, data_directory in enumerate(args["data_directories"]):
+    for index, data_directory in enumerate(args["data_directories"]):
         logging.info(
-            f"Processing {d+1}/{len(args['data_directories'])} Data for {data_directory}"
+            f"Processing {index+1}/{len(args['data_directories'])} Data for {data_directory}"
         )
-        result_directories = glob(f"{data_directory}/*")
+        model_path = Path(f"{data_directory}")
+        directory = model_path.glob("*")
 
-        title, algorithm, task, label = generate_labels(
-            args, title, result_directories[0]
-        )
+        result_directories = [x for x in directory if x.is_dir()]
+
+        title, algorithm, task, label = generate_labels(args, title, model_path)
         labels.append(label)
 
+        average_train_data = pd.DataFrame()
         average_eval_data = pd.DataFrame()
 
         seed_plot_frames = []
@@ -375,9 +380,9 @@ def plot_evaluations():
                 f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}"
             )
 
-            if "train.csv" not in os.listdir(f"{result_directory}/data"):
+            if "eval.csv" not in os.listdir(f"{result_directory}/data"):
                 logging.warning(
-                    f"Skipping {result_directory} as it does not have train.csv"
+                    f"Skipping {result_directory} as it does not have eval.csv"
                 )
                 continue
 
@@ -389,17 +394,25 @@ def plot_evaluations():
 
             if args["plot_seeds"]:
                 seed_label.append(f"{label}_{i}")
-                seed_plot_frame = prepare_eval_plot_frame(eval_data)
+                seed_plot_frame = prepare_eval_plot_frame(eval_data, y_data)
                 seed_plot_frames.append(seed_plot_frame)
 
+            train_data = pd.read_csv(f"{result_directory}/data/train.csv")
+
+            train_data = prepare_train_plot_frame(train_data, window_size, y_data)
+
+            average_train_data = pd.concat(
+                [average_train_data, train_data], ignore_index=True
+            )
+
         if args["plot_seeds"]:
-            plot_comparisons(
+            plot_eval_comparisons(
                 seed_plot_frames,
                 f"{title}",
                 seed_label,
-                label_x,
-                label_y,
-                directory,
+                x_label,
+                y_label,
+                save_directory,
                 f"{title}-{algorithm}-eval",
                 label_fontsize=args["label_fontsize"],
                 title_fontsize=args["title_fontsize"],
@@ -407,17 +420,32 @@ def plot_evaluations():
                 display=False,
             )
 
-        eval_plot_frame = prepare_eval_plot_frame(average_eval_data)
-
+        eval_plot_frame = prepare_eval_plot_frame(average_eval_data, y_data)
         eval_plot_frames.append(eval_plot_frame)
 
-    plot_comparisons(
+        train_plot_frames.append(average_train_data)
+
+    plot_eval_comparisons(
+        train_plot_frames,
+        f"{title}",
+        labels,
+        x_label,
+        y_label,
+        save_directory,
+        f"{title}-compare-train",
+        label_fontsize=args["label_fontsize"],
+        title_fontsize=args["title_fontsize"],
+        ticks_fontsize=args["ticks_fontsize"],
+        display=True,
+    )
+
+    plot_eval_comparisons(
         eval_plot_frames,
         f"{title}",
         labels,
-        label_x,
-        label_y,
-        directory,
+        x_label,
+        y_label,
+        save_directory,
         f"{title}-compare-eval",
         label_fontsize=args["label_fontsize"],
         title_fontsize=args["title_fontsize"],
