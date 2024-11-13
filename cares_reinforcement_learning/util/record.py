@@ -243,13 +243,13 @@ class Record:
             "{algorithm}/{algorithm}-{domain_task}-{run_name}{date}",
         )
 
-        format_str = default_log_path if format_str == None else format_str
+        format_str = default_log_path if format_str is None else format_str
 
         default_base_dir = os.environ.get(
             "CARES_LOG_BASE_DIR", f"{Path.home()}/cares_rl_logs"
         )
 
-        base_dir = default_base_dir if base_dir == None else base_dir
+        base_dir = default_base_dir if base_dir is None else base_dir
 
         date = datetime.now().strftime("%y_%m_%d_%H-%M-%S")
 
