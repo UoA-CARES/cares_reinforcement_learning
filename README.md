@@ -150,6 +150,7 @@ This folder will contain the following directories and information saved during 
 |  ├─ alg_config.json
 |  ├─ train_config.json
 |  ├─ *_config.json
+|  ├─ ...
 |  ├─ SEED_N
 |  |  ├─ data
 |  |  |  ├─ train.csv
@@ -173,6 +174,12 @@ This folder will contain the following directories and information saved during 
 
 The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
 
+Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
+
+```sh
+python3 plotter.py -h
+```
+
 Plot the results of a single training instance
 
 ```sh
@@ -183,12 +190,6 @@ Plot and compare the results of two or more training instances
 
 ```sh
 python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
-```
-
-Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments.
-
-```sh
-python3 plotter.py -h
 ```
 
 ## configurations.py

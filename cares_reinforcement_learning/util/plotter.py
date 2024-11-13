@@ -24,7 +24,6 @@ def plot_data(
     label_fontsize: int = 15,
     title_fontsize: int = 20,
     ticks_fontsize: int = 10,
-    display: bool = True,
     close_figure: bool = True,
 ) -> None:
     matplotlib.use("agg")
@@ -41,19 +40,21 @@ def plot_data(
 
     sns.lineplot(
         data=plot_frame,
-        x="steps",
-        y="avg",
+        x="x_data",
+        y="y_data",
         label=label,
-        estimator="mean",
-        errorbar=("sd", 1),
+    )
+
+    plt.fill_between(
+        plot_frame["x_data"],
+        plot_frame["y_data"] - plot_frame["std_dev"],
+        plot_frame["y_data"] + plot_frame["std_dev"],
+        alpha=0.3,
     )
 
     plt.legend(loc="best").set_draggable(True)
 
     plt.tight_layout(pad=0.5)
-
-    if display:
-        plt.show()
 
     if not os.path.exists(f"{directory}/figures"):
         os.makedirs(f"{directory}/figures")
@@ -64,7 +65,7 @@ def plot_data(
         plt.close()
 
 
-def plot_eval_comparisons(
+def plot_comparisons(
     plot_frames: list[pd.DataFrame],
     title: str,
     labels: list[str],
@@ -75,7 +76,6 @@ def plot_eval_comparisons(
     label_fontsize: int = 15,
     title_fontsize: int = 20,
     ticks_fontsize: int = 10,
-    display: bool = True,
 ) -> None:
     for plot_frame, label in zip(plot_frames, labels):
         plot_data(
@@ -89,24 +89,47 @@ def plot_eval_comparisons(
             label_fontsize=label_fontsize,
             title_fontsize=title_fontsize,
             ticks_fontsize=ticks_fontsize,
-            display=False,
             close_figure=False,
         )
-
-    if display:
-        plt.show()
 
     plt.close()
 
 
-def prepare_eval_plot_frame(
-    eval_data: pd.DataFrame, y_data: str = "episode_reward"
+def perpare_average_plot_frame(
+    data_frame: pd.DataFrame,
+    x_data: str = "total_steps",
+    y_data: str = "episode_reward",
 ) -> pd.DataFrame:
-    x_data: str = "total_steps"
+
+    average_data = data_frame.groupby(x_data).agg(["mean", "std"]).reset_index()
 
     plot_frame: pd.DataFrame = pd.DataFrame()
-    plot_frame["steps"] = eval_data[x_data]
-    plot_frame["avg"] = eval_data[y_data]
+    plot_frame["x_data"] = average_data[x_data]
+    plot_frame["y_data"] = average_data[y_data]["mean"]
+    plot_frame["std_dev"] = average_data[y_data]["std"]
+
+    return plot_frame
+
+
+def prepare_plot_frame(
+    data_frame: pd.DataFrame,
+    window_size: int = 1,
+    x_data: str = "total_steps",
+    y_data: str = "episode_reward",
+) -> pd.DataFrame:
+
+    plot_frame: pd.DataFrame = pd.DataFrame()
+    plot_frame["x_data"] = data_frame[x_data]
+    plot_frame["y_data"] = (
+        data_frame[y_data]
+        .rolling(window_size, step=1, min_periods=1, center=True)
+        .mean()
+    )
+    plot_frame["std_dev"] = (
+        data_frame[y_data]
+        .rolling(window_size, step=1, min_periods=1, center=True)
+        .std()
+    )
 
     return plot_frame
 
@@ -117,9 +140,8 @@ def plot_eval(
     label: str,
     directory: str,
     filename: str,
-    display: bool = False,
 ) -> None:
-    eval_plot_frame = prepare_eval_plot_frame(eval_data)
+    eval_plot_frame = prepare_plot_frame(eval_data, window_size=1)
 
     x_label: str = "Steps"
     y_label: str = "Average Reward"
@@ -132,25 +154,7 @@ def plot_eval(
         y_label,
         directory,
         filename,
-        display=display,
     )
-
-
-def prepare_train_plot_frame(
-    train_data: pd.DataFrame, window_size: int, y_data: str = "episode_reward"
-) -> pd.DataFrame:
-    x_data: str = "total_steps"
-
-    plot_frame: pd.DataFrame = pd.DataFrame()
-    plot_frame["steps"] = train_data[x_data]
-    plot_frame["avg"] = (
-        train_data[y_data].rolling(window_size, step=1, min_periods=1).mean()
-    )
-    plot_frame["std_dev"] = (
-        train_data[y_data].rolling(window_size, step=1, min_periods=1).std()
-    )
-
-    return plot_frame
 
 
 def plot_train(
@@ -161,18 +165,19 @@ def plot_train(
     filename: str,
     window_size: int,
     y_data: str = "episode_reward",
-    display: bool = False,
 ) -> None:
-    train_plot_frame = prepare_train_plot_frame(train_data, window_size, y_data)
+    x_label: str = "Steps"
+    y_label: str = "Reward"
+
+    train_plot_frame = prepare_plot_frame(train_data, window_size, y_data)
     plot_data(
         train_plot_frame,
         title,
         label,
-        "Steps",
-        "Average Reward",
+        x_label,
+        y_label,
         directory,
         filename,
-        display=display,
     )
 
 
@@ -282,10 +287,17 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
+        "--x_data",
+        type=str,
+        default="total_steps",
+        help="Data you want to plot in x_axis - default is steps",
+    )
+
+    parser.add_argument(
         "--y_data",
         type=str,
         default="episode_reward",
-        help="Data you want to plot - default is episode_reward",
+        help="Data you want to plot in y_axis - default is episode_reward",
     )
 
     parser.add_argument(
@@ -296,14 +308,17 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "--x_label", type=str, default="Steps", help="X Axis Label for the plot"
+        "--x_label",
+        type=str,
+        default=None,
+        help="X Axis Label for the plot - default is x_data",
     )
 
     parser.add_argument(
         "--y_label",
         type=str,
-        default="Average Reward",
-        help="Y Axis Label for the plot",
+        default=None,
+        help="Y Axis Label for the plot - default is y_data",
     )
 
     parser.add_argument(
@@ -343,11 +358,12 @@ def parse_args() -> dict:
 def plot_evaluations():
     args = parse_args()
 
+    x_data = args["x_data"]
     y_data = args["y_data"]
 
     title = args["title"]
-    x_label = args["x_label"]
-    y_label = args["y_label"]
+    x_label = x_data if args["x_label"] is None else args["x_label"]
+    y_label = y_data if args["y_label"] is None else args["y_label"]
 
     window_size = args["window_size"]
 
@@ -372,7 +388,8 @@ def plot_evaluations():
         average_train_data = pd.DataFrame()
         average_eval_data = pd.DataFrame()
 
-        seed_plot_frames = []
+        seed_train_plot_frames = []
+        seed_eval_plot_frames = []
         seed_label = []
 
         for i, result_directory in enumerate(result_directories):
@@ -380,34 +397,46 @@ def plot_evaluations():
                 f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}"
             )
 
-            if "eval.csv" not in os.listdir(f"{result_directory}/data"):
+            if "eval.csv" not in os.listdir(
+                f"{result_directory}/data"
+            ) or "train.csv" not in os.listdir(f"{result_directory}/data"):
                 logging.warning(
-                    f"Skipping {result_directory} as it does not have eval.csv"
+                    f"Skipping {result_directory} as it does not have train.csv or eval.csv"
                 )
                 continue
 
             eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
+            train_data = pd.read_csv(f"{result_directory}/data/train.csv")
 
+            # Concat the eval seed data into a single data frame
             average_eval_data = pd.concat(
                 [average_eval_data, eval_data], ignore_index=True
             )
 
             if args["plot_seeds"]:
                 seed_label.append(f"{label}_{i}")
-                seed_plot_frame = prepare_eval_plot_frame(eval_data, y_data)
-                seed_plot_frames.append(seed_plot_frame)
+                seed_plot_frame = prepare_plot_frame(
+                    eval_data, window_size=1, x_data=x_data, y_data=y_data
+                )
+                seed_eval_plot_frames.append(seed_plot_frame)
 
-            train_data = pd.read_csv(f"{result_directory}/data/train.csv")
-
-            train_data = prepare_train_plot_frame(train_data, window_size, y_data)
+            train_data = prepare_plot_frame(
+                train_data,
+                window_size=window_size,
+                x_data=x_data,
+                y_data=y_data,
+            )
 
             average_train_data = pd.concat(
                 [average_train_data, train_data], ignore_index=True
             )
 
+            if args["plot_seeds"]:
+                seed_train_plot_frames.append(train_data)
+
         if args["plot_seeds"]:
-            plot_eval_comparisons(
-                seed_plot_frames,
+            plot_comparisons(
+                seed_eval_plot_frames,
                 f"{title}",
                 seed_label,
                 x_label,
@@ -417,15 +446,30 @@ def plot_evaluations():
                 label_fontsize=args["label_fontsize"],
                 title_fontsize=args["title_fontsize"],
                 ticks_fontsize=args["ticks_fontsize"],
-                display=False,
             )
 
-        eval_plot_frame = prepare_eval_plot_frame(average_eval_data, y_data)
+            plot_comparisons(
+                seed_train_plot_frames,
+                f"{title}",
+                seed_label,
+                x_label,
+                y_label,
+                save_directory,
+                f"{title}-{algorithm}-train",
+                label_fontsize=args["label_fontsize"],
+                title_fontsize=args["title_fontsize"],
+                ticks_fontsize=args["ticks_fontsize"],
+            )
+
+        eval_plot_frame = perpare_average_plot_frame(average_eval_data, x_data, y_data)
         eval_plot_frames.append(eval_plot_frame)
 
-        train_plot_frames.append(average_train_data)
+        train_plot_frame = perpare_average_plot_frame(
+            average_train_data, "x_data", "y_data"
+        )
+        train_plot_frames.append(train_plot_frame)
 
-    plot_eval_comparisons(
+    plot_comparisons(
         train_plot_frames,
         f"{title}",
         labels,
@@ -436,10 +480,9 @@ def plot_evaluations():
         label_fontsize=args["label_fontsize"],
         title_fontsize=args["title_fontsize"],
         ticks_fontsize=args["ticks_fontsize"],
-        display=True,
     )
 
-    plot_eval_comparisons(
+    plot_comparisons(
         eval_plot_frames,
         f"{title}",
         labels,
@@ -450,7 +493,6 @@ def plot_evaluations():
         label_fontsize=args["label_fontsize"],
         title_fontsize=args["title_fontsize"],
         ticks_fontsize=args["ticks_fontsize"],
-        display=True,
     )
 
 
