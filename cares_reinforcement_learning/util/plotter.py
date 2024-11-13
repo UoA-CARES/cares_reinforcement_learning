@@ -95,10 +95,10 @@ def plot_comparisons(
     plt.close()
 
 
-def perpare_average_plot_frame(
+def _perpare_average_plot_frame(
     data_frame: pd.DataFrame,
-    x_data: str = "total_steps",
-    y_data: str = "episode_reward",
+    x_data: str = "x_data",
+    y_data: str = "y_data",
 ) -> pd.DataFrame:
 
     average_data = data_frame.groupby(x_data).agg(["mean", "std"]).reset_index()
@@ -111,7 +111,7 @@ def perpare_average_plot_frame(
     return plot_frame
 
 
-def prepare_plot_frame(
+def _prepare_plot_frame(
     data_frame: pd.DataFrame,
     window_size: int = 1,
     x_data: str = "total_steps",
@@ -141,7 +141,7 @@ def plot_eval(
     directory: str,
     filename: str,
 ) -> None:
-    eval_plot_frame = prepare_plot_frame(eval_data, window_size=1)
+    eval_plot_frame = _prepare_plot_frame(eval_data, window_size=1)
 
     x_label: str = "Steps"
     y_label: str = "Average Reward"
@@ -169,7 +169,7 @@ def plot_train(
     x_label: str = "Steps"
     y_label: str = "Reward"
 
-    train_plot_frame = prepare_plot_frame(train_data, window_size, y_data)
+    train_plot_frame = _prepare_plot_frame(train_data, window_size, y_data)
     plot_data(
         train_plot_frame,
         title,
@@ -408,23 +408,18 @@ def plot_evaluations():
             eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
             train_data = pd.read_csv(f"{result_directory}/data/train.csv")
 
-            # Concat the eval seed data into a single data frame
+            # Concat the eval seed data into a single data frame - window size is 1 for evaluation data
+            eval_data = _prepare_plot_frame(
+                eval_data, window_size=1, x_data=x_data, y_data=y_data
+            )
+
             average_eval_data = pd.concat(
                 [average_eval_data, eval_data], ignore_index=True
             )
 
-            if args["plot_seeds"]:
-                seed_label.append(f"{label}_{i}")
-                seed_plot_frame = prepare_plot_frame(
-                    eval_data, window_size=1, x_data=x_data, y_data=y_data
-                )
-                seed_eval_plot_frames.append(seed_plot_frame)
-
-            train_data = prepare_plot_frame(
-                train_data,
-                window_size=window_size,
-                x_data=x_data,
-                y_data=y_data,
+            # Concat the train seed data into a single data frame - rolling window for training data
+            train_data = _prepare_plot_frame(
+                train_data, window_size=window_size, x_data=x_data, y_data=y_data
             )
 
             average_train_data = pd.concat(
@@ -432,6 +427,8 @@ def plot_evaluations():
             )
 
             if args["plot_seeds"]:
+                seed_label.append(f"{label}_{i}")
+                seed_eval_plot_frames.append(eval_data)
                 seed_train_plot_frames.append(train_data)
 
         if args["plot_seeds"]:
@@ -461,14 +458,13 @@ def plot_evaluations():
                 ticks_fontsize=args["ticks_fontsize"],
             )
 
-        eval_plot_frame = perpare_average_plot_frame(average_eval_data, x_data, y_data)
+        eval_plot_frame = _perpare_average_plot_frame(average_eval_data)
         eval_plot_frames.append(eval_plot_frame)
 
-        train_plot_frame = perpare_average_plot_frame(
-            average_train_data, "x_data", "y_data"
-        )
+        train_plot_frame = _perpare_average_plot_frame(average_train_data)
         train_plot_frames.append(train_plot_frame)
 
+    # Plot the training comparisons
     plot_comparisons(
         train_plot_frames,
         f"{title}",
@@ -482,6 +478,7 @@ def plot_evaluations():
         ticks_fontsize=args["ticks_fontsize"],
     )
 
+    # Plot the evaluation comparisons
     plot_comparisons(
         eval_plot_frames,
         f"{title}",
