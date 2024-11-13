@@ -131,17 +131,6 @@ All data from a training run is saved into the directory specified in the `CARES
 
 You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}"`.
 
-The following variables are supported for log path template variable interpolation:
-
-- gym (str): The name of the gym environment.
-- domain (str): The domain of the task.
-- task (str): The specific task within the domain.
-- algorithm (str): The name of the algorithm being used.
-- run_name (str): The name of the run.
-- base_dir (str, optional): The base directory for logs overrides CARES_LOG_BASE_DIR variable.
-- format_str (str, optional): Template for the log path overrides CARES_LOG_PATH_TEMPLATE variable.
-- names (dict): Additional names to be included in the log path.
-
 This folder will contain the following directories and information saved during the training session:
 
 ```text
