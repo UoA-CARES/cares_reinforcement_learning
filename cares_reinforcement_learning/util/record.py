@@ -48,11 +48,15 @@ class Record:
 
         self.video: cv2.VideoWriter = None
 
+        self.log_count = 0
+
         self.__initialise_base_directory()
 
     def set_sub_directory(self, sub_directory: str) -> None:
         self.sub_directory = sub_directory
         self.current_sub_directory = f"{self.base_directory}/{sub_directory}"
+
+        self.log_count = 0
 
         self.train_data = pd.DataFrame()
         self.eval_data = pd.DataFrame()
@@ -121,6 +125,8 @@ class Record:
             logging.info(string)
 
     def log_train(self, display: bool = False, **logs) -> None:
+        self.log_count += 1
+
         self.train_data = pd.concat(
             [self.train_data, pd.DataFrame([logs])], ignore_index=True
         )

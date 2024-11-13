@@ -140,8 +140,13 @@ def plot_eval(
     label: str,
     directory: str,
     filename: str,
+    x_data: str = "total_steps",
+    y_data: str = "episode_reward",
 ) -> None:
-    eval_plot_frame = _prepare_plot_frame(eval_data, window_size=1)
+
+    eval_plot_frame = _prepare_plot_frame(
+        eval_data, window_size=1, x_data=x_data, y_data=y_data
+    )
 
     x_label: str = "Steps"
     y_label: str = "Average Reward"
@@ -164,12 +169,16 @@ def plot_train(
     directory: str,
     filename: str,
     window_size: int,
+    x_data: str = "total_steps",
     y_data: str = "episode_reward",
 ) -> None:
     x_label: str = "Steps"
     y_label: str = "Reward"
 
-    train_plot_frame = _prepare_plot_frame(train_data, window_size, y_data)
+    train_plot_frame = _prepare_plot_frame(
+        train_data, window_size=window_size, x_data=x_data, y_data=y_data
+    )
+
     plot_data(
         train_plot_frame,
         title,
@@ -397,25 +406,13 @@ def plot_evaluations():
                 f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}"
             )
 
-            if "eval.csv" not in os.listdir(
-                f"{result_directory}/data"
-            ) or "train.csv" not in os.listdir(f"{result_directory}/data"):
+            if "train.csv" not in os.listdir(f"{result_directory}/data"):
                 logging.warning(
-                    f"Skipping {result_directory} as it does not have train.csv or eval.csv"
+                    f"Skipping {result_directory} as it does not have train.csv"
                 )
                 continue
 
-            eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
             train_data = pd.read_csv(f"{result_directory}/data/train.csv")
-
-            # Concat the eval seed data into a single data frame - window size is 1 for evaluation data
-            eval_data = _prepare_plot_frame(
-                eval_data, window_size=1, x_data=x_data, y_data=y_data
-            )
-
-            average_eval_data = pd.concat(
-                [average_eval_data, eval_data], ignore_index=True
-            )
 
             # Concat the train seed data into a single data frame - rolling window for training data
             train_data = _prepare_plot_frame(
@@ -426,25 +423,30 @@ def plot_evaluations():
                 [average_train_data, train_data], ignore_index=True
             )
 
+            if "eval.csv" not in os.listdir(f"{result_directory}/data"):
+                logging.warning(
+                    f"Skipping {result_directory} as it does not have eval.csv"
+                )
+                continue
+
+            eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
+
+            # Concat the eval seed data into a single data frame - window size is 1 for evaluation data
+            eval_data = _prepare_plot_frame(
+                eval_data, window_size=1, x_data=x_data, y_data=y_data
+            )
+
+            average_eval_data = pd.concat(
+                [average_eval_data, eval_data], ignore_index=True
+            )
+
             if args["plot_seeds"]:
                 seed_label.append(f"{label}_{i}")
                 seed_eval_plot_frames.append(eval_data)
                 seed_train_plot_frames.append(train_data)
 
         if args["plot_seeds"]:
-            plot_comparisons(
-                seed_eval_plot_frames,
-                f"{title}",
-                seed_label,
-                x_label,
-                y_label,
-                save_directory,
-                f"{title}-{algorithm}-eval",
-                label_fontsize=args["label_fontsize"],
-                title_fontsize=args["title_fontsize"],
-                ticks_fontsize=args["ticks_fontsize"],
-            )
-
+            # Plot the individual training seeds
             plot_comparisons(
                 seed_train_plot_frames,
                 f"{title}",
@@ -453,6 +455,20 @@ def plot_evaluations():
                 y_label,
                 save_directory,
                 f"{title}-{algorithm}-train",
+                label_fontsize=args["label_fontsize"],
+                title_fontsize=args["title_fontsize"],
+                ticks_fontsize=args["ticks_fontsize"],
+            )
+
+            # Plot the individual evaluation seeds
+            plot_comparisons(
+                seed_eval_plot_frames,
+                f"{title}",
+                seed_label,
+                x_label,
+                y_label,
+                save_directory,
+                f"{title}-{algorithm}-eval",
                 label_fontsize=args["label_fontsize"],
                 title_fontsize=args["title_fontsize"],
                 ticks_fontsize=args["ticks_fontsize"],
