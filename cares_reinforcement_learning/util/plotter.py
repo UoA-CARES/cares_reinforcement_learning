@@ -296,17 +296,31 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "--x_data",
+        "--x_train",
         type=str,
         default="total_steps",
-        help="Data you want to plot in x_axis - default is steps",
+        help="Data you want to plot in x_axis for train - default is steps",
     )
 
     parser.add_argument(
-        "--y_data",
+        "--y_train",
         type=str,
         default="episode_reward",
-        help="Data you want to plot in y_axis - default is episode_reward",
+        help="Data you want to plot in y_axis for train graphs - default is episode_reward",
+    )
+
+    parser.add_argument(
+        "--x_eval",
+        type=str,
+        default="total_steps",
+        help="Data you want to plot in x_axis for eval - default is steps",
+    )
+
+    parser.add_argument(
+        "--y_eval",
+        type=str,
+        default="episode_reward",
+        help="Data you want to plot in y_axis for eval graphs - default is episode_reward",
     )
 
     parser.add_argument(
@@ -367,12 +381,15 @@ def parse_args() -> dict:
 def plot_evaluations():
     args = parse_args()
 
-    x_data = args["x_data"]
-    y_data = args["y_data"]
+    x_train = args["x_train"]
+    y_train = args["y_train"]
+
+    x_eval = args["x_eval"]
+    y_eval = args["y_eval"]
 
     title = args["title"]
-    x_label = x_data if args["x_label"] is None else args["x_label"]
-    y_label = y_data if args["y_label"] is None else args["y_label"]
+    x_label = x_train if args["x_label"] is None else args["x_label"]
+    y_label = y_train if args["y_label"] is None else args["y_label"]
 
     window_size = args["window_size"]
 
@@ -416,7 +433,7 @@ def plot_evaluations():
 
             # Concat the train seed data into a single data frame - rolling window for training data
             train_data = _prepare_plot_frame(
-                train_data, window_size=window_size, x_data=x_data, y_data=y_data
+                train_data, window_size=window_size, x_data=x_train, y_data=y_train
             )
 
             average_train_data = pd.concat(
@@ -433,7 +450,7 @@ def plot_evaluations():
 
             # Concat the eval seed data into a single data frame - window size is 1 for evaluation data
             eval_data = _prepare_plot_frame(
-                eval_data, window_size=1, x_data=x_data, y_data=y_data
+                eval_data, window_size=1, x_data=x_eval, y_data=y_eval
             )
 
             average_eval_data = pd.concat(
