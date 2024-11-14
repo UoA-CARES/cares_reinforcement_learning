@@ -11,8 +11,8 @@ import os
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as helpers
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class LA3PSAC:
@@ -84,41 +84,7 @@ class LA3PSAC:
     def alpha(self) -> float:
         return self.log_alpha.exp()
 
-    def _update_target_network(self) -> None:
-        # Update target network params
-        for target_param, param in zip(
-            self.target_critic_net.parameters(), self.critic_net.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
-
-    def _train_actor(self, states: np.ndarray) -> None:
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-
-        # Update Actor
-        next_actions, next_log_pi, _ = self.actor_net(states)
-        target_q_values_one, target_q_values_two = self.target_critic_net(
-            states, next_actions
-        )
-        min_q_values = torch.minimum(target_q_values_one, target_q_values_two)
-        actor_loss = ((self.alpha * next_log_pi) - min_q_values).mean()
-
-        # Update the Actor
-        self.actor_net_optimiser.zero_grad()
-        actor_loss.backward()
-        self.actor_net_optimiser.step()
-
-        # update the temperature
-        alpha_loss = -(
-            self.log_alpha * (next_log_pi + self.target_entropy).detach()
-        ).mean()
-        self.log_alpha_optimizer.zero_grad()
-        alpha_loss.backward()
-        self.log_alpha_optimizer.step()
-
-    def _train_critic(
+    def _update_critic(
         self,
         states: np.ndarray,
         actions: np.ndarray,
@@ -159,10 +125,10 @@ class LA3PSAC:
         td_error_two = (q_values_two - q_target).abs()
 
         if uniform_sampling:
-            pal_loss_one = helpers.prioritized_approximate_loss(
+            pal_loss_one = hlp.prioritized_approximate_loss(
                 td_error_one, self.min_priority, self.per_alpha
             )
-            pal_loss_two = helpers.prioritized_approximate_loss(
+            pal_loss_two = hlp.prioritized_approximate_loss(
                 td_error_two, self.min_priority, self.per_alpha
             )
             critic_loss_total = pal_loss_one + pal_loss_two
@@ -174,8 +140,8 @@ class LA3PSAC:
                 .detach()
             )
         else:
-            huber_lose_one = helpers.huber(td_error_one, self.min_priority)
-            huber_lose_two = helpers.huber(td_error_two, self.min_priority)
+            huber_lose_one = hlp.huber(td_error_one, self.min_priority)
+            huber_lose_two = hlp.huber(td_error_two, self.min_priority)
             critic_loss_total = huber_lose_one + huber_lose_two
 
         # Update the Critic
@@ -194,7 +160,32 @@ class LA3PSAC:
 
         return priorities
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def _update_actor_alpha(self, states: np.ndarray) -> None:
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+
+        # Update Actor
+        next_actions, next_log_pi, _ = self.actor_net(states)
+        target_q_values_one, target_q_values_two = self.target_critic_net(
+            states, next_actions
+        )
+        min_q_values = torch.minimum(target_q_values_one, target_q_values_two)
+        actor_loss = ((self.alpha * next_log_pi) - min_q_values).mean()
+
+        # Update the Actor
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+        # update the temperature
+        alpha_loss = -(
+            self.log_alpha * (next_log_pi + self.target_entropy).detach()
+        ).mean()
+        self.log_alpha_optimizer.zero_grad()
+        alpha_loss.backward()
+        self.log_alpha_optimizer.step()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -206,7 +197,7 @@ class LA3PSAC:
         experiences = memory.sample_uniform(uniform_batch_size)
         states, actions, rewards, next_states, dones, indices = experiences
 
-        priorities = self._train_critic(
+        priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -218,16 +209,16 @@ class LA3PSAC:
         memory.update_priorities(indices, priorities)
 
         # Train Actor
-        self._train_actor(states)
+        self._update_actor_alpha(states)
 
         if policy_update:
-            self._update_target_network()
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
         experiences = memory.sample_priority(priority_batch_size, sampling="simple")
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        priorities = self._train_critic(
+        priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -239,13 +230,13 @@ class LA3PSAC:
         memory.update_priorities(indices, priorities)
 
         if policy_update:
-            self._update_target_network()
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### ACTOR PRIORITIZED SAMPLING #########################
         experiences = memory.sample_inverse_priority(priority_batch_size)
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        self._train_actor(states)
+        self._update_actor_alpha(states)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

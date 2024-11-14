@@ -1,17 +1,23 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.NaSATD3.weight_initialization import (
-    weight_init,
-)
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 class Actor(nn.Module):
-    def __init__(self, latent_size: int, num_actions: int, encoder: nn.Module):
+    def __init__(
+        self,
+        latent_size: int,
+        num_actions: int,
+        encoder: nn.Module,
+        hidden_size: list[int] = None,
+    ):
         super().__init__()
+        if hidden_size is None:
+            hidden_size = [1024, 1024]
 
         self.encoder_net = encoder
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = hidden_size
 
         self.act_net = nn.Sequential(
             nn.Linear(latent_size, self.hidden_size[0]),
@@ -21,11 +27,12 @@ class Actor(nn.Module):
             nn.Linear(self.hidden_size[1], num_actions),
             nn.Tanh(),
         )
-        self.apply(weight_init)
+        self.apply(hlp.weight_init)
 
     def forward(
         self, state: torch.Tensor, detach_encoder: bool = False
     ) -> torch.Tensor:
-        z_vector = self.encoder_net(state, detach=detach_encoder)
+        # NaSATD3 detatches the encoder at the output
+        z_vector = self.encoder_net(state, detach_output=detach_encoder)
         output = self.act_net(z_vector)
         return output

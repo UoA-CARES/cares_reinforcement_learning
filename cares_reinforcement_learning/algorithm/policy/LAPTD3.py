@@ -9,8 +9,8 @@ import os
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as helpers
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class LAPTD3:
@@ -74,25 +74,7 @@ class LAPTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.learn_counter += 1
-
-        experiences = memory.sample_priority(batch_size, sampling="simple")
-        states, actions, rewards, next_states, dones, indices, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
+    def _update_critic(self, states, actions, rewards, next_states, dones):
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -112,11 +94,10 @@ class LAPTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_lose_one = helpers.huber(td_error_one, self.min_priority)
-        huber_lose_two = helpers.huber(td_error_two, self.min_priority)
+        huber_lose_one = hlp.huber(td_error_one, self.min_priority)
+        huber_lose_two = hlp.huber(td_error_two, self.min_priority)
         critic_loss_total = huber_lose_one + huber_lose_two
 
-        # Update the Critic
         self.critic_net_optimiser.zero_grad()
         torch.mean(critic_loss_total).backward()
         self.critic_net_optimiser.step()
@@ -129,40 +110,45 @@ class LAPTD3:
             .data.numpy()
             .flatten()
         )
+        return priorities
+
+    def _update_actor(self, states):
+        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actor_loss = -actor_q_values.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        experiences = memory.sample_priority(batch_size, sampling="simple")
+        states, actions, rewards, next_states, dones, indices, _ = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        # Update the Critic
+        priorities = self._update_critic(states, actions, rewards, next_states, dones)
 
         if self.learn_counter % self.policy_update_freq == 0:
-            # actor_q_one, actor_q_two = self.critic_net(states, self.actor_net(states))
-            # actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-
             # Update Actor
-            actor_q_values, _ = self.critic_net(states, self.actor_net(states))
-            actor_loss = -actor_q_values.mean()
-
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward()
-            self.actor_net_optimiser.step()
+            self._update_actor(states)
 
             # Update target network params
-            for target_param, param in zip(
-                self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_actor_net.parameters(), self.actor_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
         memory.update_priorities(indices, priorities)
 

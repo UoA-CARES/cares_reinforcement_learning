@@ -8,8 +8,8 @@ import os
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as helpers
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class PALTD3:
@@ -73,25 +73,14 @@ class PALTD3:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
-        self.learn_counter += 1
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
+    def _update_critic(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> None:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -111,10 +100,10 @@ class PALTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        pal_loss_one = helpers.prioritized_approximate_loss(
+        pal_loss_one = hlp.prioritized_approximate_loss(
             td_error_one, self.min_priority, self.per_alpha
         )
-        pal_loss_two = helpers.prioritized_approximate_loss(
+        pal_loss_two = hlp.prioritized_approximate_loss(
             td_error_two, self.min_priority, self.per_alpha
         )
         critic_loss_total = pal_loss_one + pal_loss_two
@@ -127,41 +116,47 @@ class PALTD3:
             .detach()
         )
 
-        # Update the Critic
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
+    def _update_actor(self, states: torch.Tensor) -> None:
+        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actor_loss = -actor_q_values.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        # Reshape to batch_size
+        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+
+        # Update the Critic
+        self._update_critic(states, actions, rewards, next_states, dones)
+
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_q_values, _ = self.critic_net(states, self.actor_net(states))
-            actor_loss = -actor_q_values.mean()
-
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward()
-            self.actor_net_optimiser.step()
+            self._update_actor(states)
 
             # Update target network params
-            for target_param, param in zip(
-                self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
-
-            for target_param, param in zip(
-                self.target_actor_net.parameters(), self.actor_net.parameters()
-            ):
-                target_param.data.copy_(
-                    param.data * self.tau + target_param.data * (1.0 - self.tau)
-                )
+            hlp.soft_update_param(self.crtic_net, self.target_critic_net, self.tau)
+            hlp.soft_update_param(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
         path = f"{filepath}/models" if filepath != "models" else filepath

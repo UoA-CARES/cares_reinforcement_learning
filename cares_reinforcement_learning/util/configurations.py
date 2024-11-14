@@ -30,6 +30,7 @@ class TrainingConfig(SubscriptableClass):
     """
 
     seeds: List[int] = [10]
+    log_path: str = "{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"
     plot_frequency: Optional[int] = 100
     checkpoint_frequency: Optional[int] = 100
     number_steps_per_evaluation: Optional[int] = 10000
@@ -51,6 +52,14 @@ class AlgorithmConfig(SubscriptableClass):
         max_steps_exploration (Optional[int]): Maximum number of steps for exploration.
         max_steps_training (Optional[int]): Maximum number of steps for training.
         number_steps_per_train_policy (Optional[int]): Number of steps per updating the training policy.
+
+        min_noise (Optional[float]): Minimum noise value.
+        noise_scale (Optional[float]): Noise scale.
+        noise_decay (Optional[float]): Noise decay.
+
+        image_observation (Optional[int]): Whether the observation is an image.
+
+        hidden_size (List[int]): List of hidden layer sizes - e.g. [256, 256].
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")
@@ -65,6 +74,10 @@ class AlgorithmConfig(SubscriptableClass):
     min_noise: Optional[float] = 0.0
     noise_scale: Optional[float] = 0.1
     noise_decay: Optional[float] = 1.0
+
+    image_observation: Optional[int] = 0
+
+    hidden_size: List[int] = None
 
     # Determines how much prioritization is used, α = 0 corresponding to the uniform case
     # per_alpha
@@ -126,6 +139,32 @@ class TD3Config(AlgorithmConfig):
 
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
+
+
+class TD3AEConfig(AlgorithmConfig):
+    algorithm: str = Field("TD3AE", Literal=True)
+
+    image_observation: Optional[int] = 1
+    batch_size: Optional[int] = 128
+
+    actor_lr: Optional[float] = 1e-3
+    critic_lr: Optional[float] = 1e-3
+    alpha_lr: Optional[float] = 1e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
+    num_layers: Optional[int] = 4
+    num_filters: Optional[int] = 32
+
+    encoder_lr: Optional[float] = 1e-3
+    encoder_tau: Optional[float] = 0.05
+    latent_size: Optional[int] = 50
+
+    decoder_lr: Optional[float] = 1e-3
+    decoder_latent_lambda: Optional[float] = 1e-6
+    decoder_weight_decay: Optional[float] = 1e-7
+    decoder_update_freq: Optional[int] = 1
 
 
 class SACConfig(AlgorithmConfig):
@@ -199,6 +238,37 @@ class DynaSAC_SABRConfig(AlgorithmConfig):
     mode: Optional[int] = 1
     sample_times: Optional[int] = 10
 
+    log_std_bounds: List[float] = [-20, 2]
+
+
+class SACAEConfig(AlgorithmConfig):
+    algorithm: str = Field("SACAE", Literal=True)
+
+    image_observation: Optional[int] = 1
+    batch_size: Optional[int] = 128
+
+    actor_lr: Optional[float] = 1e-3
+    critic_lr: Optional[float] = 1e-3
+    alpha_lr: Optional[float] = 1e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+    log_std_bounds: List[float] = [-20, 2]
+
+    num_layers: Optional[int] = 4
+    num_filters: Optional[int] = 32
+
+    encoder_lr: Optional[float] = 1e-3
+    encoder_tau: Optional[float] = 0.05
+    latent_size: Optional[int] = 50
+
+    decoder_lr: Optional[float] = 1e-3
+    decoder_latent_lambda: Optional[float] = 1e-6
+    decoder_weight_decay: Optional[float] = 1e-7
+    decoder_update_freq: Optional[int] = 1
+
 
 class DynaSACConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
@@ -233,6 +303,9 @@ class DynaSAC_SASConfig(AlgorithmConfig):
     reward_scale: Optional[float] = 1.0
 
     horizon: Optional[int] = 1
+    log_std_bounds: List[float] = [-20, 2]
+
+    horizon: Optional[int] = 3
     num_samples: Optional[int] = 10
     world_model_lr: Optional[float] = 0.001
 
@@ -365,6 +438,8 @@ class DynaSAC_UWACReweightConfig(AlgorithmConfig):
 class NaSATD3Config(AlgorithmConfig):
     algorithm: str = Field("NaSATD3", Literal=True)
 
+    image_observation: Optional[int] = 1
+
     actor_lr: Optional[float] = 1e-4
     critic_lr: Optional[float] = 1e-3
 
@@ -405,6 +480,8 @@ class TQCConfig(AlgorithmConfig):
     top_quantiles_to_drop: Optional[int] = 2
     num_quantiles: Optional[int] = 25
     num_nets: Optional[int] = 5
+
+    log_std_bounds: List[float] = [-20, 2]
 
 
 class CTD4Config(AlgorithmConfig):
@@ -448,6 +525,8 @@ class PERSACConfig(AlgorithmConfig):
     per_alpha: Optional[float] = 0.6
     min_priority: Optional[float] = 1e-6
 
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class LAPTD3Config(AlgorithmConfig):
     algorithm: str = Field("LAPTD3", Literal=True)
@@ -474,6 +553,8 @@ class LAPSACConfig(AlgorithmConfig):
     per_alpha: Optional[float] = 0.6
     reward_scale: Optional[float] = 1.0
     min_priority: Optional[float] = 1.0
+
+    log_std_bounds: List[float] = [-20, 2]
 
 
 class PALTD3Config(AlgorithmConfig):
@@ -518,6 +599,8 @@ class LA3PSACConfig(AlgorithmConfig):
     min_priority: Optional[float] = 1.0
     prioritized_fraction: Optional[float] = 0.5
 
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class MAPERTD3Config(AlgorithmConfig):
     algorithm: str = Field("MAPERTD3", Literal=True)
@@ -557,6 +640,9 @@ class MAPERSACConfig(AlgorithmConfig):
     G: Optional[int] = 64
     number_steps_per_train_policy: Optional[int] = 64
 
+    hidden_size: List[int] = [400, 300]
+    log_std_bounds: List[float] = [-20, 2]
+
 
 class RDTD3Config(AlgorithmConfig):
     algorithm: str = Field("RDTD3", Literal=True)
@@ -582,3 +668,5 @@ class RDSACConfig(AlgorithmConfig):
     beta: Optional[float] = 0.4
     per_alpha: Optional[float] = 0.7
     min_priority: Optional[float] = 1.0
+
+    log_std_bounds: List[float] = [-20, 2]

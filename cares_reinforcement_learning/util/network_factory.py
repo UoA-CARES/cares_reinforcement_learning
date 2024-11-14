@@ -6,7 +6,6 @@ import torch
 
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
-
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
 # pylint: disable=invalid-name
@@ -16,7 +15,7 @@ def create_DQN(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
 
-    network = Network(observation_size, action_num)
+    network = Network(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DQN(
@@ -26,10 +25,15 @@ def create_DQN(observation_size, action_num, config: AlgorithmConfig):
 
 
 def create_DuelingDQN(observation_size, action_num, config: AlgorithmConfig):
+    """
+    Original paper https://arxiv.org/abs/1511.06581
+    """
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DuelingDQN import DuelingNetwork
 
-    network = DuelingNetwork(observation_size, action_num)
+    network = DuelingNetwork(
+        observation_size, action_num, hidden_size=config.hidden_size
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DQN(
@@ -42,7 +46,7 @@ def create_DoubleDQN(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.value import DoubleDQN
     from cares_reinforcement_learning.networks.DoubleDQN import Network
 
-    network = Network(observation_size, action_num)
+    network = Network(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = DoubleDQN(
@@ -59,8 +63,8 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PPO
     from cares_reinforcement_learning.networks.PPO import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = PPO(
@@ -473,7 +477,6 @@ def create_DynaSAC(observation_size, action_num, config: AlgorithmConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
-
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_NS
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
@@ -513,7 +516,10 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
+    actor = Actor(
+        observation_size,
+        action_num,
+    )
     critic = Critic(observation_size, action_num)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -527,6 +533,53 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
         tau=config.tau,
         reward_scale=config.reward_scale,
         action_num=action_num,
+        device=device,
+    )
+    return agent
+
+
+def create_SACAE(observation_size, action_num, config: AlgorithmConfig):
+    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    from cares_reinforcement_learning.algorithm.policy import SACAE
+    from cares_reinforcement_learning.networks.SACAE import Actor, Critic
+
+    encoder, decoder = ae.create_autoencoder(
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+    )
+
+    actor_encoder = copy.deepcopy(encoder)
+    critic_encoder = copy.deepcopy(encoder)
+
+    actor = Actor(
+        actor_encoder,
+        action_num,
+        hidden_size=config.hidden_size,
+        log_std_bounds=config.log_std_bounds,
+    )
+    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = SACAE(
+        actor_network=actor,
+        critic_network=critic,
+        decoder_network=decoder,
+        gamma=config.gamma,
+        tau=config.tau,
+        reward_scale=config.reward_scale,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        encoder_lr=config.encoder_lr,
+        encoder_tau=config.encoder_tau,
+        decoder_lr=config.decoder_lr,
+        decoder_latent_lambda=config.decoder_latent_lambda,
+        decoder_weight_decay=config.decoder_weight_decay,
+        decoder_update_freq=config.decoder_update_freq,
+        alpha_lr=config.alpha_lr,
         device=device,
     )
     return agent
@@ -556,8 +609,8 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = TD3(
@@ -573,20 +626,65 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.algorithm.policy import NaSATD3
-    from cares_reinforcement_learning.networks.NaSATD3 import (
-        Actor,
-        Critic,
-        Decoder,
-        Encoder,
+def create_TD3AE(observation_size, action_num, config: AlgorithmConfig):
+    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    from cares_reinforcement_learning.algorithm.policy import TD3AE
+    from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
+
+    encoder, decoder = ae.create_autoencoder(
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
     )
 
-    encoder = Encoder(latent_dim=config.latent_size)
-    decoder = Decoder(latent_dim=config.latent_size)
+    actor_encoder = copy.deepcopy(encoder)
+    critic_encoder = copy.deepcopy(encoder)
 
-    actor = Actor(config.latent_size, action_num, encoder)
-    critic = Critic(config.latent_size, action_num, encoder)
+    actor = Actor(actor_encoder, action_num, hidden_size=config.hidden_size)
+    critic = Critic(critic_encoder, action_num, hidden_size=config.hidden_size)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = TD3AE(
+        actor_network=actor,
+        critic_network=critic,
+        decoder_network=decoder,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        encoder_lr=config.encoder_lr,
+        encoder_tau=config.encoder_tau,
+        decoder_lr=config.decoder_lr,
+        decoder_latent_lambda=config.decoder_latent_lambda,
+        decoder_weight_decay=config.decoder_weight_decay,
+        decoder_update_freq=config.decoder_update_freq,
+        device=device,
+    )
+    return agent
+
+
+def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
+    import cares_reinforcement_learning.networks.encoders.autoencoder as ae
+    from cares_reinforcement_learning.algorithm.policy import NaSATD3
+    from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
+
+    encoder, decoder = ae.create_autoencoder(
+        observation_size=observation_size,
+        latent_dim=config.latent_size,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+    )
+
+    actor = Actor(
+        config.latent_size, action_num, encoder, hidden_size=config.hidden_size
+    )
+    critic = Critic(
+        config.latent_size, action_num, encoder, hidden_size=config.hidden_size
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = NaSATD3(
@@ -612,18 +710,18 @@ def create_NaSATD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_CTD4(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import CTD4
-    from cares_reinforcement_learning.networks.CTD4 import (
-        Actor,
-        EnsembleCritic,
-    )
+    from cares_reinforcement_learning.networks.CTD4 import Actor, EnsembleCritic
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     ensemble_critics = EnsembleCritic(
-        config.ensemble_size, observation_size, action_num
+        config.ensemble_size,
+        observation_size,
+        action_num,
+        hidden_size=config.hidden_size,
     )
 
-    actor = Actor(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
 
     agent = CTD4(
         actor_network=actor,
@@ -644,8 +742,8 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import RDTD3
     from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = RDTD3(
@@ -663,12 +761,39 @@ def create_RDTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import RDSAC
+    from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
+
+    actor = Actor(
+        observation_size,
+        action_num,
+        hidden_size=config.hidden_size,
+        log_std_bounds=config.log_std_bounds,
+    )
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = RDSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
 def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PERTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = PERTD3(
@@ -686,12 +811,40 @@ def create_PERTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import PERSAC
+    from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
+
+    actor = Actor(
+        observation_size,
+        action_num,
+        hidden_size=config.hidden_size,
+        log_std_bounds=config.log_std_bounds,
+    )
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = PERSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        device=device,
+    )
+    return agent
+
+
 def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = LAPTD3(
@@ -711,10 +864,15 @@ def create_LAPTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(
+        observation_size,
+        action_num,
+        hidden_size=config.hidden_size,
+        log_std_bounds=config.log_std_bounds,
+    )
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = LAPSAC(
@@ -736,10 +894,10 @@ def create_LAPSAC(observation_size, action_num, config: AlgorithmConfig):
 
 def create_PALTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import PALTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = PALTD3(
@@ -761,8 +919,8 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import MAPERTD3
     from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = MAPERTD3(
@@ -780,12 +938,41 @@ def create_MAPERTD3(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import MAPERSAC
+    from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
+
+    actor = Actor(
+        observation_size,
+        action_num,
+        hidden_size=config.hidden_size,
+        log_std_bounds=config.log_std_bounds,
+    )
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = MAPERSAC(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        per_alpha=config.per_alpha,
+        min_priority=config.min_priority,
+        action_num=action_num,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
+        device=device,
+    )
+    return agent
+
+
 def create_REDQ(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import REDQ
     from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = REDQ(
@@ -807,8 +994,19 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import TQC
     from cares_reinforcement_learning.networks.TQC import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num, config.num_quantiles, config.num_nets)
+    actor = Actor(
+        observation_size,
+        action_num,
+        hidden_size=config.hidden_size,
+        log_std_bounds=config.log_std_bounds,
+    )
+    critic = Critic(
+        observation_size,
+        action_num,
+        config.num_quantiles,
+        config.num_nets,
+        hidden_size=config.hidden_size,
+    )
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = TQC(
@@ -826,81 +1024,12 @@ def create_TQC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
-def create_PERSAC(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.algorithm.policy import PERSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = PERSAC(
-        actor_network=actor,
-        critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        device=device,
-    )
-    return agent
-
-
-def create_RDSAC(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.algorithm.policy import RDSAC
-    from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = RDSAC(
-        actor_network=actor,
-        critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        device=device,
-    )
-    return agent
-
-
-def create_MAPERSAC(observation_size, action_num, config: AlgorithmConfig):
-    from cares_reinforcement_learning.algorithm.policy import MAPERSAC
-    from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    agent = MAPERSAC(
-        actor_network=actor,
-        critic_network=critic,
-        gamma=config.gamma,
-        tau=config.tau,
-        per_alpha=config.per_alpha,
-        min_priority=config.min_priority,
-        action_num=action_num,
-        actor_lr=config.actor_lr,
-        critic_lr=config.critic_lr,
-        alpha_lr=config.alpha_lr,
-        device=device,
-    )
-    return agent
-
-
 def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PTD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+    from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = LA3PTD3(
@@ -921,10 +1050,15 @@ def create_LA3PTD3(observation_size, action_num, config: AlgorithmConfig):
 
 def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PSAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num)
-    critic = Critic(observation_size, action_num)
+    actor = Actor(
+        observation_size,
+        action_num,
+        hidden_size=config.hidden_size,
+        log_std_bounds=config.log_std_bounds,
+    )
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = LA3PSAC(
@@ -946,7 +1080,12 @@ def create_LA3PSAC(observation_size, action_num, config: AlgorithmConfig):
 
 
 class NetworkFactory:
-    def create_network(self, observation_size, action_num, config: AlgorithmConfig):
+    def create_network(
+        self,
+        observation_size,
+        action_num,
+        config: AlgorithmConfig,
+    ):
         algorithm = config.algorithm
 
         agent = None

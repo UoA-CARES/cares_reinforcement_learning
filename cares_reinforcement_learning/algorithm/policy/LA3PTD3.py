@@ -11,8 +11,8 @@ import os
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as helpers
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory import MemoryBuffer
 
 
 class LA3PTD3:
@@ -80,40 +80,10 @@ class LA3PTD3:
 
     def _update_target_network(self) -> None:
         # Update target network params
-        for target_param, param in zip(
-            self.target_critic_net.Q1.parameters(), self.critic_net.Q1.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
+        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
-        for target_param, param in zip(
-            self.target_critic_net.Q2.parameters(), self.critic_net.Q2.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
-
-        for target_param, param in zip(
-            self.target_actor_net.parameters(), self.actor_net.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
-
-    def _train_actor(self, states: np.ndarray) -> None:
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-
-        # Update Actor
-        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
-        actor_loss = -actor_q_values.mean()
-
-        self.actor_net_optimiser.zero_grad()
-        actor_loss.backward()
-        self.actor_net_optimiser.step()
-
-    def _train_critic(
+    def _update_critic(
         self,
         states: np.ndarray,
         actions: np.ndarray,
@@ -154,10 +124,10 @@ class LA3PTD3:
 
         # Handle per alpha here or not...
         if uniform_sampling:
-            pal_loss_one = helpers.prioritized_approximate_loss(
+            pal_loss_one = hlp.prioritized_approximate_loss(
                 td_error_one, self.min_priority, self.per_alpha
             )
-            pal_loss_two = helpers.prioritized_approximate_loss(
+            pal_loss_two = hlp.prioritized_approximate_loss(
                 td_error_two, self.min_priority, self.per_alpha
             )
             critic_loss_total = pal_loss_one + pal_loss_two
@@ -170,8 +140,8 @@ class LA3PTD3:
                 .detach()
             )
         else:
-            huber_lose_one = helpers.huber(td_error_one, self.min_priority)
-            huber_lose_two = helpers.huber(td_error_two, self.min_priority)
+            huber_lose_one = hlp.huber(td_error_one, self.min_priority)
+            huber_lose_two = hlp.huber(td_error_two, self.min_priority)
             critic_loss_total = huber_lose_one + huber_lose_two
 
         # Update the Critic
@@ -190,7 +160,19 @@ class LA3PTD3:
 
         return priorities
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def _update_actor(self, states: np.ndarray) -> None:
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+
+        # Update Actor
+        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actor_loss = -actor_q_values.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -202,7 +184,7 @@ class LA3PTD3:
         experiences = memory.sample_uniform(uniform_batch_size)
         states, actions, rewards, next_states, dones, indices = experiences
 
-        priorities = self._train_critic(
+        priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -214,14 +196,14 @@ class LA3PTD3:
         memory.update_priorities(indices, priorities)
 
         if policy_update:
-            self._train_actor(states)
+            self._update_actor(states)
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
         experiences = memory.sample_priority(priority_batch_size, sampling="simple")
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        priorities = self._train_critic(
+        priorities = self._update_critic(
             states,
             actions,
             rewards,
@@ -237,7 +219,7 @@ class LA3PTD3:
             experiences = memory.sample_inverse_priority(priority_batch_size)
             states, actions, rewards, next_states, dones, indices, _ = experiences
 
-            self._train_actor(states)
+            self._update_actor(states)
             self._update_target_network()
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
