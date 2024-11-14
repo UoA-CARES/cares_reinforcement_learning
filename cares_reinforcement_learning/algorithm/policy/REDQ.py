@@ -210,23 +210,16 @@ class REDQ:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
+    def save_models(self, filepath: str, filename: str) -> None:
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
         torch.save(
-            self.ensemble_critics.state_dict(), f"{path}/{filename}_ensemble.pht"
+            self.ensemble_critics.state_dict(), f"{filepath}/{filename}_ensemble.pht"
         )
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        actor_path = f"{path}/{filename}_actor.pht"
-        ensemble_path = f"{path}/{filename}_ensemble.pht"
+        actor_path = f"{filepath}/{filename}_actor.pht"
+        ensemble_path = f"{filepath}/{filename}_ensemble.pht"
 
         self.actor_net.load_state_dict(torch.load(actor_path))
         self.ensemble_critics.load_state_dict(torch.load(ensemble_path))

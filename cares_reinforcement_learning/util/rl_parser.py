@@ -4,7 +4,7 @@ import json
 import logging
 import sys
 from argparse import Namespace
-from typing import get_origin, Any
+from typing import Any, get_origin
 
 from pydantic import Field
 
@@ -15,6 +15,11 @@ from cares_reinforcement_learning.util.configurations import (
     SubscriptableClass,
     TrainingConfig,
 )
+
+
+class RunConfig(SubscriptableClass):
+    command: str
+    data_path: str | None
 
 
 class RLParser:
@@ -33,7 +38,7 @@ class RLParser:
         self.add_configuration("env_config", environment_config)
         self.add_configuration("train_config", TrainingConfig)
 
-    def add_model(
+    def _add_model(
         self, parser: argparse.ArgumentParser, model: type[AlgorithmConfig]
     ) -> None:
         fields = model.__fields__
@@ -63,14 +68,14 @@ class RLParser:
             if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
                 name = name.replace("Config", "")
                 cls_parser = sub_alg_parsers.add_parser(name, help=name)
-                self.add_model(cls_parser, cls)
+                self._add_model(cls_parser, cls)
 
         return alg_parser, sub_alg_parsers
 
     def add_algorithm_config(self, algorithm_config: type[AlgorithmConfig]) -> None:
         name = algorithm_config.__name__.replace("Config", "")
         parser = self.sub_algorithm_parsers.add_parser(f"{name}", help=f"{name}")
-        self.add_model(parser, algorithm_config)
+        self._add_model(parser, algorithm_config)
         self.algorithm_configurations[algorithm_config.__name__] = algorithm_config
 
     def add_configuration(
@@ -82,8 +87,11 @@ class RLParser:
         parser = argparse.ArgumentParser(usage="<command> [<args>]")
         # Add an argument
         parser.add_argument(
-            "command", choices=["config", "run"], help="Commands to run this package"
+            "command",
+            choices=["train", "evaluate"],
+            help="Commands to run this package",
         )
+
         # parse_args defaults to [1:] for args, but you need to
         # exclude the rest of the args too, or validation will fail
         cmd_arg = parser.parse_args(sys.argv[1:2])
@@ -94,9 +102,11 @@ class RLParser:
 
         # use dispatch pattern to invoke method with same name
         self.args = getattr(self, f"_{cmd_arg.command}")()
-        print(self.args)
+        logging.debug(self.args)
 
         configs = {}
+        data_path = self.args["data_path"] if "data_path" in self.args else None
+        configs["run_config"] = RunConfig(command=cmd_arg.command, data_path=data_path)
 
         for name, configuration in self.configurations.items():
             configuration = configuration(**self.args)
@@ -105,11 +115,30 @@ class RLParser:
         algorithm_config = self.algorithm_configurations[
             f"{self.args['algorithm']}Config"
         ](**self.args)
-        configs["algorithm_config"] = algorithm_config
+        configs["alg_config"] = algorithm_config
 
         return configs
 
-    def _config(self) -> dict:
+    def _cli(self, initial_index) -> dict:
+        parser = argparse.ArgumentParser()
+
+        for _, configuration in self.configurations.items():
+            self._add_model(parser, configuration)
+
+        first_args, rest = parser.parse_known_args(sys.argv[initial_index:])
+
+        alg_args, rest = self.algorithm_parser.parse_known_args(rest)
+
+        if len(rest) > 0:
+            logging.warning(
+                f"Arugements not being passed properly and have been left over: {rest}"
+            )
+
+        args = Namespace(**vars(first_args), **vars(alg_args))
+
+        return vars(args)
+
+    def _config(self, initial_index) -> dict:
         parser = argparse.ArgumentParser()
 
         required = parser.add_argument_group("required arguments")
@@ -121,9 +150,10 @@ class RLParser:
             help="Path to training configuration files - e.g. alg_config.json, env_config.json, train_config.json",
         )
 
-        config_args = parser.parse_args(sys.argv[2:])
+        config_args = parser.parse_args(sys.argv[initial_index:])
 
         args = {}
+        args["data_path"] = config_args.data_path
 
         data_path = config_args.data_path
 
@@ -139,27 +169,29 @@ class RLParser:
 
         return args
 
-    def _run(self) -> dict:
+    def _evaluate(self) -> dict:
+        return self._config(initial_index=2)
+
+    def _train(self) -> dict:
         parser = argparse.ArgumentParser()
 
-        for _, configuration in self.configurations.items():
-            self.add_model(parser, configuration)
+        parser.add_argument(
+            "load",
+            choices=["cli", "config"],
+            help="Set training configuration from CLI or config files",
+        )
 
-        firt_args, rest = parser.parse_known_args(sys.argv[2:])
+        load_arg = parser.parse_args(sys.argv[2:3])
+        if load_arg.load == "cli":
+            args = self._cli(initial_index=3)
+        else:
+            args = self._config(initial_index=3)
 
-        alg_args, rest = self.algorithm_parser.parse_known_args(rest)
-
-        if len(rest) > 0:
-            logging.warning(
-                f"Arugements not being passed properly and have been left over: {rest}"
-            )
-
-        args = Namespace(**vars(firt_args), **vars(alg_args))
-        return vars(args)
+        return args
 
 
 ## Example of how to use the RLParser for custom environments -
-#  in this case the LAMO envrionment and task with LAMO algorithm
+#  in this case the Example envrionment and task with Example algorithm
 
 
 class ExampleConfig(AlgorithmConfig):
