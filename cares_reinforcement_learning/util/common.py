@@ -1,3 +1,5 @@
+from typing import Callable
+
 import torch
 from torch import distributions as pyd
 from torch import nn
@@ -8,23 +10,31 @@ from torch.nn import functional as F
 
 # Standard Multilayer Perceptron (MLP) network
 class MLP(nn.Module):
-    def __init__(self, input_size: int, hidden_sizes: list[int], output_size: int):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_sizes: list[int],
+        output_size: int,
+        norm_layer: Callable[..., nn.Module] | None = None,
+        activation_function: Callable[..., torch.nn.Module] = nn.ReLU,
+    ):
         super().__init__()
 
-        self.fully_connected_layers = []
-        for i, next_size in enumerate(hidden_sizes):
-            fully_connected_layer = nn.Linear(input_size, next_size)
-            self.add_module(f"fully_connected_layer_{i}", fully_connected_layer)
-            self.fully_connected_layers.append(fully_connected_layer)
+        layers = nn.ModuleList()
+
+        for next_size in hidden_sizes:
+            layers.append(nn.Linear(input_size, next_size))
+            if norm_layer is not None:
+                layers.append(norm_layer())
+            layers.append(activation_function())
             input_size = next_size
 
-        self.output_layer = nn.Linear(input_size, output_size)
+        layers.append(nn.Linear(input_size, output_size))
+
+        self.model = nn.Sequential(*layers)
 
     def forward(self, state):
-        for fully_connected_layer in self.fully_connected_layers:
-            state = F.relu(fully_connected_layer(state))
-        output = self.output_layer(state)
-        return output
+        return self.model(state)
 
 
 # CNN from Nature paper: https://www.nature.com/articles/nature14236
