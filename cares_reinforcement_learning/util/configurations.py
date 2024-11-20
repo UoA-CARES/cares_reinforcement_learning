@@ -8,6 +8,10 @@ from cares_reinforcement_learning.encoders.configurations import (
 # pylint disbale-next=unused-import
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - list[type] = default
+from pathlib import Path
+
+file_path = Path(__file__)
+network_file_path = f"{file_path.parents[1]}/networks"
 
 
 class SubscriptableClass(BaseModel):
@@ -199,6 +203,9 @@ class SACConfig(AlgorithmConfig):
 
     hidden_size_actor: list[int] = [256, 256]
     hidden_size_critic: list[int] = [256, 256]
+
+    actor_module: str = f"{network_file_path}/SAC/actor.py"
+    critic_module: str = f"{network_file_path}/SAC/critic.py"
 
 
 class SACAEConfig(AlgorithmConfig):

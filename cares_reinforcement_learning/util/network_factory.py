@@ -4,16 +4,25 @@ with their corresponding network architectures.
 """
 
 import copy
+import importlib.util
 import inspect
 import logging
 import sys
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.configurations as acf
+import cares_reinforcement_learning.util.helpers as hlp
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
 # pylint: disable=invalid-name
+
+
+def import_from_path(module_name, file_path):
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
 
 
 def create_DQN(observation_size, action_num, config: acf.DQNConfig):
@@ -114,15 +123,27 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
 
 def create_SAC(observation_size, action_num, config: acf.SACConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
-    from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
-    actor = Actor(
+    actor_class = import_from_path(
+        "actor",
+        config.actor_module,
+    ).Actor
+
+    critic_class = import_from_path(
+        "critic",
+        config.critic_module,
+    ).Critic
+
+    actor = actor_class(
         observation_size,
         action_num,
         hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
+
+    critic = critic_class(
+        observation_size, action_num, hidden_size=config.hidden_size_critic
+    )
 
     device = hlp.get_device()
     agent = SAC(
