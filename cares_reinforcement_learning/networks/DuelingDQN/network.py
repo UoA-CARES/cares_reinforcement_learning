@@ -1,17 +1,19 @@
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.util.configurations import DuelingDQNConfig
+
 
 class DuelingNetwork(nn.Module):
     def __init__(
         self,
         observation_space_size: int,
         action_num: int,
-        hidden_size: list[int],
+        config: DuelingDQNConfig,
     ):
         super().__init__()
 
-        self.hidden_size = hidden_size
+        self.hidden_size = config.hidden_size
 
         self.input_dim = observation_space_size
         self.output_dim = action_num

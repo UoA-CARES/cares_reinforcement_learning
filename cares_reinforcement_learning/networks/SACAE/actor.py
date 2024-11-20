@@ -3,6 +3,7 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.SAC import Actor as SACActor
+from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
 class Actor(SACActor):
@@ -11,17 +12,10 @@ class Actor(SACActor):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int],
-        log_std_bounds: list[float] | None = None,
+        config: SACAEConfig,
     ):
-        if log_std_bounds is None:
-            log_std_bounds = [-10, 2]
-
         super().__init__(
-            encoder.latent_dim + vector_observation_size,
-            num_actions,
-            hidden_size,
-            log_std_bounds,
+            encoder.latent_dim + vector_observation_size, num_actions, config
         )
 
         self.encoder = encoder

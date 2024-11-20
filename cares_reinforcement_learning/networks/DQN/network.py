@@ -2,11 +2,13 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from cares_reinforcement_learning.util.configurations import DQNConfig
+
 
 class Network(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
+    def __init__(self, observation_size: int, num_actions: int, config: DQNConfig):
         super().__init__()
-        self.hidden_size = hidden_size
+        self.hidden_size = config.hidden_size
 
         self.h_linear_1 = nn.Linear(
             in_features=observation_size, out_features=self.hidden_size[0]

@@ -5,7 +5,10 @@ from torch import distributions as pyd
 from torch import nn
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
-from torch.nn import functional as F
+
+
+def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
+    return getattr(nn, module_name)
 
 
 # Standard Multilayer Perceptron (MLP) network
@@ -14,11 +17,19 @@ class MLP(nn.Module):
         self,
         input_size: int,
         hidden_sizes: list[int],
-        output_size: int,
-        norm_layer: Callable[..., nn.Module] | None = None,
-        activation_function: Callable[..., torch.nn.Module] = nn.ReLU,
+        output_size: int | None,
+        norm_layer: Callable[..., nn.Module] | str | None = None,
+        activation_function: Callable[..., nn.Module] | str = nn.ReLU,
+        final_activation: Callable[..., nn.Module] | str | None = None,
     ):
         super().__init__()
+
+        if isinstance(norm_layer, str):
+            norm_layer = get_pytorch_module_from_name(norm_layer)
+        if isinstance(activation_function, str):
+            activation_function = get_pytorch_module_from_name(activation_function)
+        if isinstance(final_activation, str):
+            final_activation = get_pytorch_module_from_name(final_activation)
 
         layers = nn.ModuleList()
 
@@ -29,7 +40,11 @@ class MLP(nn.Module):
             layers.append(activation_function())
             input_size = next_size
 
-        layers.append(nn.Linear(input_size, output_size))
+        if output_size is not None:
+            layers.append(nn.Linear(input_size, output_size))
+
+            if final_activation is not None:
+                layers.append(final_activation())
 
         self.model = nn.Sequential(*layers)
 

@@ -3,6 +3,7 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.SAC import Critic as SACCritic
+from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
 class Critic(SACCritic):
@@ -11,10 +12,10 @@ class Critic(SACCritic):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int],
+        config: SACAEConfig,
     ):
         super().__init__(
-            encoder.latent_dim + vector_observation_size, num_actions, hidden_size
+            encoder.latent_dim + vector_observation_size, num_actions, config
         )
 
         self.vector_observation_size = vector_observation_size

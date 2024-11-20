@@ -1,31 +1,33 @@
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.util.common import MLP
+from cares_reinforcement_learning.util.configurations import SACConfig
+
 
 class Critic(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
+    def __init__(self, observation_size: int, num_actions: int, config: SACConfig):
         super().__init__()
 
-        self.hidden_size = hidden_size
+        self.input_size = observation_size + num_actions
+        self.hidden_size = config.hidden_size_critic
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
-        self.Q1 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1),
+        self.Q1 = MLP(
+            self.input_size,
+            self.hidden_size,
+            output_size=1,
+            final_activation=None,
         )
 
         # Q2 architecture
         # pylint: disable-next=invalid-name
-        self.Q2 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1),
+        self.Q2 = MLP(
+            self.input_size,
+            self.hidden_size,
+            output_size=1,
+            final_activation=None,
         )
 
     def forward(

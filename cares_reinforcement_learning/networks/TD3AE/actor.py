@@ -3,6 +3,7 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
+from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
 class Actor(TD3Actor):
@@ -11,11 +12,11 @@ class Actor(TD3Actor):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int],
+        config: TD3AEConfig,
     ):
 
         super().__init__(
-            encoder.latent_dim + vector_observation_size, num_actions, hidden_size
+            encoder.latent_dim + vector_observation_size, num_actions, config
         )
 
         self.encoder = encoder

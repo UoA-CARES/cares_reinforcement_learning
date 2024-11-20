@@ -1,16 +1,18 @@
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.util.configurations import SACDConfig
+
 
 class Actor(nn.Module):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
-    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
+    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig):
         super().__init__()
 
         self.num_actions = num_actions
-        self.hidden_size = hidden_size
+        self.hidden_size = config.hidden_size_actor
 
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, self.hidden_size[0]),

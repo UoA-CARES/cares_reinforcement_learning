@@ -1,12 +1,13 @@
 import torch
 from torch import nn
+from cares_reinforcement_learning.util.configurations import RDSACConfig
 
 
 class Critic(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
+    def __init__(self, observation_size: int, num_actions: int, config: RDSACConfig):
         super().__init__()
 
-        self.hidden_size = hidden_size
+        self.hidden_size = config.hidden_size_critic
 
         # Q1 architecture
         # pylint: disable-next=invalid-name

@@ -1,13 +1,14 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
+from cares_reinforcement_learning.util.configurations import RDTD3Config
 
 
 class Critic(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
+    def __init__(self, observation_size: int, num_actions: int, config: RDTD3Config):
         super().__init__()
 
-        self.hidden_size = hidden_size
+        self.hidden_size = config.hidden_size_critic
 
         # Q1 architecture
         self.h_linear_1 = nn.Linear(observation_size + num_actions, self.hidden_size[0])

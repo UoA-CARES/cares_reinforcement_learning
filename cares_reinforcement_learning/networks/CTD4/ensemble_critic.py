@@ -2,22 +2,23 @@ import torch
 from torch import nn
 
 from cares_reinforcement_learning.networks.CTD4 import DistributedCritic as Critic
+from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
 class EnsembleCritic(nn.ModuleList):
     def __init__(
         self,
-        ensemble_size: int,
         observation_size: int,
         action_num: int,
-        hidden_size: list[int],
+        config: CTD4Config,
     ):
         super().__init__()
 
-        self.ensemble_size = ensemble_size
+        self.hidden_size = config.hidden_size_critic
+        self.ensemble_size = config.ensemble_size
 
         critics = [
-            Critic(observation_size, action_num, hidden_size=hidden_size)
+            Critic(observation_size, action_num, hidden_size=self.hidden_size)
             for _ in range(self.ensemble_size)
         ]
         self.extend(critics)

@@ -5,6 +5,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
 class Actor(nn.Module):
@@ -13,13 +14,13 @@ class Actor(nn.Module):
         vector_observation_size: int,
         num_actions: int,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        hidden_size: list[int],
+        config: NaSATD3Config,
     ):
         super().__init__()
 
         self.num_actions = num_actions
         self.autoencoder = autoencoder
-        self.hidden_size = hidden_size
+        self.hidden_size = config.hidden_size_actor
         self.vector_observation_size = vector_observation_size
 
         self.act_net = nn.Sequential(

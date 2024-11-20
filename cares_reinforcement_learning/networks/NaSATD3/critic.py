@@ -5,6 +5,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
 class Critic(nn.Module):
@@ -13,12 +14,12 @@ class Critic(nn.Module):
         vector_observation_size: int,
         num_actions: int,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        hidden_size: list[int],
+        config: NaSATD3Config,
     ):
         super().__init__()
 
         self.autoencoder = autoencoder
-        self.hidden_size = hidden_size
+        self.hidden_size = config.hidden_size_critic
         self.vector_observation_size = vector_observation_size
 
         # pylint: disable-next=invalid-name

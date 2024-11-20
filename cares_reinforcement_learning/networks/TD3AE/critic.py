@@ -3,6 +3,7 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.TD3 import Critic as TD3Critic
+from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
 class Critic(TD3Critic):
@@ -11,11 +12,11 @@ class Critic(TD3Critic):
         vector_observation_size: int,
         encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int],
+        config: TD3AEConfig,
     ):
 
         super().__init__(
-            encoder.latent_dim + vector_observation_size, num_actions, hidden_size
+            encoder.latent_dim + vector_observation_size, num_actions, config
         )
 
         self.vector_observation_size = vector_observation_size
