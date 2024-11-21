@@ -10,13 +10,15 @@ class Actor(nn.Module):
         super().__init__()
 
         self.num_actions = num_actions
-        self.hidden_size = config.hidden_size_actor
+        self.hidden_sizes = config.hidden_size_actor
 
         self.act_net = MLP(
             observation_size,
-            self.hidden_size,
+            self.hidden_sizes,
             output_size=num_actions,
-            final_activation=nn.Tanh,
+            norm_layer_parameters=config.norm_layer,
+            activation_function_parameters=config.activation_function,
+            final_activation_parameters=(nn.Tanh, {}),
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:

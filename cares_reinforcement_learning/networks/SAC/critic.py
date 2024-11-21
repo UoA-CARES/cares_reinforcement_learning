@@ -10,24 +10,28 @@ class Critic(nn.Module):
         super().__init__()
 
         self.input_size = observation_size + num_actions
-        self.hidden_size = config.hidden_size_critic
+        self.hidden_sizes = config.hidden_size_critic
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q1 = MLP(
             self.input_size,
-            self.hidden_size,
+            self.hidden_sizes,
             output_size=1,
-            final_activation=None,
+            norm_layer_parameters=config.norm_layer,
+            activation_function_parameters=config.activation_function,
+            final_activation_parameters=None,
         )
 
         # Q2 architecture
         # pylint: disable-next=invalid-name
         self.Q2 = MLP(
             self.input_size,
-            self.hidden_size,
+            self.hidden_sizes,
             output_size=1,
-            final_activation=None,
+            norm_layer_parameters=config.norm_layer,
+            activation_function_parameters=config.activation_function,
+            final_activation_parameters=None,
         )
 
     def forward(

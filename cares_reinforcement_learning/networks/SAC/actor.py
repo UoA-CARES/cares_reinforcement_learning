@@ -14,18 +14,20 @@ class Actor(nn.Module):
 
         self.observation_size = observation_size
         self.num_actions = num_actions
-        self.hidden_size = config.hidden_size_actor
+        self.hidden_sizes = config.hidden_size_actor
         self.log_std_bounds = config.log_std_bounds
 
         self.act_net = MLP(
             self.observation_size,
-            self.hidden_size,
+            self.hidden_sizes,
             output_size=None,
-            final_activation=nn.ReLU,
+            norm_layer_parameters=config.norm_layer,
+            activation_function_parameters=config.activation_function,
+            final_activation_parameters=(nn.ReLU, {}),
         )
 
-        self.mean_linear = nn.Linear(self.hidden_size[-1], num_actions)
-        self.log_std_linear = nn.Linear(self.hidden_size[-1], num_actions)
+        self.mean_linear = nn.Linear(self.hidden_sizes[-1], num_actions)
+        self.log_std_linear = nn.Linear(self.hidden_sizes[-1], num_actions)
 
     def forward(
         self, state: torch.Tensor

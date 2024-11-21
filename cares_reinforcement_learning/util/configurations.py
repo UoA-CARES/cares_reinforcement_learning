@@ -1,4 +1,7 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
+from torch import nn
 
 from cares_reinforcement_learning.encoders.configurations import (
     BurgessConfig,
@@ -71,6 +74,9 @@ class AlgorithmConfig(SubscriptableClass):
     noise_decay: float = 1.0
 
     image_observation: int = 0
+
+    norm_layer: tuple[str, dict[str, Any]] | None = None
+    activation_function: tuple[str, dict[str, Any]] = (nn.ReLU.__name__, {})
 
 
 ###################################
