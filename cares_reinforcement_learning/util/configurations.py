@@ -75,8 +75,14 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: int = 0
 
-    norm_layer: tuple[str, dict[str, Any]] | None = None
-    activation_function: tuple[str, dict[str, Any]] = (nn.ReLU.__name__, {})
+    norm_layer: str | None = None
+    norm_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    activation_function: str = nn.ReLU.__name__
+    activation_function_args: dict[str, Any] = Field(default_factory=dict)
+
+    final_activation: str | None = None
+    final_activation_args: dict[str, Any] = Field(default_factory=dict)
 
 
 ###################################
@@ -95,18 +101,7 @@ class DQNConfig(AlgorithmConfig):
     hidden_size: list[int] = [512, 512]
 
 
-class DuelingDQNConfig(AlgorithmConfig):
-    algorithm: str = Field("DuelingDQN", Literal=True)
-    lr: float = 1e-3
-    gamma: float = 0.99
-
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
-
-    hidden_size: list[int] = [512, 512, 512]
-
-
-class DoubleDQNConfig(AlgorithmConfig):
+class DoubleDQNConfig(DQNConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
@@ -116,6 +111,19 @@ class DoubleDQNConfig(AlgorithmConfig):
     exploration_decay: float = 0.95
 
     hidden_size: list[int] = [512, 512]
+
+
+class DuelingDQNConfig(AlgorithmConfig):
+    algorithm: str = Field("DuelingDQN", Literal=True)
+    lr: float = 1e-3
+    gamma: float = 0.99
+
+    exploration_min: float = 1e-3
+    exploration_decay: float = 0.95
+
+    feature_hidden_size: list[int] = [512, 512]
+    value_stream_hidden_size: list[int] = [512]
+    advantage_stream_hidden_size: list[int] = [512]
 
 
 ###################################

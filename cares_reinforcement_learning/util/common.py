@@ -18,52 +18,33 @@ class MLP(nn.Module):
         input_size: int,
         hidden_sizes: list[int],
         output_size: int | None,
-        norm_layer_parameters: (
-            tuple[Callable[..., nn.Module], dict[str, Any]]
-            | tuple[str, dict[str, Any]]
-            | None
-        ) = None,
-        activation_function_parameters: (
-            tuple[Callable[..., nn.Module], dict[str, Any]] | tuple[str, dict[str, Any]]
-        ) = (nn.ReLU, {}),
-        final_activation_parameters: (
-            tuple[Callable[..., nn.Module], dict[str, Any]]
-            | tuple[str, dict[str, Any]]
-            | None
-        ) = None,
+        norm_layer: Callable[..., nn.Module] | str | None = None,
+        norm_layer_args: dict[str, Any] | None = None,
+        hidden_activation_function: Callable[..., nn.Module] | str = nn.ReLU,
+        hidden_activation_function_args: dict[str, Any] | None = None,
+        output_activation_function: Callable[..., nn.Module] | str | None = None,
+        output_activation_args: dict[str, Any] | None = None,
     ):
         super().__init__()
+        if norm_layer_args is None:
+            norm_layer_args = {}
+        if hidden_activation_function_args is None:
+            hidden_activation_function_args = {}
+        if output_activation_args is None:
+            output_activation_args = {}
 
-        norm_layer: Callable[..., nn.Module] | None = None
-        norm_layer_args: dict[str, Any] = {}
+        if isinstance(norm_layer, str):
+            norm_layer = get_pytorch_module_from_name(norm_layer)
 
-        if norm_layer_parameters is not None:
-            if isinstance(norm_layer_parameters[0], str):
-                norm_layer = get_pytorch_module_from_name(norm_layer_parameters[0])
-            else:
-                norm_layer = norm_layer_parameters[0]
-            norm_layer_args = norm_layer_parameters[1]
-
-        if isinstance(activation_function_parameters[0], str):
-            activation_function = get_pytorch_module_from_name(
-                activation_function_parameters[0]
+        if isinstance(hidden_activation_function, str):
+            hidden_activation_function = get_pytorch_module_from_name(
+                hidden_activation_function
             )
-        else:
-            activation_function = activation_function_parameters[0]
 
-        activation_function_args = activation_function_parameters[1]
-
-        final_activation: Callable[..., nn.Module] | None = None
-        final_activation_args: dict[str, Any] = {}
-
-        if final_activation_parameters is not None:
-            if isinstance(final_activation_parameters[0], str):
-                final_activation = get_pytorch_module_from_name(
-                    final_activation_parameters[0]
-                )
-            else:
-                final_activation = final_activation_parameters[0]
-            final_activation_args = final_activation_parameters[1]
+        if isinstance(output_activation_function, str):
+            output_activation_function = get_pytorch_module_from_name(
+                output_activation_function
+            )
 
         layers = nn.ModuleList()
 
@@ -73,15 +54,15 @@ class MLP(nn.Module):
             if norm_layer is not None:
                 layers.append(norm_layer(next_size, **norm_layer_args))
 
-            layers.append(activation_function(**activation_function_args))
+            layers.append(hidden_activation_function(**hidden_activation_function_args))
 
             input_size = next_size
 
         if output_size is not None:
             layers.append(nn.Linear(input_size, output_size))
 
-            if final_activation is not None:
-                layers.append(final_activation(**final_activation_args))
+            if output_activation_function is not None:
+                layers.append(output_activation_function(**output_activation_args))
 
         self.model = nn.Sequential(*layers)
 

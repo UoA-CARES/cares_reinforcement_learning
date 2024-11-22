@@ -1,6 +1,7 @@
 import torch
-import torch.nn.functional as F
 from torch import nn
+
+from cares_reinforcement_learning.util.common import MLP
 from cares_reinforcement_learning.util.configurations import RDTD3Config
 
 
@@ -8,31 +9,47 @@ class Critic(nn.Module):
     def __init__(self, observation_size: int, num_actions: int, config: RDTD3Config):
         super().__init__()
 
-        self.hidden_size = config.hidden_size_critic
+        self.input_size = observation_size + num_actions
+        self.hidden_sizes = config.hidden_size_critic
+        self.output_size = 1 + 1 + observation_size
+
+        # Default critic network should have this architecture with hidden_sizes = [256, 256]:
+        # self.Q1 = nn.Sequential(
+        #     nn.Linear(observation_size + num_actions, self.hidden_sizes[0]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_sizes[0], self.hidden_sizes[1]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_sizes[1], 1 + 1 + observation_size),
+        # )
 
         # Q1 architecture
-        self.h_linear_1 = nn.Linear(observation_size + num_actions, self.hidden_size[0])
-        self.h_linear_2 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
-        self.h_linear_3 = nn.Linear(self.hidden_size[1], 1 + 1 + observation_size)
+        # pylint: disable-next=invalid-name
+        self.Q1 = MLP(
+            self.input_size,
+            self.hidden_sizes,
+            output_size=self.output_size,
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
+        )
 
         # Q2 architecture
-        self.h_linear_12 = nn.Linear(
-            observation_size + num_actions, self.hidden_size[0]
+        # pylint: disable-next=invalid-name
+        self.Q2 = MLP(
+            self.input_size,
+            self.hidden_sizes,
+            output_size=self.output_size,
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
         )
-        self.h_linear_22 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
-        self.h_linear_32 = nn.Linear(self.hidden_size[1], 1 + 1 + observation_size)
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         obs_action = torch.cat([state, action], dim=1)
-
-        output_1 = F.relu(self.h_linear_1(obs_action))
-        output_1 = F.relu(self.h_linear_2(output_1))
-        output_1 = self.h_linear_3(output_1)
-
-        output_2 = F.relu(self.h_linear_12(obs_action))
-        output_2 = F.relu(self.h_linear_22(output_2))
-        output_2 = self.h_linear_32(output_2)
-
-        return output_1, output_2
+        output_one = self.Q1(obs_action)
+        output_two = self.Q2(obs_action)
+        return output_one, output_two

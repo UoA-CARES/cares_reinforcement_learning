@@ -14,11 +14,11 @@ class EnsembleCritic(nn.ModuleList):
     ):
         super().__init__()
 
-        self.hidden_size = config.hidden_size_critic
+        self.hidden_sizes = config.hidden_size_critic
         self.ensemble_size = config.ensemble_size
 
         critics = [
-            Critic(observation_size, action_num, hidden_size=self.hidden_size)
+            Critic(observation_size, action_num, config=config)
             for _ in range(self.ensemble_size)
         ]
         self.extend(critics)

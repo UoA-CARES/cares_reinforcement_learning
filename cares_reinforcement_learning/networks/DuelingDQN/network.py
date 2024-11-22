@@ -1,40 +1,74 @@
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.util.common import MLP
 from cares_reinforcement_learning.util.configurations import DuelingDQNConfig
 
 
-class DuelingNetwork(nn.Module):
+class Network(nn.Module):
     def __init__(
         self,
-        observation_space_size: int,
-        action_num: int,
+        observation_size: int,
+        num_actions: int,
         config: DuelingDQNConfig,
     ):
         super().__init__()
 
-        self.hidden_size = config.hidden_size
+        self.hidden_sizes = config.feature_hidden_size
+        self.value_stream_hidden_sizes = config.value_stream_hidden_size
+        self.advantage_stream_hidden_sizes = config.advantage_stream_hidden_size
 
-        self.input_dim = observation_space_size
-        self.output_dim = action_num
+        self.observation_size = observation_size
+        self.action_num = num_actions
 
-        self.feature_layer = nn.Sequential(
-            nn.Linear(self.input_dim, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
+        # Default network should have this architecture with hidden_sizes = [512, 512]:
+        # self.feature_layer = nn.Sequential(
+        #     nn.Linear(self.observation_size, self.hidden_sizes[0]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_sizes[0], self.hidden_sizes[1]),
+        #     nn.ReLU(),
+        # )
+
+        self.feature_layer = MLP(
+            observation_size,
+            self.hidden_sizes,
+            output_size=None,
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
         )
 
-        self.value_stream = nn.Sequential(
-            nn.Linear(self.hidden_size[1], self.hidden_size[2]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[2], 1),
+        # Default network should have this architecture with hidden_sizes = [512]:
+        # self.value_stream = nn.Sequential(
+        #     nn.Linear(self.hidden_sizes[1], self.hidden_sizes[2]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_sizes[2], 1),
+        # )
+        self.value_stream = MLP(
+            self.hidden_sizes[-1],
+            self.value_stream_hidden_sizes,
+            output_size=1,
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
         )
 
-        self.advantage_stream = nn.Sequential(
-            nn.Linear(self.hidden_size[1], self.hidden_size[2]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[2], self.output_dim),
+        # Default network should have this architecture with hidden_sizes = [512]:
+        # self.advantage_stream = nn.Sequential(
+        #     nn.Linear(self.hidden_sizes[1], self.hidden_sizes[2]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_sizes[2], self.action_num),
+        # )
+        self.advantage_stream = MLP(
+            self.hidden_sizes[-1],
+            self.advantage_stream_hidden_sizes,
+            output_size=self.action_num,
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:

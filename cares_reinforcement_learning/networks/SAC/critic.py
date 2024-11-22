@@ -12,15 +12,25 @@ class Critic(nn.Module):
         self.input_size = observation_size + num_actions
         self.hidden_sizes = config.hidden_size_critic
 
+        # Default critic network should have this architecture with hidden_sizes = [256, 256]:
+        # self.QN = nn.Sequential(
+        #     nn.Linear(observation_size + num_actions, self.hidden_size[0]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_size[1], 1),
+        # )
+
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q1 = MLP(
             self.input_size,
             self.hidden_sizes,
             output_size=1,
-            norm_layer_parameters=config.norm_layer,
-            activation_function_parameters=config.activation_function,
-            final_activation_parameters=None,
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
         )
 
         # Q2 architecture
@@ -29,9 +39,10 @@ class Critic(nn.Module):
             self.input_size,
             self.hidden_sizes,
             output_size=1,
-            norm_layer_parameters=config.norm_layer,
-            activation_function_parameters=config.activation_function,
-            final_activation_parameters=None,
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
         )
 
     def forward(

@@ -36,9 +36,9 @@ def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig
     Original paper https://arxiv.org/abs/1511.06581
     """
     from cares_reinforcement_learning.algorithm.value import DQN
-    from cares_reinforcement_learning.networks.DuelingDQN import DuelingNetwork
+    from cares_reinforcement_learning.networks.DuelingDQN import Network
 
-    network = DuelingNetwork(observation_size, action_num, config=config)
+    network = Network(observation_size, action_num, config=config)
 
     device = hlp.get_device()
     agent = DQN(network=network, config=config, device=device)

@@ -12,13 +12,25 @@ class Actor(nn.Module):
         self.num_actions = num_actions
         self.hidden_sizes = config.hidden_size_actor
 
+        # Default actor network should have this architecture with hidden_sizes = [256, 256]:
+        # self.act_net = nn.Sequential(
+        #     nn.Linear(observation_size, self.hidden_size[0]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+        #     nn.ReLU(),
+        #     nn.Linear(self.hidden_size[1], num_actions),
+        #     nn.Tanh(),
+        # )
+
         self.act_net = MLP(
             observation_size,
             self.hidden_sizes,
             output_size=num_actions,
-            norm_layer_parameters=config.norm_layer,
-            activation_function_parameters=config.activation_function,
-            final_activation_parameters=(nn.Tanh, {}),
+            norm_layer=config.norm_layer,
+            norm_layer_args=config.norm_layer_args,
+            hidden_activation_function=config.activation_function,
+            hidden_activation_function_args=config.activation_function_args,
+            output_activation_function=nn.Tanh,
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
