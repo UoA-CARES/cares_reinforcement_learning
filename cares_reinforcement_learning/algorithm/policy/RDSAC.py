@@ -9,14 +9,15 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
 from cares_reinforcement_learning.util.configurations import RDSACConfig
 
 
 class RDSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: RDSACConfig,
         device: torch.device,
     ):

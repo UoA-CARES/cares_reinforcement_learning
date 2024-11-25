@@ -18,14 +18,15 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
 class SACAE:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         decoder_network: Decoder,
         config: SACAEConfig,
         device: torch.device,

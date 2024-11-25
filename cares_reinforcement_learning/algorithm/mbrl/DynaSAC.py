@@ -16,6 +16,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
     EnsembleWorldReward,
 )
@@ -25,8 +26,8 @@ from cares_reinforcement_learning.util.configurations import DynaSACConfig
 class DynaSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         world_network: EnsembleWorldReward,
         config: DynaSACConfig,
         device: torch.device,

@@ -14,13 +14,14 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.DoubleDQN import Network
 from cares_reinforcement_learning.util.configurations import DoubleDQNConfig
 
 
 class DoubleDQN:
     def __init__(
         self,
-        network: torch.nn.Module,
+        network: Network,
         config: DoubleDQNConfig,
         device: torch.device,
     ):

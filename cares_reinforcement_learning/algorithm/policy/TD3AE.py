@@ -16,14 +16,15 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
 class TD3AE:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         decoder_network: Decoder,
         config: TD3AEConfig,
         device: torch.device,
@@ -216,7 +217,9 @@ class TD3AE:
             )
 
             hlp.soft_update_params(
-                self.actor_net.act_net, self.target_actor_net.act_net, self.encoder_tau
+                self.actor_net.actor.act_net,
+                self.target_actor_net.actor.act_net,
+                self.encoder_tau,
             )
 
             hlp.soft_update_params(

@@ -12,14 +12,15 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import PALTD3Config
 
 
 class PALTD3:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: PALTD3Config,
         device: torch.device,
     ):

@@ -13,14 +13,15 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.REDQ import Actor, EnsembleCritic
 from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
 class REDQ:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        ensemble_critics: torch.nn.ModuleList,
+        actor_network: Actor,
+        ensemble_critics: EnsembleCritic,
         config: REDQConfig,
         device: torch.device,
     ):
