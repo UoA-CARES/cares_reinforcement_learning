@@ -20,7 +20,7 @@ class REDQ:
     def __init__(
         self,
         actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        ensemble_critics: torch.nn.ModuleList,
         config: REDQConfig,
         device: torch.device,
     ):
@@ -44,25 +44,16 @@ class REDQ:
 
         self.target_entropy = -self.actor_net.num_actions
 
-        # ------------- Ensemble of critics ------------------#
         self.ensemble_size = config.ensemble_size
-        self.ensemble_critics = torch.nn.ModuleList()
 
-        critics = [critic_network for _ in range(self.ensemble_size)]
-        self.ensemble_critics.extend(critics)
-        self.ensemble_critics.to(device)
+        self.ensemble_critics = ensemble_critics.to(self.device)
+        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics)
 
-        # Ensemble of target critics
-        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(device)
-
-        lr_ensemble_critic = config.critic_lr
+        self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critics_optimizers = [
-            torch.optim.Adam(
-                self.ensemble_critics[i].parameters(), lr=lr_ensemble_critic
-            )
-            for i in range(self.ensemble_size)
+            torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
+            for critic_net in self.ensemble_critics
         ]
-        # -----------------------------------------#
 
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
@@ -211,6 +202,9 @@ class REDQ:
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+
         torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
         torch.save(
             self.ensemble_critics.state_dict(), f"{filepath}/{filename}_ensemble.pht"
