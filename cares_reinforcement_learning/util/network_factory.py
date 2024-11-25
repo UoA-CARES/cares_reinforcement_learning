@@ -617,6 +617,32 @@ def create_RESAC(observation_size, action_num, config: AlgorithmConfig):
     )
     return agent
 
+def create_ReSurpriseTD3(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import ReSurpriseTD3
+    from cares_reinforcement_learning.networks.TD3 import (
+        Actor,
+        Critic,
+    )
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = ReSurpriseTD3(
+        actor_network=actor,
+        critic_network=critic,
+        gamma=config.gamma,
+        tau=config.tau,
+        ensemble_size=config.ensemble_size,
+        action_num=action_num,
+        latent_size=observation_size,
+        intrinsic_on=config.intrinsic_on,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        epm_lr=config.epm_lr,
+        device=device,
+    )
+    return agent
+
 
 
 class NetworkFactory:

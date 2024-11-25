@@ -407,4 +407,18 @@ class RESACConfig(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
     reward_scale: Optional[float] = 1.0
+    
+class ReSurpriseTD3Config(AlgorithmConfig):
+    algorithm: str = Field("ReSurpriseTD3", Literal=True)
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+
+    epm_lr: Optional[float] = 1e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    ensemble_size: Optional[int] = 3
+
+    intrinsic_on: Optional[int] = 1
+
 

@@ -23,7 +23,7 @@ class MemoryFactory:
             min_priority = alg_config.min_priority
         # print(alg_config)
         # input()
-        if alg_config.algorithm in ["EpisodicTD3", "ReTD3" ,"RESAC"]:     
+        if alg_config.algorithm in ["EpisodicTD3", "ReTD3" ,"RESAC","ReSurpriseTD3"]:     
             return ManageBuffers(
                 max_capacity=alg_config.buffer_size,
                 priority_params={},

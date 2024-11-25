@@ -15,6 +15,8 @@ class LongMemoryBuffer:
         self.min_high_reward = float('inf')
         self.max_reward = -float('inf')
         self.min_index = -1
+        # print(f"max_capacity:{max_capacity}")
+        # input()
 
     def add(self, experience) -> None:
        

@@ -20,5 +20,6 @@ from .TQC import TQC
 from .EpisodicTD3 import EpisodicTD3
 from .ReTD3 import ReTD3
 from .RESAC import RESAC
+from .ReSurpriseTD3 import ReSurpriseTD3
 
 
