@@ -199,10 +199,14 @@ class TD3AE:
 
             # Update target network params
             hlp.soft_update_params(
-                self.critic_net.Q1, self.target_critic_net.Q1, self.tau
+                self.critic_net.critic.Q1,
+                self.target_critic_net.critic.Q1,
+                self.tau,
             )
             hlp.soft_update_params(
-                self.critic_net.Q2, self.target_critic_net.Q2, self.tau
+                self.critic_net.critic.Q2,
+                self.target_critic_net.critic.Q2,
+                self.tau,
             )
 
             hlp.soft_update_params(

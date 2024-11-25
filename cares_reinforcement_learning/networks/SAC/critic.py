@@ -29,9 +29,15 @@ class BaseCritic(nn.Module):
 
 # Default network should have this architecture with hidden_sizes = [256, 256]:
 class DefaultCritic(BaseCritic):
-    def __init__(self, observation_size: int, num_actions: int):
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_sizes: list[int] | None = None,
+    ):
         input_size = observation_size + num_actions
-        hidden_sizes = [256, 256]
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
         # Q1 architecture
         # pylint: disable-next=invalid-name

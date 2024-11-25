@@ -86,9 +86,12 @@ class AlgorithmConfig(SubscriptableClass):
 
     @root_validator(pre=True)
     def convert_none_to_dict(cls, values):  # pylint: disable-next=no-self-argument
-        for field, value in values.items():
-            if cls.__annotations__.get(field) == dict and value is None:
-                values[field] = {}
+        if values.get("norm_layer_args") is None:
+            values["norm_layer_args"] = {}
+        if values.get("activation_function_args") is None:
+            values["activation_function_args"] = {}
+        if values.get("final_activation_args") is None:
+            values["final_activation_args"] = {}
         return values
 
 

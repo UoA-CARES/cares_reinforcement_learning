@@ -60,9 +60,11 @@ class DefaultActor(BaseActor):
         self,
         observation_size: int,
         num_actions: int,
+        hidden_sizes: list[int] | None = None,
     ):
         log_std_bounds = [-20.0, 2.0]
-        hidden_sizes = [256, 256]
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
         act_net = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),

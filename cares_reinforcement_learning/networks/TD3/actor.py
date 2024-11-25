@@ -18,8 +18,14 @@ class BaseActor(nn.Module):
 
 
 class DefaultActor(BaseActor):
-    def __init__(self, observation_size: int, num_actions: int):
-        hidden_sizes = [256, 256]
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_sizes: list[int] | None = None,
+    ):
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
         act_net = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),

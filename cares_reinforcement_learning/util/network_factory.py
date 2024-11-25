@@ -8,8 +8,8 @@ import inspect
 import logging
 import sys
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.configurations as acf
+import cares_reinforcement_learning.util.helpers as hlp
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -123,29 +123,27 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
 
 def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
     from cares_reinforcement_learning.algorithm.policy import SACAE
-    from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
+    from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 
-    ae_factory = AEFactory()
-    autoencoder = ae_factory.create_autoencoder(
-        observation_size=observation_size["image"], config=config.autoencoder_config
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    ae_config = config.autoencoder_config
+    decoder = Decoder(
+        observation_size["image"],
+        out_dim=actor.encoder.out_dim,
+        latent_dim=ae_config.latent_dim,
+        num_layers=ae_config.num_layers,
+        num_filters=ae_config.num_filters,
+        kernel_size=ae_config.kernel_size,
     )
-
-    actor_encoder = copy.deepcopy(autoencoder.encoder)
-    critic_encoder = copy.deepcopy(autoencoder.encoder)
-
-    vector_observation_size = (
-        observation_size["vector"] if config.vector_observation else 0
-    )
-
-    actor = Actor(vector_observation_size, actor_encoder, action_num, config=config)
-    critic = Critic(vector_observation_size, critic_encoder, action_num, config=config)
 
     device = hlp.get_device()
     agent = SACAE(
         actor_network=actor,
         critic_network=critic,
-        decoder_network=autoencoder.decoder,
+        decoder_network=decoder,
         config=config,
         device=device,
     )
@@ -344,29 +342,27 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
 
 def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3AE
-    from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
+    from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 
-    ae_factory = AEFactory()
-    autoencoder = ae_factory.create_autoencoder(
-        observation_size=observation_size["image"], config=config.autoencoder_config
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    ae_config = config.autoencoder_config
+    decoder = Decoder(
+        observation_size["image"],
+        out_dim=actor.encoder.out_dim,
+        latent_dim=ae_config.latent_dim,
+        num_layers=ae_config.num_layers,
+        num_filters=ae_config.num_filters,
+        kernel_size=ae_config.kernel_size,
     )
-
-    actor_encoder = copy.deepcopy(autoencoder.encoder)
-    critic_encoder = copy.deepcopy(autoencoder.encoder)
-
-    vector_observation_size = (
-        observation_size["vector"] if config.vector_observation else 0
-    )
-
-    actor = Actor(vector_observation_size, actor_encoder, action_num, config=config)
-    critic = Critic(vector_observation_size, critic_encoder, action_num, config=config)
 
     device = hlp.get_device()
     agent = TD3AE(
         actor_network=actor,
         critic_network=critic,
-        decoder_network=autoencoder.decoder,
+        decoder_network=decoder,
         config=config,
         device=device,
     )

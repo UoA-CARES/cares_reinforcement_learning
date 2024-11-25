@@ -28,27 +28,33 @@ class BaseCritic(nn.Module):
 
 # This is the default base network for TD3 for reference and testing of default network configurations
 class DefaultCritic(BaseCritic):
-    def __init__(self, observation_size: int, num_actions: int):
-        hidden_size = [256, 256]
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_sizes: list[int] | None = None,
+    ):
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
         Q1 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, hidden_size[0]),
+            nn.Linear(observation_size + num_actions, hidden_sizes[0]),
             nn.ReLU(),
-            nn.Linear(hidden_size[0], hidden_size[1]),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
-            nn.Linear(hidden_size[1], 1),
+            nn.Linear(hidden_sizes[1], 1),
         )
 
         # Q2 architecture
         # pylint: disable-next=invalid-name
         Q2 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, hidden_size[0]),
+            nn.Linear(observation_size + num_actions, hidden_sizes[0]),
             nn.ReLU(),
-            nn.Linear(hidden_size[0], hidden_size[1]),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
-            nn.Linear(hidden_size[1], 1),
+            nn.Linear(hidden_sizes[1], 1),
         )
 
         super().__init__(Q1=Q1, Q2=Q2)
