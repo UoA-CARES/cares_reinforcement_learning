@@ -39,9 +39,10 @@ class TQC:
         self.tau = config.tau
         self.top_quantiles_to_drop = config.top_quantiles_to_drop
 
-        self.quantiles_total = (
-            self.critic_net.num_quantiles * self.critic_net.num_critics
-        )
+        num_quantiles = config.num_quantiles
+        num_critics = config.num_critics
+
+        self.quantiles_total = num_quantiles * num_critics
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq

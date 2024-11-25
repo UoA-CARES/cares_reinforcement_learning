@@ -1,4 +1,7 @@
+import importlib.util
 import inspect
+import sys
+from pathlib import Path
 from random import randrange
 
 import numpy as np
@@ -157,3 +160,51 @@ def test_algorithms(tmp_path):
             intrinsic_reward = agent.get_intrinsic_reward(
                 states[0], actions[0], next_states[0]
             )
+
+
+# def import_modules_from_folder(folder_path: str):
+#     modules = {}
+
+#     # Iterate through files in the folder
+#     for file_name in os.listdir(folder_path):
+#         # Check for Python files (excluding __init__.py)
+#         if file_name.endswith(".py") and file_name != "__init__.py":
+#             module_name = file_name[:-3]  # Strip ".py" extension
+#             file_path = os.path.join(folder_path, file_name)
+
+#             # Dynamically load the module
+#             spec = importlib.util.spec_from_file_location(module_name, file_path)
+#             module = importlib.util.module_from_spec(spec)
+#             spec.loader.exec_module(module)  # Execute the module
+#             modules[module_name] = module
+
+#     return modules
+
+
+# def test_actor_critics():
+#     algorithm_configurations = {}
+#     for name, cls in inspect.getmembers(configurations, inspect.isclass):
+#         if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
+#             name = name.replace("Config", "")
+#             algorithm_configurations[name] = cls
+
+#     observation_size_vector = 12
+
+#     observation_size_image = (9, 32, 32)
+
+#     action_num = 4
+
+#     for algorithm, alg_config in algorithm_configurations.items():
+#         alg_config = alg_config()
+
+#         observation_size = (
+#             {"image": observation_size_image, "vector": observation_size_vector}
+#             if alg_config.image_observation
+#             else observation_size_vector
+#         )
+
+#         network_path = f"{Path(__file__).parent}/networks/{algorithm}"
+#         print(f"Relative path for {algorithm}: {network_path}")
+
+#         if algorithm == "DQN":
+#             modules = import_modules_from_folder(network_path)

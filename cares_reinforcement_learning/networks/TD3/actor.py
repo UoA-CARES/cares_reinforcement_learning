@@ -5,26 +5,41 @@ from cares_reinforcement_learning.util.common import MLP
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
-class Actor(nn.Module):
-    def __init__(self, observation_size: int, num_actions: int, config: TD3Config):
+class BaseActor(nn.Module):
+    def __init__(self, act_net: nn.Module, num_actions: int):
         super().__init__()
 
         self.num_actions = num_actions
-        self.hidden_sizes = config.hidden_size_actor
+        self.act_net = act_net
 
-        # Default actor network should have this architecture with hidden_sizes = [256, 256]:
-        # self.act_net = nn.Sequential(
-        #     nn.Linear(observation_size, self.hidden_size[0]),
-        #     nn.ReLU(),
-        #     nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-        #     nn.ReLU(),
-        #     nn.Linear(self.hidden_size[1], num_actions),
-        #     nn.Tanh(),
-        # )
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        output = self.act_net(state)
+        return output
 
-        self.act_net = MLP(
+
+class DefaultActor(BaseActor):
+    def __init__(self, observation_size: int, num_actions: int):
+        hidden_sizes = [256, 256]
+
+        act_net = nn.Sequential(
+            nn.Linear(observation_size, hidden_sizes[0]),
+            nn.ReLU(),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
+            nn.ReLU(),
+            nn.Linear(hidden_sizes[1], num_actions),
+            nn.Tanh(),
+        )
+
+        super().__init__(act_net=act_net, num_actions=num_actions)
+
+
+class Actor(BaseActor):
+    def __init__(self, observation_size: int, num_actions: int, config: TD3Config):
+        hidden_sizes = config.hidden_size_actor
+
+        act_net = MLP(
             observation_size,
-            self.hidden_sizes,
+            hidden_sizes,
             output_size=num_actions,
             norm_layer=config.norm_layer,
             norm_layer_args=config.norm_layer_args,
@@ -33,6 +48,4 @@ class Actor(nn.Module):
             output_activation_function=nn.Tanh,
         )
 
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
-        output = self.act_net(state)
-        return output
+        super().__init__(act_net=act_net, num_actions=num_actions)
