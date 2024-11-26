@@ -70,7 +70,10 @@ class DDPG:
         dones: torch.Tensor,
     ) -> float:
         with torch.no_grad():
+            self.target_actor_net.eval()
             next_actions = self.target_actor_net(next_states)
+            self.target_actor_net.train()
+
             target_q_values = self.target_critic_net(next_states, next_actions)
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -84,7 +87,10 @@ class DDPG:
         return critic_loss.item()
 
     def _update_actor(self, states: torch.Tensor) -> float:
+        self.critic_net.eval()
         actor_q = self.critic_net(states, self.actor_net(states))
+        self.critic_net.train()
+
         actor_loss = -actor_q.mean()
 
         self.actor_net_optimiser.zero_grad()

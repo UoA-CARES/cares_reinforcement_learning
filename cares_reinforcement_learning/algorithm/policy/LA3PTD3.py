@@ -33,7 +33,10 @@ class LA3PTD3:
         self.critic_net = critic_network.to(self.device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -101,6 +104,7 @@ class LA3PTD3:
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.policy_noise * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
             next_actions = next_actions + target_noise
@@ -109,6 +113,7 @@ class LA3PTD3:
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
@@ -118,7 +123,6 @@ class LA3PTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        # Handle per alpha here or not...
         if uniform_sampling:
             pal_loss_one = hlp.prioritized_approximate_loss(
                 td_error_one, self.min_priority, self.per_alpha
@@ -161,7 +165,10 @@ class LA3PTD3:
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         # Update Actor
-        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actions = self.actor_net(states)
+        with hlp.evaluating(self.critic_net):
+            actor_q_values, _ = self.critic_net(states, actions)
+
         actor_loss = -actor_q_values.mean()
 
         self.actor_net_optimiser.zero_grad()

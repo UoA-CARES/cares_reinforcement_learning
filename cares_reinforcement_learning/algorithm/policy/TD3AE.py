@@ -35,8 +35,10 @@ class TD3AE:
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)
-        self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         # tie the encoder weights
         self.actor_net.encoder.copy_conv_weights_from(self.critic_net.encoder)
@@ -136,7 +138,10 @@ class TD3AE:
 
     def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
         actions = self.actor_net(states, detach_encoder=True)
-        actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
+
         actor_loss = -actor_q_values.mean()
 
         self.actor_net_optimiser.zero_grad()

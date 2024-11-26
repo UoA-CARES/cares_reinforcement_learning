@@ -35,6 +35,7 @@ class TQC:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -101,7 +102,8 @@ class TQC:
     ) -> float:
         batch_size = len(states)
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             # compute and cut quantiles at the next state
             # batch x nets x quantiles
@@ -130,7 +132,11 @@ class TQC:
     def _update_actor(self, states: torch.Tensor) -> tuple[float, float]:
         new_action, log_pi, _ = self.actor_net(states)
 
-        mean_qf_pi = self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
+        with hlp.evaluating(self.critic_net):
+            mean_qf_pi = (
+                self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
+            )
+
         actor_loss = (self.alpha * log_pi - mean_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()

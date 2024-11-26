@@ -162,26 +162,7 @@ def test_algorithms(tmp_path):
             )
 
 
-# def import_modules_from_folder(folder_path: str):
-#     modules = {}
-
-#     # Iterate through files in the folder
-#     for file_name in os.listdir(folder_path):
-#         # Check for Python files (excluding __init__.py)
-#         if file_name.endswith(".py") and file_name != "__init__.py":
-#             module_name = file_name[:-3]  # Strip ".py" extension
-#             file_path = os.path.join(folder_path, file_name)
-
-#             # Dynamically load the module
-#             spec = importlib.util.spec_from_file_location(module_name, file_path)
-#             module = importlib.util.module_from_spec(spec)
-#             spec.loader.exec_module(module)  # Execute the module
-#             modules[module_name] = module
-
-#     return modules
-
-
-# def test_actor_critics():
+# def test_network_default_configurations():
 #     algorithm_configurations = {}
 #     for name, cls in inspect.getmembers(configurations, inspect.isclass):
 #         if issubclass(cls, AlgorithmConfig) and cls != AlgorithmConfig:
@@ -203,8 +184,39 @@ def test_algorithms(tmp_path):
 #             else observation_size_vector
 #         )
 
-#         network_path = f"{Path(__file__).parent}/networks/{algorithm}"
-#         print(f"Relative path for {algorithm}: {network_path}")
+#         configuration_path = Path(configurations.__file__).parent
+#         network_path = f"{configuration_path.parent}/networks/{algorithm}"
 
-#         if algorithm == "DQN":
-#             modules = import_modules_from_folder(network_path)
+#         modules = import_modules_from_folder(network_path)
+
+#         model_equal = True
+
+#         for name, module in modules.items():
+#             class_name = "".join(word.capitalize() for word in name.split("_"))
+
+#             module_equal = False
+
+#             if hasattr(module, f"Default{class_name}"):
+
+#                 cls = getattr(
+#                     module,
+#                     class_name,
+#                 )
+#                 default_cls = getattr(module, f"Default{class_name}")
+
+#                 try:
+#                     network = cls(observation_size, action_num, alg_config)
+#                     default_network = default_cls(observation_size, action_num)
+#                 except TypeError:
+#                     network = cls(observation_size, alg_config)
+#                     default_network = default_cls(observation_size)
+
+#                 module_equal = compare_networks(network, default_network)
+
+#             model_equal = model_equal and module_equal
+
+#             if not module_equal:
+#                 print(f"{algorithm} {name} {model_equal=}")
+
+#         if not model_equal:
+#             print(f"{algorithm} {model_equal=}")

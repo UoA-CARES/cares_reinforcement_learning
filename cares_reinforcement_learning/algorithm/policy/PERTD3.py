@@ -30,7 +30,9 @@ class PERTD3:
         self.critic_net = critic_network.to(device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -123,7 +125,11 @@ class PERTD3:
         return critic_loss_total.item(), priorities
 
     def _update_actor(self, states: torch.Tensor) -> float:
-        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actions = self.actor_net(states)
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_values, _ = self.critic_net(states, actions)
+
         actor_loss = -actor_q_values.mean()
 
         self.actor_net_optimiser.zero_grad()

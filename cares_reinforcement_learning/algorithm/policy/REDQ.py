@@ -48,7 +48,10 @@ class REDQ:
         self.ensemble_size = config.ensemble_size
 
         self.ensemble_critics = ensemble_critics.to(self.device)
-        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics)
+        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(
+            self.device
+        )
+        self.target_ensemble_critics.eval()  # never in training mode - helps with batch/drop out layers
 
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critics_optimizers = [
@@ -96,7 +99,8 @@ class REDQ:
         dones: torch.Tensor,
     ) -> list[float]:
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one = self.target_ensemble_critics[idx[0]](
                 next_states, next_actions

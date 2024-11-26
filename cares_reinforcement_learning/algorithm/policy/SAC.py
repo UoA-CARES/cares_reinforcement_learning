@@ -37,6 +37,7 @@ class SAC:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -95,7 +96,9 @@ class SAC:
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
+
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -122,7 +125,10 @@ class SAC:
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
+
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states, pi)
+
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()

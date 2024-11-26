@@ -34,10 +34,14 @@ class CTD4:
         self.device = device
 
         self.actor_net = actor_network.to(self.device)
-        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.ensemble_critics = ensemble_critics.to(self.device)
-        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics)
+        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(
+            self.device
+        )
+        self.target_ensemble_critics.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -157,6 +161,7 @@ class CTD4:
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.target_policy_noise_scale * torch.randn_like(
                 next_actions
             )
@@ -166,8 +171,10 @@ class CTD4:
 
             u_set = []
             std_set = []
+
             for target_critic_net in self.target_ensemble_critics:
                 u, std = target_critic_net(next_states, next_actions)
+
                 u_set.append(u)
                 std_set.append(std)
 
@@ -213,10 +220,14 @@ class CTD4:
 
         actor_q_u_set = []
         actor_q_std_set = []
-        for critic_net in self.ensemble_critics:
-            actor_q_u, actor_q_std = critic_net(states, self.actor_net(states))
-            actor_q_u_set.append(actor_q_u)
-            actor_q_std_set.append(actor_q_std)
+
+        actions = self.actor_net(states)
+        with hlp.evaluating(self.ensemble_critics):
+            for critic_net in self.ensemble_critics:
+                actor_q_u, actor_q_std = critic_net(states, actions)
+
+                actor_q_u_set.append(actor_q_u)
+                actor_q_std_set.append(actor_q_std)
 
         if self.fusion_method == "kalman":
             # Kalman filter combination of all critics and then a single mean for the actor loss

@@ -14,8 +14,8 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.util.configurations import LA3PSACConfig
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
+from cares_reinforcement_learning.util.configurations import LA3PSACConfig
 
 
 class LA3PSAC:
@@ -33,6 +33,7 @@ class LA3PSAC:
         self.critic_net = critic_network.to(device)
 
         self.target_critic_net = copy.deepcopy(self.critic_net)  # .to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -103,11 +104,13 @@ class LA3PSAC:
         dones = dones.unsqueeze(0).reshape(len(dones), 1)
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * next_log_pi
@@ -163,10 +166,12 @@ class LA3PSAC:
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         # Update Actor
-        next_actions, next_log_pi, _ = self.actor_net(states)
+        actions, next_log_pi, _ = self.actor_net(states)
+
         target_q_values_one, target_q_values_two = self.target_critic_net(
-            states, next_actions
+            states, actions
         )
+
         min_q_values = torch.minimum(target_q_values_one, target_q_values_two)
         actor_loss = ((self.alpha * next_log_pi) - min_q_values).mean()
 
