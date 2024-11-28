@@ -1,35 +1,37 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 
 class Critic(nn.Module):
-    def __init__(self, observation_size, num_actions):
+    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
         super().__init__()
 
-        self.hidden_size = [256, 256]
+        self.hidden_size = hidden_size
 
         # Q1 architecture
-        self.h_linear_1 = nn.Linear(observation_size + num_actions, self.hidden_size[0])
-        self.h_linear_2 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
-        self.h_linear_3 = nn.Linear(self.hidden_size[1], 1)
+        # pylint: disable-next=invalid-name
+        self.Q1 = nn.Sequential(
+            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[1], 1),
+        )
 
         # Q2 architecture
-        self.h_linear_12 = nn.Linear(
-            observation_size + num_actions, self.hidden_size[0]
+        # pylint: disable-next=invalid-name
+        self.Q2 = nn.Sequential(
+            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[1], 1),
         )
-        self.h_linear_22 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
-        self.h_linear_32 = nn.Linear(self.hidden_size[1], 1)
 
-    def forward(self, state, action):
+    def forward(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         obs_action = torch.cat([state, action], dim=1)
-
-        q1 = F.relu(self.h_linear_1(obs_action))
-        q1 = F.relu(self.h_linear_2(q1))
-        q1 = self.h_linear_3(q1)
-
-        q2 = F.relu(self.h_linear_12(obs_action))
-        q2 = F.relu(self.h_linear_22(q2))
-        q2 = self.h_linear_32(q2)
-
+        q1 = self.Q1(obs_action)
+        q2 = self.Q2(obs_action)
         return q1, q2

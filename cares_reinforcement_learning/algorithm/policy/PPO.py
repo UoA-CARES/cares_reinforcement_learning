@@ -10,45 +10,50 @@ Code based on:
 
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import PPOConfig
+
 
 class PPO:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        action_num,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        config: PPOConfig,
+        device: torch.device,
     ):
         self.type = "policy"
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
-        self.gamma = gamma
-        self.action_num = action_num
+        self.gamma = config.gamma
+        self.action_num = self.actor_net.num_actions
         self.device = device
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
-        self.k = 10
-        self.eps_clip = 0.2
-        self.cov_var = torch.full(size=(action_num,), fill_value=0.5).to(self.device)
+        self.updates_per_iteration = config.updates_per_iteration
+        self.eps_clip = config.eps_clip
+        self.cov_var = torch.full(size=(self.action_num,), fill_value=0.5).to(
+            self.device
+        )
         self.cov_mat = torch.diag(self.cov_var)
 
-    def select_action_from_policy(self, state):
+    def select_action_from_policy(
+        self, state: torch.Tensor
+    ) -> tuple[np.ndarray, np.ndarray]:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -68,14 +73,18 @@ class PPO:
         self.actor_net.train()
         return action, log_prob
 
-    def evaluate_policy(self, state, action):
+    def _evaluate_policy(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         v = self.critic_net(state).squeeze()  # shape 5000
         mean = self.actor_net(state)  # shape, 5000, 1
         dist = MultivariateNormal(mean, self.cov_mat)
         log_prob = dist.log_prob(action)  # shape, 5000
         return v, log_prob
 
-    def calculate_rewards_to_go(self, batch_rewards, batch_dones):
+    def _calculate_rewards_to_go(
+        self, batch_rewards: torch.FloatTensor, batch_dones: torch.FloatTensor
+    ) -> torch.Tensor:
         rtgs = []
         discounted_reward = 0
         for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
@@ -84,8 +93,8 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-    def train_policy(self, memory, batch_size=0):
-        info = {}
+    def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> dict[str, Any]:
+        # pylint: disable-next=unused-argument
 
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences
@@ -97,39 +106,37 @@ class PPO:
         dones = torch.LongTensor(np.asarray(dones)).to(self.device)
         log_probs = torch.FloatTensor(np.asarray(log_probs)).to(self.device)
 
-        log_probs = log_probs.squeeze()  # torch.Size([5000])
+        log_probs = log_probs.squeeze()
 
         # compute reward to go:
-        rtgs = self.calculate_rewards_to_go(rewards, dones)  # torch.Size([5000])
+        rtgs = self._calculate_rewards_to_go(rewards, dones)
         # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
 
         # calculate advantages
-        v, _ = self.evaluate_policy(states, actions)  # torch.Size([5000])
+        v, _ = self._evaluate_policy(states, actions)
 
-        advantages = rtgs.detach() - v.detach()  # torch.Size([5000])
-        advantages = (advantages - advantages.mean()) / (
-            advantages.std() + 1e-10
-        )  # Normalize advantages
+        advantages = rtgs.detach() - v.detach()
+
+        # Normalize advantages
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
 
         td_errors = torch.abs(advantages)
         td_errors = td_errors.data.cpu().numpy()
 
-        for _ in range(self.k):
-            v, curr_log_probs = self.evaluate_policy(states, actions)
+        for _ in range(self.updates_per_iteration):
+            v, curr_log_probs = self._evaluate_policy(states, actions)
 
             # Calculate ratios
-            ratios = torch.exp(
-                curr_log_probs - log_probs.detach()
-            )  # torch.Size([5000])
+            ratios = torch.exp(curr_log_probs - log_probs.detach())
 
             # Finding Surrogate Loss
-            surr1 = ratios * advantages  # torch.Size([5000])
-            surr2 = (
+            surrogate_lose_one = ratios * advantages
+            surrogate_lose_two = (
                 torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-            )  # torch.Size([5000])
+            )
 
             # final loss of clipped objective PPO
-            actor_loss = (-torch.minimum(surr1, surr2)).mean()
+            actor_loss = (-torch.minimum(surrogate_lose_one, surrogate_lose_two)).mean()
             critic_loss = F.mse_loss(v, rtgs)
 
             self.actor_net_optimiser.zero_grad()
@@ -140,26 +147,22 @@ class PPO:
             critic_loss.backward()
             self.critic_net_optimiser.step()
 
-        info["td_error"] = td_errors
-        info["actor_loss"] = actor_loss
-        info["critic_loss"] = critic_loss
+        info = {}
+        info["td_errors"] = td_errors
+        info["critic_loss"] = critic_loss.item()
+        info["actor_loss"] = actor_loss.item()
 
         return info
 
-    def save_models(self, filename, filepath="models"):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+    def load_models(self, filepath: str, filename: str) -> None:
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

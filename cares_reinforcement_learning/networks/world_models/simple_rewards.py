@@ -1,11 +1,12 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
-from cares_reinforcement_learning.util.helpers import weight_init
+from torch import nn
+
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 class SimpleReward(nn.Module):
-    def __init__(self, observation_size, num_actions, hidden_size):
+    def __init__(self, observation_size: int, num_actions: int, hidden_size: int):
         """
         Note, This reward function is limited to 0 ~ 1 for dm_control.
         A reward model with fully connected layers. It takes current states (s)
@@ -21,9 +22,12 @@ class SimpleReward(nn.Module):
         self.linear1 = nn.Linear(observation_size + num_actions, hidden_size)
         self.linear2 = nn.Linear(hidden_size, hidden_size)
         self.linear3 = nn.Linear(hidden_size, 1)
-        self.apply(weight_init)
 
-    def forward(self, obs, actions, normalized=False):
+        self.apply(hlp.weight_init)
+
+    def forward(
+        self, observation: torch.Tensor, actions: torch.Tensor, normalized: bool = False
+    ) -> torch.Tensor:
         """
         Forward the inputs throught the network.
         Note: For DMCS environment, the reward is from 0~1.
@@ -34,15 +38,14 @@ class SimpleReward(nn.Module):
 
         :return (Tensors) x -- predicted rewards.
         """
-        assert (
-            obs.shape[1] + actions.shape[1] == self.observation_size + self.num_actions
-        )
-        x = torch.cat((obs, actions), dim=1)
+        x = torch.cat((observation, actions), dim=1)
         x = self.linear1(x)
         x = F.relu(x)
         x = self.linear2(x)
         x = F.relu(x)
         x = self.linear3(x)
+
         if normalized:
             x = F.sigmoid(x)
+
         return x

@@ -1,11 +1,13 @@
+import torch
 from torch import nn
 
 
 class Actor(nn.Module):
-    def __init__(self, observation_size, num_actions):
+    def __init__(self, observation_size: int, num_actions: int, hidden_size: list[int]):
         super().__init__()
 
-        self.hidden_size = [256, 256]
+        self.num_actions = num_actions
+        self.hidden_size = hidden_size
 
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, self.hidden_size[0]),
@@ -16,6 +18,6 @@ class Actor(nn.Module):
             nn.Tanh(),
         )
 
-    def forward(self, state):
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
         output = self.act_net(state)
         return output

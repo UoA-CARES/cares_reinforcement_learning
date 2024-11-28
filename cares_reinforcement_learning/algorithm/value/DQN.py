@@ -1,23 +1,36 @@
+"""
+Original Paper: https://arxiv.org/abs/1312.5602
+"""
+
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import DQNConfig, DuelingDQNConfig
+
 
 class DQN:
-    def __init__(self, network, gamma, network_lr, device):
+    def __init__(
+        self,
+        network: torch.nn.Module,
+        config: DQNConfig | DuelingDQNConfig,
+        device: torch.device,
+    ):
         self.type = "value"
         self.network = network.to(device)
         self.device = device
-        self.gamma = gamma
+        self.gamma = config.gamma
 
         self.network_optimiser = torch.optim.Adam(
-            self.network.parameters(), lr=network_lr
+            self.network.parameters(), lr=config.lr
         )
 
-    def select_action_from_policy(self, state):
+    def select_action_from_policy(self, state) -> int:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -27,11 +40,9 @@ class DQN:
         self.network.train()
         return action
 
-    def train_policy(self, memory, batch_size):
-        info = {}
-
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, _, _ = experiences
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         # Convert into tensor
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -49,30 +60,25 @@ class DQN:
 
         q_target = rewards + self.gamma * (1 - dones) * best_next_q_values
 
+        info = {}
+
         # Update the Network
         loss = F.mse_loss(best_q_values, q_target)
         self.network_optimiser.zero_grad()
         loss.backward()
         self.network_optimiser.step()
 
-        info["q_target"] = q_target
-        info["q_values_min"] = best_q_values
-        info["network_loss"] = loss
+        info["loss"] = loss.item()
 
         return info
 
-    def save_models(self, filename, filepath="models"):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.network.state_dict(), f"{path}/{filename}_network.pht")
+        torch.save(self.network.state_dict(), f"{filepath}/{filename}_network.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.network.load_state_dict(torch.load(f"{path}/{filename}_network.pht"))
+    def load_models(self, filepath: str, filename: str) -> None:
+        self.network.load_state_dict(torch.load(f"{filepath}/{filename}_network.pht"))
         logging.info("models has been loaded...")

@@ -1,20 +1,23 @@
-import torch.nn.functional as F
+import torch
 from torch import nn
 
 
 class Critic(nn.Module):
-    def __init__(self, observation_size):
+    def __init__(self, observation_size: int, hidden_size: list[int]):
         super().__init__()
 
-        self.hidden_size = [1024, 1024]
+        self.hidden_size = hidden_size
 
         # Q1 architecture
-        self.h_linear_1 = nn.Linear(observation_size, self.hidden_size[0])
-        self.h_linear_2 = nn.Linear(self.hidden_size[0], self.hidden_size[1])
-        self.h_linear_3 = nn.Linear(self.hidden_size[1], 1)
+        # pylint: disable-next=invalid-name
+        self.Q1 = nn.Sequential(
+            nn.Linear(observation_size, self.hidden_size[0]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.ReLU(),
+            nn.Linear(self.hidden_size[1], 1),
+        )
 
-    def forward(self, state):
-        q1 = F.relu(self.h_linear_1(state))
-        q1 = F.relu(self.h_linear_2(q1))
-        q1 = self.h_linear_3(q1)
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        q1 = self.Q1(state)
         return q1

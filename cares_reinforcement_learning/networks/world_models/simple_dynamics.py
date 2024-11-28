@@ -1,12 +1,9 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
 import torch.utils
-from cares_reinforcement_learning.util.helpers import (
-    weight_init,
-    normalize_observation,
-    denormalize_observation_delta,
-)
+from torch import nn
+
+import cares_reinforcement_learning.util.helpers as hlp
 
 
 class SimpleDynamics(nn.Module):
@@ -25,18 +22,23 @@ class SimpleDynamics(nn.Module):
     :param (int) hidden_size -- size of neurons in hidden layers.
     """
 
-    def __init__(self, observation_size, num_actions, hidden_size):
+    def __init__(self, observation_size: int, num_actions: int, hidden_size: int):
         super().__init__()
         self.observation_size = observation_size
         self.num_actions = num_actions
+
         self.layer1 = nn.Linear(observation_size + num_actions, hidden_size)
         self.layer2 = nn.Linear(hidden_size, hidden_size)
         self.mean_layer = nn.Linear(hidden_size, observation_size)
         self.logvar_layer = nn.Linear(hidden_size, observation_size)
-        self.apply(weight_init)
+
+        self.apply(hlp.weight_init)
+
         self.statistics = {}
 
-    def forward(self, obs, actions):
+    def forward(
+        self, observation: torch.Tensor, actions: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Forward the inputs throught the network.
 
@@ -50,20 +52,23 @@ class SimpleDynamics(nn.Module):
         :return (Tensors) normalized_var -- normalized delta of var for
         uncertainty estimation.
         """
-        assert (
-            obs.shape[1] + actions.shape[1] == self.observation_size + self.num_actions
-        )
+
         # Always normalized obs
-        normalized_obs = normalize_observation(obs, self.statistics)
+        normalized_obs = hlp.normalize_observation(observation, self.statistics)
+
         x = torch.cat((normalized_obs, actions), dim=1)
         x = self.layer1(x)
         x = F.relu(x)
         x = self.layer2(x)
         x = F.relu(x)
+
         normalized_mean = self.mean_layer(x)
         logvar = self.logvar_layer(x)
         logvar = torch.tanh(logvar)
         normalized_var = torch.exp(logvar)
+
         # Always denormalized delta
-        mean_deltas = denormalize_observation_delta(normalized_mean, self.statistics)
+        mean_deltas = hlp.denormalize_observation_delta(
+            normalized_mean, self.statistics
+        )
         return mean_deltas, normalized_mean, normalized_var

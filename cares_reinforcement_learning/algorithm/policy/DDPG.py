@@ -1,44 +1,56 @@
+"""
+Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
+"""
+
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import DDPGConfig
+
 
 class DDPG:
     def __init__(
         self,
-        actor_network,
-        critic_network,
-        gamma,
-        tau,
-        actor_lr,
-        critic_lr,
-        device,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        config: DDPGConfig,
+        device: torch.device,
     ):
         self.type = "policy"
-        self.actor_net = actor_network.to(device)
-        self.critic_net = critic_network.to(device)
-
-        self.target_actor_net = copy.deepcopy(self.actor_net).to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
-
-        self.gamma = gamma
-        self.tau = tau
-
-        self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
-        )
-        self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
-        )
-
         self.device = device
 
-    # pylint: disable-next=unused-argument
-    def select_action_from_policy(self, state, evaluation=None, noise_scale=0):
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+
+        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net)
+
+        self.gamma = config.gamma
+        self.tau = config.tau
+
+        self.actor_net_optimiser = torch.optim.Adam(
+            self.actor_net.parameters(), lr=config.actor_lr
+        )
+        self.critic_net_optimiser = torch.optim.Adam(
+            self.critic_net.parameters(), lr=config.critic_lr
+        )
+
+    def select_action_from_policy(
+        self,
+        state: np.ndarray,
+        evaluation: bool = False,
+        noise_scale: float = 0,
+    ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
@@ -48,9 +60,41 @@ class DDPG:
         self.actor_net.train()
         return action
 
-    def train_policy(self, memory, batch_size):
-        experiences = memory.sample(batch_size)
-        states, actions, rewards, next_states, dones, indices, _ = experiences
+    def _update_critic(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+    ) -> float:
+        with torch.no_grad():
+            next_actions = self.target_actor_net(next_states)
+            target_q_values = self.target_critic_net(next_states, next_actions)
+            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+
+        q_values = self.critic_net(states, actions)
+
+        critic_loss = F.mse_loss(q_values, q_target)
+        self.critic_net_optimiser.zero_grad()
+        critic_loss.backward()
+        self.critic_net_optimiser.step()
+
+        return critic_loss.item()
+
+    def _update_actor(self, states: torch.Tensor) -> float:
+        actor_q = self.critic_net(states, self.actor_net(states))
+        actor_loss = -actor_q.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
 
         batch_size = len(states)
 
@@ -65,56 +109,30 @@ class DDPG:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        # We do not want the gradients calculated for any of the target old_networks, we manually update the parameters
-        with torch.no_grad():
-            next_actions = self.target_actor_net(next_states)
-            target_q_values = self.target_critic_net(next_states, next_actions)
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+        info = {}
 
-        q_values = self.critic_net(states, actions)
+        # Update Critic
+        critic_loss = self._update_critic(states, actions, rewards, next_states, dones)
+        info["critic_loss"] = critic_loss
 
-        # Update the Critic Network
-        critic_loss = F.mse_loss(q_values, q_target)
-        self.critic_net_optimiser.zero_grad()
-        critic_loss.backward()
-        self.critic_net_optimiser.step()
+        # Update Actor
+        actor_loss = self._update_actor(states)
+        info["actor_loss"] = actor_loss
 
-        # Update the Actor Network
-        actor_q = self.critic_net(states, self.actor_net(states))
-        actor_loss = -actor_q.mean()
+        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
-        self.actor_net_optimiser.zero_grad()
-        actor_loss.backward()
-        self.actor_net_optimiser.step()
+        return info
 
-        for target_param, param in zip(
-            self.target_critic_net.parameters(), self.critic_net.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        for target_param, param in zip(
-            self.target_actor_net.parameters(), self.actor_net.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
-
-    def save_models(self, filename, filepath="models"):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+    def load_models(self, filepath: str, filename: str) -> None:
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")
