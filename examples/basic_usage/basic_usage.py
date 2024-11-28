@@ -8,49 +8,21 @@ from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 from cares_reinforcement_learning.util import helpers as hlp, Record
+from cares_reinforcement_learning.util.configurations import TD3Config
 
 import gymnasium as gym
-import torch
-
-if torch.cuda.is_available():
-    DEVICE = torch.device("cuda")
-    print("Working with GPU")
-else:
-    DEVICE = torch.device("cpu")
-    print("Working with CPU")
-
-BUFFER_CAPACITY = 100_000
-
-GAMMA = 0.995
-TAU = 0.005
-
-ACTOR_LR = 1e-4
-CRITIC_LR = 1e-3
-
-EPISODE_NUM = 10
-BATCH_SIZE = 64
-
-MAX_STEPS_TRAINING = 1_000_000
-MAX_STEPS_EXPLORATION = 10_000
-G = 10
-
 
 env = gym.make("Pendulum-v1", g=9.81)
 
 
 def main():
 
-    record = Record(
-        glob_log_dir="global_logs",
-        log_dir="local_logs",
-        algorithm="TD3",
-        task="Pendulum-v1",
-    )
+    config = TD3Config()
 
     observation_size = env.observation_space.shape[0]
     action_num = env.action_space.shape[0]
 
-    memory = MemoryBuffer(BUFFER_CAPACITY)
+    memory = MemoryBuffer(config.buffer_size)
 
     actor_network = Actor(observation_size, action_num)
     critic_network = Critic(observation_size, action_num)
@@ -58,19 +30,21 @@ def main():
     td3 = TD3(
         actor_network=actor_network,
         critic_network=critic_network,
-        gamma=GAMMA,
-        tau=TAU,
-        action_num=action_num,
-        actor_lr=ACTOR_LR,
-        critic_lr=CRITIC_LR,
-        device=DEVICE,
+        config=config,
+    )
+
+    record = Record(
+        base_directory="logs",
+        algorithm="TD3",
+        task="Pendulum",
+        agent=td3,
     )
 
     print(f"Training Beginning")
     train(td3, memory, record)
 
 
-def train(td3: TD3, memory: MemoryBuffer, record: Record):
+def train(td3: TD3, memory: MemoryBuffer, record: Record, config: TD3Config):
 
     episode_num = 1
     episode_timesteps = 0
@@ -78,16 +52,15 @@ def train(td3: TD3, memory: MemoryBuffer, record: Record):
 
     state, _ = env.reset()
 
-    for total_step_counter in range(int(MAX_STEPS_TRAINING)):
+    for total_step_counter in range(int(config.max_steps_training)):
         episode_timesteps += 1
 
-        if total_step_counter < MAX_STEPS_EXPLORATION:
+        if total_step_counter < config.max_steps_exploration:
             print(
-                f"Running Exploration Steps {total_step_counter + 1}/{MAX_STEPS_EXPLORATION}"
+                f"Running Exploration Steps {total_step_counter + 1}/{config.max_steps_exploration}"
             )
 
             action_env = env.action_space.sample()
-            # algorithm range [-1, 1] - note for DMCS this is redudenant but required for openai
             action = hlp.normalize(
                 action_env, env.action_space.high[0], env.action_space.low[0]
             )
@@ -103,17 +76,17 @@ def train(td3: TD3, memory: MemoryBuffer, record: Record):
         memory.add(state, action, reward, next_state, done)
 
         state = next_state
-        episode_reward += reward  # Note we only track the extrinsic reward for the episode for proper comparison
+        episode_reward += reward
 
-        if total_step_counter >= MAX_STEPS_EXPLORATION:
-            for _ in range(G):
-                experience = memory.sample(BATCH_SIZE)
+        if total_step_counter >= config.max_steps_exploration:
+            for _ in range(config.G):
+                experience = memory.sample(config.batch_size)
                 td3.train_policy(experience)
 
         if done or truncated:
             record.log_train(
                 total_steps=total_step_counter + 1,
-                episode=episode_num,
+                episode=episode_num + 1,
                 episode_steps=episode_timesteps,
                 episode_reward=episode_reward,
                 display=True,
