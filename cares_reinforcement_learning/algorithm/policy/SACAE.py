@@ -16,16 +16,18 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
 class SACAE:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        decoder_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
+        decoder_network: Decoder,
         config: SACAEConfig,
         device: torch.device,
     ):
@@ -38,6 +40,7 @@ class SACAE:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         # tie the encoder weights
         self.actor_net.encoder.copy_conv_weights_from(self.critic_net.encoder)
@@ -53,15 +56,14 @@ class SACAE:
         self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
-        self.target_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         actor_beta = 0.9
         critic_beta = 0.9
         alpha_beta = 0.5
 
-        # set target entropy to -|A|
-        self.target_entropy = -np.prod(self.actor_net.num_actions)
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr, betas=(actor_beta, 0.999)
@@ -94,13 +96,14 @@ class SACAE:
             [self.log_alpha], lr=config.alpha_lr, betas=(alpha_beta, 0.999)
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self,
         state: dict[str, np.ndarray],
         evaluation: bool = False,
         noise_scale: float = 0,
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
@@ -128,7 +131,8 @@ class SACAE:
     ) -> tuple[float, float, float]:
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
@@ -158,7 +162,9 @@ class SACAE:
         self, states: dict[str, torch.Tensor]
     ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
-        qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
+
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
@@ -235,10 +241,10 @@ class SACAE:
         if self.learn_counter % self.target_update_freq == 0:
             # Update the target networks - Soft Update
             hlp.soft_update_params(
-                self.critic_net.Q1, self.target_critic_net.Q1, self.tau
+                self.critic_net.critic.Q1, self.target_critic_net.critic.Q1, self.tau
             )
             hlp.soft_update_params(
-                self.critic_net.Q2, self.target_critic_net.Q2, self.tau
+                self.critic_net.critic.Q2, self.target_critic_net.critic.Q2, self.tau
             )
             hlp.soft_update_params(
                 self.critic_net.encoder,
@@ -252,22 +258,18 @@ class SACAE:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
-        torch.save(self.decoder_net.state_dict(), f"{path}/{filename}_decoder.pht")
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
+        torch.save(self.decoder_net.state_dict(), f"{filepath}/{filename}_decoder.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
-        self.decoder_net.load_state_dict(torch.load(f"{path}/{filename}_decoder.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+        self.decoder_net.load_state_dict(
+            torch.load(f"{filepath}/{filename}_decoder.pht")
+        )
         logging.info("models has been loaded...")

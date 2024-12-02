@@ -14,16 +14,18 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
 class TD3AE:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        decoder_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
+        decoder_network: Decoder,
         config: TD3AEConfig,
         device: torch.device,
     ):
@@ -33,8 +35,10 @@ class TD3AE:
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)
-        self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         # tie the encoder weights
         self.actor_net.encoder.copy_conv_weights_from(self.critic_net.encoder)
@@ -52,7 +56,7 @@ class TD3AE:
         self.policy_noise = 0.2
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
         self.action_num = self.actor_net.num_actions
 
@@ -134,7 +138,10 @@ class TD3AE:
 
     def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
         actions = self.actor_net(states, detach_encoder=True)
-        actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
+
         actor_loss = -actor_q_values.mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -198,10 +205,14 @@ class TD3AE:
 
             # Update target network params
             hlp.soft_update_params(
-                self.critic_net.Q1, self.target_critic_net.Q1, self.tau
+                self.critic_net.critic.Q1,
+                self.target_critic_net.critic.Q1,
+                self.tau,
             )
             hlp.soft_update_params(
-                self.critic_net.Q2, self.target_critic_net.Q2, self.tau
+                self.critic_net.critic.Q2,
+                self.target_critic_net.critic.Q2,
+                self.tau,
             )
 
             hlp.soft_update_params(
@@ -211,7 +222,9 @@ class TD3AE:
             )
 
             hlp.soft_update_params(
-                self.actor_net.act_net, self.target_actor_net.act_net, self.encoder_tau
+                self.actor_net.actor.act_net,
+                self.target_actor_net.actor.act_net,
+                self.encoder_tau,
             )
 
             hlp.soft_update_params(
@@ -224,20 +237,18 @@ class TD3AE:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
+        torch.save(self.decoder_net.state_dict(), f"{filepath}/{filename}_decoder.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+        self.decoder_net.load_state_dict(
+            torch.load(f"{filepath}/{filename}_decoder.pht")
+        )
         logging.info("models has been loaded...")

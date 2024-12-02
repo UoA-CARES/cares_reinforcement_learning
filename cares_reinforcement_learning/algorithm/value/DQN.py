@@ -11,13 +11,17 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
+from cares_reinforcement_learning.networks.DuelingDQN import (
+    Network as DuelingDQNNetwork,
+)
 from cares_reinforcement_learning.util.configurations import DQNConfig, DuelingDQNConfig
 
 
 class DQN:
     def __init__(
         self,
-        network: torch.nn.Module,
+        network: DQNNetwork | DuelingDQNNetwork,
         config: DQNConfig | DuelingDQNConfig,
         device: torch.device,
     ):
@@ -30,7 +34,7 @@ class DQN:
             self.network.parameters(), lr=config.lr
         )
 
-    def select_action_from_policy(self, state):
+    def select_action_from_policy(self, state) -> int:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -72,18 +76,13 @@ class DQN:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.network.state_dict(), f"{path}/{filename}_network.pht")
+        torch.save(self.network.state_dict(), f"{filepath}/{filename}_network.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.network.load_state_dict(torch.load(f"{path}/{filename}_network.pht"))
+        self.network.load_state_dict(torch.load(f"{filepath}/{filename}_network.pht"))
         logging.info("models has been loaded...")

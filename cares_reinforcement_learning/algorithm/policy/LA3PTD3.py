@@ -14,14 +14,15 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import LA3PTD3Config
 
 
 class LA3PTD3:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: LA3PTD3Config,
         device: torch.device,
     ):
@@ -32,7 +33,10 @@ class LA3PTD3:
         self.critic_net = critic_network.to(self.device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -45,7 +49,7 @@ class LA3PTD3:
         self.policy_noise = 0.2
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
         self.action_num = self.actor_net.num_actions
 
@@ -100,6 +104,7 @@ class LA3PTD3:
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.policy_noise * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
             next_actions = next_actions + target_noise
@@ -108,6 +113,7 @@ class LA3PTD3:
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
@@ -117,7 +123,6 @@ class LA3PTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        # Handle per alpha here or not...
         if uniform_sampling:
             pal_loss_one = hlp.prioritized_approximate_loss(
                 td_error_one, self.min_priority, self.per_alpha
@@ -160,7 +165,10 @@ class LA3PTD3:
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         # Update Actor
-        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actions = self.actor_net(states)
+        with hlp.evaluating(self.critic_net):
+            actor_q_values, _ = self.critic_net(states, actions)
+
         actor_loss = -actor_q_values.mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -232,20 +240,15 @@ class LA3PTD3:
         info = {"uniform": info_uniform, "priority": info_priority}
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

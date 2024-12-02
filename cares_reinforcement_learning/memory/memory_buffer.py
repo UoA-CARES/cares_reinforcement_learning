@@ -62,13 +62,15 @@ class MemoryBuffer:
         d_beta: float = 6e-7,
         **priority_params,
     ):
+        # pylint: disable-next=unused-argument
+
         self.max_capacity = max_capacity
 
         # size is the current size of the buffer
         self.current_size = 0
 
         # Functionally is an array of buffers for each experience type
-        self.memory_buffers = []
+        self.memory_buffers = []  # type: ignore
         # 0 state = []
         # 1 action = []
         # 2 reward = []
@@ -165,7 +167,7 @@ class MemoryBuffer:
         return (*experiences, indices.tolist())
 
     def _importance_sampling_prioritised_weights(
-        self, indices: list[int], weight_normalisation="batch"
+        self, indices: np.ndarray, weight_normalisation="batch"
     ) -> np.ndarray:
         """
         Calculates the importance-sampling weights for prioritized replay and prioritises based on population max.
@@ -173,7 +175,7 @@ class MemoryBuffer:
         PER Paper: https://arxiv.org/pdf/1511.05952.pdf
 
         Args:
-            indices (list[int]): A list of indices representing the transitions to calculate weights for.
+            indices (np.ndarray): A list of indices representing the transitions to calculate weights for.
             weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
@@ -193,6 +195,7 @@ class MemoryBuffer:
 
         weights = (probabilities * self.current_size) ** (-self.beta)
 
+        max_weight = 1.0
         # Batch normalisation is the default and normalises the weights by the maximum weight in the batch
         if weight_normalisation == "batch":
             max_weight = weights.max()
@@ -304,7 +307,7 @@ class MemoryBuffer:
             reversed_priorities[indices].tolist(),
         )
 
-    def update_priorities(self, indices: list[int], priorities: np.ndarray) -> None:
+    def update_priorities(self, indices: np.ndarray, priorities: np.ndarray) -> None:
         """
         Update the priorities of the replay buffer at the given indices.
 
@@ -351,7 +354,7 @@ class MemoryBuffer:
         candididate_indices = list(range(self.current_size - 1))
 
         # A list of candidate indices includes all indices.
-        sampled_indices = []  # randomly sampled indices that is okay.
+        sampled_indices: list[int] = []  # randomly sampled indices that is okay.
         # In this way, the sampling time depends on the batch size rather than buffer size.
 
         # Add in only experiences that are not done and not already sampled.
@@ -364,20 +367,18 @@ class MemoryBuffer:
                 if (not done) and (i not in sampled_indices):
                     sampled_indices.append(i)
 
-        sampled_indices = np.array(sampled_indices)
-
         experiences = []
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[sampled_indices].tolist())
+            experiences.append(buffer[np.array(sampled_indices)].tolist())
 
-        next_sampled_indices = sampled_indices + 1
+        next_sampled_indices = (np.array(sampled_indices) + 1).tolist()
 
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[next_sampled_indices].tolist())
+            experiences.append(buffer[np.array(next_sampled_indices)].tolist())
 
-        return (*experiences, sampled_indices.tolist())
+        return (*experiences, sampled_indices)
 
     def get_statistics(self) -> dict[str, np.ndarray]:
         """

@@ -10,21 +10,22 @@ Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learni
 import copy
 import logging
 import os
-from typing import Any, Literal
+from typing import Any
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.CTD4 import Actor, EnsembleCritic
 from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
 class CTD4:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        ensemble_critics: torch.nn.ModuleList,
+        actor_network: Actor,
+        ensemble_critics: EnsembleCritic,
         config: CTD4Config,
         device: torch.device,
     ):
@@ -33,10 +34,14 @@ class CTD4:
         self.device = device
 
         self.actor_net = actor_network.to(self.device)
-        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.ensemble_critics = ensemble_critics.to(self.device)
-        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics)
+        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(
+            self.device
+        )
+        self.target_ensemble_critics.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -50,7 +55,7 @@ class CTD4:
         self.fusion_method = config.fusion_method
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
         self.action_num = self.actor_net.num_actions
 
@@ -156,6 +161,7 @@ class CTD4:
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.target_policy_noise_scale * torch.randn_like(
                 next_actions
             )
@@ -165,8 +171,10 @@ class CTD4:
 
             u_set = []
             std_set = []
+
             for target_critic_net in self.target_ensemble_critics:
                 u, std = target_critic_net(next_states, next_actions)
+
                 u_set.append(u)
                 std_set.append(std)
 
@@ -212,26 +220,26 @@ class CTD4:
 
         actor_q_u_set = []
         actor_q_std_set = []
-        for critic_net in self.ensemble_critics:
-            actor_q_u, actor_q_std = critic_net(states, self.actor_net(states))
-            actor_q_u_set.append(actor_q_u)
-            actor_q_std_set.append(actor_q_std)
+
+        actions = self.actor_net(states)
+        with hlp.evaluating(self.ensemble_critics):
+            for critic_net in self.ensemble_critics:
+                actor_q_u, actor_q_std = critic_net(states, actions)
+
+                actor_q_u_set.append(actor_q_u)
+                actor_q_std_set.append(actor_q_std)
 
         if self.fusion_method == "kalman":
             # Kalman filter combination of all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._kalman(actor_q_u_set, actor_q_std_set)
+            fusion_u_a, _ = self._kalman(actor_q_u_set, actor_q_std_set)
 
         elif self.fusion_method == "average":
             # Average combination of all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._average(
-                actor_q_u_set, actor_q_std_set, batch_size
-            )
+            fusion_u_a, _ = self._average(actor_q_u_set, actor_q_std_set, batch_size)
 
         elif self.fusion_method == "minimum":
             # Minimum all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._minimum(
-                actor_q_u_set, actor_q_std_set, batch_size
-            )
+            fusion_u_a, _ = self._minimum(actor_q_u_set, actor_q_std_set, batch_size)
 
         actor_loss = -fusion_u_a.mean()
 
@@ -289,23 +297,19 @@ class CTD4:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
         torch.save(
-            self.ensemble_critics.state_dict(), f"{path}/{filename}_ensemble.pht"
+            self.ensemble_critics.state_dict(), f"{filepath}/{filename}_ensemble.pht"
         )
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        actor_path = f"{path}/{filename}_actor.pht"
-        ensemble_path = f"{path}/{filename}_ensemble.pht"
+        actor_path = f"{filepath}/{filename}_actor.pht"
+        ensemble_path = f"{filepath}/{filename}_ensemble.pht"
 
         self.actor_net.load_state_dict(torch.load(actor_path))
         self.ensemble_critics.load_state_dict(torch.load(ensemble_path))

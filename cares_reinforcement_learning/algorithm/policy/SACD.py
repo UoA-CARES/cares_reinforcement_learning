@@ -16,14 +16,15 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
 class SACD:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: SACDConfig,
         device: torch.device,
     ):
@@ -36,13 +37,15 @@ class SACD:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         self.action_num = self.actor_net.num_actions
 
@@ -67,10 +70,11 @@ class SACD:
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
@@ -97,7 +101,8 @@ class SACD:
         dones: torch.Tensor,
     ) -> float:
         with torch.no_grad():
-            _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
             qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
 
@@ -131,7 +136,9 @@ class SACD:
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
-        qf1_pi, qf2_pi = self.critic_net(states)
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states)
+
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         inside_term = self.alpha * log_action_probs - min_qf_pi
@@ -181,31 +188,27 @@ class SACD:
         )
         info["critic_loss"] = critic_loss_total
 
-        # Update the Actor and Alpha
-        actor_loss, alpha_loss = self._update_actor_alpha(states)
-        info["actor_loss"] = actor_loss
-        info["alpha_loss"] = alpha_loss
-        info["alpha"] = self.alpha.item()
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor and Alpha
+            actor_loss, alpha_loss = self._update_actor_alpha(states)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.TQC import Actor, Critic
 from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.configurations import TQCConfig
 
@@ -21,10 +22,10 @@ from cares_reinforcement_learning.util.configurations import TQCConfig
 class TQC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: TQCConfig,
-        device: str,
+        device: torch.device,
     ):
         self.type = "policy"
 
@@ -34,17 +35,20 @@ class TQC:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
         self.top_quantiles_to_drop = config.top_quantiles_to_drop
 
-        self.quantiles_total = (
-            self.critic_net.num_quantiles * self.critic_net.num_critics
-        )
+        num_quantiles = config.num_quantiles
+        num_critics = config.num_critics
+
+        self.quantiles_total = num_quantiles * num_critics
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         self.device = device
 
@@ -65,10 +69,11 @@ class TQC:
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select tanh(mean) as action
         # so _, _, action = self.actor_net(state_tensor)
         self.actor_net.eval()
@@ -76,17 +81,9 @@ class TQC:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                (
-                    action,
-                    _,
-                    _,
-                ) = self.actor_net(state_tensor)
+                (action, _, _) = self.actor_net(state_tensor)
             else:
-                (
-                    _,
-                    _,
-                    action,
-                ) = self.actor_net(state_tensor)
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -105,7 +102,8 @@ class TQC:
     ) -> float:
         batch_size = len(states)
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             # compute and cut quantiles at the next state
             # batch x nets x quantiles
@@ -134,7 +132,11 @@ class TQC:
     def _update_actor(self, states: torch.Tensor) -> tuple[float, float]:
         new_action, log_pi, _ = self.actor_net(states)
 
-        mean_qf_pi = self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
+        with hlp.evaluating(self.critic_net):
+            mean_qf_pi = (
+                self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
+            )
+
         actor_loss = (self.alpha * log_pi - mean_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -177,31 +179,28 @@ class TQC:
         )
         info["critic_loss"] = critic_loss_total
 
-        # Update the Actor
-        actor_loss, alpha_loss = self._update_actor(states)
-        info["actor_loss"] = actor_loss
-        info["alpha_loss"] = alpha_loss
-        info["alpha"] = self.alpha.item()
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor
+            actor_loss, alpha_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
 
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

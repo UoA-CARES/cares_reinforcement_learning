@@ -14,14 +14,15 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 from cares_reinforcement_learning.util.configurations import LA3PSACConfig
 
 
 class LA3PSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: LA3PSACConfig,
         device: torch.device,
     ):
@@ -32,6 +33,7 @@ class LA3PSAC:
         self.critic_net = critic_network.to(device)
 
         self.target_critic_net = copy.deepcopy(self.critic_net)  # .to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -42,7 +44,7 @@ class LA3PSAC:
         self.prioritized_fraction = config.prioritized_fraction
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.target_update_freq = config.target_update_freq
 
         self.target_entropy = -self.actor_net.num_actions
 
@@ -62,6 +64,8 @@ class LA3PSAC:
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
@@ -100,11 +104,13 @@ class LA3PSAC:
         dones = dones.unsqueeze(0).reshape(len(dones), 1)
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * next_log_pi
@@ -160,10 +166,12 @@ class LA3PSAC:
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         # Update Actor
-        next_actions, next_log_pi, _ = self.actor_net(states)
+        actions, next_log_pi, _ = self.actor_net(states)
+
         target_q_values_one, target_q_values_two = self.target_critic_net(
-            states, next_actions
+            states, actions
         )
+
         min_q_values = torch.minimum(target_q_values_one, target_q_values_two)
         actor_loss = ((self.alpha * next_log_pi) - min_q_values).mean()
 
@@ -188,7 +196,7 @@ class LA3PSAC:
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
         priority_batch_size = int(batch_size * self.prioritized_fraction)
 
-        policy_update = self.learn_counter % self.policy_update_freq == 0
+        target_update = self.learn_counter % self.target_update_freq == 0
 
         ######################### UNIFORM SAMPLING #########################
         experiences = memory.sample_uniform(uniform_batch_size)
@@ -214,7 +222,7 @@ class LA3PSAC:
         info_uniform["alpha_loss"] = alpha_loss
         info_uniform["alpha"] = self.alpha.item()
 
-        if policy_update:
+        if target_update:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
@@ -235,7 +243,7 @@ class LA3PSAC:
 
         memory.update_priorities(indices, priorities)
 
-        if policy_update:
+        if target_update:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### ACTOR PRIORITIZED SAMPLING #########################
@@ -250,20 +258,15 @@ class LA3PSAC:
         info = {"uniform": info_uniform, "priority": info_priority}
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

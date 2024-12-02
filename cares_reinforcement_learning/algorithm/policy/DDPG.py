@@ -5,7 +5,7 @@ Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
 import copy
 import logging
 import os
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -13,14 +13,15 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
 class DDPG:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: DDPGConfig,
         device: torch.device,
     ):
@@ -43,13 +44,14 @@ class DDPG:
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self,
         state: np.ndarray,
-        evaluation: Optional[bool] = False,
+        evaluation: bool = False,
         noise_scale: float = 0,
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state)
@@ -68,7 +70,10 @@ class DDPG:
         dones: torch.Tensor,
     ) -> float:
         with torch.no_grad():
+            self.target_actor_net.eval()
             next_actions = self.target_actor_net(next_states)
+            self.target_actor_net.train()
+
             target_q_values = self.target_critic_net(next_states, next_actions)
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -82,7 +87,10 @@ class DDPG:
         return critic_loss.item()
 
     def _update_actor(self, states: torch.Tensor) -> float:
+        self.critic_net.eval()
         actor_q = self.critic_net(states, self.actor_net(states))
+        self.critic_net.train()
+
         actor_loss = -actor_q.mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -123,20 +131,15 @@ class DDPG:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

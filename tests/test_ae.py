@@ -29,10 +29,12 @@ def test_ae():
 
         config = config(latent_dim=100)
 
-        autoencoder = factory.create_autoencoder(
-            observation_size=observation_size, config=config
-        )
-        assert autoencoder is not None, f"{ae} was not created successfully"
+        try:
+            autoencoder = factory.create_autoencoder(
+                observation_size=observation_size, config=config
+            )
+        except Exception as e:
+            pytest.fail(f"Exception making autoencoder: {ae} {e}")
 
         autoencoder = autoencoder.to(device)
 

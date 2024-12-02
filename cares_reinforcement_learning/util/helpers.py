@@ -1,8 +1,5 @@
-import logging
 import random
-import os
-from datetime import datetime
-from pathlib import Path
+from contextlib import contextmanager
 
 import numpy as np
 import torch
@@ -19,8 +16,18 @@ def get_device() -> torch.device:
     return device
 
 
+@contextmanager
+def evaluating(model):
+    """Context manager for temporarily setting a model to eval mode."""
+    try:
+        model.eval()
+        yield model
+    finally:
+        model.train()
+
+
 def image_state_dict_to_tensor(
-    state: dict[str, np.ndarray], device: str
+    state: dict[str, np.ndarray], device: torch.device
 ) -> dict[str, torch.Tensor]:
     vector_tensor = torch.FloatTensor(state["vector"])
     vector_tensor = vector_tensor.unsqueeze(0).to(device)
@@ -33,7 +40,7 @@ def image_state_dict_to_tensor(
 
 
 def image_states_dict_to_tensor(
-    states: list[dict[str, np.ndarray]], device: str
+    states: list[dict[str, np.ndarray]], device: torch.device
 ) -> dict[str, torch.Tensor]:
     states_images = [state["image"] for state in states]
     states_vector = [state["vector"] for state in states]
@@ -47,50 +54,6 @@ def image_states_dict_to_tensor(
     states_images = states_images / 255
 
     return {"image": states_images, "vector": states_vector}
-
-
-def create_path_from_format_string(
-    format_str: str,
-    algorithm: str,
-    domain: str,
-    task: str,
-    gym: str,
-    seed: int,
-    run_name: str,
-) -> str:
-    """
-    Create a path from a format string
-    :param format_str: The format string to use
-    :param domain: The domain of the environment
-    :param task: The task of the environment
-    :param gym: The gym environment
-    :param seed: The seed used
-    :param run_name: The name of the run
-    :return: The path
-    """
-
-    base_dir = os.environ.get("CARES_LOG_BASE_DIR", f"{Path.home()}/cares_rl_logs")
-
-    domain_with_hyphen_or_empty = f"{domain}-" if domain != "" else ""
-    domain_task = domain_with_hyphen_or_empty + task
-
-    date = datetime.now().strftime("%y_%m_%d_%H-%M-%S")
-
-    run_name_else_date = run_name if run_name != "" else date
-    run_name_else_unnamed = run_name if run_name != "" else "unnamed"
-
-    log_dir = format_str.format(
-        algorithm=algorithm,
-        domain=domain,
-        task=task,
-        gym=gym,
-        run_name=run_name_else_unnamed,
-        run_name_else_date=run_name_else_date,
-        seed=seed,
-        domain_task=domain_task,
-        date=date,
-    )
-    return f"{base_dir}/{log_dir}"
 
 
 def set_seed(seed: int) -> None:
@@ -115,7 +78,7 @@ def soft_update_params(net, target_net, tau):
     Soft updates the parameters of a neural network by blending them with the parameters of a target network.
 
     Args:
-        net (torch.nn.Module): The neural network whose parameters will be updated.
+        net (torch.nn.Module): The neural network whose parameters which will be used to update the target network.
         target_net (torch.nn.Module): The target neural network whose parameters will be blended with the `net` parameters.
         tau (float): The blending factor. The updated parameters will be a weighted average of the `net` parameters and the `target_net` parameters.
 

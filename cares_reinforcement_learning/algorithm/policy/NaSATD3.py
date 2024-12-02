@@ -12,8 +12,11 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
@@ -21,11 +24,10 @@ from cares_reinforcement_learning.util.configurations import NaSATD3Config
 class NaSATD3:
     def __init__(
         self,
-        autoencoder: nn.Module,
-        actor_network: nn.Module,
-        critic_network: nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: NaSATD3Config,
-        device: str,
+        device: torch.device,
     ):
         self.type = "policy"
         self.device = device
@@ -40,25 +42,31 @@ class NaSATD3:
         self.intrinsic_on = config.intrinsic_on
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
-        self.autoencoder = autoencoder.to(device)
+        # Doesn't matter which autoencoder is used, as long as it is the same for all networks
+        self.autoencoder: VanillaAutoencoder | BurgessAutoencoder = (
+            actor_network.autoencoder
+        )
 
         self.actor = actor_network.to(device)
         self.critic = critic_network.to(device)
 
-        self.actor_target = copy.deepcopy(self.actor)
-        self.critic_target = copy.deepcopy(self.critic)
-
-        self.action_num = self.actor.num_actions
+        self.actor_target = copy.deepcopy(self.actor).to(device)
+        self.critic_target = copy.deepcopy(self.critic).to(device)
 
         # Necessary to make the same autoencoder in the whole algorithm
+        self.actor.autoencoder = self.autoencoder
+        self.critic.autoencoder = self.autoencoder
+
         self.actor_target.autoencoder = self.autoencoder
         self.critic_target.autoencoder = self.autoencoder
 
+        self.action_num = self.actor.num_actions
+
         self.ensemble_predictive_model = nn.ModuleList()
         networks = [
-            EPDM(self.autoencoder.latent_dim, self.action_num)
+            EPDM(self.autoencoder.latent_dim, self.action_num, config)
             for _ in range(self.ensemble_size)
         ]
         self.ensemble_predictive_model.extend(networks)
@@ -256,12 +264,14 @@ class NaSATD3:
 
             # Update target network params
             # Note: the encoders in target networks are the same of main networks, so I wont update them
-            hlp.soft_update_params(self.critic.Q1, self.critic_target.Q1, self.tau)
-            hlp.soft_update_params(self.critic.Q2, self.critic_target.Q2, self.tau)
-
             hlp.soft_update_params(
-                self.actor.act_net, self.actor_target.act_net, self.tau
+                self.critic.critic.Q1, self.critic_target.critic.Q1, self.tau
             )
+            hlp.soft_update_params(
+                self.critic.critic.Q2, self.critic_target.critic.Q2, self.tau
+            )
+
+            hlp.soft_update_params(self.actor.actor, self.actor_target.actor, self.tau)
 
         # Update intrinsic models
         if self.intrinsic_on:
@@ -386,34 +396,31 @@ class NaSATD3:
 
     #     return original_img, rec_img
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-        torch.save(self.actor.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic.state_dict(), f"{filepath}/{filename}_critic.pht")
         torch.save(
-            self.autoencoder.encoder.state_dict(), f"{path}/{filename}_encoder.pht"
+            self.autoencoder.encoder.state_dict(), f"{filepath}/{filename}_encoder.pht"
         )
         torch.save(
-            self.autoencoder.decoder.state_dict(), f"{path}/{filename}_decoder.pht"
+            self.autoencoder.decoder.state_dict(), f"{filepath}/{filename}_decoder.pht"
         )
         torch.save(
             self.ensemble_predictive_model.state_dict(),
-            f"{path}/{filename}_ensemble.pht",
+            f"{filepath}/{filename}_ensemble.pht",
         )
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         self.autoencoder.encoder.load_state_dict(
-            torch.load(f"{path}/{filename}_encoder.pht")
+            torch.load(f"{filepath}/{filename}_encoder.pht")
         )
         self.autoencoder.decoder.load_state_dict(
-            torch.load(f"{path}/{filename}_decoder.pht")
+            torch.load(f"{filepath}/{filename}_decoder.pht")
         )
         logging.info("models has been loaded...")

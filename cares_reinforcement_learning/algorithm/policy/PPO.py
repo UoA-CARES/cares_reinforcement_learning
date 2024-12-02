@@ -18,14 +18,15 @@ import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.util.configurations import PPOConfig
 
 
 class PPO:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: PPOConfig,
         device: torch.device,
     ):
@@ -94,6 +95,8 @@ class PPO:
         return batch_rtgs
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> dict[str, Any]:
+        # pylint: disable-next=unused-argument
+
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences
 
@@ -152,20 +155,15 @@ class PPO:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models"):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath: str, filename: str):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+    def load_models(self, filepath: str, filename: str) -> None:
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

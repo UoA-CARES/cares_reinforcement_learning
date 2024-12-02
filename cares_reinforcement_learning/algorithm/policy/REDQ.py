@@ -13,14 +13,15 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.REDQ import Actor, EnsembleCritic
 from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
 class REDQ:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        ensemble_critics: EnsembleCritic,
         config: REDQConfig,
         device: torch.device,
     ):
@@ -29,7 +30,8 @@ class REDQ:
         self.tau = config.tau
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
         self.device = device
 
@@ -43,25 +45,19 @@ class REDQ:
 
         self.target_entropy = -self.actor_net.num_actions
 
-        # ------------- Ensemble of critics ------------------#
         self.ensemble_size = config.ensemble_size
-        self.ensemble_critics = torch.nn.ModuleList()
 
-        critics = [critic_network for _ in range(self.ensemble_size)]
-        self.ensemble_critics.extend(critics)
-        self.ensemble_critics.to(device)
+        self.ensemble_critics = ensemble_critics.to(self.device)
+        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(
+            self.device
+        )
+        self.target_ensemble_critics.eval()  # never in training mode - helps with batch/drop out layers
 
-        # Ensemble of target critics
-        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics).to(device)
-
-        lr_ensemble_critic = config.critic_lr
+        self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critics_optimizers = [
-            torch.optim.Adam(
-                self.ensemble_critics[i].parameters(), lr=lr_ensemble_critic
-            )
-            for i in range(self.ensemble_size)
+            torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
+            for critic_net in self.ensemble_critics
         ]
-        # -----------------------------------------#
 
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
@@ -73,6 +69,8 @@ class REDQ:
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         # so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
@@ -101,7 +99,8 @@ class REDQ:
         dones: torch.Tensor,
     ) -> list[float]:
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one = self.target_ensemble_critics[idx[0]](
                 next_states, next_actions
@@ -191,13 +190,14 @@ class REDQ:
         )
         info["critic_loss_totals"] = critic_loss_totals
 
-        # Update the Actor
-        actor_loss, alpha_loss = self._update_actor_alpha(idx, states)
-        info["actor_loss"] = actor_loss
-        info["alpha_loss"] = alpha_loss
-        info["alpha"] = self.alpha.item()
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor
+            actor_loss, alpha_loss = self._update_actor_alpha(idx, states)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
                 self.ensemble_critics, self.target_ensemble_critics
@@ -206,23 +206,19 @@ class REDQ:
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
         torch.save(
-            self.ensemble_critics.state_dict(), f"{path}/{filename}_ensemble.pht"
+            self.ensemble_critics.state_dict(), f"{filepath}/{filename}_ensemble.pht"
         )
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        actor_path = f"{path}/{filename}_actor.pht"
-        ensemble_path = f"{path}/{filename}_ensemble.pht"
+        actor_path = f"{filepath}/{filename}_actor.pht"
+        ensemble_path = f"{filepath}/{filename}_ensemble.pht"
 
         self.actor_net.load_state_dict(torch.load(actor_path))
         self.ensemble_critics.load_state_dict(torch.load(ensemble_path))
