@@ -276,10 +276,10 @@ def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
     actor = Actor(
         observation_size,
         action_num,
-        hidden_size=config.hidden_size,
+        hidden_size=config.hidden_size_actor,
         log_std_bounds=config.log_std_bounds,
     )
-    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size)
+    critic = Critic(observation_size, action_num, hidden_size=config.hidden_size_critic)
 
     device = hlp.get_device()
     agent = CrossQ(

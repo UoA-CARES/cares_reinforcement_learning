@@ -161,20 +161,6 @@ class PPOConfig(AlgorithmConfig):
 ###################################
 
 
-class CrossQConfig(AlgorithmConfig):
-    algorithm: str = Field("CrossQ", Literal=True)
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-    alpha_lr: float = 1e-3
-
-    gamma: float = 0.99
-    reward_scale: float = 1.0
-
-    log_std_bounds: list[float] = [-5, 2]
-
-    policy_update_freq: int = 3
-
-
 class SACDConfig(AlgorithmConfig):
     algorithm: str = Field("SACD", Literal=True)
     actor_lr: float = 3e-4
@@ -408,6 +394,23 @@ class RDSACConfig(SACConfig):
 
     hidden_size_actor: list[int] = [256, 256]
     hidden_size_critic: list[int] = [256, 256]
+
+
+class CrossQConfig(AlgorithmConfig):
+    algorithm: str = Field("CrossQ", Literal=True)
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+    alpha_lr: float = 1e-3
+
+    gamma: float = 0.99
+    reward_scale: float = 1.0
+
+    log_std_bounds: list[float] = [-5, 2]
+
+    policy_update_freq: int = 3
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [2048, 2048]
 
 
 class DynaSACConfig(SACConfig):

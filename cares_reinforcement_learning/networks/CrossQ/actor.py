@@ -28,12 +28,13 @@ class Actor(nn.Module):
 
         momentum = 0.01
         self.act_net = nn.Sequential(
+            BatchRenorm1d(observation_size, momentum=momentum),
             nn.Linear(observation_size, self.hidden_size[0], bias=False),
+            nn.ReLU(),
             BatchRenorm1d(self.hidden_size[0], momentum=momentum),
-            nn.ReLU(),
             nn.Linear(self.hidden_size[0], self.hidden_size[1], bias=False),
-            BatchRenorm1d(self.hidden_size[1], momentum=momentum),
             nn.ReLU(),
+            BatchRenorm1d(self.hidden_size[1], momentum=momentum),
         )
 
         self.mean_linear = nn.Linear(self.hidden_size[1], num_actions)
