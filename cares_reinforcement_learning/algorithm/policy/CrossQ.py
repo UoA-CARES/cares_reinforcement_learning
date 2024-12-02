@@ -13,15 +13,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
 from cares_reinforcement_learning.util.configurations import CrossQConfig
 
 
 class CrossQ:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: CrossQConfig,
         device: torch.device,
     ):
@@ -89,9 +91,8 @@ class CrossQ:
     ) -> tuple[float, float, float]:
 
         with torch.no_grad():
-            self.actor_net.eval()
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
-            self.actor_net.train()
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
         cat_states = torch.cat([states, next_states], dim=0)
         cat_actions = torch.cat([actions, next_actions], dim=0)
@@ -125,9 +126,8 @@ class CrossQ:
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
 
-        self.critic_net.eval()
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
-        self.critic_net.train()
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states, pi)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
@@ -136,11 +136,6 @@ class CrossQ:
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
-
-        with torch.no_grad():
-            self.actor_net.eval()
-            _, log_pi, _ = self.actor_net(states)
-            self.actor_net.train()
 
         # update the temperature (alpha)
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
