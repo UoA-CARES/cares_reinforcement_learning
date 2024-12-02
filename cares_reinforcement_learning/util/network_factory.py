@@ -371,24 +371,13 @@ def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
 
 def create_NaSATD3(observation_size, action_num, config: acf.NaSATD3Config):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
-    from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
     from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 
-    ae_factory = AEFactory()
-    autoencoder = ae_factory.create_autoencoder(
-        observation_size=observation_size["image"], config=config.autoencoder_config
-    )
-
-    vector_observation_size = (
-        observation_size["vector"] if config.vector_observation else 0
-    )
-
-    actor = Actor(vector_observation_size, action_num, autoencoder, config=config)
-    critic = Critic(vector_observation_size, action_num, autoencoder, config=config)
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
     agent = NaSATD3(
-        autoencoder=autoencoder,
         actor_network=actor,
         critic_network=critic,
         config=config,

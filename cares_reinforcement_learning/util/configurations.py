@@ -488,7 +488,7 @@ class TD3AEConfig(TD3Config):
     )
 
 
-class NaSATD3Config(AlgorithmConfig):
+class NaSATD3Config(TD3Config):
     algorithm: str = Field("NaSATD3", Literal=True)
 
     image_observation: int = 1

@@ -7,26 +7,14 @@ import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
-# pylint: disable-next=invalid-name
-class EPDM(nn.Module):
-    def __init__(self, latent_size: int, num_actions: int, hidden_size: list[int]):
+class BaseEPDM(nn.Module):
+    def __init__(self, prediction_net: nn.Module):
         super().__init__()
 
-        self.input_dim = latent_size + num_actions
-        self.output_dim = latent_size
-        self.hidden_size = hidden_size
-
-        self.prediction_net = nn.Sequential(
-            nn.Linear(in_features=self.input_dim, out_features=self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(
-                in_features=self.hidden_size[0], out_features=self.hidden_size[1]
-            ),
-            nn.ReLU(),
-            nn.Linear(in_features=self.hidden_size[1], out_features=self.output_dim),
-        )
+        self.prediction_net = prediction_net
 
         self.apply(hlp.weight_init)
 
@@ -34,3 +22,40 @@ class EPDM(nn.Module):
         x = torch.cat([state, action], dim=1)
         out = self.prediction_net(x)
         return out
+
+
+class DefaultEPDM(BaseEPDM):
+    def __init__(self, observation_size: int, num_actions: int):
+        input_dim = observation_size + num_actions
+        output_dim = observation_size
+
+        hidden_sizes = [512, 512]
+
+        prediction_net = nn.Sequential(
+            nn.Linear(in_features=input_dim, out_features=hidden_sizes[0]),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_sizes[0], out_features=hidden_sizes[1]),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_sizes[1], out_features=output_dim),
+        )
+
+        super().__init__(prediction_net=prediction_net)
+
+
+# TODO make this fully MLP
+# pylint: disable-next=invalid-name
+class EPDM(BaseEPDM):
+    def __init__(self, observation_size: int, num_actions: int, config: NaSATD3Config):
+        input_dim = observation_size + num_actions
+        output_dim = observation_size
+        hidden_sizes = config.hidden_size_epdm
+
+        prediction_net = nn.Sequential(
+            nn.Linear(in_features=input_dim, out_features=hidden_sizes[0]),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_sizes[0], out_features=hidden_sizes[1]),
+            nn.ReLU(),
+            nn.Linear(in_features=hidden_sizes[1], out_features=output_dim),
+        )
+
+        super().__init__(prediction_net=prediction_net)
