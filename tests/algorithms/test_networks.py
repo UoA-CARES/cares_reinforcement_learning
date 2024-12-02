@@ -2,17 +2,12 @@ import importlib.util
 import inspect
 import os
 from pathlib import Path
-from typing import Callable
 
-import torch
 from torch import nn
 
-import cares_reinforcement_learning.util.configurations as cfg
-from cares_reinforcement_learning import networks
-from cares_reinforcement_learning.util import NetworkFactory, configurations
+from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.common import MLP
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-from cares_reinforcement_learning.util.network_factory import NetworkFactory
 
 
 def _extract_sequential(model: nn.Module) -> nn.Sequential | None:
@@ -205,7 +200,6 @@ def test_actor_critics():
     action_num = 4
 
     for algorithm, alg_config in algorithm_configurations.items():
-        print(f"Testing {algorithm}")
         alg_config = alg_config()
 
         observation_size = (
@@ -252,13 +246,18 @@ def test_actor_critics():
                 elif number_of_parameters == 3:
                     network = cls(observation_size, alg_config)
                     default_network = default_cls(observation_size)
+                else:
+                    raise ValueError(
+                        f"Unexpected number of parameters {number_of_parameters} {algorithm} {name}"
+                    )
 
                 module_equal = _compare_networks(network, default_network)
 
             model_equal = model_equal and module_equal
 
             if not module_equal:
-                print(f"{algorithm} {name} {model_equal=}")
+                assert (
+                    module_equal
+                ), f"{algorithm} {name} model doesn't match default with custom"
 
-        if not model_equal:
-            print(f"{algorithm} {model_equal=}")
+        assert model_equal, f"{algorithm} models do not match"
