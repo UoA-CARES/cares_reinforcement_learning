@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.CTD4 import DefaultCritic
-from cares_reinforcement_learning.networks.CTD4 import Critic
-from cares_reinforcement_learning.util.configurations import CTD4Config
+from cares_reinforcement_learning.networks.REDQ import DefaultCritic
+from cares_reinforcement_learning.networks.REDQ import Critic
+from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
 # TODO merge this into CTD4 Critic similar to TQC and REDQ
@@ -21,11 +21,10 @@ class BaseEnsembleCritic(nn.ModuleList):
 class DefaultEnsembleCritic(BaseEnsembleCritic):
     def __init__(self, observation_size: int, action_num: int):
 
-        self.ensemble_size = 3
+        ensemble_size = 10
 
         critics = [
-            DefaultCritic(observation_size, action_num)
-            for _ in range(self.ensemble_size)
+            DefaultCritic(observation_size, action_num) for _ in range(ensemble_size)
         ]
 
         super().__init__(critics=critics)
@@ -36,7 +35,7 @@ class EnsembleCritic(BaseEnsembleCritic):
         self,
         observation_size: int,
         action_num: int,
-        config: CTD4Config,
+        config: REDQConfig,
     ):
         ensemble_size = config.ensemble_size
 

@@ -1,4 +1,5 @@
 import random
+from contextlib import contextmanager
 
 import numpy as np
 import torch
@@ -13,6 +14,16 @@ def get_device() -> torch.device:
         device = torch.device("mps")
 
     return device
+
+
+@contextmanager
+def evaluating(model):
+    """Context manager for temporarily setting a model to eval mode."""
+    try:
+        model.eval()
+        yield model
+    finally:
+        model.train()
 
 
 def image_state_dict_to_tensor(
@@ -67,7 +78,7 @@ def soft_update_params(net, target_net, tau):
     Soft updates the parameters of a neural network by blending them with the parameters of a target network.
 
     Args:
-        net (torch.nn.Module): The neural network whose parameters will be updated.
+        net (torch.nn.Module): The neural network whose parameters which will be used to update the target network.
         target_net (torch.nn.Module): The target neural network whose parameters will be blended with the `net` parameters.
         tau (float): The blending factor. The updated parameters will be a weighted average of the `net` parameters and the `target_net` parameters.
 

@@ -1,3 +1,3 @@
-from .actor import Actor
-from .distributed_critic import DistributedCritic
+from .actor import Actor, DefaultActor
+from .critic import Critic, DefaultCritic
 from .ensemble_critic import EnsembleCritic

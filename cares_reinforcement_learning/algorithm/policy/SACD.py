@@ -16,14 +16,15 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
 class SACD:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: SACDConfig,
         device: torch.device,
     ):
@@ -36,6 +37,7 @@ class SACD:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -99,7 +101,8 @@ class SACD:
         dones: torch.Tensor,
     ) -> float:
         with torch.no_grad():
-            _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
             qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
 
@@ -133,7 +136,9 @@ class SACD:
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
-        qf1_pi, qf2_pi = self.critic_net(states)
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states)
+
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         inside_term = self.alpha * log_action_probs - min_qf_pi

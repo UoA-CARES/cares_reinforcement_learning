@@ -1,32 +1,28 @@
 import torch
+from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
+from cares_reinforcement_learning.networks.SAC import DefaultActor as DefaultSACActor
 from cares_reinforcement_learning.networks.SAC import Actor as SACActor
+from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
-class Actor(SACActor):
+class BaseActor(nn.Module):
     def __init__(
         self,
-        vector_observation_size: int,
-        encoder: Encoder,
         num_actions: int,
-        hidden_size: list[int],
-        log_std_bounds: list[float] | None = None,
+        encoder: Encoder,
+        actor: SACActor | DefaultSACActor,
+        add_vector_observation: bool = False,
     ):
-        if log_std_bounds is None:
-            log_std_bounds = [-10, 2]
+        super().__init__()
 
-        super().__init__(
-            encoder.latent_dim + vector_observation_size,
-            num_actions,
-            hidden_size,
-            log_std_bounds,
-        )
-
+        self.num_actions = num_actions
         self.encoder = encoder
+        self.actor = actor
 
-        self.vector_observation_size = vector_observation_size
+        self.add_vector_observation = add_vector_observation
 
         self.apply(hlp.weight_init)
 
@@ -37,7 +33,55 @@ class Actor(SACActor):
         state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
 
         actor_input = state_latent
-        if self.vector_observation_size > 0:
+        if self.add_vector_observation:
             actor_input = torch.cat([state["vector"], actor_input], dim=1)
 
-        return super().forward(actor_input)
+        return self.actor(actor_input)
+
+
+class DefaultActor(BaseActor):
+    def __init__(self, observation_size: dict, num_actions: int):
+
+        encoder = Encoder(
+            observation_size["image"],
+            latent_dim=50,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
+
+        actor = DefaultSACActor(
+            encoder.latent_dim, num_actions, hidden_sizes=[1024, 1024]
+        )
+
+        super().__init__(
+            num_actions,
+            encoder,
+            actor,
+        )
+
+
+class Actor(BaseActor):
+    def __init__(self, observation_size: dict, num_actions: int, config: SACAEConfig):
+
+        ae_config = config.autoencoder_config
+        encoder = Encoder(
+            observation_size["image"],
+            latent_dim=ae_config.latent_dim,
+            num_layers=ae_config.num_layers,
+            num_filters=ae_config.num_filters,
+            kernel_size=ae_config.kernel_size,
+        )
+
+        actor_observation_size = encoder.latent_dim
+        if config.vector_observation:
+            actor_observation_size += observation_size["vector"]
+
+        actor = SACActor(actor_observation_size, num_actions, config)
+
+        super().__init__(
+            num_actions,
+            encoder=encoder,
+            actor=actor,
+            add_vector_observation=bool(config.vector_observation),
+        )

@@ -12,14 +12,15 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 from cares_reinforcement_learning.util.configurations import LAPSACConfig
 
 
 class LAPSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: LAPSACConfig,
         device: torch.device,
     ):
@@ -30,7 +31,10 @@ class LAPSAC:
         self.critic_net = critic_network.to(device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -89,10 +93,13 @@ class LAPSAC:
         dones: torch.Tensor,
     ) -> tuple[float, float, float, np.ndarray]:
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
+
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * next_log_pi
@@ -132,7 +139,10 @@ class LAPSAC:
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
+
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states, pi)
+
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()

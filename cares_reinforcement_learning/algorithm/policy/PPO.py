@@ -18,14 +18,15 @@ import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.util.configurations import PPOConfig
 
 
 class PPO:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: PPOConfig,
         device: torch.device,
     ):

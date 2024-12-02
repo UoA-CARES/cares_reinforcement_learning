@@ -14,6 +14,7 @@ import numpy as np
 import torch
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.TQC import Actor, Critic
 from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.configurations import TQCConfig
 
@@ -21,8 +22,8 @@ from cares_reinforcement_learning.util.configurations import TQCConfig
 class TQC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: TQCConfig,
         device: torch.device,
     ):
@@ -34,14 +35,16 @@ class TQC:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
         self.top_quantiles_to_drop = config.top_quantiles_to_drop
 
-        self.quantiles_total = (
-            self.critic_net.num_quantiles * self.critic_net.num_critics
-        )
+        num_quantiles = config.num_quantiles
+        num_critics = config.num_critics
+
+        self.quantiles_total = num_quantiles * num_critics
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -78,17 +81,9 @@ class TQC:
             state_tensor = torch.FloatTensor(state)
             state_tensor = state_tensor.unsqueeze(0).to(self.device)
             if evaluation is False:
-                (
-                    action,
-                    _,
-                    _,
-                ) = self.actor_net(state_tensor)
+                (action, _, _) = self.actor_net(state_tensor)
             else:
-                (
-                    _,
-                    _,
-                    action,
-                ) = self.actor_net(state_tensor)
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -107,7 +102,8 @@ class TQC:
     ) -> float:
         batch_size = len(states)
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             # compute and cut quantiles at the next state
             # batch x nets x quantiles
@@ -136,7 +132,11 @@ class TQC:
     def _update_actor(self, states: torch.Tensor) -> tuple[float, float]:
         new_action, log_pi, _ = self.actor_net(states)
 
-        mean_qf_pi = self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
+        with hlp.evaluating(self.critic_net):
+            mean_qf_pi = (
+                self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
+            )
+
         actor_loss = (self.alpha * log_pi - mean_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()

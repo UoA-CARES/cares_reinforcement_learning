@@ -16,14 +16,15 @@ from torch import optim
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 from cares_reinforcement_learning.util.configurations import MAPERSACConfig
 
 
 class MAPERSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: MAPERSACConfig,
         device: torch.device,
     ):
@@ -35,6 +36,7 @@ class MAPERSAC:
 
         self.critic_net = critic_network.to(self.device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -140,7 +142,9 @@ class MAPERSAC:
         diff_next_states_two = diff_next_states_two.reshape(-1, 1)
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
+
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -229,7 +233,10 @@ class MAPERSAC:
         self, states: torch.Tensor, weights: torch.Tensor
     ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
+
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states, pi)
+
         qf_pi_one, _, _ = self._split_output(qf1_pi)
         qf_pi_two, _, _ = self._split_output(qf2_pi)
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)

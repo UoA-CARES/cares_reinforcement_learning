@@ -1,4 +1,7 @@
-from pydantic import BaseModel, Field
+from typing import Any
+
+from pydantic import BaseModel, Field, root_validator
+from torch import nn
 
 from cares_reinforcement_learning.encoders.configurations import (
     BurgessConfig,
@@ -72,11 +75,47 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: int = 0
 
+    norm_layer: str | None = None
+    norm_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    activation_function: str = nn.ReLU.__name__
+    activation_function_args: dict[str, Any] = Field(default_factory=dict)
+
+    final_activation: str | None = None
+    final_activation_args: dict[str, Any] = Field(default_factory=dict)
+
+    @root_validator(pre=True)
+    def convert_none_to_dict(cls, values):  # pylint: disable-next=no-self-argument
+        if values.get("norm_layer_args") is None:
+            values["norm_layer_args"] = {}
+        if values.get("activation_function_args") is None:
+            values["activation_function_args"] = {}
+        if values.get("final_activation_args") is None:
+            values["final_activation_args"] = {}
+        return values
+
+
+###################################
+#         DQN Algorithms          #
+###################################
+
 
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
+
+    exploration_min: float = 1e-3
+    exploration_decay: float = 0.95
+
+    hidden_size: list[int] = [512, 512]
+
+
+class DoubleDQNConfig(DQNConfig):
+    algorithm: str = Field("DoubleDQN", Literal=True)
+    lr: float = 1e-3
+    gamma: float = 0.99
+    tau: float = 0.005
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
@@ -92,19 +131,14 @@ class DuelingDQNConfig(AlgorithmConfig):
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
 
-    hidden_size: list[int] = [512, 512, 512]
+    feature_hidden_size: list[int] = [512, 512]
+    value_stream_hidden_size: list[int] = [512]
+    advantage_stream_hidden_size: list[int] = [512]
 
 
-class DoubleDQNConfig(AlgorithmConfig):
-    algorithm: str = Field("DoubleDQN", Literal=True)
-    lr: float = 1e-3
-    gamma: float = 0.99
-    tau: float = 0.005
-
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
-
-    hidden_size: list[int] = [512, 512]
+###################################
+#         PPO Algorithms          #
+###################################
 
 
 class PPOConfig(AlgorithmConfig):
@@ -122,64 +156,33 @@ class PPOConfig(AlgorithmConfig):
     hidden_size_critic: list[int] = [1024, 1024]
 
 
-class DDPGConfig(AlgorithmConfig):
-    algorithm: str = Field("DDPG", Literal=True)
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
-
-    gamma: float = 0.99
-    tau: float = 0.005
-
-    hidden_size_actor: list[int] = [1024, 1024]
-    hidden_size_critic: list[int] = [1024, 1024]
+###################################
+#         SAC Algorithms          #
+###################################
 
 
-class TD3Config(AlgorithmConfig):
-    algorithm: str = Field("TD3", Literal=True)
+class SACDConfig(AlgorithmConfig):
+    algorithm: str = Field("SACD", Literal=True)
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+
+    batch_size = 64
+
+    target_entropy_multiplier = 0.98
+
+    max_steps_exploration = 20000
+    number_steps_per_train_policy = 4
 
     gamma: float = 0.99
     tau: float = 0.005
+    reward_scale: float = 1.0
 
-    policy_update_freq: int = 2
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
-
-
-class TD3AEConfig(AlgorithmConfig):
-    algorithm: str = Field("TD3AE", Literal=True)
-
-    image_observation: int = 1
-    batch_size: int = 128
-
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-    alpha_lr: float = 1e-4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-
-    policy_update_freq: int = 2
-
-    hidden_size_actor: list[int] = [1024, 1024]
-    hidden_size_critic: list[int] = [1024, 1024]
-
-    encoder_tau: float = 0.05
-    decoder_update_freq: int = 1
-
-    vector_observation: int = 0
-
-    autoencoder_config: VanillaAEConfig = VanillaAEConfig(
-        latent_dim=50,
-        num_layers=4,
-        num_filters=32,
-        kernel_size=3,
-        latent_lambda=1e-6,
-        encoder_optim_kwargs={"lr": 1e-3},
-        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
-    )
+    hidden_size_actor: list[int] = [512, 512]
+    hidden_size_critic: list[int] = [512, 512]
 
 
 class SACConfig(AlgorithmConfig):
@@ -201,7 +204,7 @@ class SACConfig(AlgorithmConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
-class SACAEConfig(AlgorithmConfig):
+class SACAEConfig(SACConfig):
     algorithm: str = Field("SACAE", Literal=True)
 
     image_observation: int = 1
@@ -239,31 +242,161 @@ class SACAEConfig(AlgorithmConfig):
     )
 
 
-class SACDConfig(AlgorithmConfig):
-    algorithm: str = Field("SACD", Literal=True)
+class PERSACConfig(SACConfig):
+    algorithm: str = Field("PERSAC", Literal=True)
+
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-
-    batch_size = 64
-
-    target_entropy_multiplier = 0.98
-
-    max_steps_exploration = 20000
-    number_steps_per_train_policy = 4
-
     gamma: float = 0.99
     tau: float = 0.005
-    reward_scale: float = 1.0
+
+    beta: float = 0.4
+    per_alpha: float = 0.6
+    min_priority: float = 1e-6
+
+    log_std_bounds: list[float] = [-20, 2]
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [512, 512]
-    hidden_size_critic: list[int] = [512, 512]
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
 
 
-class DynaSACConfig(AlgorithmConfig):
+class REDQConfig(SACConfig):
+    algorithm: str = Field("REDQ", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    ensemble_size: int = 10
+    num_sample_critics: int = 2
+
+    G: int = 20
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
+
+class TQCConfig(SACConfig):
+    algorithm: str = Field("TQC", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    top_quantiles_to_drop: int = 2
+    num_quantiles: int = 25
+    num_critics: int = 5
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [512, 512, 512]
+
+
+class LAPSACConfig(SACConfig):
+    algorithm: str = Field("LAPSAC", Literal=True)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    per_alpha: float = 0.6
+    reward_scale: float = 1.0
+    min_priority: float = 1.0
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
+
+class LA3PSACConfig(SACConfig):
+    algorithm: str = Field("LA3PSAC", Literal=True)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 5.0
+
+    beta: float = 0.4
+    per_alpha: float = 0.4
+    min_priority: float = 1.0
+    prioritized_fraction: float = 0.5
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
+
+class MAPERSACConfig(SACConfig):
+    algorithm: str = Field("MAPERSAC", Literal=True)
+
+    max_steps_exploration: int = 10000
+
+    actor_lr: float = 7.3e-4
+    critic_lr: float = 7.3e-4
+    alpha_lr: float = 7.3e-4
+    gamma: float = 0.98
+    tau: float = 0.02
+
+    beta: float = 0.4
+    per_alpha: float = 0.7
+    min_priority: float = 1e-6
+
+    G: int = 64
+    number_steps_per_train_policy: int = 64
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [400, 300]
+    hidden_size_critic: list[int] = [400, 300]
+
+
+class RDSACConfig(SACConfig):
+    algorithm: str = Field("RDSAC", Literal=True)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+
+    beta: float = 0.4
+    per_alpha: float = 0.7
+    min_priority: float = 1.0
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
+
+class DynaSACConfig(SACConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
@@ -290,7 +423,72 @@ class DynaSACConfig(AlgorithmConfig):
     world_model_lr: float = 0.001
 
 
-class NaSATD3Config(AlgorithmConfig):
+###################################
+#         TD3 Algorithms          #
+###################################
+
+
+class DDPGConfig(AlgorithmConfig):
+    algorithm: str = Field("DDPG", Literal=True)
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.99
+    tau: float = 0.005
+
+    hidden_size_actor: list[int] = [1024, 1024]
+    hidden_size_critic: list[int] = [1024, 1024]
+
+
+class TD3Config(AlgorithmConfig):
+    algorithm: str = Field("TD3", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
+
+class TD3AEConfig(TD3Config):
+    algorithm: str = Field("TD3AE", Literal=True)
+
+    image_observation: int = 1
+    batch_size: int = 128
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+    alpha_lr: float = 1e-4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+
+    policy_update_freq: int = 2
+
+    hidden_size_actor: list[int] = [1024, 1024]
+    hidden_size_critic: list[int] = [1024, 1024]
+
+    encoder_tau: float = 0.05
+    decoder_update_freq: int = 1
+
+    vector_observation: int = 0
+
+    autoencoder_config: VanillaAEConfig = VanillaAEConfig(
+        latent_dim=50,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
+
+
+class NaSATD3Config(TD3Config):
     algorithm: str = Field("NaSATD3", Literal=True)
 
     image_observation: int = 1
@@ -334,68 +532,7 @@ class NaSATD3Config(AlgorithmConfig):
     # )
 
 
-class REDQConfig(AlgorithmConfig):
-    algorithm: str = Field("REDQ", Literal=True)
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-    ensemble_size: int = 10
-    num_sample_critics: int = 2
-
-    G: int = 20
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
-
-
-class TQCConfig(AlgorithmConfig):
-    algorithm: str = Field("TQC", Literal=True)
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-    top_quantiles_to_drop: int = 2
-    num_quantiles: int = 25
-    num_nets: int = 5
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [512, 512, 512]
-
-
-class CTD4Config(AlgorithmConfig):
-    algorithm: str = Field("CTD4", Literal=True)
-
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
-    gamma: float = 0.99
-    tau: float = 0.005
-    ensemble_size: int = 3
-
-    min_noise: float = 0.0
-    noise_decay: float = 0.999999
-    noise_scale: float = 0.1
-
-    policy_update_freq: int = 2
-
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
-
-    fusion_method: str = "kalman"  # kalman, minimum, average
-
-
-class PERTD3Config(AlgorithmConfig):
+class PERTD3Config(TD3Config):
     algorithm: str = Field("PERTD3", Literal=True)
 
     actor_lr: float = 3e-4
@@ -413,28 +550,7 @@ class PERTD3Config(AlgorithmConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
-class PERSACConfig(AlgorithmConfig):
-    algorithm: str = Field("PERSAC", Literal=True)
-
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
-    beta: float = 0.4
-    per_alpha: float = 0.6
-    min_priority: float = 1e-6
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
-
-
-class LAPTD3Config(AlgorithmConfig):
+class LAPTD3Config(TD3Config):
     algorithm: str = Field("LAPTD3", Literal=True)
 
     actor_lr: float = 3e-4
@@ -452,29 +568,7 @@ class LAPTD3Config(AlgorithmConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
-class LAPSACConfig(AlgorithmConfig):
-    algorithm: str = Field("LAPSAC", Literal=True)
-
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-    per_alpha: float = 0.6
-    reward_scale: float = 1.0
-    min_priority: float = 1.0
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
-
-
-class PALTD3Config(AlgorithmConfig):
+class PALTD3Config(TD3Config):
     algorithm: str = Field("PALTD3", Literal=True)
 
     actor_lr: float = 3e-4
@@ -492,7 +586,7 @@ class PALTD3Config(AlgorithmConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
-class LA3PTD3Config(AlgorithmConfig):
+class LA3PTD3Config(TD3Config):
     algorithm: str = Field("LA3PTD3", Literal=True)
 
     actor_lr: float = 3e-4
@@ -511,30 +605,7 @@ class LA3PTD3Config(AlgorithmConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
-class LA3PSACConfig(AlgorithmConfig):
-    algorithm: str = Field("LA3PSAC", Literal=True)
-
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-    reward_scale: float = 5.0
-
-    beta: float = 0.4
-    per_alpha: float = 0.4
-    min_priority: float = 1.0
-    prioritized_fraction: float = 0.5
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    target_update_freq: int = 1
-
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
-
-
-class MAPERTD3Config(AlgorithmConfig):
+class MAPERTD3Config(TD3Config):
     algorithm: str = Field("MAPERTD3", Literal=True)
 
     max_steps_exploration: int = 10000
@@ -559,34 +630,7 @@ class MAPERTD3Config(AlgorithmConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
-class MAPERSACConfig(AlgorithmConfig):
-    algorithm: str = Field("MAPERSAC", Literal=True)
-
-    max_steps_exploration: int = 10000
-
-    actor_lr: float = 7.3e-4
-    critic_lr: float = 7.3e-4
-    alpha_lr: float = 7.3e-4
-    gamma: float = 0.98
-    tau: float = 0.02
-
-    beta: float = 0.4
-    per_alpha: float = 0.7
-    min_priority: float = 1e-6
-
-    G: int = 64
-    number_steps_per_train_policy: int = 64
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    hidden_size_actor: list[int] = [400, 300]
-    hidden_size_critic: list[int] = [400, 300]
-
-
-class RDTD3Config(AlgorithmConfig):
+class RDTD3Config(TD3Config):
     algorithm: str = Field("RDTD3", Literal=True)
 
     actor_lr: float = 3e-4
@@ -604,22 +648,22 @@ class RDTD3Config(AlgorithmConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
-class RDSACConfig(AlgorithmConfig):
-    algorithm: str = Field("RDSAC", Literal=True)
+class CTD4Config(TD3Config):
+    algorithm: str = Field("CTD4", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 0.005
+    ensemble_size: int = 3
 
-    beta: float = 0.4
-    per_alpha: float = 0.7
-    min_priority: float = 1.0
+    min_noise: float = 0.0
+    noise_decay: float = 0.999999
+    noise_scale: float = 0.1
 
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
+    policy_update_freq: int = 2
 
     hidden_size_actor: list[int] = [256, 256]
     hidden_size_critic: list[int] = [256, 256]
+
+    fusion_method: str = "kalman"  # kalman, minimum, average

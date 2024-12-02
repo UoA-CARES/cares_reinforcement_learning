@@ -16,14 +16,15 @@ from torch import optim
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import MAPERTD3Config
 
 
 class MAPERTD3:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
+        actor_network: Actor,
+        critic_network: Critic,
         config: MAPERTD3Config,
         device: torch.device,
     ):
@@ -34,7 +35,9 @@ class MAPERTD3:
         self.critic_net = critic_network.to(self.device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -219,9 +222,11 @@ class MAPERTD3:
         return critic_loss_total.item(), priorities
 
     def _update_actor(self, states: torch.Tensor, weights: torch.Tensor) -> float:
-        actor_q_one, actor_q_two = self.critic_net(
-            states.detach(), self.actor_net(states.detach())
-        )
+        actions = self.actor_net(states.detach())
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_one, actor_q_two = self.critic_net(states.detach(), actions)
+
         actor_q_values = torch.minimum(actor_q_one, actor_q_two)
         actor_val, _, _ = self._split_output(actor_q_values)
 
