@@ -38,7 +38,7 @@ class DoubleDQN:
             self.network.parameters(), lr=config.lr
         )
 
-    def select_action_from_policy(self, state: np.ndarray) -> int:
+    def select_action_from_policy(self, state: np.ndarray) -> float:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -53,22 +53,22 @@ class DoubleDQN:
         states, actions, rewards, next_states, dones, _ = experiences
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.LongTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.LongTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
-        q_values = self.network(states)
-        next_q_values = self.network(next_states)
-        next_q_state_values = self.target_network(next_states)
+        q_values = self.network(states_tensor)
+        next_q_values = self.network(next_states_tensor)
+        next_q_state_values = self.target_network(next_states_tensor)
 
-        q_value = q_values.gather(1, actions.unsqueeze(1)).squeeze(1)
+        q_value = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
         next_q_value = next_q_state_values.gather(
             1, torch.max(next_q_values, 1)[1].unsqueeze(1)
         ).squeeze(1)
 
-        q_target = rewards + self.gamma * (1 - dones) * next_q_value
+        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * next_q_value
 
         loss = F.mse_loss(q_value, q_target)
 

@@ -29,11 +29,11 @@ def evaluating(model):
 def image_state_dict_to_tensor(
     state: dict[str, np.ndarray], device: torch.device
 ) -> dict[str, torch.Tensor]:
-    vector_tensor = torch.FloatTensor(state["vector"])
-    vector_tensor = vector_tensor.unsqueeze(0).to(device)
+    vector_tensor = torch.FloatTensor(state["vector"]).to(device)
+    vector_tensor = vector_tensor.unsqueeze(0)
 
-    image_tensor = torch.FloatTensor(state["image"])
-    image_tensor = image_tensor.unsqueeze(0).to(device)
+    image_tensor = torch.FloatTensor(state["image"]).to(device)
+    image_tensor = image_tensor.unsqueeze(0)
     image_tensor = image_tensor / 255
 
     return {"image": image_tensor, "vector": vector_tensor}
@@ -46,14 +46,14 @@ def image_states_dict_to_tensor(
     states_vector = [state["vector"] for state in states]
 
     # Convert into tensor
-    states_images = torch.FloatTensor(np.asarray(states_images)).to(device)
-    states_vector = torch.FloatTensor(np.asarray(states_vector)).to(device)
+    states_images_tensor = torch.FloatTensor(np.asarray(states_images)).to(device)
+    states_vector_tensor = torch.FloatTensor(np.asarray(states_vector)).to(device)
 
     # Normalise states and next_states - image portion
     # This because the states are [0-255] and the predictions are [0-1]
-    states_images = states_images / 255
+    states_images_tensor = states_images_tensor / 255
 
-    return {"image": states_images, "vector": states_vector}
+    return {"image": states_images_tensor, "vector": states_vector_tensor}
 
 
 def set_seed(seed: int) -> None:
@@ -310,6 +310,7 @@ def quantile_huber_loss_f(
     return loss
 
 
+# TODO rename this function to something more descriptive
 def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     """
     Returns the right size of the flattened tensor after convolutional transformation

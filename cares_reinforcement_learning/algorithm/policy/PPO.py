@@ -84,9 +84,9 @@ class PPO:
         return v, log_prob
 
     def _calculate_rewards_to_go(
-        self, batch_rewards: torch.FloatTensor, batch_dones: torch.FloatTensor
+        self, batch_rewards: torch.Tensor, batch_dones: torch.Tensor
     ) -> torch.Tensor:
-        rtgs = []
+        rtgs: list[float] = []
         discounted_reward = 0
         for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
             discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
@@ -100,21 +100,21 @@ class PPO:
         experiences = memory.flush()
         states, actions, rewards, next_states, dones, log_probs = experiences
 
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        log_probs = torch.FloatTensor(np.asarray(log_probs)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        log_probs_tensor = torch.FloatTensor(np.asarray(log_probs)).to(self.device)
 
-        log_probs = log_probs.squeeze()
+        log_probs_tensor = log_probs_tensor.squeeze()
 
         # compute reward to go:
-        rtgs = self._calculate_rewards_to_go(rewards, dones)
+        rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
         # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
 
         # calculate advantages
-        v, _ = self._evaluate_policy(states, actions)
+        v, _ = self._evaluate_policy(states_tensor, actions_tensor)
 
         advantages = rtgs.detach() - v.detach()
 
@@ -125,10 +125,10 @@ class PPO:
         td_errors = td_errors.data.cpu().numpy()
 
         for _ in range(self.updates_per_iteration):
-            v, curr_log_probs = self._evaluate_policy(states, actions)
+            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor)
 
             # Calculate ratios
-            ratios = torch.exp(curr_log_probs - log_probs.detach())
+            ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())
 
             # Finding Surrogate Loss
             surrogate_lose_one = ratios * advantages
@@ -148,7 +148,7 @@ class PPO:
             critic_loss.backward()
             self.critic_net_optimiser.step()
 
-        info = {}
+        info: dict[str, Any] = {}
         info["td_errors"] = td_errors
         info["critic_loss"] = critic_loss.item()
         info["actor_loss"] = actor_loss.item()

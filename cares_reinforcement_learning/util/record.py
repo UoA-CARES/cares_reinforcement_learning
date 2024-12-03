@@ -10,6 +10,8 @@ import pandas as pd
 from torch import nn
 
 import cares_reinforcement_learning.util.plotter as plt
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import SubscriptableClass
 
 
 class Record:
@@ -29,6 +31,7 @@ class Record:
         algorithm: str,
         task: str,
         agent: nn.Module | None = None,
+        memory_buffer: MemoryBuffer | None = None,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -48,6 +51,8 @@ class Record:
 
         self.video: cv2.VideoWriter = None
 
+        self.memory_buffer = memory_buffer
+
         self.log_count = 0
 
         self.__initialise_base_directory()
@@ -66,7 +71,7 @@ class Record:
     def set_agent(self, agent: nn.Module) -> None:
         self.agent = agent
 
-    def save_config(self, configuration: dict, file_name: str) -> None:
+    def save_config(self, configuration: SubscriptableClass, file_name: str) -> None:
         if not os.path.exists(self.base_directory):
             os.makedirs(self.base_directory)
 
@@ -93,6 +98,12 @@ class Record:
     def stop_video(self) -> None:
         self.video.release()
 
+    def save_memory(self):
+        if self.memory_buffer is not None:
+            self.memory_buffer.save(
+                filepath=f"{self.current_sub_directory}/memory", file_name="memory"
+            )
+
     def save_agent(self, file_name: str, folder_name: str) -> None:
         if self.agent is not None:
             self.agent.save_models(
@@ -110,19 +121,19 @@ class Record:
 
         data_frame.to_csv(f"{self.current_sub_directory}/data/{filename}", index=False)
 
-        string = []
+        string_values = []
         for key, val in logs.items():
             if isinstance(val, list):
                 formatted_list = [f"{str(i)[0:10]:6s}" for i in val]
-                string.append(f"{key}: {formatted_list}")
+                string_values.append(f"{key}: {formatted_list}")
             else:
-                string.append(f"{key}: {str(val)[0:10]:6s}")
+                string_values.append(f"{key}: {str(val)[0:10]:6s}")
 
-        string = " | ".join(string)
-        string = "| " + string + " |"
+        string_out = " | ".join(string_values)
+        string_out = "| " + string_out + " |"
 
         if display:
-            logging.info(string)
+            logging.info(string_out)
 
     def log_train(self, display: bool = False, **logs) -> None:
         self.log_count += 1
@@ -131,6 +142,8 @@ class Record:
             [self.train_data, pd.DataFrame([logs])], ignore_index=True
         )
         self._save_data(self.train_data, "train.csv", logs, display=display)
+
+        self.save_memory()
 
         plt.plot_train(
             self.train_data,
@@ -208,6 +221,9 @@ class Record:
 
         if not os.path.exists(f"{self.current_sub_directory}/videos"):
             os.makedirs(f"{self.current_sub_directory}/videos")
+
+        if not os.path.exists(f"{self.current_sub_directory}/memory"):
+            os.makedirs(f"{self.current_sub_directory}/memory")
 
     @staticmethod
     def create_base_directory(
