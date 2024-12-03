@@ -37,8 +37,6 @@ class TrainingConfig(SubscriptableClass):
     number_steps_per_evaluation: int = 10000
     number_eval_episodes: int = 10
 
-    load_path: Optional[str] = None
-
 
 class AlgorithmConfig(SubscriptableClass):
     """
