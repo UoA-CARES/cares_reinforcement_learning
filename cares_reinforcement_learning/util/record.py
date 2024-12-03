@@ -10,6 +10,7 @@ import pandas as pd
 from torch import nn
 
 import cares_reinforcement_learning.util.plotter as plt
+from cares_reinforcement_learning.util.configurations import SubscriptableClass
 
 
 class Record:
@@ -66,7 +67,7 @@ class Record:
     def set_agent(self, agent: nn.Module) -> None:
         self.agent = agent
 
-    def save_config(self, configuration: dict, file_name: str) -> None:
+    def save_config(self, configuration: SubscriptableClass, file_name: str) -> None:
         if not os.path.exists(self.base_directory):
             os.makedirs(self.base_directory)
 

@@ -1,6 +1,7 @@
 from typing import Any
 
-from pydantic import BaseModel, Field, root_validator
+import pydantic
+from pydantic import BaseModel, Field
 from torch import nn
 
 from cares_reinforcement_learning.encoders.configurations import (
@@ -84,7 +85,7 @@ class AlgorithmConfig(SubscriptableClass):
     final_activation: str | None = None
     final_activation_args: dict[str, Any] = Field(default_factory=dict)
 
-    @root_validator(pre=True)
+    @pydantic.root_validator(pre=True)
     def convert_none_to_dict(cls, values):  # pylint: disable-next=no-self-argument
         if values.get("norm_layer_args") is None:
             values["norm_layer_args"] = {}
