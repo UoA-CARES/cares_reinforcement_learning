@@ -92,18 +92,18 @@ class LA3PTD3:
         uniform_sampling: bool,
     ) -> tuple[float, np.ndarray]:
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(len(rewards), 1)
-        dones = dones.unsqueeze(0).reshape(len(dones), 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(len(rewards_tensor), 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(len(dones_tensor), 1)
 
         with torch.no_grad():
-            next_actions = self.target_actor_net(next_states)
+            next_actions = self.target_actor_net(next_states_tensor)
 
             target_noise = self.policy_noise * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
@@ -111,14 +111,16 @@ class LA3PTD3:
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states, next_actions
+                next_states_tensor, next_actions
             )
 
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
-            q_target = rewards + self.gamma * (1 - dones) * target_q_values
+            q_target = (
+                rewards_tensor + self.gamma * (1 - dones_tensor) * target_q_values
+            )
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+        q_values_one, q_values_two = self.critic_net(states_tensor, actions_tensor)
 
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
@@ -162,12 +164,12 @@ class LA3PTD3:
 
     def _update_actor(self, states: np.ndarray) -> float:
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         # Update Actor
-        actions = self.actor_net(states)
+        actions = self.actor_net(states_tensor)
         with hlp.evaluating(self.critic_net):
-            actor_q_values, _ = self.critic_net(states, actions)
+            actor_q_values, _ = self.critic_net(states_tensor, actions)
 
         actor_loss = -actor_q_values.mean()
 

@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - List[type] = default
@@ -26,9 +28,9 @@ class AEConfig(SubscriptableClass):
     num_filters: int = 32
     kernel_size: int = 3
 
-    encoder_optim_kwargs: dict[str, float] = Field(default_factory=lambda: {"lr": 1e-3})
+    encoder_optim_kwargs: dict[str, Any] = Field(default_factory=lambda: {"lr": 1e-3})
 
-    decoder_optim_kwargs: dict[str, float] = Field(default_factory=lambda: {"lr": 1e-3})
+    decoder_optim_kwargs: dict[str, Any] = Field(default_factory=lambda: {"lr": 1e-3})
 
 
 class VanillaAEConfig(AEConfig):

@@ -70,8 +70,8 @@ class LAPSAC:
 
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
             else:

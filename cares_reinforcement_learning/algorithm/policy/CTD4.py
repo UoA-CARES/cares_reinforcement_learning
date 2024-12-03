@@ -184,6 +184,10 @@ class CTD4:
                 fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
             elif self.fusion_method == "minimum":
                 fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
+            else:
+                raise ValueError(
+                    f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
+                )
 
             # Create the target distribution = aX+b
             u_target = rewards + self.gamma * fusion_u * (1 - dones)
@@ -241,6 +245,11 @@ class CTD4:
             # Minimum all critics and then a single mean for the actor loss
             fusion_u_a, _ = self._minimum(actor_q_u_set, actor_q_std_set, batch_size)
 
+        else:
+            raise ValueError(
+                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
+            )
+
         actor_loss = -fusion_u_a.mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -273,7 +282,7 @@ class CTD4:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update Critics
         critic_loss_totals = self._update_critics(

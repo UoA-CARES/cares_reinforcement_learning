@@ -69,8 +69,8 @@ class LA3PSAC:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
             else:
@@ -92,23 +92,24 @@ class LA3PSAC:
         dones: np.ndarray,
         uniform_sampling: bool,
     ) -> tuple[float, np.ndarray]:
+
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(len(rewards), 1)
-        dones = dones.unsqueeze(0).reshape(len(dones), 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(len(rewards_tensor), 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(len(dones_tensor), 1)
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
-                next_actions, next_log_pi, _ = self.actor_net(next_states)
+                next_actions, next_log_pi, _ = self.actor_net(next_states_tensor)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states, next_actions
+                next_states_tensor, next_actions
             )
 
             target_q_values = (
@@ -117,10 +118,11 @@ class LA3PSAC:
             )
 
             q_target = (
-                rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
+                rewards_tensor * self.reward_scale
+                + self.gamma * (1 - dones_tensor) * target_q_values
             )
 
-        q_values_one, q_values_two = self.critic_net(states, actions)
+        q_values_one, q_values_two = self.critic_net(states_tensor, actions_tensor)
 
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
@@ -163,13 +165,13 @@ class LA3PSAC:
 
     def _update_actor_alpha(self, states: np.ndarray) -> tuple[float, float]:
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         # Update Actor
-        actions, next_log_pi, _ = self.actor_net(states)
+        actions, next_log_pi, _ = self.actor_net(states_tensor)
 
         target_q_values_one, target_q_values_two = self.target_critic_net(
-            states, actions
+            states_tensor, actions
         )
 
         min_q_values = torch.minimum(target_q_values_one, target_q_values_two)

@@ -54,8 +54,8 @@ class DDPG:
 
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
@@ -101,29 +101,35 @@ class DDPG:
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        (states, actions, rewards, next_states, dones, _) = experiences
 
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensors = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensors = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensors = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensors = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensors = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensors = rewards_tensors.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensors = dones_tensors.unsqueeze(0).reshape(batch_size, 1)
 
         info = {}
 
         # Update Critic
-        critic_loss = self._update_critic(states, actions, rewards, next_states, dones)
+        critic_loss = self._update_critic(
+            states_tensors,
+            actions_tensors,
+            rewards_tensors,
+            next_states_tensors,
+            dones_tensors,
+        )
         info["critic_loss"] = critic_loss
 
         # Update Actor
-        actor_loss = self._update_actor(states)
+        actor_loss = self._update_actor(states_tensors)
         info["actor_loss"] = actor_loss
 
         hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)

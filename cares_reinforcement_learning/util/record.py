@@ -110,19 +110,19 @@ class Record:
 
         data_frame.to_csv(f"{self.current_sub_directory}/data/{filename}", index=False)
 
-        string = []
+        string_values = []
         for key, val in logs.items():
             if isinstance(val, list):
                 formatted_list = [f"{str(i)[0:10]:6s}" for i in val]
-                string.append(f"{key}: {formatted_list}")
+                string_values.append(f"{key}: {formatted_list}")
             else:
-                string.append(f"{key}: {str(val)[0:10]:6s}")
+                string_values.append(f"{key}: {str(val)[0:10]:6s}")
 
-        string = " | ".join(string)
-        string = "| " + string + " |"
+        string_out = " | ".join(string_values)
+        string_out = "| " + string_out + " |"
 
         if display:
-            logging.info(string)
+            logging.info(string_out)
 
     def log_train(self, display: bool = False, **logs) -> None:
         self.log_count += 1

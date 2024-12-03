@@ -75,8 +75,8 @@ class REDQ:
         # so _, _, action = self.actor_net.sample(state_tensor)
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             if evaluation is False:
                 (action, _, _) = self.actor_net(state_tensor)
             else:
@@ -91,7 +91,7 @@ class REDQ:
 
     def _update_critics(
         self,
-        idx: list[int],
+        idx: np.ndarray,
         states: torch.Tensor,
         actions: torch.Tensor,
         rewards: torch.Tensor,
@@ -135,7 +135,7 @@ class REDQ:
         return critic_loss_totals
 
     def _update_actor_alpha(
-        self, idx: list[int], states: torch.Tensor
+        self, idx: np.ndarray, states: torch.Tensor
     ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
 
@@ -167,32 +167,37 @@ class REDQ:
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
 
         # replace=False so that not picking the same idx twice
         idx = np.random.choice(
             self.ensemble_size, self.num_sample_critics, replace=False
         )
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update the Critics
         critic_loss_totals = self._update_critics(
-            idx, states, actions, rewards, next_states, dones
+            idx,
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
         )
         info["critic_loss_totals"] = critic_loss_totals
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_loss, alpha_loss = self._update_actor_alpha(idx, states)
+            actor_loss, alpha_loss = self._update_actor_alpha(idx, states_tensor)
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()
