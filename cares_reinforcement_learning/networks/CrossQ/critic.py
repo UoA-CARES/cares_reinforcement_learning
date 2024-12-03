@@ -1,7 +1,7 @@
 import torch
-from batchrenorm import BatchRenorm1d
 from torch import nn
 
+from cares_reinforcement_learning.util.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.util.configurations import CrossQConfig
 
 
