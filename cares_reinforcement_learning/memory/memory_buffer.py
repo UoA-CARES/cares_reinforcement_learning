@@ -5,6 +5,7 @@ https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
 
 """
 
+import pickle
 import random
 
 import numpy as np
@@ -422,3 +423,16 @@ class MemoryBuffer:
         self.sum_tree = SumTree(self.max_capacity)
         self.max_priority = self.min_priority
         self.beta = self.init_beta
+
+    def save(self, filepath: str, file_name: str) -> None:
+        with open(f"{filepath}/{file_name}.pkl", "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, file_path: str, file_name: str):
+        """
+        Simple object deserialization given a filename
+        """
+        with open(f"{file_path}/{file_name}.pkl", "rb") as f:
+            obj = pickle.load(f)
+            return obj

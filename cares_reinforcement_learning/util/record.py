@@ -10,6 +10,7 @@ import pandas as pd
 from torch import nn
 
 import cares_reinforcement_learning.util.plotter as plt
+from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SubscriptableClass
 
 
@@ -30,6 +31,7 @@ class Record:
         algorithm: str,
         task: str,
         agent: nn.Module | None = None,
+        memory_buffer: MemoryBuffer | None = None,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -48,6 +50,8 @@ class Record:
         self.agent = agent
 
         self.video: cv2.VideoWriter = None
+
+        self.memory_buffer = memory_buffer
 
         self.log_count = 0
 
@@ -94,6 +98,12 @@ class Record:
     def stop_video(self) -> None:
         self.video.release()
 
+    def save_memory(self):
+        if self.memory_buffer is not None:
+            self.memory_buffer.save(
+                filepath=f"{self.current_sub_directory}/memory", file_name="memory"
+            )
+
     def save_agent(self, file_name: str, folder_name: str) -> None:
         if self.agent is not None:
             self.agent.save_models(
@@ -132,6 +142,8 @@ class Record:
             [self.train_data, pd.DataFrame([logs])], ignore_index=True
         )
         self._save_data(self.train_data, "train.csv", logs, display=display)
+
+        self.save_memory()
 
         plt.plot_train(
             self.train_data,
@@ -209,6 +221,9 @@ class Record:
 
         if not os.path.exists(f"{self.current_sub_directory}/videos"):
             os.makedirs(f"{self.current_sub_directory}/videos")
+
+        if not os.path.exists(f"{self.current_sub_directory}/memory"):
+            os.makedirs(f"{self.current_sub_directory}/memory")
 
     @staticmethod
     def create_base_directory(
