@@ -99,7 +99,10 @@ class Record:
         self.video.release()
 
     def save_memory(self):
-        self.memory_buffer.save(f"{self.current_sub_directory}/memory")
+        if self.memory_buffer is not None:
+            self.memory_buffer.save(
+                filepath=f"{self.current_sub_directory}/memory", file_name="memory"
+            )
 
     def save_agent(self, file_name: str, folder_name: str) -> None:
         if self.agent is not None:
@@ -140,8 +143,7 @@ class Record:
         )
         self._save_data(self.train_data, "train.csv", logs, display=display)
 
-        if self.memory_buffer is not None:
-            self.save_memory()
+        self.save_memory()
 
         plt.plot_train(
             self.train_data,
@@ -219,6 +221,9 @@ class Record:
 
         if not os.path.exists(f"{self.current_sub_directory}/videos"):
             os.makedirs(f"{self.current_sub_directory}/videos")
+
+        if not os.path.exists(f"{self.current_sub_directory}/memory"):
+            os.makedirs(f"{self.current_sub_directory}/memory")
 
     @staticmethod
     def create_base_directory(

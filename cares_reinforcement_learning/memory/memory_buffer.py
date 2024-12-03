@@ -424,8 +424,8 @@ class MemoryBuffer:
         self.max_priority = self.min_priority
         self.beta = self.init_beta
 
-    def save(self, path: str) -> None:
-        with open(f"{path}/buffer.pkl", "wb") as f:
+    def save(self, filepath: str, file_name: str) -> None:
+        with open(f"{filepath}/{file_name}.pkl", "wb") as f:
             pickle.dump(self, f)
 
     @classmethod
