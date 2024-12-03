@@ -105,7 +105,7 @@ def test_save_load_vector(memory_buffer_1e6):
     if not os.path.exists(f"{file_path}"):
         os.makedirs(f"{file_path}")
 
-    memory_buffer_1e6.save(file_path)
+    memory_buffer_1e6.save(file_path, "memory_buffer")
 
     loaded_memory = MemoryBuffer.load(file_path, "memory_buffer")
 
