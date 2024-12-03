@@ -1,4 +1,6 @@
-<img src="./media/logo.png" alt="CARES reinforcement learning package logo" />
+<p align="center">
+<img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
+</p>
 
 The CARES reinforcement learning bed used as the foundation for RL related projects.
 
@@ -129,45 +131,45 @@ The Record class allows data to be saved into a consistent format during trainin
 
 All data from a training run is saved into the directory specified in the `CARES_LOG_BASE_DIR` environment variable. If not specified, this will default to `'~/cares_rl_logs'`.
 
-You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"` so that each run is saved as a new seed under the algorithm and domain-task pair for that algorithm.
-
-The following variables are supported for log path template variable interpolation:
-
-- `algorithm`
-- `domain`
-- `task`
-- `domain_task`: The domain and task or just task if domain does not exist
-- `gym`
-- `seed`
-- `date`: The current date in the `YY_MM_DD-HH-MM-SS` format
-- `run_name`: The run name if it is provided, otherwise "unnamed"
-- `run_name_else_date`: The run name if it is provided, otherwise the date
+You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}"`.
 
 This folder will contain the following directories and information saved during the training session:
 
 ```text
 ├─ <log_path>
-|  ├─ env_config.py
-|  ├─ alg_config.py
-|  ├─ train_config.py
-|  ├─ data
-|  |  ├─ train.csv
-|  |  ├─ eval.csv
-|  ├─ figures
-|  |  ├─ eval.png
-|  |  ├─ train.png
-|  ├─ models
-|  |  ├─ model.pht
-|  |  ├─ CHECKPOINT_N.pht
+|  ├─ env_config.json
+|  ├─ alg_config.json
+|  ├─ train_config.json
+|  ├─ *_config.json
+|  ├─ ...
+|  ├─ SEED_N
+|  |  ├─ data
+|  |  |  ├─ train.csv
+|  |  |  ├─ eval.csv
+|  |  ├─ figures
+|  |  |  ├─ eval.png
+|  |  |  ├─ train.png
+|  |  ├─ models
+|  |  |  ├─ model.pht
+|  |  |  ├─ CHECKPOINT_N.pht
+|  |  |  ├─ ...
+|  |  ├─ videos
+|  |  |  ├─ STEP.mp4
+|  |  |  ├─ ...
+|  ├─ SEED_N
 |  |  ├─ ...
-|  ├─ videos
-|  |  ├─ STEP.mp4
-├─ ...
+|  ├─ ...
 ```
 
 ## plotting.py
 
 The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
+
+Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
+
+```sh
+python3 plotter.py -h
+```
 
 Plot the results of a single training instance
 
@@ -179,12 +181,6 @@ Plot and compare the results of two or more training instances
 
 ```sh
 python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
-```
-
-Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments.
-
-```sh
-python3 plotter.py -h
 ```
 
 ## configurations.py

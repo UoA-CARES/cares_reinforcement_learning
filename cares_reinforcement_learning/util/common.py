@@ -1,30 +1,73 @@
+from typing import Any, Callable
+
 import torch
 from torch import distributions as pyd
 from torch import nn
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
-from torch.nn import functional as F
+
+
+def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
+    return getattr(nn, module_name)
 
 
 # Standard Multilayer Perceptron (MLP) network
 class MLP(nn.Module):
-    def __init__(self, input_size: int, hidden_sizes: list[int], output_size: int):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_sizes: list[int],
+        output_size: int | None,
+        norm_layer: Callable[..., nn.Module] | str | None = None,
+        norm_layer_args: dict[str, Any] | None = None,
+        hidden_activation_function: Callable[..., nn.Module] | str = nn.ReLU,
+        hidden_activation_function_args: dict[str, Any] | None = None,
+        output_activation_function: Callable[..., nn.Module] | str | None = None,
+        output_activation_args: dict[str, Any] | None = None,
+    ):
         super().__init__()
+        if norm_layer_args is None:
+            norm_layer_args = {}
+        if hidden_activation_function_args is None:
+            hidden_activation_function_args = {}
+        if output_activation_args is None:
+            output_activation_args = {}
 
-        self.fully_connected_layers = []
-        for i, next_size in enumerate(hidden_sizes):
-            fully_connected_layer = nn.Linear(input_size, next_size)
-            self.add_module(f"fully_connected_layer_{i}", fully_connected_layer)
-            self.fully_connected_layers.append(fully_connected_layer)
+        if isinstance(norm_layer, str):
+            norm_layer = get_pytorch_module_from_name(norm_layer)
+
+        if isinstance(hidden_activation_function, str):
+            hidden_activation_function = get_pytorch_module_from_name(
+                hidden_activation_function
+            )
+
+        if isinstance(output_activation_function, str):
+            output_activation_function = get_pytorch_module_from_name(
+                output_activation_function
+            )
+
+        layers = nn.ModuleList()
+
+        for next_size in hidden_sizes:
+            layers.append(nn.Linear(input_size, next_size))
+
+            if norm_layer is not None:
+                layers.append(norm_layer(next_size, **norm_layer_args))
+
+            layers.append(hidden_activation_function(**hidden_activation_function_args))
+
             input_size = next_size
 
-        self.output_layer = nn.Linear(input_size, output_size)
+        if output_size is not None:
+            layers.append(nn.Linear(input_size, output_size))
+
+            if output_activation_function is not None:
+                layers.append(output_activation_function(**output_activation_args))
+
+        self.model = nn.Sequential(*layers)
 
     def forward(self, state):
-        for fully_connected_layer in self.fully_connected_layers:
-            state = F.relu(fully_connected_layer(state))
-        output = self.output_layer(state)
-        return output
+        return self.model(state)
 
 
 # CNN from Nature paper: https://www.nature.com/articles/nature14236

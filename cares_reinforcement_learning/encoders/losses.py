@@ -1,13 +1,12 @@
 import abc
 import math
-from typing import Optional
+from typing import Any
 
-import numpy as np
 import torch
-import torch.optim as optim
-from torch import nn
+from torch import optim
 from torch.nn import functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.configurations import BurgessConfig
 from cares_reinforcement_learning.encoders.constants import Losses, ReconDist
 from cares_reinforcement_learning.encoders.discriminator import Discriminator
@@ -77,94 +76,18 @@ class AELoss:
         return loss
 
 
-class SqVaeLoss:
-    """
-    Calculates the squared VAE loss.
-
-    Args:
-        None
-
-    Returns:
-        Tuple: A tuple containing the reconstruction loss and the total loss.
-    """
-
-    def __init__(self):
-        pass
-
-    def calculate_loss(
-        self,
-        data,
-        reconstructed_data,
-        flg_arelbo=True,
-        loss_latent=0.0,
-    ):
-        """
-        Calculates the loss for the given data and reconstructed data.
-
-        Args:
-            data (torch.Tensor): The original data.
-            reconstructed_data (torch.Tensor): The reconstructed data.
-            flg_arelbo (bool, optional): Flag to indicate whether to use the ARELBO loss calculation. Defaults to True.
-            loss_latent (float, optional): The loss for the latent space. Defaults to 0.0.
-
-        Returns:
-            tuple: A tuple containing the reconstruction loss and the total loss.
-        """
-
-        logvar_x = nn.Parameter(torch.tensor(np.log(0.1)))
-
-        # TODO dim_x should be passed as argument as currently hard coded to 3 * 64 * 64
-        dim_x = 3 * 64 * 64
-
-        mse = _reconstruction_loss(
-            data,
-            reconstructed_data,
-            reduction="sum",
-            distribution=ReconDist.GAUSSIAN,
-        )
-
-        if flg_arelbo:
-            # "Preventing Posterior Collapse Induced by Oversmoothing in Gaussian VAE"
-            # https://arxiv.org/abs/2102.08663
-            loss_reconst = dim_x * torch.log(mse) / 2
-        else:
-            loss_reconst = mse / (2 * logvar_x.exp()) + dim_x * logvar_x / 2
-
-        loss = loss_reconst + loss_latent
-
-        return loss_reconst, loss
-
-    # TODO implement for SQVAE
-    # def update_autoencoder(self, data, autoencoder):
-    #     latent_observation = autoencoder.encoder(data)
-
-    #     reconstructed_observation = autoencoder.decoder(latent_observation)
-
-    #     loss_reconst, loss = self.calculate_loss(
-    #         data=data,
-    #         reconstructed_data=reconstructed_observation,
-    #         latent_sample=reconstructed_observation,
-    #     )
-
-    #     autoencoder.encoder_optimizer.zero_grad()
-    #     autoencoder.decoder_optimizer.zero_grad()
-    #     loss.backward()
-    #     autoencoder.encoder_optimizer.step()
-    #     autoencoder.decoder_optimizer.step()
-
-    #     return loss_reconst, loss
-
-
 def get_burgess_loss_function(config: BurgessConfig):
     loss_name = config.loss_function_type
 
     if loss_name == Losses.VAE:
         return VAELoss(rec_dist=config.rec_dist, steps_anneal=config.steps_anneal)
-    elif loss_name == Losses.BETA_H:
+
+    if loss_name == Losses.BETA_H:
         return BetaHLoss(
             rec_dist=config.rec_dist, steps_anneal=config.steps_anneal, beta=config.beta
         )
-    elif loss_name == Losses.BETA_B:
+
+    if loss_name == Losses.BETA_B:
         return BetaBLoss(
             rec_dist=config.rec_dist,
             steps_anneal=config.steps_anneal,
@@ -172,8 +95,8 @@ def get_burgess_loss_function(config: BurgessConfig):
             c_fin=config.c_fin,
             gamma=config.gamma,
         )
-    elif loss_name == Losses.FACTOR:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if loss_name == Losses.FACTOR:
+        device = hlp.get_device()
 
         disc_kwargs = {} if config.disc_kwargs is None else config.disc_kwargs
         disc_kwargs["latent_dim"] = config.latent_dim
@@ -186,7 +109,8 @@ def get_burgess_loss_function(config: BurgessConfig):
             disc_kwargs=disc_kwargs,
             optim_kwargs=config.optim_kwargs,
         )
-    elif loss_name == Losses.BTCVAE:
+
+    if loss_name == Losses.BTCVAE:
         # TODO n_data should be passed as argument
         return BtcvaeLoss(
             n_data=1000,
@@ -197,9 +121,8 @@ def get_burgess_loss_function(config: BurgessConfig):
             gamma=config.gamma,
             is_mss=config.is_mss,
         )
-    else:
-        assert loss_name not in iter(Losses)
-        raise ValueError(f"Unknown loss function: {loss_name}")
+
+    raise ValueError(f"Unknown loss function: {loss_name}")
 
 
 class BaseBurgessLoss(metaclass=abc.ABCMeta):
@@ -382,15 +305,15 @@ class FactorKLoss(BaseBurgessLoss):
         rec_dist: ReconDist = ReconDist.BERNOULLI,
         steps_anneal: int = 0,
         gamma: float = 10.0,
-        disc_kwargs: Optional[dict[str, any]] = None,
-        optim_kwargs: Optional[dict[str, any]] = None,
+        disc_kwargs: dict[str, Any] | None = None,
+        optim_kwargs: dict[str, Any] | None = None,
     ):
         super().__init__(rec_dist=rec_dist, steps_anneal=steps_anneal)
 
         if disc_kwargs is None:
             disc_kwargs = {}
         if optim_kwargs is None:
-            optim_kwargs = dict(lr=5e-5, betas=(0.5, 0.9))
+            optim_kwargs = {"lr": 5e-5, "betas": (0.5, 0.9)}
 
         self.gamma = gamma
         self.device = device

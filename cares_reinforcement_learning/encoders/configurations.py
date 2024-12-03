@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -17,24 +17,20 @@ class AEConfig(SubscriptableClass):
     Attributes:
         type (str): Type of the autoencoder - vanilla or burgess.
         latent_dim (int): Dimension of the latent space.
-        num_layers (Optional[int]): Number of layers in the encoder and decoder. Default is 4.
-        num_filters (Optional[int]): Number of filters in each layer. Default is 32.
-        kernel_size (Optional[int]): Size of the convolutional kernel. Default is 3.
+        num_layers (int): Number of layers in the encoder and decoder. Default is 4.
+        num_filters (int): Number of filters in each layer. Default is 32.
+        kernel_size (int): Size of the convolutional kernel. Default is 3.
     """
 
     type: str = Field(description="Type of the autoencoder")
     latent_dim: int
-    num_layers: Optional[int] = 4
-    num_filters: Optional[int] = 32
-    kernel_size: Optional[int] = 3
+    num_layers: int = 4
+    num_filters: int = 32
+    kernel_size: int = 3
 
-    encoder_optim_kwargs: Optional[dict[str, float]] = Field(
-        default_factory=lambda: {"lr": 1e-3}
-    )
+    encoder_optim_kwargs: dict[str, Any] = Field(default_factory=lambda: {"lr": 1e-3})
 
-    decoder_optim_kwargs: Optional[dict[str, float]] = Field(
-        default_factory=lambda: {"lr": 1e-3}
-    )
+    decoder_optim_kwargs: dict[str, Any] = Field(default_factory=lambda: {"lr": 1e-3})
 
 
 class VanillaAEConfig(AEConfig):
@@ -48,29 +44,6 @@ class VanillaAEConfig(AEConfig):
 
     type: str = "vanilla"
     latent_lambda: float = 1e-6
-
-
-# sqVAE = parser.add_argument_group('SQ-VAE specific parameters')
-# sqVAE.add_argument('--dim_z', type=int, default=16)
-# sqVAE.add_argument('--size_dict', type=int, default=512)
-# sqVAE.add_argument('--param_var_q', type=str, default=ParamVarQ.GAUSSIAN_1.value,
-#                     choices=[pvq.value for pvq in ParamVarQ])
-# sqVAE.add_argument('--num_rb', type=int, default=6)
-# sqVAE.add_argument('--flg_arelbo', type=bool, default=True)
-# sqVAE.add_argument('--log_param_q_init', type=float, default=0.0)
-# sqVAE.add_argument('--temperature_init', type=float, default=1.0)
-
-# class SQVAEConfig(AEConfig):
-#     """
-#     Configuration class for the sqvae autoencoder.
-
-#     Attributes:
-
-#     """
-
-#     type: str = "sqvae"
-#     flg_arelbo: bool = Field(description="Flag to use arelbo loss function")
-#     loss_latent: str = Field(description="")
 
 
 class BurgessConfig(AEConfig):
@@ -129,16 +102,16 @@ class FactorKConfig(BurgessConfig):
         rec_dist (str): Reconstruction distribution type.
         steps_anneal (int): Number of steps to anneal the loss function.
         gamma (float): Gamma value for the loss function.
-        disc_kwargs (Optional[dict[str, float]]): Keyword arguments for the discriminator.
-        optim_kwargs (Optional[dict[str, float]]): Keyword arguments for the optimizer.
+        disc_kwargs (dict[str, float]): Keyword arguments for the discriminator.
+        optim_kwargs (dict[str, float]): Keyword arguments for the optimizer.
     """
 
     loss_function_type: str = "factor"
     rec_dist: str = "bernoulli"
     steps_anneal: int = 0
     gamma: float = 6.0
-    disc_kwargs: Optional[dict[str, float]] = Field(default_factory=lambda: None)
-    optim_kwargs: Optional[dict[str, float]] = Field(
+    disc_kwargs: dict[str, float] = Field(default_factory=lambda: None)
+    optim_kwargs: dict[str, float] = Field(
         default_factory=lambda: {"lr": 5e-5, "betas": (0.5, 0.9)}
     )
 

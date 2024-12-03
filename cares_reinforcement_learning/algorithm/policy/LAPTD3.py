@@ -12,20 +12,16 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
+from cares_reinforcement_learning.util.configurations import LAPTD3Config
 
 
 class LAPTD3:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        per_alpha: float,
-        min_priority: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
+        actor_network: Actor,
+        critic_network: Critic,
+        config: LAPTD3Config,
         device: torch.device,
     ):
         self.type = "policy"
@@ -35,27 +31,30 @@ class LAPTD3:
         self.critic_net = critic_network.to(self.device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
-        self.action_num = action_num
+        self.action_num = self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
     def select_action_from_policy(
@@ -85,6 +84,7 @@ class LAPTD3:
     ) -> tuple[float, float, float, np.ndarray]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.policy_noise * torch.randn_like(next_actions)
             target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
             next_actions = next_actions + target_noise
@@ -93,6 +93,7 @@ class LAPTD3:
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
@@ -126,7 +127,10 @@ class LAPTD3:
         )
 
     def _update_actor(self, states: torch.Tensor) -> float:
-        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        actions = self.actor_net(states)
+        with hlp.evaluating(self.critic_net):
+            actor_q_values, _ = self.critic_net(states, actions)
+
         actor_loss = -actor_q_values.mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -144,21 +148,27 @@ class LAPTD3:
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
 
         info = {}
 
         # Update the Critic
         huber_lose_one, huber_lose_two, critic_loss_total, priorities = (
-            self._update_critic(states, actions, rewards, next_states, dones)
+            self._update_critic(
+                states_tensor,
+                actions_tensor,
+                rewards_tensor,
+                next_states_tensor,
+                dones_tensor,
+            )
         )
         info["huber_lose_one"] = huber_lose_one
         info["huber_lose_two"] = huber_lose_two
@@ -166,7 +176,7 @@ class LAPTD3:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states)
+            actor_loss = self._update_actor(states_tensor)
             info["actor_loss"] = actor_loss
 
             # Update target network params
@@ -176,20 +186,15 @@ class LAPTD3:
         memory.update_priorities(indices, priorities)
         return info
 
-    def save_models(self, filename, filepath="models"):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
-    def load_models(self, filepath, filename):
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+    def load_models(self, filepath: str, filename: str) -> None:
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

@@ -1,2 +1,2 @@
-from .actor import Actor
-from .critic import Critic
+from .actor import Actor, DefaultActor, BaseActor
+from .critic import Critic, DefaultCritic, BaseCritic

@@ -12,22 +12,16 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
+from cares_reinforcement_learning.util.configurations import LAPSACConfig
 
 
 class LAPSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        reward_scale: float,
-        per_alpha: float,
-        min_priority: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
+        actor_network: Actor,
+        critic_network: Critic,
+        config: LAPSACConfig,
         device: torch.device,
     ):
         self.device = device
@@ -37,39 +31,47 @@ class LAPSAC:
         self.critic_net = critic_network.to(device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.gamma = gamma
-        self.tau = tau
-        self.reward_scale = reward_scale
+        self.gamma = config.gamma
+        self.tau = config.tau
+        self.reward_scale = config.reward_scale
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
-        self.target_entropy = -action_num
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr
+        )
 
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
             else:
@@ -91,10 +93,13 @@ class LAPSAC:
         dones: torch.Tensor,
     ) -> tuple[float, float, float, np.ndarray]:
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
+
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
+
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * next_log_pi
@@ -134,7 +139,10 @@ class LAPSAC:
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
+
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states, pi)
+
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
@@ -181,33 +189,29 @@ class LAPSAC:
         info["huber_lose_two"] = huber_lose_two
         info["critic_loss_total"] = critic_loss_total
 
-        # Update the Actor
-        actor_loss, alpha_loss = self._update_actor_alpha(states)
-        info["actor_loss"] = actor_loss
-        info["alpha_loss"] = alpha_loss
-        info["alpha"] = self.alpha.item()
-
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor
+            actor_loss, alpha_loss = self._update_actor_alpha(states)
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         memory.update_priorities(indices, priorities)
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")
