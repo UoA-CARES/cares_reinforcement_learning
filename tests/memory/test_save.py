@@ -86,7 +86,7 @@ def test_save_load_image(memory_buffer_1e6):
 
     memory_buffer_1e6.save(file_path, "memory_buffer")
 
-    loaded_memory = MemoryBuffer.load(file_path)
+    loaded_memory = MemoryBuffer.load(file_path, "memory_buffer")
 
     _compare_buffer(memory_buffer_1e6, loaded_memory, len(experience), image_state=True)
 
