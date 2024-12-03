@@ -429,10 +429,10 @@ class MemoryBuffer:
             pickle.dump(self, f)
 
     @classmethod
-    def load(cls, file_path):
+    def load(cls, file_path: str, file_name: str) -> "MemoryBuffer":
         """
         Simple object deserialization given a filename
         """
-        with open(f"{file_path}/buffer.pkl", "rb") as f:
+        with open(f"{file_path}/{file_name}.pkl", "rb") as f:
             obj = pickle.load(f)
             return obj
