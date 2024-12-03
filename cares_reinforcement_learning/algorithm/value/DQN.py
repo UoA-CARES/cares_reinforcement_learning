@@ -34,7 +34,7 @@ class DQN:
             self.network.parameters(), lr=config.lr
         )
 
-    def select_action_from_policy(self, state) -> int:
+    def select_action_from_policy(self, state) -> float:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -49,20 +49,20 @@ class DQN:
         states, actions, rewards, next_states, dones, _ = experiences
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.LongTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.LongTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Generate Q Values given state at time t and t + 1
-        q_values = self.network(states)
-        next_q_values = self.network(next_states)
+        q_values = self.network(states_tensor)
+        next_q_values = self.network(next_states_tensor)
 
-        best_q_values = q_values[torch.arange(q_values.size(0)), actions]
+        best_q_values = q_values[torch.arange(q_values.size(0)), actions_tensor]
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
-        q_target = rewards + self.gamma * (1 - dones) * best_next_q_values
+        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
 
         info = {}
 

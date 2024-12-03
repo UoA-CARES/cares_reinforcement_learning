@@ -72,7 +72,7 @@ class DynaSAC:
         self.world_model = world_network
 
     @property
-    def _alpha(self) -> float:
+    def _alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def select_action_from_policy(

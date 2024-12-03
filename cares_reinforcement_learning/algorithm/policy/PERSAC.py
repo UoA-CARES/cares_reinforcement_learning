@@ -70,8 +70,8 @@ class PERSAC:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             if evaluation is False:
                 (action, _, _) = self.actor_net(state_tensor)
             else:
@@ -164,29 +164,35 @@ class PERSAC:
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
 
         info = {}
 
         # Update the Critic
         critic_loss_total, priorities = self._update_critic(
-            states, actions, rewards, next_states, dones, weights
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
         )
         info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_loss = self._update_actor_alpha(states)
+            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
             info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:

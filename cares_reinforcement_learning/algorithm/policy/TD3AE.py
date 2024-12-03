@@ -105,7 +105,7 @@ class TD3AE:
         states: dict[str, torch.Tensor],
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: torch.Tensor,
+        next_states: dict[str, torch.Tensor],
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
         with torch.no_grad():
@@ -176,23 +176,27 @@ class TD3AE:
 
         batch_size = len(states)
 
-        states = hlp.image_states_dict_to_tensor(states, self.device)
+        states_tensor = hlp.image_states_dict_to_tensor(states, self.device)
 
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
 
-        next_states = hlp.image_states_dict_to_tensor(next_states, self.device)
+        next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
 
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
 
         info = {}
 
         critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states, actions, rewards, next_states, dones
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
         )
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
@@ -200,7 +204,7 @@ class TD3AE:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states)
+            actor_loss = self._update_actor(states_tensor)
             info["actor_loss"] = actor_loss
 
             # Update target network params
@@ -232,7 +236,7 @@ class TD3AE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_loss = self._update_autoencoder(states["image"])
+            ae_loss = self._update_autoencoder(states_tensor["image"])
             info["ae_loss"] = ae_loss
 
         return info
