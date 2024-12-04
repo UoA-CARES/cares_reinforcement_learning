@@ -1,117 +1,123 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
-#
-# This source code is licensed under the MIT license found in the
-# LICENSE file in the root directory of this source tree.
 import torch
-import torch.nn as nn
+
+__all__ = ["BatchRenorm", "BatchRenorm1d"]
 
 
-class BatchRenorm1d(nn.Module):
-    """BatchRenorm Module (https://arxiv.org/abs/1702.03275).
+class BatchRenorm(torch.nn.Module):
+    """
+    BatchRenorm Module (https://arxiv.org/abs/1702.03275).
+    Adapted to Pytorch from
+    https://github.com/araffin/sbx/blob/master/sbx/common/jax_layers.py
 
-    The code is adapted from https://github.com/google-research/corenet
+    BatchRenorm is an improved version of vanilla BatchNorm. Contrary to BatchNorm,
+    BatchRenorm uses the running statistics for normalizing the batches after a warmup phase.
+    This makes it less prone to suffer from "outlier" batches that can happen
+    during very long training runs and, therefore, is more robust during long training runs.
 
-    BatchRenorm is an enhanced version of the standard BatchNorm. Unlike BatchNorm,
-    it utilizes running statistics to normalize batches after an initial warmup phase.
-    This approach reduces the impact of "outlier" batches that may occur during
-    extended training periods, making BatchRenorm more robust for long training runs.
+    During the warmup phase, it behaves exactly like a BatchNorm layer. After the warmup phase,
+    the running statistics are used for normalization. The running statistics are updated during
+    training mode. During evaluation mode, the running statistics are used for normalization but
+    not updated.
 
-    During the warmup phase, BatchRenorm functions identically to a BatchNorm layer.
-
-    Args:
-        num_features (int): Number of features in the input tensor.
-
-    Keyword Args:
-        momentum (:obj:`float`, optional): Momentum factor for computing the running mean and variance.
-            Defaults to ``0.01``.
-        eps (:obj:`float`, optional): Small value added to the variance to avoid division by zero.
-            Defaults to ``1e-5``.
-        max_r (:obj:`float`, optional): Maximum value for the scaling factor r.
-            Defaults to ``3.0``.
-        max_d (:obj:`float`, optional): Maximum value for the bias factor d.
-            Defaults to ``5.0``.
-        warmup_steps (int, optional): Number of warm-up steps for the running mean and variance.
-            Defaults to ``10000``.
-        smooth (bool, optional): if ``True``, the behavior smoothly transitions from regular
-            batch-norm (when ``iter=0``) to batch-renorm (when ``iter=warmup_steps``).
-            Otherwise, the behavior will transition from batch-norm to batch-renorm when
-            ``iter=warmup_steps``. Defaults to ``False``.
+    :param num_features: Number of features in the input tensor.
+    :param eps: A value added to the variance for numerical stability.
+    :param momentum: The value used for the ra_mean and ra_var (running average) computation.
+        It controls the rate of convergence for the batch renormalization statistics.
+    :param affine: A boolean value that when set to True, this module has learnable
+            affine parameters. Default: True
+    :param warmup_steps: Number of warum steps that are performed before the running statistics
+            are used for normalization. During the warump phase, the batch statistics are used.
     """
 
     def __init__(
         self,
         num_features: int,
-        *,
+        eps: float = 0.001,
         momentum: float = 0.01,
-        eps: float = 1e-5,
-        max_r: float = 3.0,
-        max_d: float = 5.0,
-        warmup_steps: int = 100000,
-        smooth: bool = False,
+        affine: bool = True,
+        warmup_steps: int = 100_000,
     ):
         super().__init__()
-        self.num_features = num_features
-        self.eps = eps
-        self.momentum = momentum
-        self.max_r = max_r
-        self.max_d = max_d
-        self.warmup_steps = warmup_steps
-        self.smooth = smooth
+        # Running average mean and variance
+        self.register_buffer("ra_mean", torch.zeros(num_features, dtype=torch.float))
+        self.register_buffer("ra_var", torch.ones(num_features, dtype=torch.float))
+        self.register_buffer("steps", torch.tensor(0, dtype=torch.long))
+        self.scale = torch.nn.Parameter(torch.ones(num_features, dtype=torch.float))
+        self.bias = torch.nn.Parameter(torch.zeros(num_features, dtype=torch.float))
 
-        self.register_buffer(
-            "running_mean", torch.zeros(num_features, dtype=torch.float32)
-        )
-        self.register_buffer(
-            "running_var", torch.ones(num_features, dtype=torch.float32)
-        )
-        self.register_buffer("num_batches_tracked", torch.tensor(0, dtype=torch.int64))
-        self.weight = nn.Parameter(torch.ones(num_features, dtype=torch.float32))
-        self.bias = nn.Parameter(torch.zeros(num_features, dtype=torch.float32))
+        self.affine = affine
+        self.eps = eps
+        self.step = 0
+        self.momentum = momentum
+        self.num_features = num_features
+        # Clip scale and bias of the affine transform
+        self.rmax = 3.0
+        self.dmax = 5.0
+        self.warmup_steps = warmup_steps
+
+    def _check_input_dim(self, x: torch.Tensor) -> None:
+        raise NotImplementedError()
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        if not x.dim() >= 2:
-            raise ValueError(
-                f"The {type(self).__name__} expects a 2D (or more) tensor, got {x.dim()}."
-            )
+        """
+        Normalize the input tensor.
 
-        view_dims = [1, x.shape[1]] + [1] * (x.dim() - 2)
-
-        def _v(v):
-            return v.view(view_dims)
-
-        running_std = (self.running_var + self.eps).sqrt_()
+        :param x: Input tensor
+        :return: Normalized tensor.
+        """
 
         if self.training:
-            reduce_dims = [i for i in range(x.dim()) if i != 1]
-            b_mean = x.mean(reduce_dims)
-            b_var = x.var(reduce_dims, unbiased=False)
-            b_std = (b_var + self.eps).sqrt_()
+            # Compute batch statistics
+            batch_mean = x.mean(dim=0)
+            batch_var = x.var(dim=0)
+            batch_std = (batch_var + self.eps).sqrt()
 
-            r = torch.clamp((b_std.detach() / running_std), 1 / self.max_r, self.max_r)
-            d = torch.clamp(
-                (b_mean.detach() - self.running_mean) / running_std,
-                -self.max_d,
-                self.max_d,
-            )
+            # Use batch statistics during initial warm up phase.
+            # Note: in the original paper, after some warmup phase (batch norm phase of 5k steps)
+            # the constraints are linearly relaxed to r_max/d_max over 40k steps
+            # Here we only have a warmup phase
+            if self.steps > self.warmup_steps:
 
-            # Compute warmup factor (0 during warmup, 1 after warmup)
-            if self.warmup_steps > 0:
-                if self.smooth:
-                    warmup_factor = self.num_batches_tracked / self.warmup_steps
-                else:
-                    warmup_factor = self.num_batches_tracked // self.warmup_steps
-                r = 1.0 + (r - 1.0) * warmup_factor
-                d = d * warmup_factor
+                running_std = (self.ra_var + self.eps).sqrt()
+                # scale
+                r = (batch_std / running_std).detach()
+                r = r.clamp(1 / self.rmax, self.rmax)
+                # bias
+                d = ((batch_mean - self.ra_mean) / running_std).detach()
+                d = d.clamp(-self.dmax, self.dmax)
 
-            x = (x - _v(b_mean)) / _v(b_std) * _v(r) + _v(d)
+                # BatchNorm normalization, using minibatch stats and running average stats
+                custom_mean = batch_mean - d * batch_var.sqrt() / r
+                custom_var = batch_var / (r**2)
 
-            unbiased_var = b_var.detach() * x.shape[0] / (x.shape[0] - 1)
-            self.running_var += self.momentum * (unbiased_var - self.running_var)
-            self.running_mean += self.momentum * (b_mean.detach() - self.running_mean)
-            self.num_batches_tracked += 1
-            self.num_batches_tracked.clamp_max(self.warmup_steps)
+            else:
+                custom_mean, custom_var = batch_mean, batch_var
+
+            # Update Running Statistics
+            self.ra_mean += self.momentum * (batch_mean.detach() - self.ra_mean)
+            self.ra_var += self.momentum * (batch_var.detach() - self.ra_var)
+            self.steps += 1
+
         else:
-            x = (x - _v(self.running_mean)) / _v(running_std)
+            # Use running statistics during evaluation mode
+            custom_mean, custom_var = self.ra_mean, self.ra_var
 
-        x = _v(self.weight) * x + _v(self.bias)
+        # Normalize
+        x = (x - custom_mean[None]) / (custom_var[None] + self.eps).sqrt()
+
+        if self.affine:
+            x = self.scale * x + self.bias
+
         return x
+
+    def extra_repr(self) -> str:
+        return (
+            f"num_features={self.num_features}, momentum={self.momentum}, "
+            f"warmup_steps={self.warmup_steps}, affine={self.affine}"
+        )
+
+
+class BatchRenorm1d(BatchRenorm):
+    def _check_input_dim(self, x: torch.Tensor) -> None:
+        if x.dim() == 1:
+            raise ValueError(f"Expected 2D or 3D input (got {x.dim()}D input)")
