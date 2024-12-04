@@ -1,122 +1,117 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+#
+# This source code is licensed under the MIT license found in the
+# LICENSE file in the root directory of this source tree.
 import torch
-
-# from https://github.com/ludvb/batchrenorm
-
-__all__ = ["BatchRenorm1d", "BatchRenorm2d", "BatchRenorm3d"]
+import torch.nn as nn
 
 
-class BatchRenorm(torch.jit.ScriptModule):
+class BatchRenorm1d(nn.Module):
+    """BatchRenorm Module (https://arxiv.org/abs/1702.03275).
+
+    The code is adapted from https://github.com/google-research/corenet
+
+    BatchRenorm is an enhanced version of the standard BatchNorm. Unlike BatchNorm,
+    it utilizes running statistics to normalize batches after an initial warmup phase.
+    This approach reduces the impact of "outlier" batches that may occur during
+    extended training periods, making BatchRenorm more robust for long training runs.
+
+    During the warmup phase, BatchRenorm functions identically to a BatchNorm layer.
+
+    Args:
+        num_features (int): Number of features in the input tensor.
+
+    Keyword Args:
+        momentum (:obj:`float`, optional): Momentum factor for computing the running mean and variance.
+            Defaults to ``0.01``.
+        eps (:obj:`float`, optional): Small value added to the variance to avoid division by zero.
+            Defaults to ``1e-5``.
+        max_r (:obj:`float`, optional): Maximum value for the scaling factor r.
+            Defaults to ``3.0``.
+        max_d (:obj:`float`, optional): Maximum value for the bias factor d.
+            Defaults to ``5.0``.
+        warmup_steps (int, optional): Number of warm-up steps for the running mean and variance.
+            Defaults to ``10000``.
+        smooth (bool, optional): if ``True``, the behavior smoothly transitions from regular
+            batch-norm (when ``iter=0``) to batch-renorm (when ``iter=warmup_steps``).
+            Otherwise, the behavior will transition from batch-norm to batch-renorm when
+            ``iter=warmup_steps``. Defaults to ``False``.
+    """
+
     def __init__(
         self,
         num_features: int,
-        eps: float = 1e-3,
+        *,
         momentum: float = 0.01,
-        affine: bool = True,
-        warmup_steps: int = 10000,
+        eps: float = 1e-5,
+        max_r: float = 3.0,
+        max_d: float = 5.0,
+        warmup_steps: int = 100000,
+        smooth: bool = False,
     ):
         super().__init__()
-        self.register_buffer(
-            "running_mean", torch.zeros(num_features, dtype=torch.float)
-        )
-        self.register_buffer("running_var", torch.ones(num_features, dtype=torch.float))
-        self.register_buffer("num_batches_tracked", torch.tensor(0, dtype=torch.long))
-        self.weight = torch.nn.Parameter(torch.ones(num_features, dtype=torch.float))
-        self.bias = torch.nn.Parameter(torch.zeros(num_features, dtype=torch.float))
-        self.affine = affine
+        self.num_features = num_features
         self.eps = eps
-        self.step = 0
         self.momentum = momentum
+        self.max_r = max_r
+        self.max_d = max_d
         self.warmup_steps = warmup_steps
+        self.smooth = smooth
 
-    def _check_input_dim(self, x: torch.Tensor) -> None:
-        raise NotImplementedError()  # pragma: no cover
+        self.register_buffer(
+            "running_mean", torch.zeros(num_features, dtype=torch.float32)
+        )
+        self.register_buffer(
+            "running_var", torch.ones(num_features, dtype=torch.float32)
+        )
+        self.register_buffer("num_batches_tracked", torch.tensor(0, dtype=torch.int64))
+        self.weight = nn.Parameter(torch.ones(num_features, dtype=torch.float32))
+        self.bias = nn.Parameter(torch.zeros(num_features, dtype=torch.float32))
 
-    @property
-    def rmax(self) -> torch.Tensor:
-        """
-        Scales standard deviation
-        """
-        return (2 / 35000 * self.num_batches_tracked + 25 / 35).clamp_(1.0, 3.0)
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if not x.dim() >= 2:
+            raise ValueError(
+                f"The {type(self).__name__} expects a 2D (or more) tensor, got {x.dim()}."
+            )
 
-    @property
-    def dmax(self) -> torch.Tensor:
-        """
-        Scales mean
-        """
-        return (5 / 20000 * self.num_batches_tracked - 25 / 20).clamp_(0.0, 5.0)
+        view_dims = [1, x.shape[1]] + [1] * (x.dim() - 2)
 
-    def forward(self, x: torch.Tensor, mask=None) -> torch.Tensor:
-        """
-        Mask is a boolean tensor used for indexing, where True values are padded
-        i.e for 3D input, mask should be of shape (batch_size, seq_len)
-        mask is used to prevent padded values from affecting the batch statistics
-        """
-        self._check_input_dim(x)
-        if x.dim() > 2:
-            x = x.transpose(1, -1)
+        def _v(v):
+            return v.view(view_dims)
+
+        running_std = (self.running_var + self.eps).sqrt_()
+
         if self.training:
-            # x=r(x^−μ)/σ+d # changing input with running mean, std, dynamic upper limit r, dynamic shift limit d
-            # μ, σ, r, d updated as:
-            # -> μ = μ + momentum * (input.mean(0))
-            # -> σ = σ + momentum * (input.std(0) + eps)
-            # -> r = clip(input.std(0)/σ, !/rmax, rmax)
-            # -> d = clip((input.mean(0) - μ)/σ, -dmax, dmax)
-            # Also: optional masking
-            # Also: counter "num_batches_tracked"
-            # Note: The introduction of r and d mitigates some of the issues of BN, especially with small BZ or significant shifts in the input distribution.
-            dims = [i for i in range(x.dim() - 1)]
-            if mask is not None:
-                z = x[~mask]
-                batch_mean = z.mean(0)
-                batch_var = z.var(0, unbiased=False)
-            else:
-                batch_mean = x.mean(dims)
-                batch_var = x.var(dims, unbiased=False)
+            reduce_dims = [i for i in range(x.dim()) if i != 1]
+            b_mean = x.mean(reduce_dims)
+            b_var = x.var(reduce_dims, unbiased=False)
+            b_std = (b_var + self.eps).sqrt_()
 
-            # Adding warm up
-            warmed_up_factor = (self.num_batches_tracked >= self.warmup_steps).float()
+            r = torch.clamp((b_std.detach() / running_std), 1 / self.max_r, self.max_r)
+            d = torch.clamp(
+                (b_mean.detach() - self.running_mean) / running_std,
+                -self.max_d,
+                self.max_d,
+            )
 
-            running_std = torch.sqrt(self.running_var.view_as(batch_var) + self.eps)
-            r = ((batch_var / running_std).clamp_(1 / self.rmax, self.rmax)).detach()
-            d = (
-                (
-                    (batch_mean - self.running_mean.view_as(batch_mean)) / running_std
-                ).clamp_(-self.dmax, self.dmax)
-            ).detach()
-            if warmed_up_factor:
-                x = (x - batch_mean) / torch.sqrt(batch_var + self.eps)
-            else:
-                x = r * ((x - batch_mean) / torch.sqrt(batch_var + self.eps)) + d
-            # Pytorch convention (1-beta)*estimated + beta*observed
-            self.running_mean = (
-                1 - self.momentum
-            ) * self.running_mean + self.momentum * batch_mean.detach()
-            self.running_var = (
-                1 - self.momentum
-            ) * self.running_var + self.momentum * batch_var.detach()
+            # Compute warmup factor (0 during warmup, 1 after warmup)
+            if self.warmup_steps > 0:
+                if self.smooth:
+                    warmup_factor = self.num_batches_tracked / self.warmup_steps
+                else:
+                    warmup_factor = self.num_batches_tracked // self.warmup_steps
+                r = 1.0 + (r - 1.0) * warmup_factor
+                d = d * warmup_factor
+
+            x = (x - _v(b_mean)) / _v(b_std) * _v(r) + _v(d)
+
+            unbiased_var = b_var.detach() * x.shape[0] / (x.shape[0] - 1)
+            self.running_var += self.momentum * (unbiased_var - self.running_var)
+            self.running_mean += self.momentum * (b_mean.detach() - self.running_mean)
             self.num_batches_tracked += 1
-        else:  # x=r(x^−μpop​ )/σpop​ +d # running mean and std
-            x = (x - self.running_mean) / torch.sqrt(self.running_var + self.eps)
-        if self.affine:  # Step 3 affine transform: y=γx+β
-            x = self.weight * x + self.bias
-        if x.dim() > 2:
-            x = x.transpose(1, -1)
+            self.num_batches_tracked.clamp_max(self.warmup_steps)
+        else:
+            x = (x - _v(self.running_mean)) / _v(running_std)
+
+        x = _v(self.weight) * x + _v(self.bias)
         return x
-
-
-class BatchRenorm1d(BatchRenorm):
-    def _check_input_dim(self, x: torch.Tensor) -> None:
-        if x.dim() not in [2, 3]:
-            raise ValueError("expected 2D or 3D input (got {x.dim()}D input)")
-
-
-class BatchRenorm2d(BatchRenorm):
-    def _check_input_dim(self, x: torch.Tensor) -> None:
-        if x.dim() != 4:
-            raise ValueError("expected 4D input (got {x.dim()}D input)")
-
-
-class BatchRenorm3d(BatchRenorm):
-    def _check_input_dim(self, x: torch.Tensor) -> None:
-        if x.dim() != 5:
-            raise ValueError("expected 5D input (got {x.dim()}D input)")
