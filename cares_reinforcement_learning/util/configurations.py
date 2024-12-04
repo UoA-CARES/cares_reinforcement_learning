@@ -397,6 +397,10 @@ class RDSACConfig(SACConfig):
     hidden_size_critic: list[int] = [256, 256]
 
 
+class DroQConfig(SACConfig):
+    algorithm: str = Field("DroQ", Literal=True)
+
+
 class DynaSACConfig(SACConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: float = 3e-4
