@@ -18,6 +18,8 @@ class MLP(nn.Module):
         input_size: int,
         hidden_sizes: list[int],
         output_size: int | None,
+        batch_layer: Callable[..., nn.Module] | str | None = None,
+        batch_layer_args: dict[str, Any] | None = None,
         dropout_layer: Callable[..., nn.Module] | str | None = None,
         dropout_layer_args: dict[str, Any] | None = None,
         norm_layer: Callable[..., nn.Module] | str | None = None,
@@ -26,8 +28,11 @@ class MLP(nn.Module):
         hidden_activation_function_args: dict[str, Any] | None = None,
         output_activation_function: Callable[..., nn.Module] | str | None = None,
         output_activation_args: dict[str, Any] | None = None,
+        layer_order: list[str] = ["batch", "activation", "layernorm" "dropout"],
     ):
         super().__init__()
+        if batch_layer_args is None:
+            batch_layer_args = {}
         if dropout_layer_args is None:
             dropout_layer_args = {}
         if norm_layer_args is None:
@@ -36,6 +41,9 @@ class MLP(nn.Module):
             hidden_activation_function_args = {}
         if output_activation_args is None:
             output_activation_args = {}
+
+        if isinstance(batch_layer, str):
+            batch_layer = get_pytorch_module_from_name(batch_layer)
 
         if isinstance(dropout_layer, str):
             dropout_layer = get_pytorch_module_from_name(dropout_layer)
@@ -58,13 +66,22 @@ class MLP(nn.Module):
         for next_size in hidden_sizes:
             layers.append(nn.Linear(input_size, next_size))
 
-            if dropout_layer is not None:
-                layers.append(dropout_layer(**dropout_layer_args))
+            for layer_type in layer_order:
+                # ["batch", "activation", "layernorm" "dropout"]
 
-            if norm_layer is not None:
-                layers.append(norm_layer(next_size, **norm_layer_args))
+                if layer_type == "activation":
+                    layers.append(
+                        hidden_activation_function(**hidden_activation_function_args)
+                    )
 
-            layers.append(hidden_activation_function(**hidden_activation_function_args))
+                elif layer_type == "batch" and batch_layer is not None:
+                    layers.append(batch_layer(next_size, **batch_layer_args))
+
+                elif layer_type == "layernorm" and norm_layer is not None:
+                    layers.append(norm_layer(next_size, **norm_layer_args))
+
+                elif layer_type == "dropout" and dropout_layer is not None:
+                    layers.append(dropout_layer(**dropout_layer_args))
 
             input_size = next_size
 
