@@ -76,6 +76,12 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: int = 0
 
+    batch_layer: str | None = None
+    batch_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    dropout_layer: str | None = None
+    dropout_layer_args: dict[str, Any] = Field(default_factory=dict)
+
     norm_layer: str | None = None
     norm_layer_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -85,6 +91,8 @@ class AlgorithmConfig(SubscriptableClass):
     final_activation: str | None = None
     final_activation_args: dict[str, Any] = Field(default_factory=dict)
 
+    layer_order: list[str] = ["activation"]
+
     @pydantic.root_validator(pre=True)
     def convert_none_to_dict(cls, values):  # pylint: disable-next=no-self-argument
         if values.get("norm_layer_args") is None:
@@ -93,8 +101,14 @@ class AlgorithmConfig(SubscriptableClass):
             values["activation_function_args"] = {}
         if values.get("final_activation_args") is None:
             values["final_activation_args"] = {}
+        if values.get("batch_layer_args") is None:
+            values["batch_layer_args"] = {}
+        if values.get("dropout_layer_args") is None:
+            values["dropout_layer_args"] = {}
         return values
 
+
+# ["batch", "activation", "layernorm" "dropout"]
 
 ###################################
 #         DQN Algorithms          #
