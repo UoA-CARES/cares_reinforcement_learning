@@ -16,15 +16,15 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.SAC import Actor, Critic
+from cares_reinforcement_learning.networks.SAC import BaseActor, BaseCritic
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
 class SAC:
     def __init__(
         self,
-        actor_network: Actor,
-        critic_network: Critic,
+        actor_network: BaseActor,
+        critic_network: BaseCritic,
         config: SACConfig,
         device: torch.device,
     ):
