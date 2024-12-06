@@ -11,11 +11,9 @@ class DefaultCritic(BaseCritic):
         self,
         observation_size: int,
         num_actions: int,
-        hidden_sizes: list[int] | None = None,
     ):
         input_size = observation_size + num_actions
-        if hidden_sizes is None:
-            hidden_sizes = [256, 256]
+        hidden_sizes = [256, 256]
 
         # Q1 architecture
         # pylint: disable-next=invalid-name

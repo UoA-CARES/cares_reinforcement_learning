@@ -18,6 +18,8 @@ class MLP(nn.Module):
         input_size: int,
         hidden_sizes: list[int],
         output_size: int | None,
+        dropout_layer: Callable[..., nn.Module] | str | None = None,
+        dropout_layer_args: dict[str, Any] | None = None,
         norm_layer: Callable[..., nn.Module] | str | None = None,
         norm_layer_args: dict[str, Any] | None = None,
         hidden_activation_function: Callable[..., nn.Module] | str = nn.ReLU,
@@ -26,12 +28,17 @@ class MLP(nn.Module):
         output_activation_args: dict[str, Any] | None = None,
     ):
         super().__init__()
+        if dropout_layer_args is None:
+            dropout_layer_args = {}
         if norm_layer_args is None:
             norm_layer_args = {}
         if hidden_activation_function_args is None:
             hidden_activation_function_args = {}
         if output_activation_args is None:
             output_activation_args = {}
+
+        if isinstance(dropout_layer, str):
+            dropout_layer = get_pytorch_module_from_name(dropout_layer)
 
         if isinstance(norm_layer, str):
             norm_layer = get_pytorch_module_from_name(norm_layer)
@@ -50,6 +57,9 @@ class MLP(nn.Module):
 
         for next_size in hidden_sizes:
             layers.append(nn.Linear(input_size, next_size))
+
+            if dropout_layer is not None:
+                layers.append(dropout_layer(**dropout_layer_args))
 
             if norm_layer is not None:
                 layers.append(norm_layer(next_size, **norm_layer_args))
