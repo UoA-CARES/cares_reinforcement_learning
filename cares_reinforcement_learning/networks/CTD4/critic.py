@@ -12,11 +12,7 @@ class DefaultCritic(ContinuousDistributedCritic):
 
         super().__init__(
             input_size=input_size,
-            mean_layer_config=MLPConfig(hidden_sizes=hidden_sizes),
-            std_layer_config=MLPConfig(
-                hidden_sizes=hidden_sizes,
-                output_activation_function=nn.Softplus.__name__,
-            ),
+            config=MLPConfig(hidden_sizes=hidden_sizes),
         )
 
         self.mean_layer = nn.Sequential(
@@ -33,16 +29,13 @@ class DefaultCritic(ContinuousDistributedCritic):
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             nn.Linear(hidden_sizes[1], 1),
-            nn.Softplus(),
         )
+
+        self.soft_std_layer = nn.Softplus()
 
 
 class Critic(ContinuousDistributedCritic):
     def __init__(self, observation_size: int, action_num: int, config: CTD4Config):
         input_size = observation_size + action_num
 
-        super().__init__(
-            input_size=input_size,
-            mean_layer_config=config.mean_layer_config,
-            std_layer_config=config.std_layer_config,
-        )
+        super().__init__(input_size=input_size, config=config.critic_config)

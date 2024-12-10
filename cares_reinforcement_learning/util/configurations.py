@@ -688,7 +688,7 @@ class RDTD3Config(TD3Config):
     critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
-class CTD4Config(AlgorithmConfig):
+class CTD4Config(TD3Config):
     algorithm: str = Field("CTD4", Literal=True)
 
     actor_lr: float = 1e-4
@@ -703,15 +703,9 @@ class CTD4Config(AlgorithmConfig):
 
     policy_update_freq: int = 2
 
-    # Actor Network
     actor_config: MLPConfig = MLPConfig(
         hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
     )
-
-    # Critic Networks
-    mean_layer_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    std_layer_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Softplus.__name__
-    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
     fusion_method: str = "kalman"  # kalman, minimum, average

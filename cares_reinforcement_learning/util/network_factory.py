@@ -172,12 +172,12 @@ def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
     from cares_reinforcement_learning.networks.REDQ import Actor, EnsembleCritic
 
     actor = Actor(observation_size, action_num, config=config)
-    ensemble_critics = EnsembleCritic(observation_size, action_num, config=config)
+    ensemble_critic = EnsembleCritic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
     agent = REDQ(
         actor_network=actor,
-        ensemble_critics=ensemble_critics,
+        ensemble_critic=ensemble_critic,
         config=config,
         device=device,
     )

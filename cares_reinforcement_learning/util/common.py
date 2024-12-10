@@ -3,6 +3,7 @@ from typing import Callable
 import torch
 from torch import distributions as pyd
 from torch import nn
+from torch.distributions import Normal
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
 
@@ -110,6 +111,49 @@ class DeterministicPolicy(nn.Module):
         return output
 
 
+class GaussianPolicy(nn.Module):
+    def __init__(
+        self,
+        input_size: int,
+        num_actions: int,
+        log_std_bounds: list[float],
+        config: MLPConfig,
+    ):
+        super().__init__()
+
+        self.input_size = input_size
+        self.num_actions = num_actions
+        self.log_std_bounds = log_std_bounds
+
+        self.act_net: MLP | nn.Sequential = MLP(
+            input_size=input_size,
+            output_size=None,
+            config=config,
+        )
+
+        self.mean_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
+        self.log_std_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
+
+    def forward(
+        self, state: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        x = self.act_net(state)
+        mu = self.mean_linear(x)
+        log_std = self.log_std_linear(x)
+
+        # constrain log_std inside [log_std_min, log_std_max]
+        log_std_min, log_std_max = self.log_std_bounds
+        log_std = torch.clamp(log_std, log_std_min, log_std_max)
+
+        std = log_std.exp()
+
+        dist = Normal(mu, std)
+        sample = dist.rsample()  # Sample from the Gaussian distribution
+        log_pi = dist.log_prob(sample).sum(-1, keepdim=True)
+
+        return sample, log_pi, dist.mean
+
+
 class TanhGaussianPolicy(nn.Module):
     def __init__(
         self,
@@ -209,22 +253,22 @@ class TwinQNetwork(nn.Module):
 
 
 class ContinuousDistributedCritic(nn.Module):
-    def __init__(
-        self, input_size: int, mean_layer_config: MLPConfig, std_layer_config: MLPConfig
-    ):
+    def __init__(self, input_size: int, config: MLPConfig):
         super().__init__()
 
         self.mean_layer: MLP | nn.Sequential = MLP(
             input_size=input_size,
             output_size=1,
-            config=mean_layer_config,
+            config=config,
         )
 
         self.std_layer: MLP | nn.Sequential = MLP(
             input_size=input_size,
             output_size=1,
-            config=std_layer_config,
+            config=config,
         )
+
+        self.soft_std_layer = nn.Softplus()
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor
@@ -232,15 +276,17 @@ class ContinuousDistributedCritic(nn.Module):
         obs_action = torch.cat([state, action], dim=1)
         mean = self.mean_layer(obs_action)
         # Add a small value to the standard deviation to prevent division by zero
-        std = self.std_layer(obs_action) + 1e-6
+        std = self.std_layer(obs_action)
+        std = self.soft_std_layer(std) + 1e-6
         return mean, std
 
 
+# TODO generalise detach - cnn or output
 class EncoderPolicy(nn.Module):
     def __init__(
         self,
         encoder: Encoder,
-        actor: DeterministicPolicy | TanhGaussianPolicy,
+        actor: DeterministicPolicy | GaussianPolicy | TanhGaussianPolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()
@@ -302,7 +348,7 @@ class AEActor(nn.Module):
     def __init__(
         self,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        actor: DeterministicPolicy | TanhGaussianPolicy,
+        actor: DeterministicPolicy | GaussianPolicy | TanhGaussianPolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()
