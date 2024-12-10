@@ -500,7 +500,7 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
 
     agent = CTD4(
         actor_network=actor,
-        ensemble_critics=ensemble_critics,
+        ensemble_critic=ensemble_critics,
         config=config,
         device=device,
     )
