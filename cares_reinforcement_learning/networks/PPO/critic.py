@@ -6,14 +6,14 @@ from cares_reinforcement_learning.util.configurations import PPOConfig
 
 
 class BaseCritic(nn.Module):
-    def __init__(self, Q1: nn.Module):
+    def __init__(self, Q: nn.Module):
         super().__init__()
 
-        self.Q1 = Q1
+        self.Q = Q
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        q1 = self.Q1(state)
-        return q1
+        q = self.Q(state)
+        return q
 
 
 class DefaultCritic(BaseCritic):
@@ -22,7 +22,7 @@ class DefaultCritic(BaseCritic):
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
-        Q1 = nn.Sequential(
+        Q = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),
             nn.ReLU(),
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
@@ -30,22 +30,16 @@ class DefaultCritic(BaseCritic):
             nn.Linear(hidden_sizes[1], 1),
         )
 
-        super().__init__(Q1=Q1)
+        super().__init__(Q=Q)
 
 
 class Critic(BaseCritic):
     def __init__(self, observation_size: int, config: PPOConfig):
-        hidden_sizes = config.hidden_size_critic
-
-        # Q1 architecture
+        # Q architecture
         # pylint: disable-next=invalid-name
-        Q1 = MLP(
-            observation_size,
-            hidden_sizes,
+        Q = MLP(
+            input_size=observation_size,
             output_size=1,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
+            config=config.critic_config,
         )
-        super().__init__(Q1=Q1)
+        super().__init__(Q=Q)

@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Callable
 
 import torch
 from torch import distributions as pyd
@@ -6,8 +6,19 @@ from torch import nn
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
 
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
+from cares_reinforcement_learning.encoders.constants import Autoencoders
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
+    Encoder,
+    VanillaAutoencoder,
+)
+from cares_reinforcement_learning.util.configurations import MLPConfig
 
-def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
+
+def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module] | None:
+    if module_name == "":
+        return None
     return getattr(nn, module_name)
 
 
@@ -16,52 +27,28 @@ class MLP(nn.Module):
     def __init__(
         self,
         input_size: int,
-        hidden_sizes: list[int],
         output_size: int | None,
-        batch_layer: Callable[..., nn.Module] | str | None = None,
-        batch_layer_args: dict[str, Any] | None = None,
-        dropout_layer: Callable[..., nn.Module] | str | None = None,
-        dropout_layer_args: dict[str, Any] | None = None,
-        norm_layer: Callable[..., nn.Module] | str | None = None,
-        norm_layer_args: dict[str, Any] | None = None,
-        hidden_activation_function: Callable[..., nn.Module] | str = nn.ReLU,
-        hidden_activation_function_args: dict[str, Any] | None = None,
-        output_activation_function: Callable[..., nn.Module] | str | None = None,
-        output_activation_args: dict[str, Any] | None = None,
-        layer_order: list[str] | None = None,
+        config: MLPConfig,
     ):
         super().__init__()
-        if layer_order is None:
-            layer_order = ["batch", "activation", "layernorm" "dropout"]
-        if batch_layer_args is None:
-            batch_layer_args = {}
-        if dropout_layer_args is None:
-            dropout_layer_args = {}
-        if norm_layer_args is None:
-            norm_layer_args = {}
-        if hidden_activation_function_args is None:
-            hidden_activation_function_args = {}
-        if output_activation_args is None:
-            output_activation_args = {}
 
-        if isinstance(batch_layer, str):
-            batch_layer = get_pytorch_module_from_name(batch_layer)
+        hidden_sizes = config.hidden_sizes
 
-        if isinstance(dropout_layer, str):
-            dropout_layer = get_pytorch_module_from_name(dropout_layer)
+        layer_order = config.layer_order
 
-        if isinstance(norm_layer, str):
-            norm_layer = get_pytorch_module_from_name(norm_layer)
+        batch_layer = get_pytorch_module_from_name(config.batch_layer)
 
-        if isinstance(hidden_activation_function, str):
-            hidden_activation_function = get_pytorch_module_from_name(
-                hidden_activation_function
-            )
+        dropout_layer = get_pytorch_module_from_name(config.dropout_layer)
 
-        if isinstance(output_activation_function, str):
-            output_activation_function = get_pytorch_module_from_name(
-                output_activation_function
-            )
+        norm_layer = get_pytorch_module_from_name(config.norm_layer)
+
+        hidden_activation_function = get_pytorch_module_from_name(
+            config.hidden_activation_function
+        )
+
+        output_activation_function = get_pytorch_module_from_name(
+            config.output_activation_function
+        )
 
         layers = nn.ModuleList()
 
@@ -70,19 +57,24 @@ class MLP(nn.Module):
 
             for layer_type in layer_order:
 
-                if layer_type == "activation":
+                if (
+                    layer_type == "activation"
+                    and hidden_activation_function is not None
+                ):
                     layers.append(
-                        hidden_activation_function(**hidden_activation_function_args)
+                        hidden_activation_function(
+                            **config.hidden_activation_function_args
+                        )
                     )
 
                 elif layer_type == "batch" and batch_layer is not None:
-                    layers.append(batch_layer(next_size, **batch_layer_args))
+                    layers.append(batch_layer(next_size, **config.batch_layer_args))
 
                 elif layer_type == "layernorm" and norm_layer is not None:
-                    layers.append(norm_layer(next_size, **norm_layer_args))
+                    layers.append(norm_layer(next_size, **config.norm_layer_args))
 
                 elif layer_type == "dropout" and dropout_layer is not None:
-                    layers.append(dropout_layer(**dropout_layer_args))
+                    layers.append(dropout_layer(**config.dropout_layer_args))
 
             input_size = next_size
 
@@ -90,7 +82,9 @@ class MLP(nn.Module):
             layers.append(nn.Linear(input_size, output_size))
 
             if output_activation_function is not None:
-                layers.append(output_activation_function(**output_activation_args))
+                layers.append(
+                    output_activation_function(**config.output_activation_function_args)
+                )
 
         self.model = nn.Sequential(*layers)
 
@@ -98,34 +92,289 @@ class MLP(nn.Module):
         return self.model(state)
 
 
-# CNN from Nature paper: https://www.nature.com/articles/nature14236
-class NatureCNN(nn.Module):
-    def __init__(self, observation_size: tuple[int]):
+class DeterministicPolicy(nn.Module):
+    def __init__(self, input_size: int, num_actions: int, config: MLPConfig):
         super().__init__()
 
-        self.cnn_modules = [
-            nn.Conv2d(observation_size[0], 32, kernel_size=8, stride=4),
-            nn.ReLU(),
-            nn.Conv2d(32, 64, kernel_size=4, stride=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, kernel_size=3, stride=1),
-            nn.ReLU(),
-            nn.Flatten(),
-        ]
+        self.observation_size = input_size
+        self.num_actions = num_actions
 
-        self.nature_cnn = nn.Sequential(*self.cnn_modules)
-
-        with torch.no_grad():
-            dummy_image = torch.zeros([1, *observation_size])
-            n_flatten = self.nature_cnn(torch.FloatTensor(dummy_image))
-
-        self.cnn_modules.append(nn.Linear(n_flatten.shape[1], 512))
-
-        self.nature_cnn = nn.Sequential(*self.cnn_modules)
+        self.act_net: MLP | nn.Sequential = MLP(
+            input_size=self.observation_size,
+            output_size=self.num_actions,
+            config=config,
+        )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
-        output = self.nature_cnn(state)
+        output = self.act_net(state)
         return output
+
+
+class StochasticPolicy(nn.Module):
+    def __init__(
+        self,
+        input_size: int,
+        num_actions: int,
+        log_std_bounds: list[float],
+        config: MLPConfig,
+    ):
+        super().__init__()
+
+        self.input_size = input_size
+        self.num_actions = num_actions
+        self.log_std_bounds = log_std_bounds
+
+        self.act_net: MLP | nn.Sequential = MLP(
+            input_size=input_size,
+            output_size=None,
+            config=config,
+        )
+
+        self.mean_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
+        self.log_std_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
+
+    def forward(
+        self, state: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        x = self.act_net(state)
+        mu = self.mean_linear(x)
+        log_std = self.log_std_linear(x)
+
+        # Bound the action to finite interval.
+        # Apply an invertible squashing function: tanh
+        # employ the change of variables formula to compute the likelihoods of the bounded actions
+
+        # constrain log_std inside [log_std_min, log_std_max]
+        log_std = torch.tanh(log_std)
+
+        log_std_min, log_std_max = self.log_std_bounds
+        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
+
+        std = log_std.exp()
+
+        dist = SquashedNormal(mu, std)
+        sample = dist.rsample()
+        log_pi = dist.log_prob(sample).sum(-1, keepdim=True)
+
+        return sample, log_pi, dist.mean
+
+
+class QValueCritic(nn.Module):
+    def __init__(self, input_size: int, output_size: int, config: MLPConfig):
+        super().__init__()
+
+        self.input_size = input_size
+
+        # Q1 architecture
+        # pylint: disable-next=invalid-name
+        self.Q: MLP | nn.Sequential = MLP(
+            input_size=self.input_size,
+            output_size=output_size,
+            config=config,
+        )
+
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        obs_action = torch.cat([state, action], dim=1)
+        q = self.Q(obs_action)
+        return q
+
+
+class TwinQValueCritic(nn.Module):
+    def __init__(self, input_size: int, output_size: int, config: MLPConfig):
+        super().__init__()
+
+        # Q1 architecture
+        # pylint: disable-next=invalid-name
+        self.Q1: MLP | nn.Sequential = MLP(
+            input_size=input_size,
+            output_size=output_size,
+            config=config,
+        )
+
+        # Q2 architecture
+        # pylint: disable-next=invalid-name
+        self.Q2: MLP | nn.Sequential = MLP(
+            input_size=input_size,
+            output_size=output_size,
+            config=config,
+        )
+
+    def forward(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        obs_action = torch.cat([state, action], dim=1)
+        q1 = self.Q1(obs_action)
+        q2 = self.Q2(obs_action)
+        return q1, q2
+
+
+class ContinuousDistributedCritic(nn.Module):
+    def __init__(
+        self, input_size: int, mean_layer_config: MLPConfig, std_layer_config: MLPConfig
+    ):
+        super().__init__()
+
+        self.mean_layer: MLP | nn.Sequential = MLP(
+            input_size=input_size,
+            output_size=1,
+            config=mean_layer_config,
+        )
+
+        self.std_layer: MLP | nn.Sequential = MLP(
+            input_size=input_size,
+            output_size=1,
+            config=std_layer_config,
+        )
+
+    def forward(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        obs_action = torch.cat([state, action], dim=1)
+        mean = self.mean_layer(obs_action)
+        std = self.std_layer(obs_action) + 1e-6
+        return mean, std
+
+
+class EncoderPolicy(nn.Module):
+    def __init__(
+        self,
+        num_actions: int,
+        encoder: Encoder,
+        actor: DeterministicPolicy | StochasticPolicy,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.num_actions = num_actions
+        self.encoder = encoder
+        self.actor = actor
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(  # type: ignore
+        self, state: dict[str, torch.Tensor], detach_encoder: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # Detach at the CNN layer to prevent backpropagation through the encoder
+        state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
+
+        actor_input = state_latent
+        if self.add_vector_observation:
+            actor_input = torch.cat([state["vector"], actor_input], dim=1)
+
+        return self.actor(actor_input)
+
+
+class EncoderCritic(nn.Module):
+    def __init__(
+        self,
+        encoder: Encoder,
+        critic: QValueCritic | TwinQValueCritic,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.encoder = encoder
+        self.critic = critic
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(
+        self,
+        state: dict[str, torch.Tensor],
+        action: torch.Tensor,
+        detach_encoder: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # Detach at the CNN layer to prevent backpropagation through the encoder
+        state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
+
+        critic_input = state_latent
+        if self.add_vector_observation:
+            critic_input = torch.cat([state["vector"], critic_input], dim=1)
+
+        return self.critic(critic_input, action)
+
+
+class AEActor(nn.Module):
+    def __init__(
+        self,
+        num_actions: int,
+        autoencoder: VanillaAutoencoder | BurgessAutoencoder,
+        actor: DeterministicPolicy | StochasticPolicy,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.num_actions = num_actions
+        self.autoencoder = autoencoder
+        self.actor = actor
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(
+        self, state: dict[str, torch.Tensor], detach_encoder: bool = False
+    ) -> torch.Tensor:
+        # NaSATD3 detatches the encoder at the output
+        if self.autoencoder.ae_type == Autoencoders.BURGESS:
+            # take the mean value for stability
+            z_vector, _, _ = self.autoencoder.encoder(
+                state["image"], detach_output=detach_encoder
+            )
+        else:
+            z_vector = self.autoencoder.encoder(
+                state["image"], detach_output=detach_encoder
+            )
+
+        actor_input = z_vector
+        if self.add_vector_observation:
+            actor_input = torch.cat([state["vector"], actor_input], dim=1)
+
+        return self.actor(actor_input)
+
+
+class AECritc(nn.Module):
+    def __init__(
+        self,
+        autoencoder: VanillaAutoencoder | BurgessAutoencoder,
+        critic: QValueCritic | TwinQValueCritic,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.autoencoder = autoencoder
+        self.critic = critic
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(
+        self,
+        state: dict[str, torch.Tensor],
+        action: torch.Tensor,
+        detach_encoder: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        # NaSATD3 detatches the encoder at the output
+        if self.autoencoder.ae_type == Autoencoders.BURGESS:
+            # take the mean value for stability
+            z_vector, _, _ = self.autoencoder.encoder(
+                state["image"], detach_output=detach_encoder
+            )
+        else:
+            z_vector = self.autoencoder.encoder(
+                state["image"], detach_output=detach_encoder
+            )
+
+        critic_input = z_vector
+        if self.add_vector_observation:
+            critic_input = torch.cat([state["vector"], critic_input], dim=1)
+
+        return self.critic(critic_input, action)
 
 
 # Stable version of the Tanh transform - overriden to avoid NaN values through atanh in pytorch

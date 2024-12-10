@@ -1,56 +1,12 @@
-import torch
-from torch import nn
-
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
-from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
-from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
 from cares_reinforcement_learning.networks.TD3 import DefaultActor as DefaultTD3Actor
+from cares_reinforcement_learning.util.common import AEActor
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
-class BaseActor(nn.Module):
-    def __init__(
-        self,
-        num_actions: int,
-        autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        actor: TD3Actor | DefaultTD3Actor,
-        add_vector_observation: bool = False,
-    ):
-        super().__init__()
-
-        self.num_actions = num_actions
-        self.autoencoder = autoencoder
-        self.actor = actor
-
-        self.add_vector_observation = add_vector_observation
-
-        self.apply(hlp.weight_init)
-
-    def forward(
-        self, state: dict[str, torch.Tensor], detach_encoder: bool = False
-    ) -> torch.Tensor:
-        # NaSATD3 detatches the encoder at the output
-        if self.autoencoder.ae_type == Autoencoders.BURGESS:
-            # take the mean value for stability
-            z_vector, _, _ = self.autoencoder.encoder(
-                state["image"], detach_output=detach_encoder
-            )
-        else:
-            z_vector = self.autoencoder.encoder(
-                state["image"], detach_output=detach_encoder
-            )
-
-        actor_input = z_vector
-        if self.add_vector_observation:
-            actor_input = torch.cat([state["vector"], actor_input], dim=1)
-
-        return self.actor(actor_input)
-
-
-class DefaultActor(BaseActor):
+class DefaultActor(AEActor):
     def __init__(self, observation_size: dict, num_actions: int):
 
         autoencoder = VanillaAutoencoder(
@@ -72,7 +28,7 @@ class DefaultActor(BaseActor):
         )
 
 
-class Actor(BaseActor):
+class Actor(AEActor):
     def __init__(
         self,
         observation_size: dict,

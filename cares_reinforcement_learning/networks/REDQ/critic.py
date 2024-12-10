@@ -6,18 +6,18 @@ from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
 class BaseCritic(nn.Module):
-    def __init__(self, Q1: nn.Module):
+    def __init__(self, Q: nn.Module):
         super().__init__()
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
-        self.Q1 = Q1
+        self.Q = Q
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         obs_action = torch.cat([state, action], dim=1)
-        q = self.Q1(obs_action)
+        q = self.Q(obs_action)
         return q
 
 
@@ -36,24 +36,19 @@ class DefaultCritic(BaseCritic):
             nn.Linear(hidden_sizes[1], 1),
         )
 
-        super().__init__(Q1=Q1)
+        super().__init__(Q=Q1)
 
 
 class Critic(BaseCritic):
     def __init__(self, observation_size: int, num_actions: int, config: REDQConfig):
         input_size = observation_size + num_actions
-        hidden_sizes = config.hidden_size_critic
 
-        # Q1 architecture
+        # Q architecture
         # pylint: disable-next=invalid-name
-        Q1 = MLP(
-            input_size,
-            hidden_sizes,
+        Q = MLP(
+            input_size=input_size,
             output_size=1,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
+            config=config.critic_config,
         )
 
-        super().__init__(Q1=Q1)
+        super().__init__(Q=Q)

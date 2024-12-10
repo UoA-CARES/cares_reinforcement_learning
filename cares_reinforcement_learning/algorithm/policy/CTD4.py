@@ -17,7 +17,7 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.CTD4 import Actor, EnsembleCritic
+from cares_reinforcement_learning.networks.CTD4 import Actor, BaseEnsembleCritic
 from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
@@ -25,7 +25,7 @@ class CTD4:
     def __init__(
         self,
         actor_network: Actor,
-        ensemble_critics: EnsembleCritic,
+        ensemble_critics: BaseEnsembleCritic,
         config: CTD4Config,
         device: torch.device,
     ):

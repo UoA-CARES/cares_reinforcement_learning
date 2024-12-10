@@ -21,11 +21,10 @@ class BaseEnsembleCritic(nn.ModuleList):
 class DefaultEnsembleCritic(BaseEnsembleCritic):
     def __init__(self, observation_size: int, action_num: int):
 
-        self.ensemble_size = 3
+        ensemble_size = 3
 
         critics = [
-            DefaultCritic(observation_size, action_num)
-            for _ in range(self.ensemble_size)
+            DefaultCritic(observation_size, action_num) for _ in range(ensemble_size)
         ]
 
         super().__init__(critics=critics)

@@ -54,17 +54,12 @@ class Critic(BaseCritic):
         critic_nets = []
         num_quantiles = config.num_quantiles
         num_critics = config.num_critics
-        hidden_sizes = config.hidden_size_critic
 
         for _ in range(num_critics):
             critic_net = MLP(
-                input_size,
-                hidden_sizes,
+                input_size=input_size,
                 output_size=num_quantiles,
-                norm_layer=config.norm_layer,
-                norm_layer_args=config.norm_layer_args,
-                hidden_activation_function=config.activation_function,
-                hidden_activation_function_args=config.activation_function_args,
+                config=config.critic_config,
             )
             critic_nets.append(critic_net)
 

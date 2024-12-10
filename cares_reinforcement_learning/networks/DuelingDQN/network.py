@@ -71,38 +71,24 @@ class Network(BaseNetwork):
         num_actions: int,
         config: DuelingDQNConfig,
     ):
-        hidden_sizes = config.feature_hidden_size
-        value_stream_hidden_sizes = config.value_stream_hidden_size
-        advantage_stream_hidden_sizes = config.advantage_stream_hidden_size
+        hidden_sizes = config.feature_layer_config.hidden_sizes
 
         feature_layer = MLP(
-            observation_size,
-            hidden_sizes,
+            input_size=observation_size,
             output_size=None,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
+            config=config.feature_layer_config,
         )
 
         value_stream = MLP(
-            hidden_sizes[-1],
-            value_stream_hidden_sizes,
+            input_size=hidden_sizes[-1],
             output_size=1,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
+            config=config.value_stream_config,
         )
 
         advantage_stream = MLP(
-            hidden_sizes[-1],
-            advantage_stream_hidden_sizes,
+            input_size=hidden_sizes[-1],
             output_size=num_actions,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
+            config=config.advantage_stream_config,
         )
 
         super().__init__(

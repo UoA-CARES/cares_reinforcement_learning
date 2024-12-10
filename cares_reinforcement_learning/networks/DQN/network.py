@@ -40,15 +40,10 @@ class DefaultNetwork(BaseNetwork):
 
 class Network(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: DQNConfig):
-        hidden_sizes = config.hidden_size
 
         network = MLP(
-            observation_size,
-            hidden_sizes,
+            input_size=observation_size,
             output_size=num_actions,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
+            config=config.network_config,
         )
         super().__init__(network=network)
