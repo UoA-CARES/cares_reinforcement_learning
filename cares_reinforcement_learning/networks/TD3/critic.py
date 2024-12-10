@@ -1,11 +1,11 @@
 from torch import nn
 
-from cares_reinforcement_learning.util.common import TwinQValueCritic
+from cares_reinforcement_learning.util.common import TwinQNetwork
 from cares_reinforcement_learning.util.configurations import TD3Config, MLPConfig
 
 
 # This is the default base network for TD3 for reference and testing of default network configurations
-class DefaultCritic(TwinQValueCritic):
+class DefaultCritic(TwinQNetwork):
     def __init__(
         self,
         observation_size: int,
@@ -44,7 +44,7 @@ class DefaultCritic(TwinQValueCritic):
         )
 
 
-class Critic(TwinQValueCritic):
+class Critic(TwinQNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: TD3Config):
         input_size = observation_size + num_actions
 

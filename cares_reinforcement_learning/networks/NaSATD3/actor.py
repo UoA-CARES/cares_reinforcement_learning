@@ -22,7 +22,6 @@ class DefaultActor(AEActor):
         )
 
         super().__init__(
-            num_actions,
             autoencoder,
             actor,
         )
@@ -47,7 +46,6 @@ class Actor(AEActor):
         actor = TD3Actor(actor_observation_size, num_actions, config)
 
         super().__init__(
-            num_actions,
             autoencoder,
             actor,
             add_vector_observation=bool(config.vector_observation),

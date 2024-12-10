@@ -1,10 +1,10 @@
 from torch import nn
 
-from cares_reinforcement_learning.util.common import TwinQValueCritic
+from cares_reinforcement_learning.util.common import TwinQNetwork
 from cares_reinforcement_learning.util.configurations import MAPERSACConfig, MLPConfig
 
 
-class DefaultCritic(TwinQValueCritic):
+class DefaultCritic(TwinQNetwork):
     def __init__(self, observation_size: int, num_actions: int):
         input_size = observation_size + num_actions
         hidden_sizes = [400, 300]
@@ -37,7 +37,7 @@ class DefaultCritic(TwinQValueCritic):
         )
 
 
-class Critic(TwinQValueCritic):
+class Critic(TwinQNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: MAPERSACConfig):
         input_size = observation_size + num_actions
         output_size = 1 + 1 + observation_size

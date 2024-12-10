@@ -159,7 +159,7 @@ class TanhGaussianPolicy(nn.Module):
         return sample, log_pi, dist.mean
 
 
-class QValueCritic(nn.Module):
+class QNetwork(nn.Module):
     def __init__(self, input_size: int, output_size: int, config: MLPConfig):
         super().__init__()
 
@@ -179,7 +179,7 @@ class QValueCritic(nn.Module):
         return q
 
 
-class TwinQValueCritic(nn.Module):
+class TwinQNetwork(nn.Module):
     def __init__(self, input_size: int, output_size: int, config: MLPConfig):
         super().__init__()
 
@@ -239,14 +239,13 @@ class ContinuousDistributedCritic(nn.Module):
 class EncoderPolicy(nn.Module):
     def __init__(
         self,
-        num_actions: int,
         encoder: Encoder,
         actor: DeterministicPolicy | TanhGaussianPolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()
 
-        self.num_actions = num_actions
+        self.num_actions = actor.num_actions
         self.encoder = encoder
         self.actor = actor
 
@@ -271,7 +270,7 @@ class EncoderCritic(nn.Module):
     def __init__(
         self,
         encoder: Encoder,
-        critic: QValueCritic | TwinQValueCritic,
+        critic: QNetwork | TwinQNetwork,
         add_vector_observation: bool = False,
     ):
         super().__init__()
@@ -302,14 +301,13 @@ class EncoderCritic(nn.Module):
 class AEActor(nn.Module):
     def __init__(
         self,
-        num_actions: int,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
         actor: DeterministicPolicy | TanhGaussianPolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()
 
-        self.num_actions = num_actions
+        self.num_actions = actor.num_actions
         self.autoencoder = autoencoder
         self.actor = actor
 
@@ -342,7 +340,7 @@ class AECritc(nn.Module):
     def __init__(
         self,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        critic: QValueCritic | TwinQValueCritic,
+        critic: QNetwork | TwinQNetwork,
         add_vector_observation: bool = False,
     ):
         super().__init__()

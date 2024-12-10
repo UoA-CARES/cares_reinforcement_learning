@@ -59,7 +59,8 @@ class MLPConfig(SubscriptableClass):
     layer_order: list[str] = ["batch", "activation", "layernorm", "dropout"]
 
     @pydantic.root_validator(pre=True)
-    def convert_none_to_dict(cls, values):  # pylint: disable-next=no-self-argument
+    # pylint: disable-next=no-self-argument
+    def convert_none_to_dict(cls, values):
         if values.get("norm_layer_args") is None:
             values["norm_layer_args"] = {}
         if values.get("activation_function_args") is None:

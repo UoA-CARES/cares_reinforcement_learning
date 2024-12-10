@@ -21,7 +21,6 @@ class DefaultActor(EncoderPolicy):
         )
 
         super().__init__(
-            num_actions,
             encoder,
             actor,
         )
@@ -46,7 +45,6 @@ class Actor(EncoderPolicy):
         actor = TD3Actor(actor_observation_size, num_actions, config)
 
         super().__init__(
-            num_actions,
             encoder=encoder,
             actor=actor,
             add_vector_observation=bool(config.vector_observation),
