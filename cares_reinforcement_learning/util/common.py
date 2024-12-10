@@ -110,7 +110,7 @@ class DeterministicPolicy(nn.Module):
         return output
 
 
-class StochasticPolicy(nn.Module):
+class TanhGaussianPolicy(nn.Module):
     def __init__(
         self,
         input_size: int,
@@ -231,6 +231,7 @@ class ContinuousDistributedCritic(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor]:
         obs_action = torch.cat([state, action], dim=1)
         mean = self.mean_layer(obs_action)
+        # Add a small value to the standard deviation to prevent division by zero
         std = self.std_layer(obs_action) + 1e-6
         return mean, std
 
@@ -240,7 +241,7 @@ class EncoderPolicy(nn.Module):
         self,
         num_actions: int,
         encoder: Encoder,
-        actor: DeterministicPolicy | StochasticPolicy,
+        actor: DeterministicPolicy | TanhGaussianPolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()
@@ -303,7 +304,7 @@ class AEActor(nn.Module):
         self,
         num_actions: int,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        actor: DeterministicPolicy | StochasticPolicy,
+        actor: DeterministicPolicy | TanhGaussianPolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()

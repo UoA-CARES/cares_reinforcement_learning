@@ -1,10 +1,10 @@
 from torch import nn
 
-from cares_reinforcement_learning.util.common import StochasticPolicy
+from cares_reinforcement_learning.util.common import TanhGaussianPolicy
 from cares_reinforcement_learning.util.configurations import MLPConfig, SACConfig
 
 
-class DefaultActor(StochasticPolicy):
+class DefaultActor(TanhGaussianPolicy):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
@@ -39,7 +39,7 @@ class DefaultActor(StochasticPolicy):
         self.log_std_linear = nn.Linear(hidden_sizes[-1], num_actions)
 
 
-class Actor(StochasticPolicy):
+class Actor(TanhGaussianPolicy):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
