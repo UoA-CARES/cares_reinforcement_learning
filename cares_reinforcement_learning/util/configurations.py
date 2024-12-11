@@ -38,6 +38,42 @@ class TrainingConfig(SubscriptableClass):
     number_eval_episodes: int = 10
 
 
+class MLPConfig(SubscriptableClass):
+    hidden_sizes: list[int]
+
+    batch_layer: str = ""
+    batch_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    dropout_layer: str = ""
+    dropout_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    norm_layer: str = ""
+    norm_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    hidden_activation_function: str = nn.ReLU.__name__
+    hidden_activation_function_args: dict[str, Any] = Field(default_factory=dict)
+
+    output_activation_function: str = ""
+    output_activation_function_args: dict[str, Any] = Field(default_factory=dict)
+
+    layer_order: list[str] = ["batch", "activation", "layernorm", "dropout"]
+
+    @pydantic.root_validator(pre=True)
+    # pylint: disable-next=no-self-argument
+    def convert_none_to_dict(cls, values):
+        if values.get("norm_layer_args") is None:
+            values["norm_layer_args"] = {}
+        if values.get("activation_function_args") is None:
+            values["activation_function_args"] = {}
+        if values.get("final_activation_args") is None:
+            values["final_activation_args"] = {}
+        if values.get("batch_layer_args") is None:
+            values["batch_layer_args"] = {}
+        if values.get("dropout_layer_args") is None:
+            values["dropout_layer_args"] = {}
+        return values
+
+
 class AlgorithmConfig(SubscriptableClass):
     """
     Configuration class for the algorithm.
@@ -76,25 +112,6 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: int = 0
 
-    norm_layer: str | None = None
-    norm_layer_args: dict[str, Any] = Field(default_factory=dict)
-
-    activation_function: str = nn.ReLU.__name__
-    activation_function_args: dict[str, Any] = Field(default_factory=dict)
-
-    final_activation: str | None = None
-    final_activation_args: dict[str, Any] = Field(default_factory=dict)
-
-    @pydantic.root_validator(pre=True)
-    def convert_none_to_dict(cls, values):  # pylint: disable-next=no-self-argument
-        if values.get("norm_layer_args") is None:
-            values["norm_layer_args"] = {}
-        if values.get("activation_function_args") is None:
-            values["activation_function_args"] = {}
-        if values.get("final_activation_args") is None:
-            values["final_activation_args"] = {}
-        return values
-
 
 ###################################
 #         DQN Algorithms          #
@@ -109,7 +126,7 @@ class DQNConfig(AlgorithmConfig):
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
 
-    hidden_size: list[int] = [512, 512]
+    network_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
 
 
 class DoubleDQNConfig(DQNConfig):
@@ -121,7 +138,7 @@ class DoubleDQNConfig(DQNConfig):
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
 
-    hidden_size: list[int] = [512, 512]
+    network_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
 
 
 class DuelingDQNConfig(AlgorithmConfig):
@@ -132,9 +149,9 @@ class DuelingDQNConfig(AlgorithmConfig):
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
 
-    feature_hidden_size: list[int] = [512, 512]
-    value_stream_hidden_size: list[int] = [512]
-    advantage_stream_hidden_size: list[int] = [512]
+    feature_layer_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
+    value_stream_config: MLPConfig = MLPConfig(hidden_sizes=[512])
+    advantage_stream_config: MLPConfig = MLPConfig(hidden_sizes=[512])
 
 
 ###################################
@@ -153,8 +170,10 @@ class PPOConfig(AlgorithmConfig):
 
     max_steps_per_batch: int = 5000
 
-    hidden_size_actor: list[int] = [1024, 1024]
-    hidden_size_critic: list[int] = [1024, 1024]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
 
 
 ###################################
@@ -182,8 +201,8 @@ class SACDConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [512, 512]
-    hidden_size_critic: list[int] = [512, 512]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
 
 
 class SACConfig(AlgorithmConfig):
@@ -201,8 +220,8 @@ class SACConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class SACAEConfig(SACConfig):
@@ -224,8 +243,8 @@ class SACAEConfig(SACConfig):
     policy_update_freq: int = 2
     target_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [1024, 1024]
-    hidden_size_critic: list[int] = [1024, 1024]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
 
     encoder_tau: float = 0.05
     decoder_update_freq: int = 1
@@ -260,8 +279,8 @@ class PERSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class REDQConfig(SACConfig):
@@ -279,8 +298,8 @@ class REDQConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class TQCConfig(SACConfig):
@@ -300,8 +319,8 @@ class TQCConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [512, 512, 512]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512, 512])
 
 
 class LAPSACConfig(SACConfig):
@@ -322,8 +341,8 @@ class LAPSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class LA3PSACConfig(SACConfig):
@@ -345,8 +364,8 @@ class LA3PSACConfig(SACConfig):
 
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class MAPERSACConfig(SACConfig):
@@ -372,8 +391,8 @@ class MAPERSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [400, 300]
-    hidden_size_critic: list[int] = [400, 300]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[400, 300])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[400, 300])
 
 
 class RDSACConfig(SACConfig):
@@ -393,8 +412,8 @@ class RDSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class CrossQConfig(AlgorithmConfig):
@@ -433,8 +452,8 @@ class DynaSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
     horizon: int = 3
     num_samples: int = 10
@@ -454,8 +473,10 @@ class DDPGConfig(AlgorithmConfig):
     gamma: float = 0.99
     tau: float = 0.005
 
-    hidden_size_actor: list[int] = [1024, 1024]
-    hidden_size_critic: list[int] = [1024, 1024]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
 
 
 class TD3Config(AlgorithmConfig):
@@ -468,8 +489,10 @@ class TD3Config(AlgorithmConfig):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class TD3AEConfig(TD3Config):
@@ -487,8 +510,10 @@ class TD3AEConfig(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [1024, 1024]
-    hidden_size_critic: list[int] = [1024, 1024]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
 
     encoder_tau: float = 0.05
     decoder_update_freq: int = 1
@@ -521,9 +546,11 @@ class NaSATD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [1024, 1024]
-    hidden_size_critic: list[int] = [1024, 1024]
-    hidden_size_epdm: list[int] = [512, 512]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
+    epm_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
 
     intrinsic_on: int = 1
 
@@ -564,8 +591,10 @@ class PERTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class LAPTD3Config(TD3Config):
@@ -582,8 +611,10 @@ class LAPTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class PALTD3Config(TD3Config):
@@ -600,8 +631,10 @@ class PALTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class LA3PTD3Config(TD3Config):
@@ -619,8 +652,10 @@ class LA3PTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class MAPERTD3Config(TD3Config):
@@ -644,8 +679,10 @@ class MAPERTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class RDTD3Config(TD3Config):
@@ -662,8 +699,10 @@ class RDTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class CTD4Config(TD3Config):
@@ -681,7 +720,9 @@ class CTD4Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
     fusion_method: str = "kalman"  # kalman, minimum, average

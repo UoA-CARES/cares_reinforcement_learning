@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.util.common import MLP
+from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import PPOConfig
 
 
@@ -36,17 +36,10 @@ class DefaultActor(BaseActor):
 class Actor(BaseActor):
     def __init__(self, observation_size: int, num_actions: int, config: PPOConfig):
 
-        hidden_sizes = config.hidden_size_actor
-
         act_net = MLP(
-            observation_size,
-            hidden_sizes,
+            input_size=observation_size,
             output_size=num_actions,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
-            output_activation_function=nn.Tanh,
+            config=config.actor_config,
         )
 
         super().__init__(act_net=act_net, num_actions=num_actions)

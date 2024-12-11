@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.util.common import MLP
+from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
@@ -60,20 +60,16 @@ class Actor(BaseActor):
 
     def __init__(self, observation_size: int, num_actions: int, config: SACDConfig):
 
-        hidden_sizes = config.hidden_size_actor
-
         act_net = MLP(
-            observation_size,
-            hidden_sizes,
+            input_size=observation_size,
             output_size=None,
-            norm_layer=config.norm_layer,
-            norm_layer_args=config.norm_layer_args,
-            hidden_activation_function=config.activation_function,
-            hidden_activation_function_args=config.activation_function_args,
+            config=config.actor_config,
         )
+
+        discrete_net_input = config.actor_config.hidden_sizes[-1]
 
         super().__init__(
             act_net=act_net,
-            discrete_net_input=hidden_sizes[-1],
+            discrete_net_input=discrete_net_input,
             num_actions=num_actions,
         )
