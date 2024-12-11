@@ -23,7 +23,7 @@ def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module] |
     return getattr(nn, module_name)
 
 
-# Standard Multilayer Perceptron (MLP) network
+# Standard Multilayer Perceptron (MLP) network - consider making Sequential itself
 class MLP(nn.Module):
     def __init__(
         self,
@@ -93,7 +93,7 @@ class MLP(nn.Module):
         return self.model(state)
 
 
-class BaseActor(nn.Module):
+class BasePolicy(nn.Module):
     def __init__(self, input_size: int, num_actions: int, config: MLPConfig):
         super().__init__()
 
@@ -107,14 +107,14 @@ class BaseActor(nn.Module):
         raise NotImplementedError("Subclasses should implement this method.")
 
 
-class DeterministicPolicy(BaseActor):
+class DeterministicPolicy(BasePolicy):
     def __init__(self, input_size: int, num_actions: int, config: MLPConfig):
         super().__init__(input_size, num_actions, config)
 
         self.act_net: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=self.num_actions,
-            config=config,
+            config=self.config,
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
@@ -122,7 +122,7 @@ class DeterministicPolicy(BaseActor):
         return output
 
 
-class GaussianPolicy(BaseActor):
+class GaussianPolicy(BasePolicy):
     def __init__(
         self,
         input_size: int,
@@ -163,7 +163,7 @@ class GaussianPolicy(BaseActor):
         return sample, log_pi, dist.mean
 
 
-class TanhGaussianPolicy(BaseActor):
+class TanhGaussianPolicy(BasePolicy):
     def __init__(
         self,
         input_size: int,
@@ -335,7 +335,7 @@ class EncoderPolicy(nn.Module):
     def __init__(
         self,
         encoder: Encoder,
-        actor: BaseActor,
+        actor: BasePolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()
@@ -397,7 +397,7 @@ class AEActor(nn.Module):
     def __init__(
         self,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        actor: BaseActor,
+        actor: BasePolicy,
         add_vector_observation: bool = False,
     ):
         super().__init__()

@@ -50,6 +50,7 @@ class DefaultCritic(EnsembleCritic):
             output_size=1,
             ensemble_size=ensemble_size,
             config=MLPConfig(hidden_sizes=hidden_sizes),
+            critic_type=ContinuousDistributedCritic,
         )
 
         for i in range(ensemble_size):
