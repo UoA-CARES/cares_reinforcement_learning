@@ -350,7 +350,7 @@ class EncoderPolicy(nn.Module):
 
     def forward(  # type: ignore
         self, state: dict[str, torch.Tensor], detach_encoder: bool = False
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
         state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
 
@@ -382,7 +382,7 @@ class EncoderCritic(nn.Module):
         state: dict[str, torch.Tensor],
         action: torch.Tensor,
         detach_encoder: bool = False,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
         state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
 
@@ -412,7 +412,7 @@ class AEActor(nn.Module):
 
     def forward(
         self, state: dict[str, torch.Tensor], detach_encoder: bool = False
-    ) -> torch.Tensor:
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # NaSATD3 detatches the encoder at the output
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
             # take the mean value for stability
