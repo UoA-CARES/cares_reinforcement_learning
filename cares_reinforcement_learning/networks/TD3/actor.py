@@ -1,6 +1,6 @@
 from torch import nn
 
-from cares_reinforcement_learning.util.common import DeterministicPolicy
+from cares_reinforcement_learning.networks.common import DeterministicPolicy
 from cares_reinforcement_learning.util.configurations import MLPConfig, TD3Config
 
 

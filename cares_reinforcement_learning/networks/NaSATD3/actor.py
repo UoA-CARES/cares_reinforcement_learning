@@ -2,7 +2,7 @@ from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
 from cares_reinforcement_learning.networks.TD3 import DefaultActor as DefaultTD3Actor
-from cares_reinforcement_learning.util.common import AEActor
+from cares_reinforcement_learning.networks.common import AEActor
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 

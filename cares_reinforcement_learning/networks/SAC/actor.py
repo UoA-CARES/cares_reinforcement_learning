@@ -1,6 +1,6 @@
 from torch import nn
 
-from cares_reinforcement_learning.util.common import TanhGaussianPolicy
+from cares_reinforcement_learning.networks.common import TanhGaussianPolicy
 from cares_reinforcement_learning.util.configurations import MLPConfig, SACConfig
 
 

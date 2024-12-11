@@ -1,7 +1,7 @@
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.SAC import Critic as SACCritic
 from cares_reinforcement_learning.networks.SAC import DefaultCritic as DefaultSACCritic
-from cares_reinforcement_learning.util.common import EncoderCritic
+from cares_reinforcement_learning.networks.common import EncoderCritic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 

@@ -1,7 +1,7 @@
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.SAC import Actor as SACActor
 from cares_reinforcement_learning.networks.SAC import DefaultActor as DefaultSACActor
-from cares_reinforcement_learning.util.common import EncoderPolicy
+from cares_reinforcement_learning.networks.common import EncoderPolicy
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 

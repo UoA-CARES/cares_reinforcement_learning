@@ -1,7 +1,7 @@
 from torch import nn
 
-from cares_reinforcement_learning.util.common import TwinQNetwork
-from cares_reinforcement_learning.util.configurations import TD3Config, MLPConfig
+from cares_reinforcement_learning.networks.common import TwinQNetwork
+from cares_reinforcement_learning.util.configurations import MLPConfig, TD3Config
 
 
 # This is the default base network for TD3 for reference and testing of default network configurations

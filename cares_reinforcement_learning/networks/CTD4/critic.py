@@ -1,6 +1,6 @@
 from torch import nn
 
-from cares_reinforcement_learning.util.common import (
+from cares_reinforcement_learning.networks.common import (
     ContinuousDistributedCritic,
     EnsembleCritic,
 )
