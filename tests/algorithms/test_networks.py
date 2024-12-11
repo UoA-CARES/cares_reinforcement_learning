@@ -85,6 +85,10 @@ def _compare_networks(model1: nn.Module, model2: nn.Module) -> bool:
     # print(f"{model2=}")
     name_modules2 = dict(model2.named_children())
 
+    if f"{type(model1).__name__}" == f"Default{type(model2).__name__}":
+        print(f"Networks do not match {model1=} vs {model2=}")
+        return False
+
     for name, module1 in name_modules1.items():
         if name not in name_modules2:
             print(f"Module {name} not found in second model")
@@ -92,32 +96,20 @@ def _compare_networks(model1: nn.Module, model2: nn.Module) -> bool:
 
         module2 = name_modules2[name]
 
-        if isinstance(module1, MLP) or isinstance(module1, nn.Sequential):
-            if isinstance(module2, MLP) or isinstance(module2, nn.Sequential):
-                seq1 = _extract_sequential(module1)
-                seq1 = module1 if seq1 is None else seq1
-                seq2 = _extract_sequential(module2)
-                seq2 = module2 if seq2 is None else seq2
+        seq1 = _extract_sequential(module1)
+        seq2 = _extract_sequential(module2)
 
-                equal = _compare_sequential_layers(seq1, seq2)
-                if not equal:
-                    print(f"Sequential layers do not match {name=} {seq1=} vs {seq2=}")
-                    return False
+        if seq1 is not None and seq2 is not None:
 
-                # skip the other checks
-                continue
-            else:
-                print(
-                    f"Module types do not match {type(module1)=} vs {type(module2)=} or aren't MLP vs Sequential"
-                )
+            equal = _compare_sequential_layers(seq1, seq2)
+            if not equal:
+                print(f"Sequential layers do not match {name=} {seq1=} vs {seq2=}")
                 return False
 
-        if f"Default{type(module1).__name__}" == type(module2).__name__:
-            if not _compare_networks(module1, module2):
-                print(f"Networks do not match {module1=} vs {module2=}")
-                return False
+            # skip the other checks
+            continue
 
-        elif type(module1) != type(module2):
+        if type(module1) != type(module2):
             print(f"Module types do not match {type(module1)=} vs {type(module2)=}")
             return False
         elif not _compare_layers(module1, module2):

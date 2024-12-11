@@ -169,10 +169,10 @@ def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
 
 def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
     from cares_reinforcement_learning.algorithm.policy import REDQ
-    from cares_reinforcement_learning.networks.REDQ import Actor, EnsembleCritic
+    from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
     actor = Actor(observation_size, action_num, config=config)
-    ensemble_critic = EnsembleCritic(observation_size, action_num, config=config)
+    ensemble_critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
     agent = REDQ(

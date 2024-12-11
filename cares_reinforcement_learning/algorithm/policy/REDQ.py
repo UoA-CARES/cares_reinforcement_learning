@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.REDQ import Actor, EnsembleCritic
+from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
@@ -21,7 +21,7 @@ class REDQ:
     def __init__(
         self,
         actor_network: Actor,
-        ensemble_critic: EnsembleCritic,
+        ensemble_critic: Critic,
         config: REDQConfig,
         device: torch.device,
     ):
@@ -56,7 +56,7 @@ class REDQ:
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
             torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
-            for critic_net in self.ensemble_critic
+            for critic_net in self.ensemble_critic.critics
         ]
 
         # Set to initial alpha to 1.0 according to other baselines.
@@ -102,11 +102,11 @@ class REDQ:
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
-            target_q_values_one = self.target_ensemble_critic[idx[0]](
+            target_q_values_one = self.target_ensemble_critic.critics[idx[0]](
                 next_states, next_actions
             )
 
-            target_q_values_two = self.target_ensemble_critic[idx[1]](
+            target_q_values_two = self.target_ensemble_critic.critics[idx[1]](
                 next_states, next_actions
             )
 
@@ -120,7 +120,7 @@ class REDQ:
         critic_loss_totals = []
 
         for critic_net, critic_net_optimiser in zip(
-            self.ensemble_critic, self.ensemble_critic_optimizers
+            self.ensemble_critic.critics, self.ensemble_critic_optimizers
         ):
             q_values = critic_net(states, actions)
 
@@ -139,8 +139,8 @@ class REDQ:
     ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
 
-        qf1_pi = self.target_ensemble_critic[idx[0]](states, pi)
-        qf2_pi = self.target_ensemble_critic[idx[1]](states, pi)
+        qf1_pi = self.target_ensemble_critic.critics[idx[0]](states, pi)
+        qf2_pi = self.target_ensemble_critic.critics[idx[1]](states, pi)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
@@ -205,7 +205,7 @@ class REDQ:
         if self.learn_counter % self.target_update_freq == 0:
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
-                self.ensemble_critic, self.target_ensemble_critic
+                self.ensemble_critic.critics, self.target_ensemble_critic.critics
             ):
                 hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 

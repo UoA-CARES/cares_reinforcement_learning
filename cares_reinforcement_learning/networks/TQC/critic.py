@@ -1,38 +1,24 @@
-import torch
 from torch import nn
 
-from cares_reinforcement_learning.util.common import MLP
-from cares_reinforcement_learning.util.configurations import TQCConfig
+from cares_reinforcement_learning.util.common import EnsembleCritic
+from cares_reinforcement_learning.util.configurations import MLPConfig, TQCConfig
 
 
-class BaseCritic(nn.Module):
-    def __init__(self, critic_nets: list[nn.Sequential] | list[MLP]):
-        super().__init__()
-
-        self.q_networks = []
-
-        for i, critic_net in enumerate(critic_nets):
-            self.add_module(f"critic_net_{i}", critic_net)
-            self.q_networks.append(critic_net)
-
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        network_input = torch.cat((state, action), dim=1)
-        quantiles = torch.stack(
-            tuple(critic(network_input) for critic in self.q_networks), dim=1
-        )
-        return quantiles
-
-
-class DefaultCritic(BaseCritic):
+class DefaultCritic(EnsembleCritic):
     def __init__(self, observation_size: int, num_actions: int):
         input_size = observation_size + num_actions
-
-        critic_nets = []
         num_quantiles = 25
         num_critics = 5
         hidden_sizes = [512, 512, 512]
 
-        for _ in range(num_critics):
+        super().__init__(
+            input_size=input_size,
+            output_size=num_quantiles,
+            ensemble_size=num_critics,
+            config=MLPConfig(hidden_sizes=hidden_sizes),
+        )
+
+        for i in range(num_critics):
             critic_net = nn.Sequential(
                 nn.Linear(input_size, hidden_sizes[0]),
                 nn.ReLU(),
@@ -42,25 +28,17 @@ class DefaultCritic(BaseCritic):
                 nn.ReLU(),
                 nn.Linear(hidden_sizes[2], num_quantiles),
             )
-            critic_nets.append(critic_net)
+            self.add_module(f"critic_net_{i}", critic_net)
+            self.critics[i] = critic_net
 
-        super().__init__(critic_nets)
 
-
-class Critic(BaseCritic):
+class Critic(EnsembleCritic):
     def __init__(self, observation_size: int, num_actions: int, config: TQCConfig):
         input_size = observation_size + num_actions
 
-        critic_nets = []
-        num_quantiles = config.num_quantiles
-        num_critics = config.num_critics
-
-        for _ in range(num_critics):
-            critic_net = MLP(
-                input_size=input_size,
-                output_size=num_quantiles,
-                config=config.critic_config,
-            )
-            critic_nets.append(critic_net)
-
-        super().__init__(critic_nets)
+        super().__init__(
+            input_size=input_size,
+            output_size=config.num_quantiles,
+            ensemble_size=config.num_critics,
+            config=config.critic_config,
+        )

@@ -281,6 +281,28 @@ class ContinuousDistributedCritic(nn.Module):
         return mean, std
 
 
+class EnsembleCritic(nn.Module):
+    def __init__(
+        self, input_size: int, output_size: int, ensemble_size: int, config: MLPConfig
+    ):
+        super().__init__()
+
+        self.critics: list[QNetwork | nn.Sequential] = []
+
+        for i in range(ensemble_size):
+            critic_net = QNetwork(
+                input_size=input_size, output_size=output_size, config=config
+            )
+            self.add_module(f"critic_net_{i}", critic_net)
+            self.critics.append(critic_net)
+
+    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
+        quantiles = torch.stack(
+            tuple(critic(state, action) for critic in self.critics), dim=1
+        )
+        return quantiles
+
+
 # TODO generalise detach - cnn or output
 class EncoderPolicy(nn.Module):
     def __init__(
