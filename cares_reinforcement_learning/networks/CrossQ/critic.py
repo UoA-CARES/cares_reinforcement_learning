@@ -1,4 +1,3 @@
-import torch
 from torch import nn
 
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d

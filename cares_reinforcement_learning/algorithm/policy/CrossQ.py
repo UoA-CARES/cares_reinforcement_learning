@@ -45,7 +45,7 @@ class CrossQ:
         self.target_entropy = -np.prod(self.actor_net.num_actions)
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr, betas=(0.5, 0.999)
         )
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=config.critic_lr, betas=(0.5, 0.999)
@@ -67,8 +67,8 @@ class CrossQ:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
             else:

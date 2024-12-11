@@ -1,3 +1,7 @@
+"""
+Code taken from: https://github.com/Stable-Baselines-Team/stable-baselines3-contrib/blob/master/sb3_contrib/common/torch_layers.py#L120
+"""
+
 import torch
 
 __all__ = ["BatchRenorm", "BatchRenorm1d"]

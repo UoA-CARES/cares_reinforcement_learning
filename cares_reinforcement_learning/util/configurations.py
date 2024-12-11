@@ -434,9 +434,6 @@ class CrossQConfig(AlgorithmConfig):
 
     policy_update_freq: int = 3
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [2048, 2048]
-
     actor_config: MLPConfig = MLPConfig(
         input_layer="BatchRenorm1d",
         linear_layer_args={"bias": False},
