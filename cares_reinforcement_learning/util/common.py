@@ -93,15 +93,26 @@ class MLP(nn.Module):
         return self.model(state)
 
 
-class DeterministicPolicy(nn.Module):
+class BaseActor(nn.Module):
     def __init__(self, input_size: int, num_actions: int, config: MLPConfig):
         super().__init__()
 
-        self.observation_size = input_size
+        self.input_size = input_size
         self.num_actions = num_actions
+        self.config = config
+
+    def forward(
+        self, state: torch.Tensor
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        raise NotImplementedError("Subclasses should implement this method.")
+
+
+class DeterministicPolicy(BaseActor):
+    def __init__(self, input_size: int, num_actions: int, config: MLPConfig):
+        super().__init__(input_size, num_actions, config)
 
         self.act_net: MLP | nn.Sequential = MLP(
-            input_size=self.observation_size,
+            input_size=self.input_size,
             output_size=self.num_actions,
             config=config,
         )
@@ -111,7 +122,7 @@ class DeterministicPolicy(nn.Module):
         return output
 
 
-class GaussianPolicy(nn.Module):
+class GaussianPolicy(BaseActor):
     def __init__(
         self,
         input_size: int,
@@ -119,10 +130,8 @@ class GaussianPolicy(nn.Module):
         log_std_bounds: list[float],
         config: MLPConfig,
     ):
-        super().__init__()
+        super().__init__(input_size, num_actions, config)
 
-        self.input_size = input_size
-        self.num_actions = num_actions
         self.log_std_bounds = log_std_bounds
 
         self.act_net: MLP | nn.Sequential = MLP(
@@ -154,7 +163,7 @@ class GaussianPolicy(nn.Module):
         return sample, log_pi, dist.mean
 
 
-class TanhGaussianPolicy(nn.Module):
+class TanhGaussianPolicy(BaseActor):
     def __init__(
         self,
         input_size: int,
@@ -162,10 +171,8 @@ class TanhGaussianPolicy(nn.Module):
         log_std_bounds: list[float],
         config: MLPConfig,
     ):
-        super().__init__()
+        super().__init__(input_size, num_actions, config)
 
-        self.input_size = input_size
-        self.num_actions = num_actions
         self.log_std_bounds = log_std_bounds
 
         self.act_net: MLP | nn.Sequential = MLP(
@@ -203,18 +210,30 @@ class TanhGaussianPolicy(nn.Module):
         return sample, log_pi, dist.mean
 
 
-class QNetwork(nn.Module):
+class BaseCritic(nn.Module):
     def __init__(self, input_size: int, output_size: int, config: MLPConfig):
         super().__init__()
 
         self.input_size = input_size
+        self.output_size = output_size
+        self.config = config
+
+    def forward(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        raise NotImplementedError("Subclasses should implement this method.")
+
+
+class QNetwork(BaseCritic):
+    def __init__(self, input_size: int, output_size: int, config: MLPConfig):
+        super().__init__(input_size, output_size, config)
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
-            output_size=output_size,
-            config=config,
+            output_size=self.output_size,
+            config=self.config,
         )
 
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
@@ -223,24 +242,24 @@ class QNetwork(nn.Module):
         return q
 
 
-class TwinQNetwork(nn.Module):
+class TwinQNetwork(BaseCritic):
     def __init__(self, input_size: int, output_size: int, config: MLPConfig):
-        super().__init__()
+        super().__init__(input_size, output_size, config)
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q1: MLP | nn.Sequential = MLP(
-            input_size=input_size,
-            output_size=output_size,
-            config=config,
+            input_size=self.input_size,
+            output_size=self.output_size,
+            config=self.config,
         )
 
         # Q2 architecture
         # pylint: disable-next=invalid-name
         self.Q2: MLP | nn.Sequential = MLP(
-            input_size=input_size,
-            output_size=output_size,
-            config=config,
+            input_size=self.input_size,
+            output_size=self.output_size,
+            config=self.config,
         )
 
     def forward(
@@ -252,20 +271,20 @@ class TwinQNetwork(nn.Module):
         return q1, q2
 
 
-class ContinuousDistributedCritic(nn.Module):
-    def __init__(self, input_size: int, config: MLPConfig):
-        super().__init__()
+class ContinuousDistributedCritic(BaseCritic):
+    def __init__(self, input_size: int, output_size: int, config: MLPConfig):
+        super().__init__(input_size, output_size, config)
 
         self.mean_layer: MLP | nn.Sequential = MLP(
-            input_size=input_size,
-            output_size=1,
-            config=config,
+            input_size=self.input_size,
+            output_size=self.output_size,
+            config=self.config,
         )
 
         self.std_layer: MLP | nn.Sequential = MLP(
-            input_size=input_size,
-            output_size=1,
-            config=config,
+            input_size=self.input_size,
+            output_size=self.output_size,
+            config=self.config,
         )
 
         self.soft_std_layer = nn.Softplus()
@@ -283,15 +302,23 @@ class ContinuousDistributedCritic(nn.Module):
 
 class EnsembleCritic(nn.Module):
     def __init__(
-        self, input_size: int, output_size: int, ensemble_size: int, config: MLPConfig
+        self,
+        input_size: int,
+        output_size: int,
+        ensemble_size: int,
+        config: MLPConfig,
+        critic_type: type[BaseCritic] = QNetwork,
     ):
         super().__init__()
+        self.input_size = input_size
+        self.output_size = output_size
+        self.ensemble_size = ensemble_size
 
-        self.critics: list[QNetwork | nn.Sequential] = []
+        self.critics: list[BaseCritic | nn.Sequential] = []
 
-        for i in range(ensemble_size):
-            critic_net = QNetwork(
-                input_size=input_size, output_size=output_size, config=config
+        for i in range(self.ensemble_size):
+            critic_net = critic_type(
+                input_size=self.input_size, output_size=self.output_size, config=config
             )
             self.add_module(f"critic_net_{i}", critic_net)
             self.critics.append(critic_net)
@@ -308,7 +335,7 @@ class EncoderPolicy(nn.Module):
     def __init__(
         self,
         encoder: Encoder,
-        actor: DeterministicPolicy | GaussianPolicy | TanhGaussianPolicy,
+        actor: BaseActor,
         add_vector_observation: bool = False,
     ):
         super().__init__()
@@ -338,7 +365,7 @@ class EncoderCritic(nn.Module):
     def __init__(
         self,
         encoder: Encoder,
-        critic: QNetwork | TwinQNetwork,
+        critic: BaseCritic,
         add_vector_observation: bool = False,
     ):
         super().__init__()
@@ -370,7 +397,7 @@ class AEActor(nn.Module):
     def __init__(
         self,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        actor: DeterministicPolicy | GaussianPolicy | TanhGaussianPolicy,
+        actor: BaseActor,
         add_vector_observation: bool = False,
     ):
         super().__init__()
@@ -408,7 +435,7 @@ class AECritc(nn.Module):
     def __init__(
         self,
         autoencoder: VanillaAutoencoder | BurgessAutoencoder,
-        critic: QNetwork | TwinQNetwork,
+        critic: BaseCritic,
         add_vector_observation: bool = False,
     ):
         super().__init__()

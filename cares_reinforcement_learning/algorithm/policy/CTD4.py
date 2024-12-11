@@ -17,7 +17,7 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.CTD4 import Actor, EnsembleCritic
+from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
@@ -25,7 +25,7 @@ class CTD4:
     def __init__(
         self,
         actor_network: Actor,
-        ensemble_critic: EnsembleCritic,
+        ensemble_critic: Critic,
         config: CTD4Config,
         device: torch.device,
     ):
@@ -67,7 +67,7 @@ class CTD4:
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
             torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
-            for critic_net in self.ensemble_critic
+            for critic_net in self.ensemble_critic.critics
         ]
 
     def select_action_from_policy(
@@ -172,7 +172,7 @@ class CTD4:
             u_set = []
             std_set = []
 
-            for target_critic_net in self.target_ensemble_critic:
+            for target_critic_net in self.target_ensemble_critic.critics:
                 u, std = target_critic_net(next_states, next_actions)
 
                 u_set.append(u)
@@ -199,7 +199,7 @@ class CTD4:
         critic_loss_totals = []
 
         for critic_net, critic_net_optimiser in zip(
-            self.ensemble_critic, self.ensemble_critic_optimizers
+            self.ensemble_critic.critics, self.ensemble_critic_optimizers
         ):
             u_current, std_current = critic_net(states, actions)
             current_distribution = torch.distributions.normal.Normal(
@@ -227,7 +227,7 @@ class CTD4:
 
         actions = self.actor_net(states)
         with hlp.evaluating(self.ensemble_critic):
-            for critic_net in self.ensemble_critic:
+            for critic_net in self.ensemble_critic.critics:
                 actor_q_u, actor_q_std = critic_net(states, actions)
 
                 actor_q_u_set.append(actor_q_u)
@@ -297,7 +297,7 @@ class CTD4:
 
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
-                self.ensemble_critic, self.target_ensemble_critic
+                self.ensemble_critic.critics, self.target_ensemble_critic.critics
             ):
                 hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 
