@@ -41,6 +41,11 @@ class TrainingConfig(SubscriptableClass):
 class MLPConfig(SubscriptableClass):
     hidden_sizes: list[int]
 
+    input_layer: str = ""
+    input_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    linear_layer_args: dict[str, Any] = Field(default_factory=dict)
+
     batch_layer: str = ""
     batch_layer_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -431,6 +436,23 @@ class CrossQConfig(AlgorithmConfig):
 
     hidden_size_actor: list[int] = [256, 256]
     hidden_size_critic: list[int] = [2048, 2048]
+
+    actor_config: MLPConfig = MLPConfig(
+        input_layer="BatchRenorm1d",
+        linear_layer_args={"bias": False},
+        hidden_sizes=[256, 256],
+        batch_layer="BatchRenorm1d",
+        batch_layer_args={"momentum": 0.01},
+        layer_order=["activation", "batch"],
+    )
+    critic_config: MLPConfig = MLPConfig(
+        input_layer="BatchRenorm1d",
+        linear_layer_args={"bias": False},
+        hidden_sizes=[2048, 2048],
+        batch_layer="BatchRenorm1d",
+        batch_layer_args={"momentum": 0.01},
+        layer_order=["activation", "batch"],
+    )
 
 
 class DynaSACConfig(SACConfig):

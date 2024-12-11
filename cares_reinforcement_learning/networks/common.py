@@ -15,12 +15,17 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     VanillaAutoencoder,
 )
 from cares_reinforcement_learning.util.configurations import MLPConfig
+from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 
 
 def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module] | None:
     if module_name == "":
         return None
-    return getattr(nn, module_name)
+    if hasattr(nn, module_name):
+        return getattr(nn, module_name)
+    elif module_name == "BatchRenorm1d":
+        return BatchRenorm1d
+    return None
 
 
 # Standard Multilayer Perceptron (MLP) network - consider making Sequential itself
@@ -36,6 +41,8 @@ class MLP(nn.Module):
         hidden_sizes = config.hidden_sizes
 
         layer_order = config.layer_order
+
+        input_layer = get_pytorch_module_from_name(config.input_layer)
 
         batch_layer = get_pytorch_module_from_name(config.batch_layer)
 
@@ -53,8 +60,11 @@ class MLP(nn.Module):
 
         layers = nn.ModuleList()
 
+        if input_layer is not None:
+            layers.append(input_layer(input_size, **config.input_layer_args))
+
         for next_size in hidden_sizes:
-            layers.append(nn.Linear(input_size, next_size))
+            layers.append(nn.Linear(input_size, next_size, **config.linear_layer_args))
 
             for layer_type in layer_order:
 
