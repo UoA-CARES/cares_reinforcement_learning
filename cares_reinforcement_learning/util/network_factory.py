@@ -169,15 +169,15 @@ def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
 
 def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
     from cares_reinforcement_learning.algorithm.policy import REDQ
-    from cares_reinforcement_learning.networks.REDQ import Actor, EnsembleCritic
+    from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
     actor = Actor(observation_size, action_num, config=config)
-    ensemble_critics = EnsembleCritic(observation_size, action_num, config=config)
+    ensemble_critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
     agent = REDQ(
         actor_network=actor,
-        ensemble_critics=ensemble_critics,
+        ensemble_critic=ensemble_critic,
         config=config,
         device=device,
     )
@@ -490,17 +490,16 @@ def create_RDTD3(observation_size, action_num, config: acf.RDTD3Config):
 
 def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     from cares_reinforcement_learning.algorithm.policy import CTD4
-    from cares_reinforcement_learning.networks.CTD4 import Actor, EnsembleCritic
+    from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 
     device = hlp.get_device()
 
-    ensemble_critics = EnsembleCritic(observation_size, action_num, config=config)
-
     actor = Actor(observation_size, action_num, config=config)
+    ensemble_critic = Critic(observation_size, action_num, config=config)
 
     agent = CTD4(
         actor_network=actor,
-        ensemble_critics=ensemble_critics,
+        ensemble_critic=ensemble_critic,
         config=config,
         device=device,
     )

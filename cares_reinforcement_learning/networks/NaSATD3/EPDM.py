@@ -7,6 +7,7 @@ import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
@@ -46,16 +47,13 @@ class DefaultEPDM(BaseEPDM):
 # pylint: disable-next=invalid-name
 class EPDM(BaseEPDM):
     def __init__(self, observation_size: int, num_actions: int, config: NaSATD3Config):
-        input_dim = observation_size + num_actions
+        input_size = observation_size + num_actions
         output_dim = observation_size
-        hidden_sizes = config.hidden_size_epdm
 
-        prediction_net = nn.Sequential(
-            nn.Linear(in_features=input_dim, out_features=hidden_sizes[0]),
-            nn.ReLU(),
-            nn.Linear(in_features=hidden_sizes[0], out_features=hidden_sizes[1]),
-            nn.ReLU(),
-            nn.Linear(in_features=hidden_sizes[1], out_features=output_dim),
+        prediction_net = MLP(
+            input_size=input_size,
+            output_size=output_dim,
+            config=config.epm_config,
         )
 
         super().__init__(prediction_net=prediction_net)
