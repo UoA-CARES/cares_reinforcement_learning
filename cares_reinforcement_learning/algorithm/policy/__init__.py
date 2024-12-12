@@ -20,3 +20,4 @@ from .RDSAC import RDSAC
 from .MAPERSAC import MAPERSAC
 from .LA3PSAC import LA3PSAC
 from .TQC import TQC
+from .DroQ import DroQ
