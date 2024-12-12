@@ -226,7 +226,11 @@ A factory class for creating a memory buffer that has been implemented into the 
 | REDQ        | Vector                     | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf)          |
 | TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/abs/1812.05905)               |
 | CTD4        | Vector                     | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576)              |
+<<<<<<< HEAD
 | CrossQ      | Vector                     | Continuous   | [CrossQ Paper](https://arxiv.org/pdf/1902.05605)            |
+=======
+| Droq        | Vector                     | Continuous   | [DroQ Paper](https://arxiv.org/abs/2110.02034)              |
+>>>>>>> main
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | NaSATD3     | Image                      | Continuous   | In Submission                                               |
 | TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |

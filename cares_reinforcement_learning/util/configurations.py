@@ -452,6 +452,36 @@ class CrossQConfig(AlgorithmConfig):
     )
 
 
+class DroQConfig(SACConfig):
+    algorithm: str = Field("DroQ", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+
+    G: int = 20
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    hidden_size_actor: list[int] = [256, 256]
+    hidden_size_critic: list[int] = [256, 256]
+
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(
+        hidden_sizes=[256, 256],
+        dropout_layer="Dropout",
+        dropout_layer_args={"p": 0.005},
+        norm_layer="LayerNorm",
+        layer_order=["dropout", "layernorm", "activation"],
+    )
+
+
 class DynaSACConfig(SACConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: float = 3e-4
