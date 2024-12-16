@@ -286,6 +286,23 @@ def create_DroQ(observation_size, action_num, config: acf.DroQConfig):
     return agent
 
 
+def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
+    from cares_reinforcement_learning.algorithm.policy import CrossQ
+    from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = CrossQ(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.

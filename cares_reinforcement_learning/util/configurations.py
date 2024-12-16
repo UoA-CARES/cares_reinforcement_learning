@@ -41,6 +41,11 @@ class TrainingConfig(SubscriptableClass):
 class MLPConfig(SubscriptableClass):
     hidden_sizes: list[int]
 
+    input_layer: str = ""
+    input_layer_args: dict[str, Any] = Field(default_factory=dict)
+
+    linear_layer_args: dict[str, Any] = Field(default_factory=dict)
+
     batch_layer: str = ""
     batch_layer_args: dict[str, Any] = Field(default_factory=dict)
 
@@ -414,6 +419,37 @@ class RDSACConfig(SACConfig):
 
     actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
     critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+
+class CrossQConfig(AlgorithmConfig):
+    algorithm: str = Field("CrossQ", Literal=True)
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+    alpha_lr: float = 1e-3
+
+    gamma: float = 0.99
+    reward_scale: float = 1.0
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 3
+
+    actor_config: MLPConfig = MLPConfig(
+        input_layer="BatchRenorm1d",
+        linear_layer_args={"bias": False},
+        hidden_sizes=[256, 256],
+        batch_layer="BatchRenorm1d",
+        batch_layer_args={"momentum": 0.01},
+        layer_order=["activation", "batch"],
+    )
+    critic_config: MLPConfig = MLPConfig(
+        input_layer="BatchRenorm1d",
+        linear_layer_args={"bias": False},
+        hidden_sizes=[2048, 2048],
+        batch_layer="BatchRenorm1d",
+        batch_layer_args={"momentum": 0.01},
+        layer_order=["activation", "batch"],
+    )
 
 
 class DroQConfig(SACConfig):
