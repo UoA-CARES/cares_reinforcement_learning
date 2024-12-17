@@ -216,8 +216,9 @@ class ValuableEpisodeBuffer:
         
         # Extract the closest episode
         closest_episode = nearest_experiences[0]
+        
         (
-            episode_num, total_reward, states, actions,
+            episode_num, total_reward, episode_first_state, states, actions,
             rewards, next_states, dones, episode_nums, episode_steps
         ) = closest_episode
 
@@ -235,12 +236,34 @@ class ValuableEpisodeBuffer:
         
         # Extract the fields from the selected episode
         (
-            episode_num, total_reward, states, actions,
+            episode_num, total_reward,  episode_first_state, states, actions,
             rewards, next_states, dones, episode_nums, episode_steps
         ) = selected_episode
 
         # Return the required fields
         return actions, states, episode_num, episode_steps, rewards, total_reward
+    
+    def fetch_highest_reward_nearest_episode(self, current_state, k=3): # k = 1, 3, 5, 10
+        # Get the nearest neighbors using k-NN
+        nearest_experiences = self.fetch_approx_k_nearest(current_state, k=k)
+        if not nearest_experiences:
+            raise ValueError("No nearest episodes found")
+        
+        # Sort the nearest experiences based on the total reward (descending order)
+        nearest_experiences.sort(key=lambda x: x[1], reverse=True)  # x[1] is total_reward
+        
+        # Select the episode with the highest total reward
+        selected_episode = nearest_experiences[0]
+        
+        # Extract the fields from the selected episode
+        (
+            episode_num, total_reward, episode_first_state, states, actions,
+            rewards, next_states, dones, episode_nums, episode_steps
+        ) = selected_episode
+
+        # Return the required fields
+        return actions, states, episode_num, episode_steps, rewards, total_reward
+
 
 
 
