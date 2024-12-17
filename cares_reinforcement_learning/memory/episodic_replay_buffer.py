@@ -3,7 +3,10 @@
 from cares_reinforcement_learning.memory.short_term_replay_buffer import ShortTermReplayBuffer
 from cares_reinforcement_learning.memory.long_memory_buffer import LongMemoryBuffer
 from cares_reinforcement_learning.memory.long_memory_buffer import LongMemoryBufferTotal
-from cares_reinforcement_learning.memory.episodic_buffer import EpisodicBuffer
+from cares_reinforcement_learning.memory.valuable_episode_buffer_with_goal import ValuableEpisodeBuffer
+#from cares_reinforcement_learning.memory.episodic_buffer import EpisodicBuffer
+
+
 
 
 class ManageBuffers:
@@ -13,7 +16,8 @@ class ManageBuffers:
         self.memory_params = memory_params
         
         self.short_term_memory = ShortTermReplayBuffer(max_capacity=max_capacity, **memory_params)
-        self.long_term_memory = LongMemoryBuffer(max_capacity=int(10), **memory_params)
-        self.long_term_memory_total = LongMemoryBufferTotal(max_capacity=int(10), **memory_params)
+        self.long_term_memory = LongMemoryBuffer(max_capacity=int(500), **memory_params)
+        self.long_term_memory_total = LongMemoryBufferTotal(max_capacity=int(500), **memory_params)
+        self.vem_goal = ValuableEpisodeBuffer(max_capacity=int(500), **memory_params)
         #self.episodic_memory = EpisodicBuffer(max_capacity=max_capacity)
         
