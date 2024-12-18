@@ -263,6 +263,57 @@ class ValuableEpisodeBuffer:
 
         # Return the required fields
         return actions, states, episode_num, episode_steps, rewards, total_reward
+    
+   
+
+    def fetch_high_rewards_nearest_episode(self, current_state, k=3, selection_strategy="random", near_max_threshold=0.05):
+        """
+        Fetch one of the episodes with the highest or near-highest reward based on a specified strategy.
+
+        Args:
+            current_state: The current state of the environment.
+            k (int): The number of nearest neighbors to consider.
+            selection_strategy (str): Strategy to select among episodes ('random', 'shortest', 'longest', 'first').
+            near_max_threshold (float): Fractional margin to include near-highest reward episodes (default 5%).
+
+        Returns:
+            A tuple containing actions, states, episode_num, episode_steps, rewards, and total_reward.
+        """
+        # Get the nearest neighbors using k-NN
+        nearest_experiences = self.fetch_approx_k_nearest(current_state, k=k)
+        if not nearest_experiences:
+            raise ValueError("No nearest episodes found")
+
+        # Find the maximum total reward
+        max_reward = max(nearest_experiences, key=lambda x: x[1])[1]  # x[1] is total_reward
+
+        # Define the near-maximum threshold
+        reward_threshold = max_reward * (1 - near_max_threshold)
+
+        # Filter episodes within the near-maximum reward range
+        near_max_episodes = [episode for episode in nearest_experiences if episode[1] >= reward_threshold]
+
+        # Select one episode based on the selection strategy
+        if selection_strategy == "random":
+            selected_episode = random.choice(near_max_episodes)
+        elif selection_strategy == "shortest":
+            selected_episode = min(near_max_episodes, key=lambda x: x[-1])  # x[-1] is episode_steps
+        elif selection_strategy == "longest":
+            selected_episode = max(near_max_episodes, key=lambda x: x[-1])  # x[-1] is episode_steps
+        elif selection_strategy == "first":
+            selected_episode = near_max_episodes[0]
+        else:
+            raise ValueError(f"Unknown selection strategy: {selection_strategy}")
+
+        # Extract only the required fields from the selected episode
+        (
+            episode_num, total_reward, episode_first_state, states, actions,
+            rewards, next_states, dones, episode_nums, episode_steps
+        ) = selected_episode
+
+        # Return the required fields
+        return actions, states, episode_num, episode_steps, rewards, total_reward
+
 
 
 
