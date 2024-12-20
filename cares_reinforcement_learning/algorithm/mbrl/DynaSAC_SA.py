@@ -14,27 +14,22 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
-
-from cares_reinforcement_learning.networks.world_models import (
-    EnsembleWorldAndOneSAReward,
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
+from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
+    EnsembleWorldReward,
 )
+from cares_reinforcement_learning.util.configurations import DynaSACConfig
 
 
-class DynaSAC_SA:
+class DynaSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        world_network: EnsembleWorldAndOneSAReward,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        num_samples: int,
-        horizon: int,
+        actor_network: Actor,
+        critic_network: Critic,
+        world_network: EnsembleWorldReward,
+        config: DynaSACConfig,
         device: torch.device,
     ):
         self.type = "mbrl"
@@ -46,40 +41,45 @@ class DynaSAC_SA:
         self.critic_net = critic_network.to(self.device)
         self.target_critic_net = copy.deepcopy(self.critic_net)
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
-        self.num_samples = num_samples
-        self.horizon = horizon
-        self.action_num = action_num
+        self.num_samples = config.num_samples
+        self.horizon = config.horizon
+        self.action_num = self.actor_net.num_actions
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
+
+        self.target_entropy = -self.action_num
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
         self.log_alpha = torch.tensor(np.log(1.0)).to(device)
         self.log_alpha.requires_grad = True
-        self.target_entropy = -action_num
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr
+        )
 
         # World model
         self.world_model = world_network
 
     @property
-    def _alpha(self) -> float:
+    def _alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
         with torch.no_grad():
@@ -92,18 +92,20 @@ class DynaSAC_SA:
         self.actor_net.train()
         return action
 
-    def _train_policy(
-        self,
-        states: torch.Tensor,
-        actions: torch.Tensor,
-        rewards: torch.Tensor,
-        next_states: torch.Tensor,
-        dones: torch.Tensor,
-    ) -> None:
-        ##################     Update the Critic First     ####################
+    def _update_critic_actor(self, states, actions, rewards, next_states, dones):
+        # Update Critic
+        self._update_critic(states, actions, rewards, next_states, dones)
+
+        if self.learn_counter % self.policy_update_freq == 0:
+            # Update Actor
+            self._update_actor(states)
+
+        if self.learn_counter % self.target_update_freq == 0:
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+
+    def _update_critic(self, states, actions, rewards, next_states, dones):
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
-
             target_q_one, target_q_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -113,10 +115,8 @@ class DynaSAC_SA:
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
         q_values_one, q_values_two = self.critic_net(states, actions)
-
-        critic_loss_one = ((q_values_one - q_target).pow(2)).mean()
-        critic_loss_two = ((q_values_two - q_target).pow(2)).mean()
-
+        critic_loss_one = F.mse_loss(q_values_one, q_target)
+        critic_loss_two = F.mse_loss(q_values_two, q_target)
         critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
@@ -124,7 +124,7 @@ class DynaSAC_SA:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        ##################     Update the Actor Second     ####################
+    def _update_actor(self, states):
         pi, first_log_p, _ = self.actor_net(states)
         qf1_pi, qf2_pi = self.critic_net(states, pi)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
@@ -232,20 +232,73 @@ class DynaSAC_SA:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        self.learn_counter += 1
+
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        # Convert into tensor
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones = torch.LongTensor(np.asarray(dones)).to(self.device).unsqueeze(1)
+
+        # Step 1 train as usual
+        self._update_critic_actor(states, actions, rewards, next_states, dones)
+
+        # # # Step 2 Dyna add more data
+        self._dyna_generate_and_train(next_states=next_states)
+
+    def train_world_model(self, memory: MemoryBuffer, batch_size: int) -> None:
+        experiences = memory.sample_consecutive(batch_size)
+
+        (
+            states,
+            actions,
+            rewards,
+            next_states,
+            _,
+            _,
+            next_actions,
+            next_rewards,
+            _,
+            _,
+            _,
+        ) = experiences
+
+        states = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
+        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        next_rewards = (
+            torch.FloatTensor(np.asarray(next_rewards)).to(self.device).unsqueeze(1)
+        )
+        next_actions = torch.FloatTensor(np.asarray(next_actions)).to(self.device)
+
+        # Step 1 train the world model.
+        self.world_model.train_world(
+            states=states,
+            actions=actions,
+            rewards=rewards,
+            next_states=next_states,
+            next_actions=next_actions,
+            next_rewards=next_rewards,
+        )
+
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-        if not dir_exists:
-            os.makedirs(path)
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pth")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pth")
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pth")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pth")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pth"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pth"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pth"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pth"))
         logging.info("models has been loaded...")

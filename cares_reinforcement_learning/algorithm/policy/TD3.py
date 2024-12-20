@@ -7,6 +7,7 @@ Original code: https://github.com/sfujim/TD3
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -14,18 +15,16 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+from cares_reinforcement_learning.util.configurations import TD3Config
 
 
 class TD3:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
+        actor_network: Actor,
+        critic_network: Critic,
+        config: TD3Config,
         device: torch.device,
     ):
         self.type = "policy"
@@ -34,25 +33,27 @@ class TD3:
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)
-        self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
-        self.action_num = action_num
+        self.action_num = self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
     def select_action_from_policy(
@@ -79,7 +80,7 @@ class TD3:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -105,15 +106,23 @@ class TD3:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-    def _update_actor(self, states: torch.Tensor) -> None:
-        actor_q_values, _ = self.critic_net(states, self.actor_net(states))
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+
+    def _update_actor(self, states: torch.Tensor) -> float:
+        actions = self.actor_net(states)
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_values, _ = self.critic_net(states, actions)
+
         actor_loss = -actor_q_values.mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -122,41 +131,50 @@ class TD3:
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
+
+        info = {}
 
         # Update the Critic
-        self._update_critc(states, actions, rewards, next_states, dones)
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critc(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+        )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states_tensor)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+        return info
 
-        if not dir_exists:
-            os.makedirs(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

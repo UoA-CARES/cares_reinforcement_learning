@@ -7,28 +7,25 @@ https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithm
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torch.optim as optim
+from torch import optim
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
+from cares_reinforcement_learning.util.configurations import MAPERTD3Config
 
 
 class MAPERTD3:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        per_alpha: float,
-        min_priority: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
+        actor_network: Actor,
+        critic_network: Critic,
+        config: MAPERTD3Config,
         device: torch.device,
     ):
         self.type = "policy"
@@ -38,30 +35,34 @@ class MAPERTD3:
         self.critic_net = critic_network.to(self.device)
 
         self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
         self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
-        self.action_num = action_num
+        self.action_num = self.actor_net.num_actions
 
         # MAPER-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0
 
-        self.actor_net_optimiser = optim.Adam(self.actor_net.parameters(), lr=actor_lr)
+        self.actor_net_optimiser = optim.Adam(
+            self.actor_net.parameters(), lr=config.actor_lr
+        )
 
         self.critic_net_optimiser = optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
     def _split_output(self, target):
@@ -93,7 +94,7 @@ class MAPERTD3:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[float, np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states, actions)
         q_value_one, predicted_reward_one, next_states_one = self._split_output(
@@ -199,14 +200,16 @@ class MAPERTD3:
         diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
 
         # calculate priority
-        priorities = (
+        priorities_tensor = (
             diff_td_mean
             + self.scale_s * diff_next_state_mean
             + self.scale_r * diff_reward_mean
         )
-        priorities = torch.Tensor(priorities)
+
+        priorities_tensor = torch.Tensor(priorities_tensor)
+
         priorities = (
-            priorities.clamp(min=self.min_priority)
+            priorities_tensor.clamp(min=self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()
@@ -218,12 +221,14 @@ class MAPERTD3:
             self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
             self.scale_s = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
 
-        return priorities
+        return critic_loss_total.item(), priorities
 
-    def _update_actor(self, states: torch.Tensor, weights: torch.Tensor) -> None:
-        actor_q_one, actor_q_two = self.critic_net(
-            states.detach(), self.actor_net(states.detach())
-        )
+    def _update_actor(self, states: torch.Tensor, weights: torch.Tensor) -> float:
+        actions = self.actor_net(states.detach())
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_one, actor_q_two = self.critic_net(states.detach(), actions)
+
         actor_q_values = torch.minimum(actor_q_one, actor_q_two)
         actor_val, _, _ = self._split_output(actor_q_values)
 
@@ -234,7 +239,9 @@ class MAPERTD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         # Sample replay buffer
@@ -246,26 +253,35 @@ class MAPERTD3:
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-        weights = weights.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
+        weights_tensor = weights_tensor.unsqueeze(0).reshape(batch_size, 1)
+
+        info = {}
 
         # Update critic
-        priorities = self._update_critic(
-            states, actions, rewards, next_states, dones, weights
+        critic_loss_total, priorities = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
         )
+        info["critic_loss_total"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states, weights)
+            actor_loss = self._update_actor(states_tensor, weights_tensor)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
@@ -273,20 +289,17 @@ class MAPERTD3:
 
         memory.update_priorities(indices, priorities)
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+        return info
 
-        if not dir_exists:
-            os.makedirs(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

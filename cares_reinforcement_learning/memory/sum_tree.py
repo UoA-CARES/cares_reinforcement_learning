@@ -1,10 +1,9 @@
-import math
 import random
 
 import numpy as np
 
 
-class SumTree(object):
+class SumTree:
     """
     A sum tree data structure for storing replay priorities.
 
@@ -49,7 +48,7 @@ class SumTree(object):
             level_size *= 2
             self.levels.append(np.zeros(level_size))
 
-    def sample_value(self, query_value: int = None) -> int:
+    def sample_value(self, query_value: float | None = None) -> int:
         """Samples an element from the sum tree.
 
         Each element has probability p_i / sum_j p_j of being picked, where p_i is
@@ -62,12 +61,13 @@ class SumTree(object):
         Returns:
             int, a random element from the sum tree.
         """
+
         # Sample a value in range [0, R), where R is the value stored at the root.
         query_value = random.random() if query_value is None else query_value
         query_value *= self.levels[0][0]
-        return self._retrieve([query_value])[0]
+        return self._retrieve(np.array([query_value]))[0]
 
-    def sample_simple(self, batch_size: int) -> list[int]:
+    def sample_simple(self, batch_size: int) -> np.ndarray:
         """
         Samples indices from the sum tree based on a given batch size.
 
@@ -84,7 +84,7 @@ class SumTree(object):
         values = np.random.uniform(0, self.levels[0][0], size=batch_size)
         return self._retrieve(values)
 
-    def sample_stratified(self, batch_size: int) -> list[int]:
+    def sample_stratified(self, batch_size: int) -> np.ndarray:
         """Performs stratified sampling using the sum tree.
 
         Let R be the value at the root (total value of sum tree). This method will
@@ -98,7 +98,7 @@ class SumTree(object):
             batch_size: int, the number of strata to use.
 
         Returns:
-            list of batch_size elements sampled from the sum tree.
+            np.ndarray: list of batch_size elements sampled from the sum tree.
         """
 
         bounds = np.linspace(0.0, 1.0, batch_size + 1)
@@ -109,9 +109,9 @@ class SumTree(object):
             random.uniform(segment[0], segment[1]) * self.levels[0][0]
             for segment in segments
         ]
-        return self._retrieve(query_values)
+        return self._retrieve(np.array(query_values))
 
-    def _retrieve(self, values: np.ndarray) -> list[int]:
+    def _retrieve(self, values: np.ndarray) -> np.ndarray:
         """
         Retrieves the indices of the values in the sum tree that correspond to the given array of values.
 
@@ -119,7 +119,7 @@ class SumTree(object):
             values (np.ndarray): The array of values for which to retrieve the indices.
 
         Returns:
-            list[int]: The indices of the values in the sum tree.
+            np.ndarray: The indices of the values in the sum tree.
 
         """
         ind = np.zeros(len(values), dtype=int)
@@ -156,13 +156,13 @@ class SumTree(object):
             np.add.at(nodes, ind, priority_diff)
             ind //= 2
 
-    def batch_set(self, ind: list[int], new_priority: list[float]) -> None:
+    def batch_set(self, ind: np.ndarray, new_priority: np.ndarray) -> None:
         """
         Batch update the priorities of multiple nodes in the sum tree.
 
         Args:
-            ind (list[int]): The indices of the nodes to update.
-            new_priority (list[float]): The new priorities to assign to the nodes.
+            ind (np.ndarray): The indices of the nodes to update.
+            new_priority (np.ndarray): The new priorities to assign to the nodes.
 
         Returns:
             None

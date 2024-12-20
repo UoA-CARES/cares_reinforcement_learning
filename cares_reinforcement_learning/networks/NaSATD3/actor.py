@@ -1,38 +1,52 @@
-import torch
-from torch import nn
+from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
+from cares_reinforcement_learning.networks.TD3 import DefaultActor as DefaultTD3Actor
+from cares_reinforcement_learning.networks.common import AEActor
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
-import cares_reinforcement_learning.util.helpers as hlp
+
+class DefaultActor(AEActor):
+    def __init__(self, observation_size: dict, num_actions: int):
+
+        autoencoder = VanillaAutoencoder(
+            observation_size["image"],
+            latent_dim=200,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
+
+        actor = DefaultTD3Actor(
+            autoencoder.latent_dim, num_actions, hidden_sizes=[1024, 1024]
+        )
+
+        super().__init__(
+            autoencoder,
+            actor,
+        )
 
 
-class Actor(nn.Module):
+class Actor(AEActor):
     def __init__(
         self,
-        latent_size: int,
+        observation_size: dict,
         num_actions: int,
-        encoder: nn.Module,
-        hidden_size: list[int] = None,
+        config: NaSATD3Config,
     ):
-        super().__init__()
-        if hidden_size is None:
-            hidden_size = [1024, 1024]
-
-        self.encoder_net = encoder
-        self.hidden_size = hidden_size
-
-        self.act_net = nn.Sequential(
-            nn.Linear(latent_size, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[1], num_actions),
-            nn.Tanh(),
+        ae_factory = AEFactory()
+        autoencoder = ae_factory.create_autoencoder(
+            observation_size=observation_size["image"], config=config.autoencoder_config
         )
-        self.apply(hlp.weight_init)
 
-    def forward(
-        self, state: torch.Tensor, detach_encoder: bool = False
-    ) -> torch.Tensor:
-        # NaSATD3 detatches the encoder at the output
-        z_vector = self.encoder_net(state, detach_output=detach_encoder)
-        output = self.act_net(z_vector)
-        return output
+        actor_observation_size = autoencoder.latent_dim
+        if config.vector_observation:
+            actor_observation_size += observation_size["vector"]
+
+        actor = TD3Actor(actor_observation_size, num_actions, config)
+
+        super().__init__(
+            autoencoder,
+            actor,
+            add_vector_observation=bool(config.vector_observation),
+        )

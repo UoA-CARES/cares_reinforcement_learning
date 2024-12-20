@@ -1,6 +1,7 @@
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
@@ -11,71 +12,68 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
+from cares_reinforcement_learning.encoders.constants import Autoencoders
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.memory import MemoryBuffer
-
-# TODO no sure how to import this, the ensemble will be the same? Can I pass this form outside?
+from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
 class NaSATD3:
     def __init__(
         self,
-        encoder_network: nn.Module,
-        decoder_network: nn.Module,
-        actor_network: nn.Module,
-        critic_network: nn.Module,
-        gamma: float,
-        tau: float,
-        ensemble_size: int,
-        action_num: int,
-        latent_size: int,
-        intrinsic_on: bool,
-        actor_lr: float,
-        critic_lr: float,
-        encoder_lr: float,
-        decoder_lr: float,
-        epm_lr: float,
-        device: str,
+        actor_network: Actor,
+        critic_network: Critic,
+        config: NaSATD3Config,
+        device: torch.device,
     ):
         self.type = "policy"
         self.device = device
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
-        self.ensemble_size = ensemble_size
-        self.latent_size = latent_size
-        self.intrinsic_on = intrinsic_on
+        self.ensemble_size = config.ensemble_size
+        self.intrinsic_on = config.intrinsic_on
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
-        self.action_num = action_num
+        # Doesn't matter which autoencoder is used, as long as it is the same for all networks
+        self.autoencoder: VanillaAutoencoder | BurgessAutoencoder = (
+            actor_network.autoencoder
+        )
 
-        self.encoder = encoder_network.to(device)
-        self.decoder = decoder_network.to(device)
         self.actor = actor_network.to(device)
         self.critic = critic_network.to(device)
 
-        self.actor_target = copy.deepcopy(self.actor)
-        self.critic_target = copy.deepcopy(self.critic)
+        self.actor_target = copy.deepcopy(self.actor).to(device)
+        self.critic_target = copy.deepcopy(self.critic).to(device)
 
-        # Necessary for make the same encoder in the whole algorithm
-        self.actor_target.encoder_net = self.encoder
-        self.critic_target.encoder_net = self.encoder
+        # Necessary to make the same autoencoder in the whole algorithm
+        self.actor.autoencoder = self.autoencoder
+        self.critic.autoencoder = self.autoencoder
+
+        self.actor_target.autoencoder = self.autoencoder
+        self.critic_target.autoencoder = self.autoencoder
+
+        self.action_num = self.actor.num_actions
 
         self.ensemble_predictive_model = nn.ModuleList()
         networks = [
-            EPDM(self.latent_size, self.action_num) for _ in range(self.ensemble_size)
+            EPDM(self.autoencoder.latent_dim, self.action_num, config)
+            for _ in range(self.ensemble_size)
         ]
         self.ensemble_predictive_model.extend(networks)
         self.ensemble_predictive_model.to(self.device)
 
-        self.actor_lr = actor_lr
-        self.critic_lr = critic_lr
+        self.actor_lr = config.actor_lr
+        self.critic_lr = config.critic_lr
         self.actor_optimizer = torch.optim.Adam(
             self.actor.parameters(), lr=self.actor_lr
         )
@@ -83,17 +81,7 @@ class NaSATD3:
             self.critic.parameters(), lr=self.critic_lr
         )
 
-        self.encoder_lr = encoder_lr
-        self.encoder_optimizer = torch.optim.Adam(
-            self.encoder.parameters(), lr=self.encoder_lr
-        )
-
-        self.decoder_lr = decoder_lr
-        self.decoder_optimizer = torch.optim.Adam(
-            self.decoder.parameters(), lr=self.decoder_lr, weight_decay=1e-7
-        )
-
-        self.epm_lr = epm_lr
+        self.epm_lr = config.epm_lr
         self.epm_optimizers = [
             torch.optim.Adam(
                 self.ensemble_predictive_model[i].parameters(),
@@ -104,13 +92,15 @@ class NaSATD3:
         ]
 
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+        self,
+        state: dict[str, np.ndarray],
+        evaluation: bool = False,
+        noise_scale: float = 0.1,
     ) -> np.ndarray:
         self.actor.eval()
+        self.autoencoder.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            state_tensor = state_tensor / 255
+            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
 
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy().flatten()
@@ -122,16 +112,17 @@ class NaSATD3:
                 action = np.clip(action, -1, 1)
 
         self.actor.train()
+        self.autoencoder.train()
         return action
 
     def _update_critic(
         self,
-        states: torch.Tensor,
+        states: dict[str, torch.Tensor],
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: torch.Tensor,
+        next_states: dict[str, torch.Tensor],
         dones: torch.Tensor,
-    ) -> None:
+    ) -> tuple[float, float, float]:
         with torch.no_grad():
             next_actions = self.actor_target(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -156,24 +147,14 @@ class NaSATD3:
         critic_loss_total.backward()
         self.critic_optimizer.step()
 
-    def _update_autoencoder(self, states: torch.Tensor) -> None:
-        z_vector = self.encoder(states)
-        rec_obs = self.decoder(z_vector)
+        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
 
-        target_images = states
-        rec_loss = F.mse_loss(target_images, rec_obs)
+    def _update_autoencoder(self, states: torch.Tensor) -> float:
+        # Leaving this function in case this needs to be extended again in the future
+        ae_loss = self.autoencoder.update_autoencoder(states)
+        return ae_loss.item()
 
-        # add L2 penalty on latent representation
-        latent_loss = (0.5 * z_vector.pow(2).sum(1)).mean()
-        ae_loss = rec_loss + 1e-6 * latent_loss
-
-        self.encoder_optimizer.zero_grad()
-        self.decoder_optimizer.zero_grad()
-        ae_loss.backward()
-        self.encoder_optimizer.step()
-        self.decoder_optimizer.step()
-
-    def _update_actor(self, states: torch.Tensor) -> None:
+    def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
         actor_q_one, actor_q_two = self.critic(
             states, self.actor(states, detach_encoder=True), detach_encoder=True
         )
@@ -184,14 +165,40 @@ class NaSATD3:
         actor_loss.backward()
         self.actor_optimizer.step()
 
+        return actor_loss.item()
+
+    def _get_latent_state(
+        self, states: torch.Tensor, detach_output: bool, sample_latent: bool = True
+    ) -> torch.Tensor:
+        # NaSATD3 detatches the encoder at the output
+        output = self.autoencoder.encoder(states, detach_output=detach_output)
+        latent_state = output
+
+        if self.autoencoder.ae_type == Autoencoders.BURGESS:
+            latent_state, _, _ = output
+            # take the sample value for the latent space
+            if sample_latent:
+                _, _, latent_state = output
+
+        return latent_state
+
     def _update_predictive_model(
-        self, states: np.ndarray, actions: np.ndarray, next_states: np.ndarray
-    ) -> None:
+        self,
+        states: dict[str, torch.Tensor],
+        actions: torch.Tensor,
+        next_states: dict[str, torch.Tensor],
+    ) -> list[float]:
 
         with torch.no_grad():
-            latent_state = self.encoder(states, detach_output=True)
-            latent_next_state = self.encoder(next_states, detach_output=True)
+            latent_state = self._get_latent_state(
+                states["image"], detach_output=True, sample_latent=True
+            )
 
+            latent_next_state = self._get_latent_state(
+                next_states["image"], detach_output=True, sample_latent=True
+            )
+
+        pred_losses = []
         for predictive_network, optimizer in zip(
             self.ensemble_predictive_model, self.epm_optimizers
         ):
@@ -205,11 +212,16 @@ class NaSATD3:
             loss.backward()
             optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
-        self.encoder.train()
-        self.decoder.train()
+            pred_losses.append(loss.item())
+
+        return pred_losses
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.actor.train()
         self.critic.train()
+        self.autoencoder.train()
+        self.autoencoder.encoder.train()
+        self.autoencoder.decoder.train()
 
         self.learn_counter += 1
 
@@ -218,74 +230,61 @@ class NaSATD3:
 
         batch_size = len(states)
 
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = hlp.image_states_dict_to_tensor(states, self.device)
 
-        # Normalise states and next_states
-        # This because the states are [0-255] and the predictions are [0-1]
-        states /= 255
-        next_states /= 255
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+
+        next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
+
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
+
+        info: dict[str, Any] = {}
 
         # Update the Critic
-        self._update_critic(states, actions, rewards, next_states, dones)
+        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+        )
+        info["critic_loss_one"] = critic_loss_one
+        info["critic_loss_two"] = critic_loss_two
+        info["critic_loss_total"] = critic_loss_total
 
         # Update Autoencoder
-        self._update_autoencoder(states)
+        ae_loss = self._update_autoencoder(states_tensor["image"])
+        info["ae_loss"] = ae_loss
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states_tensor)
+            info["actor_loss"] = actor_loss
 
             # Update target network params
             # Note: the encoders in target networks are the same of main networks, so I wont update them
-            hlp.soft_update_params(self.critic.Q1, self.critic_target.Q1, self.tau)
-            hlp.soft_update_params(self.critic.Q2, self.critic_target.Q2, self.tau)
-
             hlp.soft_update_params(
-                self.actor.act_net, self.actor_target.act_net, self.tau
+                self.critic.critic.Q1, self.critic_target.critic.Q1, self.tau
             )
+            hlp.soft_update_params(
+                self.critic.critic.Q2, self.critic_target.critic.Q2, self.tau
+            )
+
+            hlp.soft_update_params(self.actor.actor, self.actor_target.actor, self.tau)
 
         # Update intrinsic models
         if self.intrinsic_on:
-            self._update_predictive_model(states, actions, next_states)
-
-    def get_intrinsic_reward(
-        self, state: np.ndarray, action: np.ndarray, next_state: np.ndarray
-    ) -> float:
-        with torch.no_grad():
-            # Normalise states and next_states
-            # This because the states are [0-255] and the predictions are [0-1]
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            state_tensor = state_tensor / 255
-
-            next_state_tensor = torch.FloatTensor(next_state).to(self.device)
-            next_state_tensor = next_state_tensor.unsqueeze(0)
-            next_state_tensor = next_state_tensor / 255
-
-            action_tensor = torch.FloatTensor(action).to(self.device)
-            action_tensor = action_tensor.unsqueeze(0)
-
-            surprise_rate = self._get_surprise_rate(
-                state_tensor, action_tensor, next_state_tensor
+            pred_losses = self._update_predictive_model(
+                states_tensor, actions_tensor, next_states_tensor
             )
-            novelty_rate = self._get_novelty_rate(state_tensor)
+            info["pred_losses"] = pred_losses
 
-        # TODO make these parameters - i.e. Tony's work
-        a = 1.0
-        b = 1.0
-        reward_surprise = surprise_rate * a
-        reward_novelty = novelty_rate * b
-
-        return reward_surprise + reward_novelty
+        return info
 
     def _get_surprise_rate(
         self,
@@ -294,28 +293,36 @@ class NaSATD3:
         next_state_tensor: torch.Tensor,
     ) -> float:
         with torch.no_grad():
-            latent_state = self.encoder(state_tensor, detach_output=True)
-            latent_next_state = self.encoder(next_state_tensor, detach_output=True)
+            latent_state = self._get_latent_state(
+                state_tensor, detach_output=True, sample_latent=True
+            )
+
+            latent_next_state = self._get_latent_state(
+                next_state_tensor, detach_output=True, sample_latent=True
+            )
 
             predict_vector_set = []
             for network in self.ensemble_predictive_model:
                 network.eval()
                 predicted_vector = network(latent_state, action_tensor)
                 predict_vector_set.append(predicted_vector.detach().cpu().numpy())
+
             ensemble_vector = np.concatenate(predict_vector_set, axis=0)
             z_next_latent_prediction = np.mean(ensemble_vector, axis=0)
+
             z_next_latent_true = latent_next_state.detach().cpu().numpy()[0]
+
             mse = (np.square(z_next_latent_prediction - z_next_latent_true)).mean()
+
         return mse
 
     def _get_novelty_rate(self, state_tensor_img: torch.Tensor) -> float:
         with torch.no_grad():
-            z_vector = self.encoder(state_tensor_img, detach_output=True)
+            # rec_img is a stack of k images --> (1, k , w ,w), [0~1]
+            output = self.autoencoder(state_tensor_img, detach_output=True)
+            rec_img = output["reconstructed_observation"]
 
-            # rec_img is a stack of k images --> (1, k , 84 ,84), [0~1]
-            rec_img = self.decoder(z_vector)
-
-            # --> (k , 84 ,84)
+            # --> (k , w , w)
             original_stack_imgs = state_tensor_img.cpu().numpy()[0]
             reconstruction_stack = rec_img.cpu().numpy()[0]
 
@@ -331,46 +338,95 @@ class NaSATD3:
 
         return novelty_rate
 
-    def _get_reconstruction_for_evaluation(self, state: np.ndarray) -> np.ndarray:
-        self.encoder.eval()
-        self.decoder.eval()
+    def get_intrinsic_reward(
+        self,
+        state: dict[str, np.ndarray],
+        action: np.ndarray,
+        next_state: dict[str, np.ndarray],
+    ) -> float:
         with torch.no_grad():
-            state_tensor_img = torch.FloatTensor(state).to(self.device)
-            state_tensor_img = state_tensor_img.unsqueeze(0)
-            z_vector = self.encoder(state_tensor_img)
-            rec_img = self.decoder(z_vector)
-            rec_img = rec_img.cpu().numpy()[0]  # --> (k , 84 ,84)
+            vector_tensor = torch.FloatTensor(state["vector"]).to(self.device)
+            vector_tensor = vector_tensor.unsqueeze(0)
 
-        original_img = np.moveaxis(state, 0, -1)  # --> (84 ,84, 3)
-        original_img = np.array_split(original_img, 3, axis=2)
-        rec_img = np.moveaxis(rec_img, 0, -1)
-        rec_img = np.array_split(rec_img, 3, axis=2)
+            image_tensor = torch.FloatTensor(state["image"]).to(self.device)
+            image_tensor = image_tensor.unsqueeze(0)
+            image_tensor = image_tensor / 255
 
-        self.encoder.train()
-        self.decoder.train()
+            state_tensor = {"image": image_tensor, "vector": vector_tensor}
 
-        return original_img, rec_img
+            next_vector_tensor = torch.FloatTensor(next_state["vector"]).to(self.device)
+            next_vector_tensor = vector_tensor.unsqueeze(0)
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+            next_image_tensor = torch.FloatTensor(next_state["image"]).to(self.device)
+            next_image_tensor = next_image_tensor.unsqueeze(0)
+            next_image_tensor = next_image_tensor / 255
 
-        if not dir_exists:
-            os.makedirs(path)
-        torch.save(self.actor.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic.state_dict(), f"{path}/{filename}_critic.pht")
-        torch.save(self.encoder.state_dict(), f"{path}/{filename}_encoder.pht")
-        torch.save(self.decoder.state_dict(), f"{path}/{filename}_decoder.pht")
+            next_state_tensor = {
+                "image": next_image_tensor,
+                "vector": next_vector_tensor,
+            }
+
+            action_tensor = torch.FloatTensor(action).to(self.device)
+            action_tensor = action_tensor.unsqueeze(0)
+
+            surprise_rate = self._get_surprise_rate(
+                state_tensor["image"], action_tensor, next_state_tensor["image"]
+            )
+            novelty_rate = self._get_novelty_rate(state_tensor["image"])
+
+        # TODO make these parameters - i.e. Tony's work
+        a = 1.0
+        b = 1.0
+        reward_surprise = surprise_rate * a
+        reward_novelty = novelty_rate * b
+
+        return reward_surprise + reward_novelty
+
+    # def _get_reconstruction_for_evaluation(self, state: np.ndarray) -> np.ndarray:
+    #     self.encoder.eval()
+    #     self.decoder.eval()
+    #     with torch.no_grad():
+    #         state_tensor_img = torch.FloatTensor(state).to(self.device)
+    #         state_tensor_img = state_tensor_img.unsqueeze(0)
+    #         z_vector = self.encoder(state_tensor_img)
+    #         rec_img = self.decoder(z_vector)
+    #         rec_img = rec_img.cpu().numpy()[0]  # --> (k , 84 ,84)
+
+    #     original_img = np.moveaxis(state, 0, -1)  # --> (84 ,84, 3)
+    #     original_img = np.array_split(original_img, 3, axis=2)
+    #     rec_img = np.moveaxis(rec_img, 0, -1)
+    #     rec_img = np.array_split(rec_img, 3, axis=2)
+
+    #     self.encoder.train()
+    #     self.decoder.train()
+
+    #     return original_img, rec_img
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+
+        torch.save(self.actor.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic.state_dict(), f"{filepath}/{filename}_critic.pht")
+        torch.save(
+            self.autoencoder.encoder.state_dict(), f"{filepath}/{filename}_encoder.pht"
+        )
+        torch.save(
+            self.autoencoder.decoder.state_dict(), f"{filepath}/{filename}_decoder.pht"
+        )
         torch.save(
             self.ensemble_predictive_model.state_dict(),
-            f"{path}/{filename}_ensemble.pht",
+            f"{filepath}/{filename}_ensemble.pht",
         )
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
-        self.encoder.load_state_dict(torch.load(f"{path}/{filename}_encoder.pht"))
-        self.decoder.load_state_dict(torch.load(f"{path}/{filename}_decoder.pht"))
+        self.actor.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+        self.autoencoder.encoder.load_state_dict(
+            torch.load(f"{filepath}/{filename}_encoder.pht")
+        )
+        self.autoencoder.decoder.load_state_dict(
+            torch.load(f"{filepath}/{filename}_decoder.pht")
+        )
         logging.info("models has been loaded...")

@@ -1,29 +1,42 @@
-import torch
 from torch import nn
 
+from cares_reinforcement_learning.networks.common import DeterministicPolicy
+from cares_reinforcement_learning.util.configurations import MLPConfig, TD3Config
 
-class Actor(nn.Module):
+
+class DefaultActor(DeterministicPolicy):
     def __init__(
         self,
         observation_size: int,
         num_actions: int,
-        hidden_size: list[int] = None,
+        hidden_sizes: list[int] | None = None,
     ):
-        super().__init__()
-        if hidden_size is None:
-            hidden_size = [256, 256]
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
-        self.hidden_size = hidden_size
+        super().__init__(
+            input_size=observation_size,
+            num_actions=num_actions,
+            config=MLPConfig(
+                hidden_sizes=hidden_sizes, output_activation_function=nn.Tanh.__name__
+            ),
+        )
 
         self.act_net = nn.Sequential(
-            nn.Linear(observation_size, self.hidden_size[0]),
+            nn.Linear(observation_size, hidden_sizes[0]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], num_actions),
+            nn.Linear(hidden_sizes[1], num_actions),
             nn.Tanh(),
         )
 
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
-        output = self.act_net(state)
-        return output
+
+class Actor(DeterministicPolicy):
+    def __init__(self, observation_size: int, num_actions: int, config: TD3Config):
+
+        super().__init__(
+            input_size=observation_size,
+            num_actions=num_actions,
+            config=config.actor_config,
+        )

@@ -10,26 +10,23 @@ Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learni
 import copy
 import logging
 import os
-from typing import Literal
+from typing import Any
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
+from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
 class CTD4:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        ensemble_critics: torch.nn.ModuleList,
-        gamma: float,
-        tau: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        fusion_method: Literal["kalman", "average", "minimum"],
+        actor_network: Actor,
+        ensemble_critic: Critic,
+        config: CTD4Config,
         device: torch.device,
     ):
 
@@ -37,13 +34,17 @@ class CTD4:
         self.device = device
 
         self.actor_net = actor_network.to(self.device)
-        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
+        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.ensemble_critics = ensemble_critics.to(self.device)
-        self.target_ensemble_critics = copy.deepcopy(self.ensemble_critics)
+        self.ensemble_critic = ensemble_critic.to(self.device)
+        self.target_ensemble_critic = copy.deepcopy(self.ensemble_critic).to(
+            self.device
+        )
+        self.target_ensemble_critic.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
         self.noise_clip = 0.5
         self.policy_noise_decay = 0.999999
@@ -51,22 +52,22 @@ class CTD4:
 
         self.target_policy_noise_scale = 0.2
 
-        self.fusion_method = fusion_method
+        self.fusion_method = config.fusion_method
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
 
-        self.action_num = action_num
+        self.action_num = self.actor_net.num_actions
 
-        self.actor_lr = actor_lr
+        self.actor_lr = config.actor_lr
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=self.actor_lr
         )
 
-        self.lr_ensemble_critic = critic_lr
-        self.ensemble_critics_optimizers = [
+        self.lr_ensemble_critic = config.critic_lr
+        self.ensemble_critic_optimizers = [
             torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
-            for critic_net in self.ensemble_critics
+            for critic_net in self.ensemble_critic.critics
         ]
 
     def select_action_from_policy(
@@ -155,11 +156,12 @@ class CTD4:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> None:
+    ) -> list[float]:
         batch_size = len(states)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.target_policy_noise_scale * torch.randn_like(
                 next_actions
             )
@@ -169,8 +171,10 @@ class CTD4:
 
             u_set = []
             std_set = []
-            for target_critic_net in self.target_ensemble_critics:
+
+            for target_critic_net in self.target_ensemble_critic.critics:
                 u, std = target_critic_net(next_states, next_actions)
+
                 u_set.append(u)
                 std_set.append(std)
 
@@ -180,6 +184,10 @@ class CTD4:
                 fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
             elif self.fusion_method == "minimum":
                 fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
+            else:
+                raise ValueError(
+                    f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
+                )
 
             # Create the target distribution = aX+b
             u_target = rewards + self.gamma * fusion_u * (1 - dones)
@@ -188,8 +196,10 @@ class CTD4:
                 u_target, std_target
             )
 
+        critic_loss_totals = []
+
         for critic_net, critic_net_optimiser in zip(
-            self.ensemble_critics, self.ensemble_critics_optimizers
+            self.ensemble_critic.critics, self.ensemble_critic_optimizers
         ):
             u_current, std_current = critic_net(states, actions)
             current_distribution = torch.distributions.normal.Normal(
@@ -205,30 +215,39 @@ class CTD4:
             critic_individual_loss.backward()
             critic_net_optimiser.step()
 
-    def _update_actor(self, states: torch.Tensor) -> None:
+            critic_loss_totals.append(critic_individual_loss.item())
+
+        return critic_loss_totals
+
+    def _update_actor(self, states: torch.Tensor) -> float:
         batch_size = len(states)
 
         actor_q_u_set = []
         actor_q_std_set = []
-        for critic_net in self.ensemble_critics:
-            actor_q_u, actor_q_std = critic_net(states, self.actor_net(states))
-            actor_q_u_set.append(actor_q_u)
-            actor_q_std_set.append(actor_q_std)
+
+        actions = self.actor_net(states)
+        with hlp.evaluating(self.ensemble_critic):
+            for critic_net in self.ensemble_critic.critics:
+                actor_q_u, actor_q_std = critic_net(states, actions)
+
+                actor_q_u_set.append(actor_q_u)
+                actor_q_std_set.append(actor_q_std)
 
         if self.fusion_method == "kalman":
             # Kalman filter combination of all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._kalman(actor_q_u_set, actor_q_std_set)
+            fusion_u_a, _ = self._kalman(actor_q_u_set, actor_q_std_set)
 
         elif self.fusion_method == "average":
             # Average combination of all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._average(
-                actor_q_u_set, actor_q_std_set, batch_size
-            )
+            fusion_u_a, _ = self._average(actor_q_u_set, actor_q_std_set, batch_size)
 
         elif self.fusion_method == "minimum":
             # Minimum all critics and then a single mean for the actor loss
-            fusion_u_a, fusion_std_a = self._minimum(
-                actor_q_u_set, actor_q_std_set, batch_size
+            fusion_u_a, _ = self._minimum(actor_q_u_set, actor_q_std_set, batch_size)
+
+        else:
+            raise ValueError(
+                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
             )
 
         actor_loss = -fusion_u_a.mean()
@@ -237,7 +256,9 @@ class CTD4:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         self.target_policy_noise_scale *= self.policy_noise_decay
@@ -261,40 +282,44 @@ class CTD4:
         rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
         dones = dones.unsqueeze(0).reshape(batch_size, 1)
 
+        info: dict[str, Any] = {}
+
         # Update Critics
-        self._update_critics(states, actions, rewards, next_states, dones)
+        critic_loss_totals = self._update_critics(
+            states, actions, rewards, next_states, dones
+        )
+        info["critic_loss_totals"] = critic_loss_totals
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            self._update_actor(states)
+            actor_loss = self._update_actor(states)
+            info["actor_loss"] = actor_loss
 
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
-                self.ensemble_critics, self.target_ensemble_critics
+                self.ensemble_critic.critics, self.target_ensemble_critic.critics
             ):
                 hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 
             # Update target actor
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+        return info
 
-        if not dir_exists:
-            os.makedirs(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
         torch.save(
-            self.ensemble_critics.state_dict(), f"{path}/{filename}_ensemble.pht"
+            self.ensemble_critic.state_dict(), f"{filepath}/{filename}_ensemble.pht"
         )
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        actor_path = f"{path}/{filename}_actor.pht"
-        ensemble_path = f"{path}/{filename}_ensemble.pht"
+        actor_path = f"{filepath}/{filename}_actor.pht"
+        ensemble_path = f"{filepath}/{filename}_ensemble.pht"
 
         self.actor_net.load_state_dict(torch.load(actor_path))
-        self.ensemble_critics.load_state_dict(torch.load(ensemble_path))
+        self.ensemble_critic.load_state_dict(torch.load(ensemble_path))
         logging.info("models have been loaded successfully.")

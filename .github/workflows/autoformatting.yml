@@ -21,6 +21,9 @@ jobs:
             ref: ${{ github.head_ref }}
             fetch-depth: 0
             token: ${{ secrets.BOT_ACCESS_TOKEN }}
+
+        - name: Setup git user
+          uses: fregante/setup-git-user@v1
     
         - name: Set up Python
           uses: actions/setup-python@v2

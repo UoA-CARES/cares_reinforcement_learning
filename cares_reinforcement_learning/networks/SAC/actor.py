@@ -1,10 +1,10 @@
-import torch
 from torch import nn
 
-from cares_reinforcement_learning.util.common import SquashedNormal
+from cares_reinforcement_learning.networks.common import TanhGaussianPolicy
+from cares_reinforcement_learning.util.configurations import MLPConfig, SACConfig
 
 
-class Actor(nn.Module):
+class DefaultActor(TanhGaussianPolicy):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
@@ -12,49 +12,44 @@ class Actor(nn.Module):
         self,
         observation_size: int,
         num_actions: int,
-        hidden_size: list[int] = None,
-        log_std_bounds: list[int] = None,
+        hidden_sizes: list[int] | None = None,
+        log_std_bounds: list[float] | None = None,
     ):
-        super().__init__()
-        if hidden_size is None:
-            hidden_size = [256, 256]
-        if log_std_bounds is None:
-            log_std_bounds = [-20, 2]
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
-        self.hidden_size = hidden_size
-        self.log_std_bounds = log_std_bounds
+        if log_std_bounds is None:
+            log_std_bounds = [-20.0, 2.0]
+
+        super().__init__(
+            input_size=observation_size,
+            num_actions=num_actions,
+            log_std_bounds=log_std_bounds,
+            config=MLPConfig(hidden_sizes=hidden_sizes),
+        )
 
         self.act_net = nn.Sequential(
-            nn.Linear(observation_size, self.hidden_size[0]),
+            nn.Linear(observation_size, hidden_sizes[0]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
         )
 
-        self.mean_linear = nn.Linear(self.hidden_size[1], num_actions)
-        self.log_std_linear = nn.Linear(self.hidden_size[1], num_actions)
+        self.mean_linear = nn.Linear(hidden_sizes[-1], num_actions)
+        self.log_std_linear = nn.Linear(hidden_sizes[-1], num_actions)
 
-    def forward(
-        self, state: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        x = self.act_net(state)
-        mu = self.mean_linear(x)
-        log_std = self.log_std_linear(x)
 
-        # Bound the action to finite interval.
-        # Apply an invertible squashing function: tanh
-        # employ the change of variables formula to compute the likelihoods of the bounded actions
+class Actor(TanhGaussianPolicy):
+    # DiagGaussianActor
+    """torch.distributions implementation of an diagonal Gaussian policy."""
 
-        # constrain log_std inside [log_std_min, log_std_max]
-        log_std = torch.tanh(log_std)
+    def __init__(self, observation_size: int, num_actions: int, config: SACConfig):
 
-        log_std_min, log_std_max = self.log_std_bounds
-        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
+        log_std_bounds = config.log_std_bounds
 
-        std = log_std.exp()
-
-        dist = SquashedNormal(mu, std)
-        sample = dist.rsample()
-        log_pi = dist.log_prob(sample).sum(-1, keepdim=True)
-
-        return sample, log_pi, dist.mean
+        super().__init__(
+            input_size=observation_size,
+            num_actions=num_actions,
+            log_std_bounds=log_std_bounds,
+            config=config.actor_config,
+        )

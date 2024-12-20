@@ -7,29 +7,25 @@ https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithm
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-import torch.optim as optim
+from torch import optim
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
+from cares_reinforcement_learning.util.configurations import MAPERSACConfig
 
 
 class MAPERSAC:
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        per_alpha: float,
-        min_priority: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
+        actor_network: Actor,
+        critic_network: Critic,
+        config: MAPERSACConfig,
         device: torch.device,
     ):
 
@@ -40,17 +36,19 @@ class MAPERSAC:
 
         self.critic_net = critic_network.to(self.device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.gamma = gamma
-        self.tau = tau
+        self.gamma = config.gamma
+        self.tau = config.tau
 
-        self.per_alpha = per_alpha
-        self.min_priority = min_priority
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.learn_counter = 0
-        self.policy_update_freq = 1
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
-        self.target_entropy = -action_num
+        self.target_entropy = -self.actor_net.num_actions
 
         # MAPER-PER parameters
         self.scale_r = 1.0
@@ -59,17 +57,21 @@ class MAPERSAC:
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
-        self.actor_net_optimiser = optim.Adam(self.actor_net.parameters(), lr=actor_lr)
+        self.actor_net_optimiser = optim.Adam(
+            self.actor_net.parameters(), lr=config.actor_lr
+        )
 
         self.critic_net_optimiser = optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr
+        )
 
     def _split_output(self, target):
         return target[:, 0], target[:, 1], target[:, 2:]
@@ -77,11 +79,13 @@ class MAPERSAC:
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
+            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = state_tensor.unsqueeze(0)
             if evaluation is False:
                 (action, _, _) = self.actor_net(state_tensor)
             else:
@@ -91,7 +95,7 @@ class MAPERSAC:
         return action
 
     @property
-    def alpha(self) -> float:
+    def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
     def _update_critic(
@@ -102,7 +106,7 @@ class MAPERSAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[float, np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, predicted_reward_one, next_states_one = self._split_output(
@@ -138,7 +142,9 @@ class MAPERSAC:
         diff_next_states_two = diff_next_states_two.reshape(-1, 1)
 
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
+
             target_q_values_one, target_q_values_two = self.target_critic_net(
                 next_states, next_actions
             )
@@ -201,15 +207,15 @@ class MAPERSAC:
         diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
 
         # calculate priority
-        priorities = (
+        priorities_tensor = (
             diff_td_mean
             + self.scale_s * diff_next_state_mean
             + self.scale_r * diff_reward_mean
         )
-        priorities = torch.Tensor(priorities)
+        priorities_tensor = torch.Tensor(priorities_tensor)
 
         priorities = (
-            priorities.clamp(min=self.min_priority)
+            priorities_tensor.clamp(min=self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()
@@ -221,13 +227,16 @@ class MAPERSAC:
             self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
             self.scale_s = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
 
-        return priorities
+        return critic_loss_total.item(), priorities
 
     def _update_actor_alpha(
         self, states: torch.Tensor, weights: torch.Tensor
-    ) -> torch.Tensor:
+    ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
-        qf1_pi, qf2_pi = self.critic_net(states, pi)
+
+        with hlp.evaluating(self.critic_net):
+            qf1_pi, qf2_pi = self.critic_net(states, pi)
+
         qf_pi_one, _, _ = self._split_output(qf1_pi)
         qf_pi_two, _, _ = self._split_output(qf2_pi)
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
@@ -249,7 +258,9 @@ class MAPERSAC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+        return actor_loss.item(), alpha_loss.item()
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
         # Sample replay buffer
@@ -261,45 +272,56 @@ class MAPERSAC:
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-        weights = weights.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
+        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
+        weights_tensor = weights_tensor.unsqueeze(0).reshape(batch_size, 1)
+
+        info = {}
 
         # Update the Critic
-        priorities = self._update_critic(
-            states, actions, rewards, next_states, dones, weights
+        critic_loss_total, priorities = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
         )
-
-        # Update the Actor
-        self._update_actor_alpha(states, weights)
+        info["critic_loss_total"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor
+            actor_loss, alpha_loss = self._update_actor_alpha(
+                states_tensor, weights_tensor
+            )
+            info["actor_loss"] = actor_loss
+            info["alpha_loss"] = alpha_loss
+            info["alpha"] = self.alpha.item()
+
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         memory.update_priorities(indices, priorities)
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
+        return info
 
-        if not dir_exists:
-            os.makedirs(path)
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

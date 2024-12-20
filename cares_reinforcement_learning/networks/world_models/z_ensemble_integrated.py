@@ -148,7 +148,7 @@ class EnsembleWorldReward:
         num_actions: int,
         num_models: int,
         lr: float,
-        device: str,
+        device: torch.device,
         hidden_size: int = 128,
     ):
         self.num_models = num_models
@@ -278,6 +278,7 @@ class EnsembleWorldReward:
         next_actions: torch.Tensor,
         next_rewards: torch.Tensor,
     ) -> None:
+        # pylint: disable-next=unused-argument
         """
         This function decides how to train both reward prediciton and dynamic
         prediction.

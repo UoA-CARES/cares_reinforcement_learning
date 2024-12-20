@@ -1,36 +1,44 @@
-import torch
 from torch import nn
 
-from cares_reinforcement_learning.util.common import MLP
+from cares_reinforcement_learning.networks.common import EnsembleCritic
+from cares_reinforcement_learning.util.configurations import MLPConfig, TQCConfig
 
 
-class Critic(nn.Module):
-    def __init__(
-        self,
-        observation_size: int,
-        num_actions: int,
-        num_quantiles: int,
-        num_critics: int,
-        hidden_size: list[int] = None,
-    ):
-        super().__init__()
-        if hidden_size is None:
-            hidden_size = [512, 512, 512]
+class DefaultCritic(EnsembleCritic):
+    def __init__(self, observation_size: int, num_actions: int):
+        input_size = observation_size + num_actions
+        num_quantiles = 25
+        num_critics = 5
+        hidden_sizes = [512, 512, 512]
 
-        self.q_networks = []
-        self.num_quantiles = num_quantiles
-        self.num_critics = num_critics
+        super().__init__(
+            input_size=input_size,
+            output_size=num_quantiles,
+            ensemble_size=num_critics,
+            config=MLPConfig(hidden_sizes=hidden_sizes),
+        )
 
-        for i in range(self.num_critics):
-            critic_net = MLP(
-                observation_size + num_actions, hidden_size, self.num_quantiles
+        for i in range(num_critics):
+            critic_net = nn.Sequential(
+                nn.Linear(input_size, hidden_sizes[0]),
+                nn.ReLU(),
+                nn.Linear(hidden_sizes[0], hidden_sizes[1]),
+                nn.ReLU(),
+                nn.Linear(hidden_sizes[1], hidden_sizes[2]),
+                nn.ReLU(),
+                nn.Linear(hidden_sizes[2], num_quantiles),
             )
             self.add_module(f"critic_net_{i}", critic_net)
-            self.q_networks.append(critic_net)
+            self.critics[i] = critic_net
 
-    def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        network_input = torch.cat((state, action), dim=1)
-        quantiles = torch.stack(
-            tuple(critic(network_input) for critic in self.q_networks), dim=1
+
+class Critic(EnsembleCritic):
+    def __init__(self, observation_size: int, num_actions: int, config: TQCConfig):
+        input_size = observation_size + num_actions
+
+        super().__init__(
+            input_size=input_size,
+            output_size=config.num_quantiles,
+            ensemble_size=config.num_critics,
+            config=config.critic_config,
         )
-        return quantiles
