@@ -123,13 +123,13 @@ class World_Model:
             if self.sas:
                 rwd_mean, rwd_var = self.reward_network(states, actions, next_states)
             else:
-                rwd_mean, rwd_var = self.reward_network(next_states, actions)
+                rwd_mean, rwd_var = self.reward_network(next_states)
             reward_loss = F.gaussian_nll_loss(input=rwd_mean, target=rewards, var=rwd_var)
         else:
             if self.sas:
                 rwd_mean = self.reward_network(states, actions, next_states)
             else:
-                rwd_mean = self.reward_network(next_states, actions)
+                rwd_mean = self.reward_network(next_states)
             reward_loss = F.mse_loss(rwd_mean, rewards)
         reward_loss.backward()
         self.reward_optimizer.step()
