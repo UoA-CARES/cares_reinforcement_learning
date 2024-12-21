@@ -211,7 +211,7 @@ class DynaSAC_NS:
             dones=dones,
             weights=torch.ones(rewards.shape)
         )
-        # self._dyna_generate_and_train(next_states)
+        self._dyna_generate_and_train(next_states)
 
     def _dyna_generate_and_train(self, next_states: torch.Tensor) -> None:
         pred_states = []
