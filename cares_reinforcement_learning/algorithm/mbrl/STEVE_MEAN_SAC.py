@@ -13,10 +13,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
-
-from cares_reinforcement_learning.networks.world_models import (
-    EnsembleWorldEnsembleSASReward,
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.world_models.ensemble import (
+    Ensemble_Dyna_Big
 )
 
 
@@ -25,7 +24,7 @@ class STEVE_MEAN:
             self,
             actor_network: torch.nn.Module,
             critic_network: torch.nn.Module,
-            world_network: EnsembleWorldEnsembleSASReward,
+            world_network: Ensemble_Dyna_Big,
             gamma: float,
             tau: float,
             action_num: int,
@@ -61,7 +60,7 @@ class STEVE_MEAN:
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
-        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
+        self.log_alpha = torch.FloatTensor([np.log(1.0)]).to(device)
         self.log_alpha.requires_grad = True
         self.target_entropy = -action_num
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
@@ -185,7 +184,7 @@ class STEVE_MEAN:
                 )
 
     def train_world_model(
-            self, memory: PrioritizedReplayBuffer, batch_size: int
+            self, memory: MemoryBuffer, batch_size: int
     ) -> None:
 
         experiences = memory.sample_uniform(batch_size)
@@ -208,7 +207,7 @@ class STEVE_MEAN:
             next_states=next_states
         )
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)

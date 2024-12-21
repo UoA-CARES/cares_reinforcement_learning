@@ -9,20 +9,20 @@ This code runs automatic entropy tuning
 import copy
 import logging
 import os
-from scipy.optimize import minimize
+
 import numpy as np
 import torch
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.networks.world_models import (
-    EnsembleWorldAndOneNSReward,
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.world_models.ensemble import (
+    Ensemble_Dyna_Big
 )
 
 from cares_reinforcement_learning.util.helpers import denormalize_observation_delta
 
 
-class DynaSAC_BIVReweight:
+class DynaSAC_UWACReweight:
     """
     Max as ?
     """
@@ -31,7 +31,7 @@ class DynaSAC_BIVReweight:
             self,
             actor_network: torch.nn.Module,
             critic_network: torch.nn.Module,
-            world_network: EnsembleWorldAndOneNSReward,
+            world_network: Ensemble_Dyna_Big,
             gamma: float,
             tau: float,
             action_num: int,
@@ -75,7 +75,7 @@ class DynaSAC_BIVReweight:
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
-        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
+        self.log_alpha = torch.FloatTensor([np.log(1.0)]).to(device)
         self.log_alpha.requires_grad = True
         self.target_entropy = -action_num
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
@@ -197,7 +197,7 @@ class DynaSAC_BIVReweight:
                 )
 
     def train_world_model(
-            self, memory: PrioritizedReplayBuffer, batch_size: int
+            self, memory: MemoryBuffer, batch_size: int
     ) -> None:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -217,7 +217,7 @@ class DynaSAC_BIVReweight:
             rewards=rewards,
         )
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -320,7 +320,6 @@ class DynaSAC_BIVReweight:
                 sample4i += curr_states
                 sample5i = denormalize_observation_delta(sample5[i], self.world_model.statistics)
                 sample5i += curr_states
-
                 # 5 models, each sampled 10 times = 50,
                 pred_rwd1 = self.world_model.pred_rewards(sample1i)
                 pred_rwd2 = self.world_model.pred_rewards(sample2i)
@@ -395,49 +394,12 @@ class DynaSAC_BIVReweight:
                 total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
                             gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
             if self.mode == 1:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
-            if self.mode == 2:
-                total_var = var_r + gamma_sq * var_a + gamma_sq * var_q
-            if self.mode == 3:
-                total_var = var_r
+                total_var = gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq
 
-            xi = self.get_optimal_xi(total_var.detach().cpu().squeeze().numpy())
-            total_var += xi
-            # Weight = inverse of sum of weights * inverse of varaince.
-            weights = 1.0 / total_var
-            ratio = 1.0 / torch.sum(weights)
-            total_stds = ratio * weights
+            total_stds = torch.minimum(self.threshold_scale / total_var,
+                                       torch.ones(total_var.shape).to(self.device) * 1.5)
+
         return total_stds.detach()
-
-
-    def get_optimal_xi(self, variances):
-        minimal_size = self.threshold_scale
-        if self.compute_eff_bs(self.get_iv_weights(variances)) >= minimal_size:
-            return 0
-        fn = lambda x: np.abs(self.compute_eff_bs(self.get_iv_weights(variances + np.abs(x))) - minimal_size)
-        epsilon = minimize(fn, 0, method='Nelder-Mead', options={'fatol': 1.0, 'maxiter': 100})
-        xi = np.abs(epsilon.x[0])
-        xi = 0 if xi is None else xi
-        return xi
-
-    def get_iv_weights(self, variances):
-        '''
-        Returns Inverse Variance weights
-        Params
-        ======
-            variances (numpy array): variance of the targets
-        '''
-        weights = 1 / variances
-        weights = weights / np.sum(weights)
-        return weights
-
-    def compute_eff_bs(self, weights):
-        # Compute original effective mini-batch size
-        eff_bs = 1 / np.sum(np.square(weights))
-        eff_bs = eff_bs / np.shape(weights)[0]
-        return eff_bs
-
-
 
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)

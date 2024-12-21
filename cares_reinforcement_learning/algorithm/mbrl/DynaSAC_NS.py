@@ -8,16 +8,14 @@ This code runs automatic entropy tuning
 
 import copy
 import logging
-import os
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+from cares_reinforcement_learning.memory import MemoryBuffer
 
-from cares_reinforcement_learning.networks.world_models import (
-    EnsembleWorldAndOneNSReward,
+from cares_reinforcement_learning.networks.world_models.ensemble import (
+    Ensemble_Dyna_Big,
 )
 
 
@@ -26,7 +24,7 @@ class DynaSAC_NS:
         self,
         actor_network: torch.nn.Module,
         critic_network: torch.nn.Module,
-        world_network: EnsembleWorldAndOneNSReward,
+        world_network: Ensemble_Dyna_Big,
         gamma: float,
         tau: float,
         action_num: int,
@@ -36,7 +34,17 @@ class DynaSAC_NS:
         num_samples: int,
         horizon: int,
         device: torch.device,
+        train_reward: bool,
+        train_both: bool,
+        gripper:bool,
     ):
+        logging.info("-------------------------------------------")
+        logging.info("----I am runing the Dyna_SAC_NS Agent! ----")
+        logging.info("-------------------------------------------")
+        self.train_reward = train_reward
+        self.train_both = train_both
+        self.gripper = gripper
+
         self.type = "mbrl"
         self.device = device
 
@@ -64,7 +72,7 @@ class DynaSAC_NS:
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
-        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
+        self.log_alpha = torch.FloatTensor([np.log(1.0)]).to(device)
         self.log_alpha.requires_grad = True
         self.target_entropy = -action_num
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
@@ -76,7 +84,6 @@ class DynaSAC_NS:
     def _alpha(self) -> float:
         return self.log_alpha.exp()
 
-    # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
@@ -99,8 +106,10 @@ class DynaSAC_NS:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
+        weights: torch.Tensor,
     ) -> None:
-
+        if weights is None:
+            weights = torch.ones(rewards.shape)
         ##################     Update the Critic First     ####################
         with torch.no_grad():
             next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -154,7 +163,7 @@ class DynaSAC_NS:
                 )
 
     def train_world_model(
-        self, memory: PrioritizedReplayBuffer, batch_size: int
+        self, memory: MemoryBuffer, batch_size: int
     ) -> None:
 
         experiences = memory.sample_uniform(batch_size)
@@ -162,7 +171,6 @@ class DynaSAC_NS:
 
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
 
         self.world_model.train_world(
@@ -170,12 +178,18 @@ class DynaSAC_NS:
             actions=actions,
             next_states=next_states,
         )
-        self.world_model.train_reward(
-            next_states=next_states,
-            rewards=rewards,
-        )
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+        batch_size = len(states)
+        # Reshape to batch_size x whatever
+        if self.train_reward:
+            rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+            rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+            if self.train_both:
+                self.world_model.train_together(states, actions, rewards)
+            else:
+                self.world_model.train_reward(states, actions, next_states, rewards)
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -195,7 +209,9 @@ class DynaSAC_NS:
             rewards=rewards,
             next_states=next_states,
             dones=dones,
+            weights=torch.ones(rewards.shape)
         )
+        # self._dyna_generate_and_train(next_states)
 
     def _dyna_generate_and_train(self, next_states: torch.Tensor) -> None:
         pred_states = []
@@ -208,12 +224,21 @@ class DynaSAC_NS:
             for _ in range(self.horizon):
                 pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
                 # This part is controversial. But random actions is empirically better.
-                rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
-                pred_acts = torch.FloatTensor(rand_acts).to(self.device)
+                # rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
+                # pred_acts = torch.FloatTensor(rand_acts).to(self.device)
+                pred_acts, _, _ = self.actor_net(pred_state)
                 pred_next_state, _, _, _ = self.world_model.pred_next_states(
                     pred_state, pred_acts
                 )
-                pred_reward = self.world_model.pred_rewards(pred_next_state)
+
+                if self.gripper:
+                    pred_reward = self.reward_function(pred_state, pred_next_state)
+                    pred_next_state[:, -2:] = pred_state[:, -2:]
+                else:
+                    pred_reward, _ = self.world_model.pred_rewards(observation=pred_state,
+                                                                   action=pred_acts,
+                                                                   next_observation=pred_next_state)
+
                 pred_states.append(pred_state)
                 pred_actions.append(pred_acts.detach())
                 pred_rs.append(pred_reward.detach())
@@ -227,23 +252,35 @@ class DynaSAC_NS:
             pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
             # states, actions, rewards, next_states, not_dones
         self._train_policy(
-            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
+            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, torch.ones(pred_rs.shape)
         )
+
+    def reward_function(self, curr_states, next_states):
+        target_goal_tensor = curr_states[:, -2:]
+        object_current = next_states[:, -4:-2]
+        sq_diff = (target_goal_tensor - object_current) ** 2
+        # [256, 1]
+        goal_distance_after = torch.sqrt(torch.sum(sq_diff, dim=1)).unsqueeze(dim=1)
+        pred_reward = -goal_distance_after + 70
+        mask1 = goal_distance_after <= 10
+        mask2 = goal_distance_after > 70
+        pred_reward[mask1] = 800
+        pred_reward[mask2] = 0
+        return pred_reward
 
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-        if not dir_exists:
-            os.makedirs(path)
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pth")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pth")
+        # if not os.path.exists(filepath):
+        #     os.makedirs(filepath)
+        # print(filepath)
+        # logging.info(filepath)
+        # torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        # torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pth"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pth"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

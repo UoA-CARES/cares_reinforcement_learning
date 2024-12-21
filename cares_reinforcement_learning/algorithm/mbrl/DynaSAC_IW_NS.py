@@ -12,16 +12,18 @@ import os
 
 import numpy as np
 import torch
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.networks.world_models import (
-    EnsembleWorldAndOneNSReward,
+from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.world_models.ensemble import (
+    Ensemble_Dyna_Big
 )
+
 from cares_reinforcement_learning.util.helpers import denormalize_observation_delta
 
 
-class DynaSAC_SUNRISEReweight:
+
+class DynaSAC_ScaleBatchReweight:
     """
     Max as ?
     """
@@ -30,7 +32,7 @@ class DynaSAC_SUNRISEReweight:
             self,
             actor_network: torch.nn.Module,
             critic_network: torch.nn.Module,
-            world_network: EnsembleWorldAndOneNSReward,
+            world_network: Ensemble_Dyna_Big,
             gamma: float,
             tau: float,
             action_num: int,
@@ -74,7 +76,7 @@ class DynaSAC_SUNRISEReweight:
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
-        self.log_alpha = torch.tensor(np.log(1.0)).to(device)
+        self.log_alpha = torch.FloatTensor([np.log(1.0)]).to(device)
         self.log_alpha.requires_grad = True
         self.target_entropy = -action_num
         self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
@@ -196,7 +198,7 @@ class DynaSAC_SUNRISEReweight:
                 )
 
     def train_world_model(
-            self, memory: PrioritizedReplayBuffer, batch_size: int
+            self, memory: MemoryBuffer, batch_size: int
     ) -> None:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -216,7 +218,7 @@ class DynaSAC_SUNRISEReweight:
             rewards=rewards,
         )
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int) -> None:
+    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -304,6 +306,7 @@ class DynaSAC_SUNRISEReweight:
                 [self.sample_times])
             sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
                 [self.sample_times])
+
             rs = []
             acts = []
             qs = []
@@ -319,17 +322,19 @@ class DynaSAC_SUNRISEReweight:
                 sample4i += curr_states
                 sample5i = denormalize_observation_delta(sample5[i], self.world_model.statistics)
                 sample5i += curr_states
-                # 5 models, each sampled 10 times = 50,
-                pred_rwd1 = self.world_model.pred_rewards(sample1i)
-                pred_rwd2 = self.world_model.pred_rewards(sample2i)
-                pred_rwd3 = self.world_model.pred_rewards(sample3i)
-                pred_rwd4 = self.world_model.pred_rewards(sample4i)
-                pred_rwd5 = self.world_model.pred_rewards(sample5i)
-                rs.append(pred_rwd1)
-                rs.append(pred_rwd2)
-                rs.append(pred_rwd3)
-                rs.append(pred_rwd4)
-                rs.append(pred_rwd5)
+
+                if self.reweight_critic == 1:
+                    # 5 models, each sampled 10 times = 50,
+                    pred_rwd1 = self.world_model.pred_rewards(sample1i)
+                    pred_rwd2 = self.world_model.pred_rewards(sample2i)
+                    pred_rwd3 = self.world_model.pred_rewards(sample3i)
+                    pred_rwd4 = self.world_model.pred_rewards(sample4i)
+                    pred_rwd5 = self.world_model.pred_rewards(sample5i)
+                    rs.append(pred_rwd1)
+                    rs.append(pred_rwd2)
+                    rs.append(pred_rwd3)
+                    rs.append(pred_rwd4)
+                    rs.append(pred_rwd5)
                 # Each times, 5 models predict different actions.
                 # [2560, 17]
                 pred_act1, log_pi1, _ = self.actor_net(sample1i)
@@ -361,39 +366,51 @@ class DynaSAC_SUNRISEReweight:
                 qs.append(qc)
                 qs.append(qd)
                 qs.append(qe)
-
-            rs = torch.stack(rs)
+            if self.reweight_critic == 1:
+                rs = torch.stack(rs)
             acts = torch.stack(acts)
             qs = torch.stack(qs)
 
-            var_r = torch.var(rs, dim=0)
-
-            if self.mode < 3:
+            if self.reweight_critic:
+                var_r = torch.var(rs, dim=0)
                 var_a = torch.var(acts, dim=0)
                 var_q = torch.var(qs, dim=0)
 
-            # Computing covariance.
-            if self.mode < 2:
                 mean_a = torch.mean(acts, dim=0, keepdim=True)
                 mean_q = torch.mean(qs, dim=0, keepdim=True)
                 diff_a = acts - mean_a
                 diff_q = qs - mean_q
                 cov_aq = torch.mean(diff_a * diff_q, dim=0)
 
-            if self.mode < 1:
                 mean_r = torch.mean(rs, dim=0, keepdim=True)
                 diff_r = rs - mean_r
                 cov_rq = torch.mean(diff_r * diff_q, dim=0)
-
                 cov_ra = torch.mean(diff_r * diff_a, dim=0)
 
-            gamma_sq = self.gamma * self.gamma
-            # Ablation
-            if self.mode == 0:
+                gamma_sq = self.gamma * self.gamma
                 total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
                             gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
 
-            total_stds = torch.sigmoid(-1 * torch.sqrt(total_var) * self.threshold_scale) + 0.5
+            if self.reweight_actor:
+                mean_a = torch.mean(acts, dim=0, keepdim=True)
+                mean_q = torch.mean(qs, dim=0, keepdim=True)
+                diff_a = acts - mean_a
+                diff_q = qs - mean_q
+                cov_aq = torch.mean(diff_a * diff_q, dim=0)
+
+                var_a = torch.var(acts, dim=0)
+                var_q = torch.var(qs, dim=0)
+                # For actor: alpha^2 * var_a + var_q
+                total_var = (self._alpha ** 2) * var_a + var_q + (self._alpha ** 2) * cov_aq
+
+            min_var = torch.min(total_var)
+            max_var = torch.max(total_var)
+            # As (max-min) decrease, threshold should go down.
+            threshold = self.threshold_scale * (max_var - min_var) + min_var
+            total_var[total_var <= threshold] = threshold
+
+            total_var += 0.00000001
+            total_stds = 1 / total_var
 
         return total_stds.detach()
 
