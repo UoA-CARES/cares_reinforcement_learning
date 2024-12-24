@@ -11,7 +11,7 @@ import logging
 
 import numpy as np
 import torch
-
+from torch import nn
 from cares_reinforcement_learning.memory import MemoryBuffer
 
 from cares_reinforcement_learning.networks.world_models.ensemble import (
@@ -84,9 +84,16 @@ class DynaSAC_Bounded:
         # World model
         self.world_model = world_network
 
+        self.k_l = nn.KLDivLoss(reduction='batchmean', log_target=True)
+
     @property
     def _alpha(self) -> float:
         return self.log_alpha.exp()
+
+    def _jsd(self, p, q):
+        p, q = p.view(-1, p.size(-1)).log_softmax(-1), q.view(-1, q.size(-1)).log_softmax(-1)
+        m = (0.5 * (p + q))
+        return 0.5 * (self.k_l(m, p) + self.k_l(m, q))
 
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
@@ -116,11 +123,15 @@ class DynaSAC_Bounded:
                         multi_log_pi = multi_log_pi.squeeze()
                         policy_dist = F.softmax(multi_log_pi, dim=0)
                         world_dist = F.softmax(uncert, dim=0)
+                        world_dist -= torch.min(world_dist)
+
                         final_dist = (1 - self.threshold) * policy_dist + self.threshold * world_dist
                         final_dist = F.softmax(final_dist, dim=0)
                         candi = torch.argmax(final_dist)
                         # new_dist = torch.distributions.Categorical(final_dist)
                         # candi = new_dist.sample([5]).squeeze()
+                        # print(self._jsd(policy_dist, final_dist))
+
                         action = multi_action[candi]
                     else:
                         (action, _, _) = self.actor_net(state_tensor)
