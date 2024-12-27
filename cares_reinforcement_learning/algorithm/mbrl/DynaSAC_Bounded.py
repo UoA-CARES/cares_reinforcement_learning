@@ -123,7 +123,8 @@ class DynaSAC_Bounded:
                         world_dist = F.softmax(uncert, dim=0)
                         # world_dist -= torch.min(world_dist)
 
-                        Q_s = self.critic_net(multi_state_tensor, multi_action)
+                        Q_1, Q_2 = self.critic_net(multi_state_tensor, multi_action)
+                        Q_s = torch.minimum(Q_1, Q_2)
                         Q_s = Q_s.squeeze()
                         multi_log_pi = Q_s
                         #multi_log_pi = multi_log_pi.squeeze()
