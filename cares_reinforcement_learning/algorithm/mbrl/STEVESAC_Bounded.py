@@ -98,36 +98,41 @@ class STEVESAC_Bounded:
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if evaluation is False:
                 (action, _, _) = self.actor_net(state_tensor)
-                # if self.threshold == 0:
-                #     (action, _, _) = self.actor_net(state_tensor)
-                # else:
-                #     if self.set_stat:
-                #         multi_state_tensor = torch.repeat_interleave(state_tensor, self.exploration_sample, dim=0)
-                #         (multi_action, multi_log_pi, _) = self.actor_net(multi_state_tensor)
-                #         # Estimate uncertainty
-                #         # [6, 10, 17]
-                #         _, _, nstate_means, nstate_vars = self.world_model.pred_next_states(
-                #             observation=multi_state_tensor, actions=multi_action)
-                #         # [10, 17]
-                #         aleatoric = torch.mean(nstate_vars ** 2, dim=0) ** 0.5
-                #         epistemic = torch.var(nstate_means, dim=0) ** 0.5
-                #         aleatoric = torch.clamp(aleatoric, max=10e3)
-                #         epistemic = torch.clamp(epistemic, max=10e3)
-                #         total_unc = (aleatoric ** 2 + epistemic ** 2) ** 0.5
-                #         uncert = torch.mean(total_unc, dim=1)
-                #         multi_log_pi = multi_log_pi.squeeze()
-                #         policy_dist = F.softmax(multi_log_pi, dim=0)
-                #         world_dist = F.softmax(uncert, dim=0)
-                #         world_dist -= torch.min(world_dist)
-                #         final_dist = (1 - self.threshold) * policy_dist + self.threshold * world_dist
-                #         final_dist = F.softmax(final_dist, dim=0)
-                #         candi = torch.argmax(final_dist)
-                #         # new_dist = torch.distributions.Categorical(final_dist)
-                #         # candi = new_dist.sample([5]).squeeze()
-                #         # print(self._jsd(policy_dist, final_dist))
-                #         action = multi_action[candi]
-                #     else:
-                #         (action, _, _) = self.actor_net(state_tensor)
+                if self.threshold == 0:
+                    (action, _, _) = self.actor_net(state_tensor)
+                else:
+                    if self.set_stat:
+                        multi_state_tensor = torch.repeat_interleave(state_tensor, self.exploration_sample, dim=0)
+                        (multi_action, multi_log_pi, _) = self.actor_net(multi_state_tensor)
+                        # Estimate uncertainty
+                        # [6, 10, 17]
+                        _, _, nstate_means, nstate_vars = self.world_model.pred_next_states(
+                            observation=multi_state_tensor, actions=multi_action)
+                        # [10, 17]
+                        aleatoric = torch.mean(nstate_vars ** 2, dim=0) ** 0.5
+                        epistemic = torch.var(nstate_means, dim=0) ** 0.5
+                        aleatoric = torch.clamp(aleatoric, max=10e3)
+                        epistemic = torch.clamp(epistemic, max=10e3)
+                        total_unc = (aleatoric ** 2 + epistemic ** 2) ** 0.5
+                        uncert = torch.mean(total_unc, dim=1)
+                        world_dist = F.softmax(uncert, dim=0)
+                        # world_dist -= torch.min(world_dist)
+
+                        Q_s = self.critic_net(multi_state_tensor, multi_action)
+                        Q_s = Q_s.squeeze()
+                        multi_log_pi = Q_s
+
+                        # multi_log_pi = multi_log_pi.squeeze()
+                        policy_dist = F.softmax(multi_log_pi, dim=0)
+                        final_dist = (1 - self.threshold) * policy_dist + self.threshold * world_dist
+                        candi = torch.argmax(final_dist)
+                        # final_dist = F.softmax(final_dist, dim=0)
+                        # new_dist = torch.distributions.Categorical(final_dist)
+                        # candi = new_dist.sample([5]).squeeze()
+                        # print(self._jsd(policy_dist, final_dist))
+                        action = multi_action[candi]
+                    else:
+                        (action, _, _) = self.actor_net(state_tensor)
             else:
                 (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
