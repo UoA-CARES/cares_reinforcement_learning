@@ -32,8 +32,17 @@ class Ensemble_Dyna_Big(World_Model):
                  prob_rwd: bool = True,
                  num_models: int = 7,
                  boost_inter: int = 3,
+                 num_rwd_model: int = 1
                  ):
-        super().__init__(observation_size, num_actions, l_r, device, hidden_size, sas, prob_rwd)
+        super().__init__(observation_size=observation_size,
+                         num_actions=num_actions,
+                         l_r=l_r,
+                         device=device,
+                         hidden_size=hidden_size,
+                         sas=sas,
+                         prob_rwd=prob_rwd,
+                         num_rwd_model=num_rwd_model)
+
         self.num_models = num_models
         self.observation_size = observation_size
         self.num_actions = num_actions
@@ -132,6 +141,8 @@ class Ensemble_Dyna_Big(World_Model):
         self.curr_losses[index] = model_loss.item()
         self.update_counter += 1
         self.update_counter %= self.boost_inter * self.num_models
+
+
 
     def estimate_uncertainty(
             self, observation: torch.Tensor, actions: torch.Tensor, train_reward:bool
@@ -241,7 +252,6 @@ class Ensemble_Dyna_Big(World_Model):
 
         samples = denormalize_observation_delta(samples, self.statistics)
         samples += states
-
 
         if self.prob_rwd:
             if self.sas:

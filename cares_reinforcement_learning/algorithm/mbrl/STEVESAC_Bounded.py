@@ -8,18 +8,19 @@ This code runs automatic entropy tuning
 
 import copy
 import logging
-import os
+
 import numpy as np
 import torch
+from torch import nn
+from cares_reinforcement_learning.memory import MemoryBuffer
+
+from cares_reinforcement_learning.networks.world_models.ensemble import (
+    Ensemble_Dyna_Big,
+)
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.world_models.ensemble import (
-    Ensemble_Dyna_Big
-)
 
-
-class STEVE_MEAN:
+class STEVESAC_Bounded:
     def __init__(
             self,
             actor_network: torch.nn.Module,
@@ -32,21 +33,35 @@ class STEVE_MEAN:
             critic_lr: float,
             alpha_lr: float,
             horizon: int,
-            L: int,
             device: torch.device,
+            train_reward: bool,
+            train_both: bool,
+            gripper: bool,
+            threshold: float,
+            exploration_sample: int
     ):
-        self.L = L
-        self.horizon = horizon
+        logging.info("------------------------------------------------")
+        logging.info("----I am runing the STEVESAC_Bounded Agent! ----")
+        logging.info("------------------------------------------------")
+        self.train_reward = train_reward
+        self.train_both = train_both
+        self.gripper = gripper
+        self.exploration_sample = exploration_sample
+        self.threshold = threshold
+        self.set_stat = False
         self.type = "mbrl"
         self.device = device
+
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(self.device)
         self.target_critic_net = copy.deepcopy(self.critic_net)
+
         self.gamma = gamma
         self.tau = tau
 
+        self.horizon = horizon
         self.action_num = action_num
 
         self.learn_counter = 0
@@ -68,11 +83,12 @@ class STEVE_MEAN:
         # World model
         self.world_model = world_network
 
+        self.k_l = nn.KLDivLoss(reduction='batchmean', log_target=True)
+
     @property
     def _alpha(self) -> float:
         return self.log_alpha.exp()
 
-    # pylint: disable-next=unused-argument to keep the same interface
     def select_action_from_policy(
             self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
@@ -82,6 +98,36 @@ class STEVE_MEAN:
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if evaluation is False:
                 (action, _, _) = self.actor_net(state_tensor)
+                # if self.threshold == 0:
+                #     (action, _, _) = self.actor_net(state_tensor)
+                # else:
+                #     if self.set_stat:
+                #         multi_state_tensor = torch.repeat_interleave(state_tensor, self.exploration_sample, dim=0)
+                #         (multi_action, multi_log_pi, _) = self.actor_net(multi_state_tensor)
+                #         # Estimate uncertainty
+                #         # [6, 10, 17]
+                #         _, _, nstate_means, nstate_vars = self.world_model.pred_next_states(
+                #             observation=multi_state_tensor, actions=multi_action)
+                #         # [10, 17]
+                #         aleatoric = torch.mean(nstate_vars ** 2, dim=0) ** 0.5
+                #         epistemic = torch.var(nstate_means, dim=0) ** 0.5
+                #         aleatoric = torch.clamp(aleatoric, max=10e3)
+                #         epistemic = torch.clamp(epistemic, max=10e3)
+                #         total_unc = (aleatoric ** 2 + epistemic ** 2) ** 0.5
+                #         uncert = torch.mean(total_unc, dim=1)
+                #         multi_log_pi = multi_log_pi.squeeze()
+                #         policy_dist = F.softmax(multi_log_pi, dim=0)
+                #         world_dist = F.softmax(uncert, dim=0)
+                #         world_dist -= torch.min(world_dist)
+                #         final_dist = (1 - self.threshold) * policy_dist + self.threshold * world_dist
+                #         final_dist = F.softmax(final_dist, dim=0)
+                #         candi = torch.argmax(final_dist)
+                #         # new_dist = torch.distributions.Categorical(final_dist)
+                #         # candi = new_dist.sample([5]).squeeze()
+                #         # print(self._jsd(policy_dist, final_dist))
+                #         action = multi_action[candi]
+                #     else:
+                #         (action, _, _) = self.actor_net(state_tensor)
             else:
                 (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
@@ -95,23 +141,25 @@ class STEVE_MEAN:
             rewards: torch.Tensor,
             next_states: torch.Tensor,
             dones: torch.Tensor,
+            weights: torch.Tensor,
     ) -> None:
+        if weights is None:
+            weights = torch.ones(rewards.shape)
         ##################     Update the Critic First     ####################
         with torch.no_grad():
             not_dones = (1 - dones)
             q_means = []
             q_weights = []
-            accum_dist_rewards = torch.repeat_interleave(rewards.unsqueeze(dim=0), repeats=25, dim=0)
+            accum_dist_rewards = torch.repeat_interleave(rewards.unsqueeze(dim=0), repeats=30, dim=0)
             # 5 * 5 * 4 = 100
             for hori in range(self.horizon):
-                _, curr_hori_log_pi, curr_hori_action= self.actor_net(next_states)
+                _, curr_hori_log_pi, curr_hori_action = self.actor_net(next_states)
                 mean_predictions, all_mean_next, _, _ = self.world_model.pred_next_states(next_states, curr_hori_action)
-                pred_rewards, _ = self.world_model.pred_multiple_rewards(observation=next_states,
-                                                                         action=curr_hori_action,
-                                                                         next_observation=all_mean_next)
+                pred_rewards, _ = self.world_model.pred_all_rewards(observation=next_states,
+                                                                    action=curr_hori_action,
+                                                                    next_observation=all_mean_next)
                 pred_rewards *= (self.gamma ** (hori + 1))
                 accum_dist_rewards += pred_rewards
-
                 # V = Q - alpha * logi
                 pred_q1, pred_q2 = self.target_critic_net(next_states, curr_hori_action)
                 pred_q3, pred_q4 = self.critic_net(next_states, curr_hori_action)
@@ -192,7 +240,6 @@ class STEVE_MEAN:
 
         states = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device).unsqueeze(1)
         next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
 
         self.world_model.train_world(
@@ -200,12 +247,16 @@ class STEVE_MEAN:
             actions=actions,
             next_states=next_states,
         )
-        self.world_model.train_reward(
-            states=states,
-            actions=actions,
-            rewards=rewards,
-            next_states=next_states
-        )
+
+        batch_size = len(states)
+        # Reshape to batch_size x whatever
+        if self.train_reward:
+            rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+            rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
+            if self.train_both:
+                self.world_model.train_together(states, actions, rewards)
+            else:
+                self.world_model.train_reward(states, actions, next_states, rewards)
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
         self.learn_counter += 1
@@ -227,22 +278,36 @@ class STEVE_MEAN:
             rewards=rewards,
             next_states=next_states,
             dones=dones,
+            weights=torch.ones(rewards.shape)
         )
+
+    def reward_function(self, curr_states, next_states):
+        target_goal_tensor = curr_states[:, -2:]
+        object_current = next_states[:, -4:-2]
+        sq_diff = (target_goal_tensor - object_current) ** 2
+        # [256, 1]
+        goal_distance_after = torch.sqrt(torch.sum(sq_diff, dim=1)).unsqueeze(dim=1)
+        pred_reward = -goal_distance_after + 70
+        mask1 = goal_distance_after <= 10
+        mask2 = goal_distance_after > 70
+        pred_reward[mask1] = 800
+        pred_reward[mask2] = 0
+        return pred_reward
 
     def set_statistics(self, stats: dict) -> None:
         self.world_model.set_statistics(stats)
+        self.set_stat = True
 
     def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-        if not dir_exists:
-            os.makedirs(path)
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pth")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pth")
+        # if not os.path.exists(filepath):
+        #     os.makedirs(filepath)
+        # print(filepath)
+        # logging.info(filepath)
+        # torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        # torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pth"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pth"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")

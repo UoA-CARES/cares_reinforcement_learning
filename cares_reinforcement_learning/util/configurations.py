@@ -134,6 +134,7 @@ class PPOConfig(AlgorithmConfig):
     )
     critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
 
+
 ###################################
 #         SAC Algorithms          #
 ###################################
@@ -155,7 +156,7 @@ class SACConfig(AlgorithmConfig):
 class DynaSAC_NSConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_NS", Literal=True)
     type: str = Field("mbrl", Literal=True)
-    G: int =  1,
+    G: int = 1,
     G_model: float = 1,
 
     actor_lr: float = 3e-4
@@ -179,6 +180,73 @@ class DynaSAC_NSConfig(AlgorithmConfig):
     train_reward: bool = True
     train_both: bool = True
     gripper: bool = False
+
+
+class STEVESACConfig(AlgorithmConfig):
+    algorithm: str = Field("STEVESAC", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = 1,
+    G_model: float = 1,
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+
+    num_models: int = 6
+    num_rwd_models: int = 5
+    world_model_lr: float = 0.001
+
+    horizon: int = 3
+
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = True
+    gripper: bool = False
+
+
+class STEVESAC_BoundedConfig(AlgorithmConfig):
+    algorithm: str = Field("STEVESAC_Bounded", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = 1,
+    G_model: float = 1,
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+
+    num_models: int = 6
+    num_rwd_models: int = 5
+    world_model_lr: float = 0.001
+
+    horizon: int = 3
+
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = True
+    gripper: bool = False
+
+    threshold: float = 0.1
+    exploration_sample: int = 5
 
 
 class DynaSAC_BoundedConfig(AlgorithmConfig):
@@ -661,6 +729,7 @@ class DroQConfig(SACConfig):
         norm_layer="LayerNorm",
         layer_order=["dropout", "layernorm", "activation"],
     )
+
 
 class DDPGConfig(AlgorithmConfig):
     algorithm: str = Field("DDPG", Literal=True)

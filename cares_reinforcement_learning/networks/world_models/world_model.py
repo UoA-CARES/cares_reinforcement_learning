@@ -22,7 +22,9 @@ class World_Model:
             hidden_size=None,
             sas: bool = True,
             prob_rwd: bool = False,
+            num_rwd_model: int = 5
     ):
+        logging.info(f"Num of Reward models: {num_rwd_model}")
         if hidden_size is None:
             hidden_size = [128, 128]
         self.sas = None
@@ -32,38 +34,46 @@ class World_Model:
         self.sas = sas
         self.prob_rwd = prob_rwd
         self.statistics = {}
-        if prob_rwd:
-            if sas:
-                self.reward_network = Probabilistic_SAS_Reward(
-                    observation_size=observation_size,
-                    num_actions=num_actions,
-                    hidden_size=hidden_size,
-                    normalize=False
-                )
+        self.counter = 0
+        self.num_rwd_model = num_rwd_model
+
+        self.rwd_models = []
+        self.rwd_model_optimizers = []
+        for i in range(self.num_rwd_model):
+            if prob_rwd:
+                if sas:
+                    reward_network = Probabilistic_SAS_Reward(
+                        observation_size=observation_size,
+                        num_actions=num_actions,
+                        hidden_size=hidden_size,
+                        normalize=False
+                    )
+                else:
+                    reward_network = Probabilistic_NS_Reward(
+                        observation_size=observation_size,
+                        num_actions=num_actions,
+                        hidden_size=hidden_size,
+                        normalize=False
+                    )
             else:
-                self.reward_network = Probabilistic_NS_Reward(
-                    observation_size=observation_size,
-                    num_actions=num_actions,
-                    hidden_size=hidden_size,
-                    normalize=False
-                )
-        else:
-            if sas:
-                self.reward_network = Simple_SAS_Reward(
-                    observation_size=observation_size,
-                    num_actions=num_actions,
-                    hidden_size=hidden_size,
-                    normalize=False
-                )
-            else:
-                self.reward_network = Simple_NS_Reward(
-                    observation_size=observation_size,
-                    num_actions=num_actions,
-                    hidden_size=hidden_size,
-                    normalize=False
-                )
-        self.reward_network.to(self.device)
-        self.reward_optimizer = optim.Adam(self.reward_network.parameters(), lr=l_r)
+                if sas:
+                    reward_network = Simple_SAS_Reward(
+                        observation_size=observation_size,
+                        num_actions=num_actions,
+                        hidden_size=hidden_size,
+                        normalize=False
+                    )
+                else:
+                    reward_network = Simple_NS_Reward(
+                        observation_size=observation_size,
+                        num_actions=num_actions,
+                        hidden_size=hidden_size,
+                        normalize=False
+                    )
+            reward_network.to(self.device)
+            self.rwd_models.append(reward_network)
+            reward_optimizer = optim.Adam(reward_network.parameters(), lr=l_r)
+            self.rwd_model_optimizers.append(reward_optimizer)
 
     def set_statistics(self, statistics: dict) -> None:
         """
@@ -118,21 +128,22 @@ class World_Model:
         :param next_states:
         :param rewards:
         """
-        self.reward_optimizer.zero_grad()
+        indice = self.counter % self.num_rwd_model
+        self.rwd_model_optimizers[indice].zero_grad()
         if self.prob_rwd:
             if self.sas:
-                rwd_mean, rwd_var = self.reward_network(states, actions, next_states)
+                rwd_mean, rwd_var = self.rwd_models[indice](states, actions, next_states)
             else:
-                rwd_mean, rwd_var = self.reward_network(next_states)
+                rwd_mean, rwd_var = self.rwd_models[indice](next_states)
             reward_loss = F.gaussian_nll_loss(input=rwd_mean, target=rewards, var=rwd_var)
         else:
             if self.sas:
-                rwd_mean = self.reward_network(states, actions, next_states)
+                rwd_mean = self.rwd_models[indice](states, actions, next_states)
             else:
-                rwd_mean = self.reward_network(next_states)
+                rwd_mean = self.rwd_models[indice](next_states)
             reward_loss = F.mse_loss(rwd_mean, rewards)
         reward_loss.backward()
-        self.reward_optimizer.step()
+        self.rwd_model_optimizers[indice].step()
 
     def pred_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation: torch.Tensor
                      ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -143,22 +154,77 @@ class World_Model:
         :param next_observation:
         :return: Predicted rewards, Means of rewards, Variances of rewards
         """
+        preds = []
+        preds_vars = []
+        for i in range(self.num_rwd_model):
+            if self.prob_rwd:
+                if self.sas:
+                    pred_rewards, rwd_var = self.rwd_models[i](observation, action, next_observation)
+                else:
+                    pred_rewards, rwd_var = self.rwd_models[i](next_observation)
+            else:
+                if self.sas:
+                    pred_rewards = self.rwd_models[i](observation, action, next_observation)
+                else:
+                    pred_rewards = self.rwd_models[i](next_observation)
+                rwd_var = None
+            preds.append(pred_rewards)
+            preds_vars.append(rwd_var)
+        preds = torch.stack(preds)
+        total_unc = 0.0
+        if self.num_rwd_model > 1:
+            epistemic_uncert = torch.var(preds, dim=0) ** 0.5
+            aleatoric_uncert = torch.zeros(epistemic_uncert.shape)
+            if rwd_var is None:
+                rwd_var = torch.zeros(preds.shape)
+            else:
+                rwd_var = torch.stack(preds_vars)
+                aleatoric_uncert = torch.mean(rwd_var ** 2, dim=0) ** 0.5
+            total_unc = (aleatoric_uncert ** 2 + epistemic_uncert ** 2) ** 0.5
 
-        if self.prob_rwd:
-            if self.sas:
-                pred_rewards, rwd_var = self.reward_network(observation, action, next_observation)
-            else:
-                pred_rewards, rwd_var = self.reward_network(next_observation)
-            return pred_rewards, rwd_var
+        if preds.shape[0] > 1:
+            preds = torch.mean(preds, dim=0)
         else:
-            if self.sas:
-                pred_rewards = self.reward_network(observation, action, next_observation)
-            else:
-                pred_rewards = self.reward_network(next_observation)
-            return pred_rewards, None
+            preds = preds[0]
+
+        return preds, total_unc
+
+    def pred_all_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation: torch.Tensor
+                         ) -> tuple[torch.Tensor, torch.Tensor]:
+        """
+        Predict reward based on SAS
+        :param observation:
+        :param action:
+        :param next_observation:
+        :return: Predicted rewards, Means of rewards, Variances of rewards
+        """
+        preds = []
+        preds_vars = []
+        for j in range(next_observation.shape[0]):
+            for i in range(self.num_rwd_model):
+                if self.prob_rwd:
+                    if self.sas:
+                        pred_rewards, rwd_var = self.rwd_models[i](observation, action, next_observation[j])
+                    else:
+                        pred_rewards, rwd_var = self.rwd_models[i](next_observation[j])
+                else:
+                    if self.sas:
+                        pred_rewards = self.rwd_models[i](observation, action, next_observation[j])
+                    else:
+                        pred_rewards = self.rwd_models[i](next_observation[j])
+                    rwd_var = None
+                preds.append(pred_rewards)
+                preds_vars.append(rwd_var)
+        preds = torch.stack(preds)
+        if rwd_var is None:
+            preds_vars = torch.zeros(preds.shape)
+        else:
+            preds_vars = torch.stack(preds_vars)
+
+        return preds, preds_vars
 
     def estimate_uncertainty(
-            self, observation: torch.Tensor, actions: torch.Tensor, train_reward:bool,
+            self, observation: torch.Tensor, actions: torch.Tensor, train_reward: bool,
     ) -> tuple[float, float, torch.Tensor]:
         """
         Estimate next state uncertainty and reward uncertainty.

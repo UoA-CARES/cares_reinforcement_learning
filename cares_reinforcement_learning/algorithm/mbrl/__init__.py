@@ -4,4 +4,5 @@ from .DynaSAC_IW_NS import DynaSAC_ScaleBatchReweight
 from .DynaSAC_SUNRISE_NS import DynaSAC_SUNRISEReweight
 from .DynaSAC_UWAC_NS import DynaSAC_UWACReweight
 from .DynaSAC_BIV_NS import DynaSAC_BIVReweight
-from .STEVE_MEAN_SAC import STEVE_MEAN
+from .STEVESAC_Bounded import STEVESAC_Bounded
+from .STEVESAC import STEVESAC
