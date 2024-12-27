@@ -111,7 +111,6 @@ class DynaSAC_Bounded:
                         (multi_action, multi_log_pi, _) = self.actor_net(multi_state_tensor)
                         # Estimate uncertainty
                         # [6, 10, 17]
-                        print("--------------------")
                         _, _, nstate_means, nstate_vars = self.world_model.pred_next_states(
                             observation=multi_state_tensor, actions=multi_action)
                         # [10, 17]
