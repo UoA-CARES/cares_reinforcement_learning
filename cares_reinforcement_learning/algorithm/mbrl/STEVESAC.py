@@ -21,21 +21,21 @@ from cares_reinforcement_learning.networks.world_models.ensemble import (
 
 class STEVESAC:
     def __init__(
-            self,
-            actor_network: torch.nn.Module,
-            critic_network: torch.nn.Module,
-            world_network: Ensemble_Dyna_Big,
-            gamma: float,
-            tau: float,
-            action_num: int,
-            actor_lr: float,
-            critic_lr: float,
-            alpha_lr: float,
-            horizon: int,
-            device: torch.device,
-            train_reward: bool,
-            train_both: bool,
-            gripper: bool,
+        self,
+        actor_network: torch.nn.Module,
+        critic_network: torch.nn.Module,
+        world_network: Ensemble_Dyna_Big,
+        gamma: float,
+        tau: float,
+        action_num: int,
+        actor_lr: float,
+        critic_lr: float,
+        alpha_lr: float,
+        horizon: int,
+        device: torch.device,
+        train_reward: bool,
+        train_both: bool,
+        gripper: bool,
     ):
         logging.info("----------------------------------------")
         logging.info("----I am runing the STEVESAC Agent! ----")
@@ -78,14 +78,14 @@ class STEVESAC:
         # World model
         self.world_model = world_network
 
-        self.k_l = nn.KLDivLoss(reduction='batchmean', log_target=True)
+        self.k_l = nn.KLDivLoss(reduction="batchmean", log_target=True)
 
     @property
     def _alpha(self) -> float:
         return self.log_alpha.exp()
 
     def select_action_from_policy(
-            self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
@@ -100,30 +100,36 @@ class STEVESAC:
         return action
 
     def _train_policy(
-            self,
-            states: torch.Tensor,
-            actions: torch.Tensor,
-            rewards: torch.Tensor,
-            next_states: torch.Tensor,
-            dones: torch.Tensor,
-            weights: torch.Tensor,
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+        weights: torch.Tensor,
     ) -> None:
         if weights is None:
             weights = torch.ones(rewards.shape)
         ##################     Update the Critic First     ####################
         with torch.no_grad():
-            not_dones = (1 - dones)
+            not_dones = 1 - dones
             q_means = []
             q_weights = []
-            accum_dist_rewards = torch.repeat_interleave(rewards.unsqueeze(dim=0), repeats=30, dim=0)
+            accum_dist_rewards = torch.repeat_interleave(
+                rewards.unsqueeze(dim=0), repeats=30, dim=0
+            )
             # 5 * 5 * 4 = 100
             for hori in range(self.horizon):
                 _, curr_hori_log_pi, curr_hori_action = self.actor_net(next_states)
-                mean_predictions, all_mean_next, _, _ = self.world_model.pred_next_states(next_states, curr_hori_action)
-                pred_rewards, _ = self.world_model.pred_all_rewards(observation=next_states,
-                                                                    action=curr_hori_action,
-                                                                    next_observation=all_mean_next)
-                pred_rewards *= (self.gamma ** (hori + 1))
+                mean_predictions, all_mean_next, _, _ = (
+                    self.world_model.pred_next_states(next_states, curr_hori_action)
+                )
+                pred_rewards, _ = self.world_model.pred_all_rewards(
+                    observation=next_states,
+                    action=curr_hori_action,
+                    next_observation=all_mean_next,
+                )
+                pred_rewards *= self.gamma ** (hori + 1)
                 accum_dist_rewards += pred_rewards
                 # V = Q - alpha * logi
                 pred_q1, pred_q2 = self.target_critic_net(next_states, curr_hori_action)
@@ -134,10 +140,22 @@ class STEVESAC:
                 pred_v4 = pred_q4 - self._alpha * curr_hori_log_pi
                 q_0 = []
                 for i in range(pred_rewards.shape[0]):
-                    pred_tq1 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v1
-                    pred_tq2 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v2
-                    pred_tq3 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v3
-                    pred_tq4 = accum_dist_rewards[i] + not_dones * (self.gamma ** (hori + 2)) * pred_v4
+                    pred_tq1 = (
+                        accum_dist_rewards[i]
+                        + not_dones * (self.gamma ** (hori + 2)) * pred_v1
+                    )
+                    pred_tq2 = (
+                        accum_dist_rewards[i]
+                        + not_dones * (self.gamma ** (hori + 2)) * pred_v2
+                    )
+                    pred_tq3 = (
+                        accum_dist_rewards[i]
+                        + not_dones * (self.gamma ** (hori + 2)) * pred_v3
+                    )
+                    pred_tq4 = (
+                        accum_dist_rewards[i]
+                        + not_dones * (self.gamma ** (hori + 2)) * pred_v4
+                    )
                     q_0.append(pred_tq1)
                     q_0.append(pred_tq2)
                     q_0.append(pred_tq3)
@@ -181,7 +199,7 @@ class STEVESAC:
 
         # Update the temperature
         alpha_loss = -(
-                self.log_alpha * (first_log_p + self.target_entropy).detach()
+            self.log_alpha * (first_log_p + self.target_entropy).detach()
         ).mean()
 
         self.log_alpha_optimizer.zero_grad()
@@ -190,15 +208,13 @@ class STEVESAC:
 
         if self.learn_counter % self.policy_update_freq == 0:
             for target_param, param in zip(
-                    self.target_critic_net.parameters(), self.critic_net.parameters()
+                self.target_critic_net.parameters(), self.critic_net.parameters()
             ):
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-    def train_world_model(
-            self, memory: MemoryBuffer, batch_size: int
-    ) -> None:
+    def train_world_model(self, memory: MemoryBuffer, batch_size: int) -> None:
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -243,7 +259,7 @@ class STEVESAC:
             rewards=rewards,
             next_states=next_states,
             dones=dones,
-            weights=torch.ones(rewards.shape)
+            weights=torch.ones(rewards.shape),
         )
 
     def set_statistics(self, stats: dict) -> None:
