@@ -184,7 +184,9 @@ def create_STEVESAC_Bounded(
 
     from cares_reinforcement_learning.algorithm.mbrl import STEVESAC_Bounded
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models.ensemble import Ensemble_Dyna_Big
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
@@ -445,10 +447,10 @@ def create_STEVESAC_Bounded(
 
 class NetworkFactory:
     def create_network(
-            self,
-            observation_size,
-            action_num: int,
-            config: acf.AlgorithmConfig,
+        self,
+        observation_size,
+        action_num: int,
+        config: acf.AlgorithmConfig,
     ):
         algorithm = config.algorithm
 
