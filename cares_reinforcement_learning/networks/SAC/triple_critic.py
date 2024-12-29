@@ -34,7 +34,6 @@ class TriCritic(nn.Module):
             nn.Linear(self.hidden_size[1], 1),
         )
 
-
     def forward(
         self, state: torch.Tensor, action: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:

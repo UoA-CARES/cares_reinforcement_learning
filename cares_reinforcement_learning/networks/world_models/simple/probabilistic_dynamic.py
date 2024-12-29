@@ -27,18 +27,20 @@ class Probabilistic_Dynamics(nn.Module):
         self.observation_size = observation_size
         self.num_actions = num_actions
 
-        self.model = MLP(input_size=observation_size + num_actions,
-                         hidden_sizes=hidden_size,
-                         output_size=2 * observation_size)
+        self.model = MLP(
+            input_size=observation_size + num_actions,
+            hidden_sizes=hidden_size,
+            output_size=2 * observation_size,
+        )
 
-        self.add_module('mlp', self.model)
+        self.add_module("mlp", self.model)
 
         self.model.apply(weight_init_pnn)
 
         self.statistics = {}
 
     def forward(
-            self, observation: torch.Tensor, actions: torch.Tensor
+        self, observation: torch.Tensor, actions: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Forward the inputs throught the network.
@@ -54,14 +56,14 @@ class Probabilistic_Dynamics(nn.Module):
         uncertainty estimation.
         """
         assert (
-                observation.shape[1] + actions.shape[1]
-                == self.observation_size + self.num_actions
+            observation.shape[1] + actions.shape[1]
+            == self.observation_size + self.num_actions
         )
         # Always normalized obs
         x = torch.cat((observation, actions), dim=1)
         pred = self.model(x)
-        logvar = pred[:, :self.observation_size]
-        normalized_mean = pred[:, self.observation_size:]
+        logvar = pred[:, : self.observation_size]
+        normalized_mean = pred[:, self.observation_size :]
         logvar = torch.tanh(logvar)
         normalized_var = torch.exp(logvar)
         # Always denormalized delta

@@ -19,6 +19,7 @@ from cares_reinforcement_learning.networks.world_models.ensemble import (
 )
 import torch.nn.functional as F
 
+
 class DynaSAC_Bounded:
     def __init__(
         self,
@@ -36,9 +37,9 @@ class DynaSAC_Bounded:
         device: torch.device,
         train_reward: bool,
         train_both: bool,
-        gripper:bool,
-        threshold:float,
-        exploration_sample:int
+        gripper: bool,
+        threshold: float,
+        exploration_sample: int,
     ):
         logging.info("-----------------------------------------------")
         logging.info("----I am runing the DynaSAC_Bounded Agent! ----")
@@ -84,15 +85,17 @@ class DynaSAC_Bounded:
         # World model
         self.world_model = world_network
 
-        self.k_l = nn.KLDivLoss(reduction='batchmean', log_target=True)
+        self.k_l = nn.KLDivLoss(reduction="batchmean", log_target=True)
 
     @property
     def _alpha(self) -> float:
         return self.log_alpha.exp()
 
     def _jsd(self, p, q):
-        p, q = p.view(-1, p.size(-1)).log_softmax(-1), q.view(-1, q.size(-1)).log_softmax(-1)
-        m = (0.5 * (p + q))
+        p, q = p.view(-1, p.size(-1)).log_softmax(-1), q.view(
+            -1, q.size(-1)
+        ).log_softmax(-1)
+        m = 0.5 * (p + q)
         return 0.5 * (self.k_l(m, p) + self.k_l(m, q))
 
     def select_action_from_policy(
@@ -107,18 +110,25 @@ class DynaSAC_Bounded:
                     (action, _, _) = self.actor_net(state_tensor)
                 else:
                     if self.set_stat:
-                        multi_state_tensor = torch.repeat_interleave(state_tensor, self.exploration_sample, dim=0)
-                        (multi_action, multi_log_pi, _) = self.actor_net(multi_state_tensor)
+                        multi_state_tensor = torch.repeat_interleave(
+                            state_tensor, self.exploration_sample, dim=0
+                        )
+                        (multi_action, multi_log_pi, _) = self.actor_net(
+                            multi_state_tensor
+                        )
                         # Estimate uncertainty
                         # [6, 10, 17]
-                        _, _, nstate_means, nstate_vars = self.world_model.pred_next_states(
-                            observation=multi_state_tensor, actions=multi_action)
+                        _, _, nstate_means, nstate_vars = (
+                            self.world_model.pred_next_states(
+                                observation=multi_state_tensor, actions=multi_action
+                            )
+                        )
                         # [10, 17]
-                        aleatoric = torch.mean(nstate_vars ** 2, dim=0) ** 0.5
+                        aleatoric = torch.mean(nstate_vars**2, dim=0) ** 0.5
                         epistemic = torch.var(nstate_means, dim=0) ** 0.5
                         aleatoric = torch.clamp(aleatoric, max=10e3)
                         epistemic = torch.clamp(epistemic, max=10e3)
-                        total_unc = (aleatoric ** 2 + epistemic ** 2) ** 0.5
+                        total_unc = (aleatoric**2 + epistemic**2) ** 0.5
                         uncert = torch.mean(total_unc, dim=1)
                         world_dist = F.softmax(uncert, dim=0)
                         # world_dist -= torch.min(world_dist)
@@ -127,7 +137,7 @@ class DynaSAC_Bounded:
                         Q_s = torch.minimum(Q_1, Q_2)
                         Q_s = Q_s.squeeze()
                         multi_log_pi = Q_s
-                        #multi_log_pi = multi_log_pi.squeeze()
+                        # multi_log_pi = multi_log_pi.squeeze()
                         policy_dist = F.softmax(multi_log_pi, dim=0)
 
                         final_dist = policy_dist + self.threshold * world_dist
@@ -164,7 +174,7 @@ class DynaSAC_Bounded:
                 next_states, next_actions
             )
             target_q_values = (
-                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -208,9 +218,7 @@ class DynaSAC_Bounded:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-    def train_world_model(
-        self, memory: MemoryBuffer, batch_size: int
-    ) -> None:
+    def train_world_model(self, memory: MemoryBuffer, batch_size: int) -> None:
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -255,7 +263,7 @@ class DynaSAC_Bounded:
             rewards=rewards,
             next_states=next_states,
             dones=dones,
-            weights=torch.ones(rewards.shape)
+            weights=torch.ones(rewards.shape),
         )
         self._dyna_generate_and_train(next_states)
 
@@ -268,7 +276,9 @@ class DynaSAC_Bounded:
         with torch.no_grad():
             pred_state = next_states
             for _ in range(self.horizon):
-                pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
+                pred_state = torch.repeat_interleave(
+                    pred_state, self.num_samples, dim=0
+                )
                 # This part is controversial. But random actions is empirically better.
                 # rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
                 # pred_acts = torch.FloatTensor(rand_acts).to(self.device)
@@ -281,9 +291,11 @@ class DynaSAC_Bounded:
                     pred_reward = self.reward_function(pred_state, pred_next_state)
                     pred_next_state[:, -2:] = pred_state[:, -2:]
                 else:
-                    pred_reward, _ = self.world_model.pred_rewards(observation=pred_state,
-                                                                   action=pred_acts,
-                                                                   next_observation=pred_next_state)
+                    pred_reward, _ = self.world_model.pred_rewards(
+                        observation=pred_state,
+                        action=pred_acts,
+                        next_observation=pred_next_state,
+                    )
 
                 pred_states.append(pred_state)
                 pred_actions.append(pred_acts.detach())
@@ -298,7 +310,12 @@ class DynaSAC_Bounded:
             pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
             # states, actions, rewards, next_states, not_dones
         self._train_policy(
-            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, torch.ones(pred_rs.shape)
+            pred_states,
+            pred_actions,
+            pred_rs,
+            pred_n_states,
+            pred_dones,
+            torch.ones(pred_rs.shape),
         )
 
     def reward_function(self, curr_states, next_states):

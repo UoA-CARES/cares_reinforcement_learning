@@ -13,6 +13,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 #         DQN Algorithms          #
 ###################################
 
+
 def create_SAC(observation_size, action_num, config: acf.SACConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
@@ -37,7 +38,9 @@ def create_DynaSAC_NS(observation_size, action_num, config: acf.DynaSAC_NSConfig
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_NS
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models.ensemble import Ensemble_Dyna_Big
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
@@ -52,6 +55,7 @@ def create_DynaSAC_NS(observation_size, action_num, config: acf.DynaSAC_NSConfig
         l_r=config.world_model_lr,
         sas=config.sas,
         boost_inter=30
+        sas=config.sas,
     )
 
     agent = DynaSAC_NS(
@@ -69,32 +73,39 @@ def create_DynaSAC_NS(observation_size, action_num, config: acf.DynaSAC_NSConfig
         device=device,
         train_both=config.train_both,
         train_reward=config.train_reward,
-        gripper=config.gripper
+        gripper=config.gripper,
     )
     return agent
 
 
-def create_DynaSAC_Bounded(observation_size, action_num, config: acf.DynaSAC_BoundedConfig):
+def create_DynaSAC_Bounded(
+    observation_size, action_num, config: acf.DynaSAC_BoundedConfig
+):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
     """
     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_Bounded
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models.ensemble import Ensemble_Dyna_Big
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
 
-    world_model = Ensemble_Dyna_Big(observation_size=observation_size,
-                                    num_actions=action_num,
-                                    num_models=config.num_models,
-                                    device=device,
-                                    l_r=config.world_model_lr,
-                                    sas=config.sas,
-                                    boost_inter=30)
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+        prob_rwd=True,
+        boost_inter=30,
+    )
 
     agent = DynaSAC_Bounded(
         actor_network=actor,
@@ -113,7 +124,7 @@ def create_DynaSAC_Bounded(observation_size, action_num, config: acf.DynaSAC_Bou
         train_reward=config.train_reward,
         gripper=config.gripper,
         threshold=config.threshold,
-        exploration_sample=config.exploration_sample
+        exploration_sample=config.exploration_sample,
     )
 
     return agent
@@ -126,7 +137,9 @@ def create_STEVESAC(observation_size, action_num, config: acf.STEVESACConfig):
     """
     from cares_reinforcement_learning.algorithm.mbrl import STEVESAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models.ensemble import Ensemble_Dyna_Big
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
@@ -140,7 +153,7 @@ def create_STEVESAC(observation_size, action_num, config: acf.STEVESACConfig):
         num_rwd_model=config.num_rwd_models,
         device=device,
         l_r=config.world_model_lr,
-        sas=config.sas
+        sas=config.sas,
     )
 
     agent = STEVESAC(
@@ -157,12 +170,14 @@ def create_STEVESAC(observation_size, action_num, config: acf.STEVESACConfig):
         device=device,
         train_both=config.train_both,
         train_reward=config.train_reward,
-        gripper=config.gripper
+        gripper=config.gripper,
     )
     return agent
 
 
-def create_STEVESAC_Bounded(observation_size, action_num, config: acf.STEVESAC_BoundedConfig):
+def create_STEVESAC_Bounded(
+    observation_size, action_num, config: acf.STEVESAC_BoundedConfig
+):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
@@ -177,12 +192,15 @@ def create_STEVESAC_Bounded(observation_size, action_num, config: acf.STEVESAC_B
 
     device = hlp.get_device()
 
-    world_model = Ensemble_Dyna_Big(observation_size=observation_size,
-                                    num_actions=action_num,
-                                    num_models=config.num_models,
-                                    num_rwd_model=config.num_rwd_models,
-                                    device=device,
-                                    l_r=config.world_model_lr, sas=config.sas)
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        num_rwd_model=config.num_rwd_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+    )
 
     agent = STEVESAC_Bounded(
         actor_network=actor,
@@ -200,7 +218,7 @@ def create_STEVESAC_Bounded(observation_size, action_num, config: acf.STEVESAC_B
         train_reward=config.train_reward,
         gripper=config.gripper,
         threshold=config.threshold,
-        exploration_sample=config.exploration_sample
+        exploration_sample=config.exploration_sample,
     )
 
     return agent

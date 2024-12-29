@@ -1,8 +1,14 @@
 import logging
 import torch
 import numpy as np
-from cares_reinforcement_learning.networks.world_models.simple import Probabilistic_SAS_Reward, Probabilistic_NS_Reward
-from cares_reinforcement_learning.networks.world_models.simple import Simple_SAS_Reward, Simple_NS_Reward
+from cares_reinforcement_learning.networks.world_models.simple import (
+    Probabilistic_SAS_Reward,
+    Probabilistic_NS_Reward,
+)
+from cares_reinforcement_learning.networks.world_models.simple import (
+    Simple_SAS_Reward,
+    Simple_NS_Reward,
+)
 import torch.nn.functional as F
 import torch.utils
 from torch import optim
@@ -14,15 +20,15 @@ class World_Model:
     """
 
     def __init__(
-            self,
-            observation_size: int,
-            num_actions: int,
-            l_r: float,
-            device: str,
-            hidden_size=None,
-            sas: bool = True,
-            prob_rwd: bool = False,
-            num_rwd_model: int = 5
+        self,
+        observation_size: int,
+        num_actions: int,
+        l_r: float,
+        device: str,
+        hidden_size=None,
+        sas: bool = True,
+        prob_rwd: bool = False,
+        num_rwd_model: int = 5,
     ):
         logging.info(f"Num of Reward models: {num_rwd_model}")
         if hidden_size is None:
@@ -46,14 +52,14 @@ class World_Model:
                         observation_size=observation_size,
                         num_actions=num_actions,
                         hidden_size=hidden_size,
-                        normalize=False
+                        normalize=False,
                     )
                 else:
                     reward_network = Probabilistic_NS_Reward(
                         observation_size=observation_size,
                         num_actions=num_actions,
                         hidden_size=hidden_size,
-                        normalize=False
+                        normalize=False,
                     )
             else:
                 if sas:
@@ -61,14 +67,14 @@ class World_Model:
                         observation_size=observation_size,
                         num_actions=num_actions,
                         hidden_size=hidden_size,
-                        normalize=False
+                        normalize=False,
                     )
                 else:
                     reward_network = Simple_NS_Reward(
                         observation_size=observation_size,
                         num_actions=num_actions,
                         hidden_size=hidden_size,
-                        normalize=False
+                        normalize=False,
                     )
             reward_network.to(self.device)
             self.rwd_models.append(reward_network)
@@ -88,10 +94,10 @@ class World_Model:
         self.statistics = statistics
 
     def train_world(
-            self,
-            states: torch.Tensor,
-            actions: torch.Tensor,
-            next_states: torch.Tensor,
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        next_states: torch.Tensor,
     ) -> None:
         """
         Train the dynamic of world model.
@@ -102,7 +108,7 @@ class World_Model:
         logging.info(" Train world Not Implemented")
 
     def pred_next_states(
-            self, observation: torch.Tensor, actions: torch.Tensor
+        self, observation: torch.Tensor, actions: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Make a prediction of next state.
@@ -111,14 +117,18 @@ class World_Model:
         :return: Next_state Prediction, Next_state Means, Next_State Variance.
         """
         logging.info("Predict Next Not Implemented")
-        return torch.zeros(observation.shape), torch.zeros(observation.shape), torch.zeros(observation.shape)
+        return (
+            torch.zeros(observation.shape),
+            torch.zeros(observation.shape),
+            torch.zeros(observation.shape),
+        )
 
     def train_reward(
-            self,
-            states: torch.Tensor,
-            actions: torch.Tensor,
-            next_states: torch.Tensor,
-            rewards: torch.Tensor,
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        next_states: torch.Tensor,
+        rewards: torch.Tensor,
     ) -> None:
         """
         Train the reward prediction with or without world model dynamics.
@@ -132,10 +142,14 @@ class World_Model:
         self.rwd_model_optimizers[indice].zero_grad()
         if self.prob_rwd:
             if self.sas:
-                rwd_mean, rwd_var = self.rwd_models[indice](states, actions, next_states)
+                rwd_mean, rwd_var = self.rwd_models[indice](
+                    states, actions, next_states
+                )
             else:
                 rwd_mean, rwd_var = self.rwd_models[indice](next_states)
-            reward_loss = F.gaussian_nll_loss(input=rwd_mean, target=rewards, var=rwd_var)
+            reward_loss = F.gaussian_nll_loss(
+                input=rwd_mean, target=rewards, var=rwd_var
+            )
         else:
             if self.sas:
                 rwd_mean = self.rwd_models[indice](states, actions, next_states)
@@ -145,8 +159,12 @@ class World_Model:
         reward_loss.backward()
         self.rwd_model_optimizers[indice].step()
 
-    def pred_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation: torch.Tensor
-                     ) -> tuple[torch.Tensor, torch.Tensor]:
+    def pred_rewards(
+        self,
+        observation: torch.Tensor,
+        action: torch.Tensor,
+        next_observation: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Predict reward based on SAS
         :param observation:
@@ -159,12 +177,16 @@ class World_Model:
         for i in range(self.num_rwd_model):
             if self.prob_rwd:
                 if self.sas:
-                    pred_rewards, rwd_var = self.rwd_models[i](observation, action, next_observation)
+                    pred_rewards, rwd_var = self.rwd_models[i](
+                        observation, action, next_observation
+                    )
                 else:
                     pred_rewards, rwd_var = self.rwd_models[i](next_observation)
             else:
                 if self.sas:
-                    pred_rewards = self.rwd_models[i](observation, action, next_observation)
+                    pred_rewards = self.rwd_models[i](
+                        observation, action, next_observation
+                    )
                 else:
                     pred_rewards = self.rwd_models[i](next_observation)
                 rwd_var = None
@@ -179,8 +201,8 @@ class World_Model:
                 rwd_var = torch.zeros(preds.shape)
             else:
                 rwd_var = torch.stack(preds_vars)
-                aleatoric_uncert = torch.mean(rwd_var ** 2, dim=0) ** 0.5
-            total_unc = (aleatoric_uncert ** 2 + epistemic_uncert ** 2) ** 0.5
+                aleatoric_uncert = torch.mean(rwd_var**2, dim=0) ** 0.5
+            total_unc = (aleatoric_uncert**2 + epistemic_uncert**2) ** 0.5
 
         if preds.shape[0] > 1:
             preds = torch.mean(preds, dim=0)
@@ -189,8 +211,12 @@ class World_Model:
 
         return preds, total_unc
 
-    def pred_all_rewards(self, observation: torch.Tensor, action: torch.Tensor, next_observation: torch.Tensor
-                         ) -> tuple[torch.Tensor, torch.Tensor]:
+    def pred_all_rewards(
+        self,
+        observation: torch.Tensor,
+        action: torch.Tensor,
+        next_observation: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Predict reward based on SAS
         :param observation:
@@ -204,12 +230,16 @@ class World_Model:
             for i in range(self.num_rwd_model):
                 if self.prob_rwd:
                     if self.sas:
-                        pred_rewards, rwd_var = self.rwd_models[i](observation, action, next_observation[j])
+                        pred_rewards, rwd_var = self.rwd_models[i](
+                            observation, action, next_observation[j]
+                        )
                     else:
                         pred_rewards, rwd_var = self.rwd_models[i](next_observation[j])
                 else:
                     if self.sas:
-                        pred_rewards = self.rwd_models[i](observation, action, next_observation[j])
+                        pred_rewards = self.rwd_models[i](
+                            observation, action, next_observation[j]
+                        )
                     else:
                         pred_rewards = self.rwd_models[i](next_observation[j])
                     rwd_var = None
@@ -224,7 +254,10 @@ class World_Model:
         return preds, preds_vars
 
     def estimate_uncertainty(
-            self, observation: torch.Tensor, actions: torch.Tensor, train_reward: bool,
+        self,
+        observation: torch.Tensor,
+        actions: torch.Tensor,
+        train_reward: bool,
     ) -> tuple[float, float, torch.Tensor]:
         """
         Estimate next state uncertainty and reward uncertainty.
@@ -236,5 +269,10 @@ class World_Model:
         logging.info("Estimating Uncertainty Not Implemented")
         return 0.0, 0.0, None
 
-    def train_together(self, states: torch.Tensor, actions: torch.Tensor, rewards: torch.Tensor, ):
+    def train_together(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+    ):
         logging.info("Train Together Not Implemented")

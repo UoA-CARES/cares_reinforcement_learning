@@ -11,16 +11,11 @@ def sampling(pred_means, pred_vars):
     :return:
     """
     # 5 models, each sampled 10 times = 50,
-    sample1 = torch.distributions.Normal(pred_means[0], pred_vars[0]).sample(
-        [10])
-    sample2 = torch.distributions.Normal(pred_means[1], pred_vars[1]).sample(
-        [10])
-    sample3 = torch.distributions.Normal(pred_means[2], pred_vars[2]).sample(
-        [10])
-    sample4 = torch.distributions.Normal(pred_means[3], pred_vars[3]).sample(
-        [10])
-    sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample(
-        [10])
+    sample1 = torch.distributions.Normal(pred_means[0], pred_vars[0]).sample([10])
+    sample2 = torch.distributions.Normal(pred_means[1], pred_vars[1]).sample([10])
+    sample3 = torch.distributions.Normal(pred_means[2], pred_vars[2]).sample([10])
+    sample4 = torch.distributions.Normal(pred_means[3], pred_vars[3]).sample([10])
+    sample5 = torch.distributions.Normal(pred_means[4], pred_vars[4]).sample([10])
 
     samples = torch.cat((sample1, sample2, sample3, sample4, sample5))
     # Samples = [5 * 10, 10 predictions, 11 state dims]

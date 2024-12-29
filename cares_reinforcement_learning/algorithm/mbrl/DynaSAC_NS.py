@@ -36,7 +36,7 @@ class DynaSAC_NS:
         device: torch.device,
         train_reward: bool,
         train_both: bool,
-        gripper:bool,
+        gripper: bool,
     ):
         logging.info("-------------------------------------------")
         logging.info("----I am runing the Dyna_SAC_NS Agent! ----")
@@ -118,7 +118,7 @@ class DynaSAC_NS:
                 next_states, next_actions
             )
             target_q_values = (
-                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
@@ -162,9 +162,7 @@ class DynaSAC_NS:
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
                 )
 
-    def train_world_model(
-        self, memory: MemoryBuffer, batch_size: int
-    ) -> None:
+    def train_world_model(self, memory: MemoryBuffer, batch_size: int) -> None:
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, _, _ = experiences
@@ -209,7 +207,7 @@ class DynaSAC_NS:
             rewards=rewards,
             next_states=next_states,
             dones=dones,
-            weights=torch.ones(rewards.shape)
+            weights=torch.ones(rewards.shape),
         )
         self._dyna_generate_and_train(next_states)
 
@@ -222,7 +220,9 @@ class DynaSAC_NS:
         with torch.no_grad():
             pred_state = next_states
             for _ in range(self.horizon):
-                pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
+                pred_state = torch.repeat_interleave(
+                    pred_state, self.num_samples, dim=0
+                )
                 # This part is controversial. But random actions is empirically better.
                 # rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
                 # pred_acts = torch.FloatTensor(rand_acts).to(self.device)
@@ -235,9 +235,11 @@ class DynaSAC_NS:
                     pred_reward = self.reward_function(pred_state, pred_next_state)
                     pred_next_state[:, -2:] = pred_state[:, -2:]
                 else:
-                    pred_reward, _ = self.world_model.pred_rewards(observation=pred_state,
-                                                                   action=pred_acts,
-                                                                   next_observation=pred_next_state)
+                    pred_reward, _ = self.world_model.pred_rewards(
+                        observation=pred_state,
+                        action=pred_acts,
+                        next_observation=pred_next_state,
+                    )
 
                 pred_states.append(pred_state)
                 pred_actions.append(pred_acts.detach())
@@ -252,7 +254,12 @@ class DynaSAC_NS:
             pred_dones = torch.FloatTensor(np.zeros(pred_rs.shape)).to(self.device)
             # states, actions, rewards, next_states, not_dones
         self._train_policy(
-            pred_states, pred_actions, pred_rs, pred_n_states, pred_dones, torch.ones(pred_rs.shape)
+            pred_states,
+            pred_actions,
+            pred_rs,
+            pred_n_states,
+            pred_dones,
+            torch.ones(pred_rs.shape),
         )
 
     def reward_function(self, curr_states, next_states):

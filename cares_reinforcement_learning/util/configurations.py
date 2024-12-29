@@ -156,8 +156,8 @@ class SACConfig(AlgorithmConfig):
 class DynaSAC_NSConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_NS", Literal=True)
     type: str = Field("mbrl", Literal=True)
-    G: int = 1,
-    G_model: float = 1,
+    G: int = (1,)
+    G_model: float = (1,)
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
@@ -185,8 +185,8 @@ class DynaSAC_NSConfig(AlgorithmConfig):
 class STEVESACConfig(AlgorithmConfig):
     algorithm: str = Field("STEVESAC", Literal=True)
     type: str = Field("mbrl", Literal=True)
-    G: int = 1,
-    G_model: float = 1,
+    G: int = (1,)
+    G_model: float = (1,)
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
@@ -217,8 +217,8 @@ class STEVESACConfig(AlgorithmConfig):
 class STEVESAC_BoundedConfig(AlgorithmConfig):
     algorithm: str = Field("STEVESAC_Bounded", Literal=True)
     type: str = Field("mbrl", Literal=True)
-    G: int = 1,
-    G_model: float = 1,
+    G: int = (1,)
+    G_model: float = (1,)
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
@@ -252,8 +252,8 @@ class STEVESAC_BoundedConfig(AlgorithmConfig):
 class DynaSAC_BoundedConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_Bounded", Literal=True)
     type: str = Field("mbrl", Literal=True)
-    G: int = 1,
-    G_model: float = 1,
+    G: int = (1,)
+    G_model: float = (1,)
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
