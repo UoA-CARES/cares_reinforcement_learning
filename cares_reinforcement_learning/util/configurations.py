@@ -178,7 +178,7 @@ class DynaSAC_NSConfig(AlgorithmConfig):
     num_samples: int = 10
     sas: bool = False
     train_reward: bool = True
-    train_both: bool = True
+    train_both: bool = False
     gripper: bool = False
 
 
@@ -210,7 +210,7 @@ class STEVESACConfig(AlgorithmConfig):
 
     sas: bool = False
     train_reward: bool = True
-    train_both: bool = True
+    train_both: bool = False
     gripper: bool = False
 
 
@@ -242,7 +242,7 @@ class STEVESAC_BoundedConfig(AlgorithmConfig):
 
     sas: bool = False
     train_reward: bool = True
-    train_both: bool = True
+    train_both: bool = False
     gripper: bool = False
 
     threshold: float = 0.1
@@ -274,7 +274,7 @@ class DynaSAC_BoundedConfig(AlgorithmConfig):
     num_samples: int = 10
     sas: bool = False
     train_reward: bool = True
-    train_both: bool = True
+    train_both: bool = False
     gripper: bool = False
     threshold: float = 0.1
     exploration_sample: int = 5

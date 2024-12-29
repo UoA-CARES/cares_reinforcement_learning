@@ -49,7 +49,9 @@ def create_DynaSAC_NS(observation_size, action_num, config: acf.DynaSAC_NSConfig
         num_actions=action_num,
         num_models=config.num_models,
         device=device,
-        sas=config.sas
+        l_r=config.world_model_lr,
+        sas=config.sas,
+        boost_inter=30
     )
 
     agent = DynaSAC_NS(
@@ -86,16 +88,13 @@ def create_DynaSAC_Bounded(observation_size, action_num, config: acf.DynaSAC_Bou
 
     device = hlp.get_device()
 
-    world_model = Ensemble_Dyna_Big(
-        observation_size=observation_size,
-        num_actions=action_num,
-        num_models=config.num_models,
-        device=device,
-        l_r=config.world_model_lr,
-        sas=config.sas,
-        prob_rwd=True,
-        boost_inter=30
-    )
+    world_model = Ensemble_Dyna_Big(observation_size=observation_size,
+                                    num_actions=action_num,
+                                    num_models=config.num_models,
+                                    device=device,
+                                    l_r=config.world_model_lr,
+                                    sas=config.sas,
+                                    boost_inter=30)
 
     agent = DynaSAC_Bounded(
         actor_network=actor,
