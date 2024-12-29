@@ -54,8 +54,7 @@ def create_DynaSAC_NS(observation_size, action_num, config: acf.DynaSAC_NSConfig
         device=device,
         l_r=config.world_model_lr,
         sas=config.sas,
-        boost_inter=30
-        sas=config.sas,
+        boost_inter=30,
     )
 
     agent = DynaSAC_NS(
