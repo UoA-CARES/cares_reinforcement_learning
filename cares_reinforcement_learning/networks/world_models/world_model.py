@@ -158,6 +158,7 @@ class World_Model:
             reward_loss = F.mse_loss(rwd_mean, rewards)
         reward_loss.backward()
         self.rwd_model_optimizers[indice].step()
+        self.counter += 1
 
     def pred_rewards(
         self,
