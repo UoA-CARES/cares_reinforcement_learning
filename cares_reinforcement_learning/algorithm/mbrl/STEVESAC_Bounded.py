@@ -123,23 +123,22 @@ class STEVESAC_Bounded:
                         total_unc = (aleatoric**2 + epistemic**2) ** 0.5
                         uncert = torch.mean(total_unc, dim=1)
                         world_dist = F.softmax(uncert, dim=0)
-                        # world_dist -= torch.min(world_dist)
+                        world_dist -= torch.min(world_dist)
 
-                        Q_1, Q_2 = self.critic_net(multi_state_tensor, multi_action)
-                        Q_s = torch.minimum(Q_1, Q_2)
-                        Q_s = Q_s.squeeze()
-                        multi_log_pi = Q_s
+                        # Q_1, Q_2 = self.critic_net(multi_state_tensor, multi_action)
+                        # Q_s = torch.minimum(Q_1, Q_2)
+                        # Q_s = Q_s.squeeze()
+                        # multi_log_pi = Q_s
 
-                        # multi_log_pi = multi_log_pi.squeeze()
+                        multi_log_pi = multi_log_pi.squeeze()
                         policy_dist = F.softmax(multi_log_pi, dim=0)
-                        final_dist = (
-                            1 - self.threshold
-                        ) * policy_dist + self.threshold * world_dist
-                        candi = torch.argmax(final_dist)
-                        # final_dist = F.softmax(final_dist, dim=0)
-                        # new_dist = torch.distributions.Categorical(final_dist)
-                        # candi = new_dist.sample([5]).squeeze()
-                        # print(self._jsd(policy_dist, final_dist))
+                        final_dist = policy_dist + self.threshold * world_dist
+
+                        # candi = torch.argmax(final_dist)
+                        final_dist = F.softmax(final_dist, dim=0)
+                        new_dist = torch.distributions.Categorical(final_dist)
+                        candi = new_dist.sample([1]).squeeze()
+
                         action = multi_action[candi]
                     else:
                         (action, _, _) = self.actor_net(state_tensor)
