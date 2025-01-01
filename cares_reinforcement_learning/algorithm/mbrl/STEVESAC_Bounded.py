@@ -132,7 +132,9 @@ class STEVESAC_Bounded:
 
                         multi_log_pi = multi_log_pi.squeeze()
                         policy_dist = F.softmax(multi_log_pi, dim=0)
-                        final_dist = (1 - self.threshold) * policy_dist + self.threshold * world_dist
+                        final_dist = (
+                            1 - self.threshold
+                        ) * policy_dist + self.threshold * world_dist
 
                         # candi = torch.argmax(final_dist)
                         final_dist = F.softmax(final_dist, dim=0)
