@@ -141,7 +141,7 @@ class DynaSAC_Bounded:
                         multi_log_pi = multi_log_pi.squeeze()
                         policy_dist = F.softmax(multi_log_pi, dim=0)
 
-                        final_dist = policy_dist + self.threshold * world_dist
+                        final_dist = (1- self.threshold) * policy_dist + self.threshold * world_dist
                         final_dist = F.softmax(final_dist, dim=0)
                         # candi = torch.argmax(final_dist)
                         new_dist = torch.distributions.Categorical(final_dist)
