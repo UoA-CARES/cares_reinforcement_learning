@@ -33,7 +33,7 @@ class DynaSAC_NS_IW:
         alpha_lr: float,
         num_samples: int,
         horizon: int,
-        threshold:float,
+        threshold: float,
         device: torch.device,
         train_reward: bool,
         train_both: bool,
@@ -101,13 +101,13 @@ class DynaSAC_NS_IW:
         return action
 
     def _train_policy(
-            self,
-            states: torch.Tensor,
-            actions: torch.Tensor,
-            rewards: torch.Tensor,
-            next_states: torch.Tensor,
-            dones: torch.Tensor,
-            weights: torch.Tensor,
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+        rewards: torch.Tensor,
+        next_states: torch.Tensor,
+        dones: torch.Tensor,
+        weights: torch.Tensor,
     ) -> None:
         if weights is None:
             weights = torch.ones(rewards.shape).to(self.device)
@@ -119,15 +119,15 @@ class DynaSAC_NS_IW:
                 next_states, next_actions
             )
             target_q_values = (
-                    torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
+                torch.minimum(target_q_one, target_q_two) - self._alpha * next_log_pi
             )
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
         assert (len(q_target.shape) == 2) and (q_target.shape[1] == 1)
         q_target = q_target.detach()
         q_values_one, q_values_two = self.critic_net(states, actions)
         # critic_loss_one = F.mse_loss(q_values_one, q_target)
-        td_error1 = (q_target - q_values_one)  # * weights
-        td_error2 = (q_target - q_values_two)  # * weights
+        td_error1 = q_target - q_values_one  # * weights
+        td_error2 = q_target - q_values_two  # * weights
         critic_loss_one = 0.5 * (td_error1.pow(2) * weights).mean()
         critic_loss_two = 0.5 * (td_error2.pow(2) * weights).mean()
         critic_loss_total = critic_loss_one + critic_loss_two
@@ -148,7 +148,7 @@ class DynaSAC_NS_IW:
 
         # update the temperature
         alpha_loss = -(
-                self.log_alpha * (first_log_p + self.target_entropy).detach()
+            self.log_alpha * (first_log_p + self.target_entropy).detach()
         ).mean()
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
@@ -156,7 +156,7 @@ class DynaSAC_NS_IW:
 
         if self.learn_counter % self.policy_update_freq == 0:
             for target_param, param in zip(
-                    self.target_critic_net.parameters(), self.critic_net.parameters()
+                self.target_critic_net.parameters(), self.critic_net.parameters()
             ):
                 target_param.data.copy_(
                     param.data * self.tau + target_param.data * (1.0 - self.tau)
@@ -225,22 +225,26 @@ class DynaSAC_NS_IW:
         with torch.no_grad():
             pred_state = next_states
             for _ in range(self.horizon):
-                pred_state = torch.repeat_interleave(pred_state, self.num_samples, dim=0)
+                pred_state = torch.repeat_interleave(
+                    pred_state, self.num_samples, dim=0
+                )
                 # This part is controversial. But random actions is empirically better.
                 # rand_acts = np.random.uniform(-1, 1, (pred_state.shape[0], self.action_num))
                 # pred_acts = torch.FloatTensor(rand_acts).to(self.device)
                 (pred_acts, _, _) = self.actor_net(pred_state)
                 # [2560, 18]
-                pred_next_state, _, norm_means_, norm_vars_ = self.world_model.pred_next_states(
-                    pred_state, pred_acts
+                pred_next_state, _, norm_means_, norm_vars_ = (
+                    self.world_model.pred_next_states(pred_state, pred_acts)
                 )
                 if self.gripper:
                     pred_reward = self.reward_function(pred_state, pred_next_state)
                     pred_next_state[:, -2:] = pred_state[:, -2:]
                 else:
-                    pred_reward, _ = self.world_model.pred_rewards(observation=pred_state,
-                                                                   action=pred_acts,
-                                                                   next_observation=pred_next_state)
+                    pred_reward, _ = self.world_model.pred_rewards(
+                        observation=pred_state,
+                        action=pred_acts,
+                        next_observation=pred_next_state,
+                    )
                 uncert = self.sampling(pred_state, norm_means_, norm_vars_)
                 # Q, A, R
                 weights.append(uncert)
@@ -291,10 +295,14 @@ class DynaSAC_NS_IW:
             # For each model
             for i in range(pred_means.shape[0]):
                 sample_times = 10
-                samples = torch.distributions.Normal(pred_means[i], pred_vars[i]).sample([sample_times])
+                samples = torch.distributions.Normal(
+                    pred_means[i], pred_vars[i]
+                ).sample([sample_times])
                 # For each sampling
                 for i in range(sample_times):
-                    samples[i] = denormalize_observation_delta(samples[i], self.world_model.statistics)
+                    samples[i] = denormalize_observation_delta(
+                        samples[i], self.world_model.statistics
+                    )
                     samples[i] += curr_states
                     pred_act, log_pi, _ = self.actor_net(samples[i])
                     act_logs.append(log_pi)
@@ -324,8 +332,14 @@ class DynaSAC_NS_IW:
             cov_ra = torch.mean(diff_r * diff_a, dim=0)
 
             gamma_sq = self.gamma * self.gamma
-            total_var = var_r + gamma_sq * var_a + gamma_sq * var_q + gamma_sq * 2 * cov_aq + \
-                        gamma_sq * 2 * cov_rq + gamma_sq * 2 * cov_ra
+            total_var = (
+                var_r
+                + gamma_sq * var_a
+                + gamma_sq * var_q
+                + gamma_sq * 2 * cov_aq
+                + gamma_sq * 2 * cov_rq
+                + gamma_sq * 2 * cov_ra
+            )
             # # For actor: alpha^2 * var_a + var_q
             min_var = torch.min(total_var)
             max_var = torch.max(total_var)

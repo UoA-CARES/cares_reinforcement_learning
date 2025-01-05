@@ -225,7 +225,9 @@ def create_STEVESAC_Bounded(
     return agent
 
 
-def create_DynaSAC_NS_IW(observation_size, action_num, config: acf.DynaSAC_NS_Immersive_WeightConfig):
+def create_DynaSAC_NS_IW(
+    observation_size, action_num, config: acf.DynaSAC_NS_Immersive_WeightConfig
+):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
