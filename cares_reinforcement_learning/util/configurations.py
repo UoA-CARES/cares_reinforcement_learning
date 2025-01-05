@@ -306,7 +306,7 @@ class STEVE_MEANConfig(AlgorithmConfig):
     gripper: bool = False
 
 
-class DynaSAC_NS_IW(AlgorithmConfig):
+class DynaSAC_NS_IWConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_NS_IW", Literal=True)
     type: str = Field("mbrl", Literal=True)
     G: int = (1,)
