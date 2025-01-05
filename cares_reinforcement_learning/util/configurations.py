@@ -267,6 +267,7 @@ class DynaSAC_BoundedConfig(AlgorithmConfig):
     actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
     critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
+    num_rwd_models: int = 1
     max_steps_exploration: int = 256
     num_models: int = 5
     world_model_lr: float = 0.001
@@ -305,9 +306,11 @@ class STEVE_MEANConfig(AlgorithmConfig):
     gripper: bool = False
 
 
-class DynaSAC_SAS_Immersive_WeightConfig(AlgorithmConfig):
-    algorithm: str = Field("DynaSAC_IWNS", Literal=True)
+class DynaSAC_NS_IW(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_NS_IW", Literal=True)
     type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
@@ -320,16 +323,19 @@ class DynaSAC_SAS_Immersive_WeightConfig(AlgorithmConfig):
     actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
     critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
+    max_steps_exploration: int = 256
     num_models: int = 5
     world_model_lr: float = 0.001
     horizon: int = 3
     num_samples: int = 10
 
+    num_rwd_models: int = 1
+    sas: bool = False
     threshold: float = 0.1
     reweight_actor: bool = False
 
     train_reward: bool = True
-    train_both: bool = True
+    train_both: bool = False
     gripper: bool = False
 
 
