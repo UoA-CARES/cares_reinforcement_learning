@@ -159,6 +159,21 @@ class DuelingDQNConfig(AlgorithmConfig):
     advantage_stream_config: MLPConfig = MLPConfig(hidden_sizes=[512])
 
 
+class C51Config(AlgorithmConfig):
+    algorithm: str = Field("C51", Literal=True)
+    lr: float = 1e-3
+    gamma: float = 0.99
+
+    exploration_min: float = 1e-3
+    exploration_decay: float = 0.95
+
+    num_atoms: int = 51
+    v_min: float = 0.0
+    v_max: float = 200.0
+
+    network_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
