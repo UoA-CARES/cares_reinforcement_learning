@@ -281,7 +281,7 @@ class DynaSAC_BoundedConfig(AlgorithmConfig):
     exploration_sample: int = 5
 
 
-class STEVESAC_BoundedConfig_Yao(AlgorithmConfig):
+class STEVESAC_Bounded_YaoConfig(AlgorithmConfig):
     algorithm: str = Field("STEVESAC_Bounded_Yao", Literal=True)
     type: str = Field("mbrl", Literal=True)
     G: int = (1,)
