@@ -281,6 +281,72 @@ class DynaSAC_BoundedConfig(AlgorithmConfig):
     exploration_sample: int = 5
 
 
+class STEVESAC_BoundedConfig_Yao(AlgorithmConfig):
+    algorithm: str = Field("STEVESAC_Bounded_Yao", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+
+    num_models: int = 6
+    num_rwd_models: int = 5
+    world_model_lr: float = 0.001
+
+    horizon: int = 3
+
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+
+    threshold: float = 0.1
+    exploration_sample: int = 5
+
+class DynaSAC_Bounded_YaoConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_Bounded_Yao", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    num_rwd_models: int = 1
+    max_steps_exploration: int = 256
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+    threshold: float = 0.1
+    exploration_sample: int = 5
+
+
 class STEVE_MEANConfig(AlgorithmConfig):
     algorithm: str = Field("STEVE", Literal=True)
     type: str = Field("mbrl", Literal=True)
