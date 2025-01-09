@@ -315,6 +315,7 @@ class STEVESAC_BoundedConfig_Yao(AlgorithmConfig):
     threshold: float = 0.1
     exploration_sample: int = 5
 
+
 class DynaSAC_Bounded_YaoConfig(AlgorithmConfig):
     algorithm: str = Field("DynaSAC_Bounded_Yao", Literal=True)
     type: str = Field("mbrl", Literal=True)
