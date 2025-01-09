@@ -4,6 +4,51 @@ from contextlib import contextmanager
 import numpy as np
 import torch
 
+from torch import nn as nn
+import torch.nn.functional as F
+import time
+
+
+class MLP(nn.Module):
+    def __init__(self, input_size: int, hidden_sizes: list[int], output_size: int):
+        super().__init__()
+
+        self.fully_connected_layers = []
+        for i, next_size in enumerate(hidden_sizes):
+            fully_connected_layer = nn.Linear(input_size, next_size)
+            self.add_module(f"fully_connected_layer_{i}", fully_connected_layer)
+            self.fully_connected_layers.append(fully_connected_layer)
+            input_size = next_size
+
+        self.output_layer = nn.Linear(input_size, output_size)
+
+    def forward(self, state):
+        for fully_connected_layer in self.fully_connected_layers:
+            state = F.relu(fully_connected_layer(state))
+        output = self.output_layer(state)
+        return output
+
+
+def weight_init_pnn(module: torch.nn.Module) -> None:
+    """
+    Custom weight init for Conv2D and Linear layers
+
+    delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
+    """
+    if isinstance(module, torch.nn.Linear):
+        torch.manual_seed(int(time.time()))
+        torch.cuda.manual_seed_all(int(time.time()))
+        torch.nn.init.xavier_uniform_(module.weight)
+        module.bias.data.uniform_(-0.5, 0.5)
+
+    elif isinstance(module, (torch.nn.Conv2d, torch.nn.ConvTranspose2d)):
+        assert module.weight.size(2) == module.weight.size(3)
+        module.weight.data.fill_(0.0)
+        module.bias.data.fill_(0.0)
+        mid = module.weight.size(2) // 2
+        gain = torch.nn.init.calculate_gain("relu")
+        torch.nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
+
 
 def get_device() -> torch.device:
     device = torch.device("cpu")

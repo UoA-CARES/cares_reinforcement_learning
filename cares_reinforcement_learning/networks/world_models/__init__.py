@@ -1,9 +1,4 @@
-from cares_reinforcement_learning.networks.world_models.simple_rewards import (
-    SimpleReward,
-)
-from cares_reinforcement_learning.networks.world_models.simple_dynamics import (
-    SimpleDynamics,
-)
-from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
-    EnsembleWorldReward,
-)
+# from cares_reinforcement_learning.networks.world_models.z_ensemble_integrated import (
+#     EnsembleWorldReward,
+# )
+from .world_model import World_Model

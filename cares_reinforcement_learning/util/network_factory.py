@@ -1,9 +1,3 @@
-"""
-This module provides functions to create different types of reinforcement learning agents
-with their corresponding network architectures.
-"""
-
-import copy
 import inspect
 import logging
 import sys
@@ -11,97 +5,13 @@ import sys
 import cares_reinforcement_learning.util.configurations as acf
 import cares_reinforcement_learning.util.helpers as hlp
 
+
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
 # pylint: disable=invalid-name
-
 ###################################
 #         DQN Algorithms          #
 ###################################
-
-
-def create_DQN(observation_size, action_num, config: acf.DQNConfig):
-    from cares_reinforcement_learning.algorithm.value import DQN
-    from cares_reinforcement_learning.networks.DQN import Network
-
-    network = Network(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = DQN(network=network, config=config, device=device)
-    return agent
-
-
-def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig):
-    """
-    Original paper https://arxiv.org/abs/1511.06581
-    """
-    from cares_reinforcement_learning.algorithm.value import DQN
-    from cares_reinforcement_learning.networks.DuelingDQN import Network
-
-    network = Network(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = DQN(network=network, config=config, device=device)
-    return agent
-
-
-def create_DoubleDQN(observation_size, action_num, config: acf.DoubleDQNConfig):
-    from cares_reinforcement_learning.algorithm.value import DoubleDQN
-    from cares_reinforcement_learning.networks.DoubleDQN import Network
-
-    network = Network(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = DoubleDQN(
-        network=network,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-###################################
-#         PPO Algorithms          #
-###################################
-
-
-def create_PPO(observation_size, action_num, config: acf.PPOConfig):
-    from cares_reinforcement_learning.algorithm.policy import PPO
-    from cares_reinforcement_learning.networks.PPO import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, config=config)
-
-    device = hlp.get_device()
-    agent = PPO(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-###################################
-#         SAC Algorithms          #
-###################################
-
-
-def create_SACD(observation_size, action_num, config: acf.SACDConfig):
-    from cares_reinforcement_learning.algorithm.policy import SACD
-    from cares_reinforcement_learning.networks.SACD import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = SACD(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
 
 
 def create_SAC(observation_size, action_num, config: acf.SACConfig):
@@ -121,427 +31,526 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
     return agent
 
 
-def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
-    from cares_reinforcement_learning.algorithm.policy import SACAE
-    from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-    from cares_reinforcement_learning.networks.SACAE import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    ae_config = config.autoencoder_config
-    decoder = Decoder(
-        observation_size["image"],
-        out_dim=actor.encoder.out_dim,
-        latent_dim=ae_config.latent_dim,
-        num_layers=ae_config.num_layers,
-        num_filters=ae_config.num_filters,
-        kernel_size=ae_config.kernel_size,
-    )
-
-    device = hlp.get_device()
-    agent = SACAE(
-        actor_network=actor,
-        critic_network=critic,
-        decoder_network=decoder,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
-    from cares_reinforcement_learning.algorithm.policy import PERSAC
-    from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = PERSAC(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
-    from cares_reinforcement_learning.algorithm.policy import REDQ
-    from cares_reinforcement_learning.networks.REDQ import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    ensemble_critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = REDQ(
-        actor_network=actor,
-        ensemble_critic=ensemble_critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_TQC(observation_size, action_num, config: acf.TQCConfig):
-    from cares_reinforcement_learning.algorithm.policy import TQC
-    from cares_reinforcement_learning.networks.TQC import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = TQC(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_LAPSAC(observation_size, action_num, config: acf.LAPSACConfig):
-    from cares_reinforcement_learning.algorithm.policy import LAPSAC
-    from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = LAPSAC(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_LA3PSAC(observation_size, action_num, config: acf.LA3PSACConfig):
-    from cares_reinforcement_learning.algorithm.policy import LA3PSAC
-    from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = LA3PSAC(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_MAPERSAC(observation_size, action_num, config: acf.MAPERSACConfig):
-    from cares_reinforcement_learning.algorithm.policy import MAPERSAC
-    from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = MAPERSAC(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_RDSAC(observation_size, action_num, config: acf.RDSACConfig):
-    from cares_reinforcement_learning.algorithm.policy import RDSAC
-    from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = RDSAC(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_DroQ(observation_size, action_num, config: acf.DroQConfig):
-    from cares_reinforcement_learning.algorithm.policy import DroQ
-    from cares_reinforcement_learning.networks.DroQ import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = DroQ(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
-    from cares_reinforcement_learning.algorithm.policy import CrossQ
-    from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = CrossQ(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
+def create_DynaSAC_NS(observation_size, action_num, config: acf.DynaSAC_NSConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
     An extra world model is added.
     """
-    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
-    from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_NS
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
 
-    world_model = EnsembleWorldReward(
+    world_model = Ensemble_Dyna_Big(
         observation_size=observation_size,
         num_actions=action_num,
         num_models=config.num_models,
-        lr=config.world_model_lr,
         device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+        boost_inter=30,
     )
 
-    agent = DynaSAC(
+    agent = DynaSAC_NS(
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
-        config=config,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
+        num_samples=config.num_samples,
         device=device,
+        train_both=config.train_both,
+        train_reward=config.train_reward,
+        gripper=config.gripper,
     )
     return agent
 
 
-###################################
-#         TD3 Algorithms          #
-###################################
-
-
-def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
-    from cares_reinforcement_learning.algorithm.policy import DDPG
-    from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+def create_DynaSAC_Bounded(
+    observation_size, action_num, config: acf.DynaSAC_BoundedConfig
+):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_Bounded
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = DDPG(
+
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+        prob_rwd=True,
+        boost_inter=30,
+    )
+
+    agent = DynaSAC_Bounded(
         actor_network=actor,
         critic_network=critic,
-        config=config,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
+        num_samples=config.num_samples,
         device=device,
+        train_both=config.train_both,
+        train_reward=config.train_reward,
+        gripper=config.gripper,
+        threshold=config.threshold,
+        exploration_sample=config.exploration_sample,
     )
+
     return agent
 
 
-def create_TD3(observation_size, action_num, config: acf.TD3Config):
-    from cares_reinforcement_learning.algorithm.policy import TD3
-    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+def create_DynaSAC_Bounded_Yao(
+    observation_size, action_num, config: acf.DynaSAC_Bounded_YaoConfig
+):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_Bounded_Yao
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = TD3(
+
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+        prob_rwd=True,
+        boost_inter=30,
+    )
+
+    agent = DynaSAC_Bounded_Yao(
         actor_network=actor,
         critic_network=critic,
-        config=config,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
+        num_samples=config.num_samples,
         device=device,
+        train_both=config.train_both,
+        train_reward=config.train_reward,
+        gripper=config.gripper,
+        threshold=config.threshold,
+        exploration_sample=config.exploration_sample,
     )
+
     return agent
 
 
-def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
-    from cares_reinforcement_learning.algorithm.policy import TD3AE
-    from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-    from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    ae_config = config.autoencoder_config
-    decoder = Decoder(
-        observation_size["image"],
-        out_dim=actor.encoder.out_dim,
-        latent_dim=ae_config.latent_dim,
-        num_layers=ae_config.num_layers,
-        num_filters=ae_config.num_filters,
-        kernel_size=ae_config.kernel_size,
+def create_STEVESAC(observation_size, action_num, config: acf.STEVESACConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import STEVESAC
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
     )
-
-    device = hlp.get_device()
-    agent = TD3AE(
-        actor_network=actor,
-        critic_network=critic,
-        decoder_network=decoder,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_NaSATD3(observation_size, action_num, config: acf.NaSATD3Config):
-    from cares_reinforcement_learning.algorithm.policy import NaSATD3
-    from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = NaSATD3(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_PERTD3(observation_size, action_num, config: acf.PERTD3Config):
-    from cares_reinforcement_learning.algorithm.policy import PERTD3
-    from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = PERTD3(
+
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        num_rwd_model=config.num_rwd_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+    )
+
+    agent = STEVESAC(
         actor_network=actor,
         critic_network=critic,
-        config=config,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
         device=device,
+        train_both=config.train_both,
+        train_reward=config.train_reward,
+        gripper=config.gripper,
     )
     return agent
 
 
-def create_LAPTD3(observation_size, action_num, config: acf.LAPTD3Config):
-    from cares_reinforcement_learning.algorithm.policy import LAPTD3
-    from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
+def create_STEVESAC_Bounded(
+    observation_size, action_num, config: acf.STEVESAC_BoundedConfig
+):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+    """
+
+    from cares_reinforcement_learning.algorithm.mbrl import STEVESAC_Bounded
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = LAPTD3(
+
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        num_rwd_model=config.num_rwd_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+    )
+
+    agent = STEVESAC_Bounded(
         actor_network=actor,
         critic_network=critic,
-        config=config,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
         device=device,
+        train_both=config.train_both,
+        train_reward=config.train_reward,
+        gripper=config.gripper,
+        threshold=config.threshold,
+        exploration_sample=config.exploration_sample,
     )
+
     return agent
 
 
-def create_PALTD3(observation_size, action_num, config: acf.PALTD3Config):
-    from cares_reinforcement_learning.algorithm.policy import PALTD3
-    from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
+def create_STEVESAC_Bounded_Yao(
+    observation_size, action_num, config: acf.STEVESAC_Bounded_YaoConfig
+):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+    """
+
+    from cares_reinforcement_learning.algorithm.mbrl import STEVESAC_Bounded_Yao
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = PALTD3(
+
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        num_rwd_model=config.num_rwd_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+    )
+
+    agent = STEVESAC_Bounded_Yao(
         actor_network=actor,
         critic_network=critic,
-        config=config,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
         device=device,
+        train_both=config.train_both,
+        train_reward=config.train_reward,
+        gripper=config.gripper,
+        threshold=config.threshold,
+        exploration_sample=config.exploration_sample,
     )
+
     return agent
 
 
-def create_LA3PTD3(observation_size, action_num, config: acf.LA3PTD3Config):
-    from cares_reinforcement_learning.algorithm.policy import LA3PTD3
-    from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
+def create_DynaSAC_NS_IW(observation_size, action_num, config: acf.DynaSAC_NS_IWConfig):
+    """
+    Create networks for model-based SAC agent. The Actor and Critic is same.
+    An extra world model is added.
+
+    """
+    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_NS_IW
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.world_models.ensemble import (
+        Ensemble_Dyna_Big,
+    )
 
     actor = Actor(observation_size, action_num, config=config)
     critic = Critic(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = LA3PTD3(
+
+    world_model = Ensemble_Dyna_Big(
+        observation_size=observation_size,
+        num_actions=action_num,
+        num_models=config.num_models,
+        num_rwd_model=config.num_rwd_models,
+        device=device,
+        l_r=config.world_model_lr,
+        sas=config.sas,
+    )
+
+    agent = DynaSAC_NS_IW(
         actor_network=actor,
         critic_network=critic,
-        config=config,
+        world_network=world_model,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
         device=device,
+        alpha_lr=config.alpha_lr,
+        horizon=config.horizon,
+        num_samples=config.num_samples,
+        train_both=config.train_both,
+        train_reward=config.train_reward,
+        gripper=config.gripper,
+        threshold=config.threshold,
     )
     return agent
 
 
-def create_MAPERTD3(observation_size, action_num, config: acf.MAPERTD3Config):
-    from cares_reinforcement_learning.algorithm.policy import MAPERTD3
-    from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = MAPERTD3(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_RDTD3(observation_size, action_num, config: acf.RDTD3Config):
-    from cares_reinforcement_learning.algorithm.policy import RDTD3
-    from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = RDTD3(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
-    from cares_reinforcement_learning.algorithm.policy import CTD4
-    from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
-
-    device = hlp.get_device()
-
-    actor = Actor(observation_size, action_num, config=config)
-    ensemble_critic = Critic(observation_size, action_num, config=config)
-
-    agent = CTD4(
-        actor_network=actor,
-        ensemble_critic=ensemble_critic,
-        config=config,
-        device=device,
-    )
-
-    return agent
+# def create_DynaSAC_SAS(observation_size, action_num, config: AlgorithmConfig):
+#     """
+#     Create networks for model-based SAC agent. The Actor and Critic is same.
+#     An extra world model is added.
+#
+#     """
+#     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_SAS
+#     from cares_reinforcement_learning.networks.SAC import Actor, Critic
+#     from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneSASReward
+#
+#     actor = Actor(observation_size, action_num)
+#     critic = Critic(observation_size, action_num)
+#
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#
+#     world_model = EnsembleWorldAndOneSASReward(
+#         observation_size=observation_size,
+#         num_actions=action_num,
+#         num_models=config.num_models,
+#         lr=config.world_model_lr,
+#         device=device,
+#     )
+#
+#     agent = DynaSAC_SAS(
+#         actor_network=actor,
+#         critic_network=critic,
+#         world_network=world_model,
+#         actor_lr=config.actor_lr,
+#         critic_lr=config.critic_lr,
+#         gamma=config.gamma,
+#         tau=config.tau,
+#         action_num=action_num,
+#         alpha_lr=config.alpha_lr,
+#         horizon=config.horizon,
+#         num_samples=config.num_samples,
+#         device=device,
+#     )
+#     return agent
 
 
-# TODO return type base "Algorithm" class?
+# def create_DynaSAC_BIVReweight(observation_size, action_num, config: AlgorithmConfig):
+#     """
+#     Create networks for model-based SAC agent. The Actor and Critic is same.
+#     An extra world model is added.
+#
+#     """
+#     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_BIVReweight
+#     from cares_reinforcement_learning.networks.SAC import Actor, Critic
+#     from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
+#
+#     actor = Actor(observation_size, action_num)
+#     critic = Critic(observation_size, action_num)
+#
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#
+#     world_model = EnsembleWorldAndOneNSReward(
+#         observation_size=observation_size,
+#         num_actions=action_num,
+#         num_models=config.num_models,
+#         device=device,
+#         lr=config.world_model_lr,
+#     )
+#
+#     agent = DynaSAC_BIVReweight(
+#         actor_network=actor,
+#         critic_network=critic,
+#         world_network=world_model,
+#         actor_lr=config.actor_lr,
+#         critic_lr=config.critic_lr,
+#         gamma=config.gamma,
+#         tau=config.tau,
+#         action_num=action_num,
+#         device=device,
+#         alpha_lr=config.alpha_lr,
+#         horizon=config.horizon,
+#         num_samples=config.num_samples,
+#         threshold_scale=config.threshold_scale,
+#         reweight_critic=config.reweight_critic,
+#         reweight_actor=config.reweight_actor,
+#         mode=config.mode,
+#         sample_times=config.sample_times,
+#     )
+#     return agent
+#
+#
+# def create_DynaSAC_SUNRISEReweight(observation_size, action_num, config: AlgorithmConfig):
+#     """
+#     Create networks for model-based SAC agent. The Actor and Critic is same.
+#     An extra world model is added.
+#
+#     """
+#     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_SUNRISEReweight
+#     from cares_reinforcement_learning.networks.SAC import Actor, Critic
+#     from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
+#
+#     actor = Actor(observation_size, action_num)
+#     critic = Critic(observation_size, action_num)
+#
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#
+#     world_model = EnsembleWorldAndOneNSReward(
+#         observation_size=observation_size,
+#         num_actions=action_num,
+#         num_models=config.num_models,
+#         device=device,
+#         lr=config.world_model_lr,
+#     )
+#
+#     agent = DynaSAC_SUNRISEReweight(
+#         actor_network=actor,
+#         critic_network=critic,
+#         world_network=world_model,
+#         actor_lr=config.actor_lr,
+#         critic_lr=config.critic_lr,
+#         gamma=config.gamma,
+#         tau=config.tau,
+#         action_num=action_num,
+#         device=device,
+#         alpha_lr=config.alpha_lr,
+#         horizon=config.horizon,
+#         num_samples=config.num_samples,
+#         threshold_scale=config.threshold_scale,
+#         reweight_critic=config.reweight_critic,
+#         reweight_actor=config.reweight_actor,
+#         mode=config.mode,
+#         sample_times=config.sample_times,
+#     )
+#     return agent
+#
+#
+# def create_DynaSAC_UWACReweight(observation_size, action_num, config: AlgorithmConfig):
+#     """
+#     Create networks for model-based SAC agent. The Actor and Critic is same.
+#     An extra world model is added.
+#
+#     """
+#     from cares_reinforcement_learning.algorithm.mbrl import DynaSAC_UWACReweight
+#     from cares_reinforcement_learning.networks.SAC import Actor, Critic
+#     from cares_reinforcement_learning.networks.world_models import EnsembleWorldAndOneNSReward
+#
+#     actor = Actor(observation_size, action_num)
+#     critic = Critic(observation_size, action_num)
+#
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+#
+#     world_model = EnsembleWorldAndOneNSReward(
+#         observation_size=observation_size,
+#         num_actions=action_num,
+#         num_models=config.num_models,
+#         device=device,
+#         lr=config.world_model_lr,
+#     )
+#
+#     agent = DynaSAC_UWACReweight(
+#         actor_network=actor,
+#         critic_network=critic,
+#         world_network=world_model,
+#         actor_lr=config.actor_lr,
+#         critic_lr=config.critic_lr,
+#         gamma=config.gamma,
+#         tau=config.tau,
+#         action_num=action_num,
+#         device=device,
+#         alpha_lr=config.alpha_lr,
+#         horizon=config.horizon,
+#         num_samples=config.num_samples,
+#         threshold_scale=config.threshold_scale,
+#         reweight_critic=config.reweight_critic,
+#         reweight_actor=config.reweight_actor,
+#         mode=config.mode,
+#         sample_times=config.sample_times,
+#     )
+#     return agent
+
+
 class NetworkFactory:
     def create_network(
         self,
