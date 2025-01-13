@@ -208,9 +208,9 @@ class ValuableEpisodeBuffer:
         distances, indices = nbrs.kneighbors([current_state])
         return [self.memory_buffers[idx] for idx in indices[0]]
     
-    def fetch_nearest_episode(self, current_state):
+    def fetch_nearest_episode(self, current_state, k=3):
         # Get the nearest episode using k-NN
-        nearest_experiences = self.fetch_approx_k_nearest(current_state, k=3) # k = 1, 3, 5, 10
+        nearest_experiences = self.fetch_approx_k_nearest(current_state, k=k) # k = 1, 3, 5, 10
         if not nearest_experiences:
             raise ValueError("No nearest episode found")
         
