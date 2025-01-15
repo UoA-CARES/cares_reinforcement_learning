@@ -109,11 +109,10 @@ class Record:
 
     def log_video(self, frame: np.ndarray) -> None:
         if not self.record_video:
-            logging.warning("Video recording is disabled")
             return
         if self.video is None:
             logging.warning(
-                "Video recording is not started - use start_video method first"
+                "Video recording is not started - use start_video method first - no video is being recorded"
             )
             return
         self.video.write(frame)
