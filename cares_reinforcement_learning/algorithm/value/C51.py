@@ -30,6 +30,9 @@ class C51:
         self.target_network = copy.deepcopy(self.network).to(self.device)
 
         self.gamma = config.gamma
+        self.v_min = config.v_min
+        self.v_max = config.v_max
+        self.num_atoms = config.num_atoms
 
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr
@@ -40,8 +43,9 @@ class C51:
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
-            q_values = self.network(state_tensor)
+            q_values, _ = self.network(state_tensor)
             action = torch.argmax(q_values).item()
+
         self.network.train()
         return action
 
@@ -56,19 +60,45 @@ class C51:
         next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
-        # Generate Q Values given state at time t and t + 1
-        q_values = self.network(states_tensor)
-        next_q_values = self.network(next_states_tensor)
-
-        best_q_values = q_values[torch.arange(q_values.size(0)), actions_tensor]
-        best_next_q_values = torch.max(next_q_values, dim=1).values
-
-        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
-
         info = {}
 
+        delta_z = float(self.v_max - self.v_min) / (self.num_atoms - 1)
+
+        # Generate Q Values given state at time t and t + 1
+        with torch.no_grad():
+            next_q_values, next_dist = self.target_network(next_states_tensor)
+            next_action = next_q_values.argmax(dim=1)
+            next_dist = next_dist[range(batch_size), next_action]
+
+            support = self.network.support
+            t_z = rewards_tensor + self.gamma * (1 - dones_tensor) * support
+            t_z = t_z.clamp(min=self.v_min, max=self.v_max)
+            b = (t_z - self.v_min) / delta_z
+            l = b.floor().long()
+            u = b.ceil().long()
+
+            offset = (
+                torch.linspace(0, (batch_size - 1) * self.num_atoms, batch_size)
+                .long()
+                .unsqueeze(1)
+                .expand(batch_size, self.num_atoms)
+                .to(self.device)
+            )
+
+            proj_dist = torch.zeros(next_dist.size(), device=self.device)
+            proj_dist.view(-1).index_add_(
+                0, (l + offset).view(-1), (next_dist * (u.float() - b)).view(-1)
+            )
+            proj_dist.view(-1).index_add_(
+                0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1)
+            )
+
         # Update the Network
-        loss = F.mse_loss(best_q_values, q_target)
+        _, dist = self.network(states_tensor)
+        log_p = torch.log(dist[range(batch_size), actions_tensor])
+
+        loss = -(proj_dist * log_p).sum(1).mean()
+
         self.network_optimiser.zero_grad()
         loss.backward()
         self.network_optimiser.step()
