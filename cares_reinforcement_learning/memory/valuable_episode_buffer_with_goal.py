@@ -208,6 +208,16 @@ class ValuableEpisodeBuffer:
         distances, indices = nbrs.kneighbors([current_state])
         return [self.memory_buffers[idx] for idx in indices[0]]
     
+     def fetch_approx_k_nearest_goal(self, current_goal, k=1):
+        # Ensure there are enough states in the buffer
+        if len(self.memory_buffers) == 0:
+            raise ValueError("Memory buffer is empty")
+        
+        goals = [experience[2] for experience in self.memory_buffers]
+        nbrs = NearestNeighbors(n_neighbors=min(k, len(goals)), algorithm='auto').fit(goals)
+        distances, indices = nbrs.kneighbors([current_goal])
+        return [self.memory_buffers[idx] for idx in indices[0]]
+    
     def fetch_nearest_episode(self, current_state, k=3):
         # Get the nearest episode using k-NN
         nearest_experiences = self.fetch_approx_k_nearest(current_state, k=k) # k = 1, 3, 5, 10
@@ -219,6 +229,23 @@ class ValuableEpisodeBuffer:
         
         (
             episode_num, total_reward, episode_first_state, states, actions,
+            rewards, next_states, dones, episode_nums, episode_steps
+        ) = closest_episode
+
+        # Return the required fields
+        return actions, states, episode_num, episode_steps, rewards, total_reward
+    
+     def fetch_nearest_goal_episode(self, current_goal, k=5):
+        # Get the nearest episode using k-NN
+        nearest_experiences = self.fetch_approx_k_nearest_goal(current_goal, k=k) # k = 1, 3, 5, 10
+        if not nearest_experiences:
+            raise ValueError("No nearest episode found")
+        
+        # Extract the closest episode
+        closest_episode = nearest_experiences[0]
+        
+        (
+            episode_num, total_reward, episode_goal, states, actions,
             rewards, next_states, dones, episode_nums, episode_steps
         ) = closest_episode
 
