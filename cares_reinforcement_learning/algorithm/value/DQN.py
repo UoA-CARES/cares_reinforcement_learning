@@ -12,17 +12,18 @@ import torch.nn.functional as F
 
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
+from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
 from cares_reinforcement_learning.networks.DuelingDQN import (
     Network as DuelingDQNNetwork,
 )
-from cares_reinforcement_learning.util.configurations import DQNConfig, DuelingDQNConfig
+from cares_reinforcement_learning.util.configurations import DQNConfig, DuelingDQNConfig, NoisyNetConfig
 
 
 class DQN:
     def __init__(
         self,
-        network: DQNNetwork | DuelingDQNNetwork,
-        config: DQNConfig | DuelingDQNConfig,
+        network: DQNNetwork | DuelingDQNNetwork | NoisyNetwork,
+        config: DQNConfig | DuelingDQNConfig | NoisyNetConfig,
         device: torch.device,
     ):
         self.type = "value"
