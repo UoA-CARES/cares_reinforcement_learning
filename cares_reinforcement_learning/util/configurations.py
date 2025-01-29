@@ -174,7 +174,6 @@ class NoisyNetConfig(AlgorithmConfig):
     noise_std_init: float = 0.5
 
 
-
 ###################################
 #         PPO Algorithms          #
 ###################################

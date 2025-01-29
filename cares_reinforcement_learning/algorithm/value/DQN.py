@@ -16,7 +16,11 @@ from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwo
 from cares_reinforcement_learning.networks.DuelingDQN import (
     Network as DuelingDQNNetwork,
 )
-from cares_reinforcement_learning.util.configurations import DQNConfig, DuelingDQNConfig, NoisyNetConfig
+from cares_reinforcement_learning.util.configurations import (
+    DQNConfig,
+    DuelingDQNConfig,
+    NoisyNetConfig,
+)
 
 
 class DQN:

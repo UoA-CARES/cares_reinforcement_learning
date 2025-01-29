@@ -8,6 +8,7 @@ from cares_reinforcement_learning.algorithm.value.DQN import DQN
 from cares_reinforcement_learning.networks.NoisyNet import network as NoisyNetwork
 from cares_reinforcement_learning.util.configurations import NoisyNetConfig
 
+
 class NoisyNet(DQN):
     def __init__(
         self,

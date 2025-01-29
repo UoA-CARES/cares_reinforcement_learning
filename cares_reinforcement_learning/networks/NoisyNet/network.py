@@ -17,6 +17,7 @@ class BaseNetwork(nn.Module):
             if isinstance(module, NoisyLinear):
                 module.reset_noise()
 
+
 class DefaultNetwork(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int):
         super().__init__(
@@ -28,6 +29,7 @@ class DefaultNetwork(BaseNetwork):
                 NoisyLinear(512, num_actions),
             )
         )
+
 
 # MLP'iffy once proven to learn
 class Network(BaseNetwork):
