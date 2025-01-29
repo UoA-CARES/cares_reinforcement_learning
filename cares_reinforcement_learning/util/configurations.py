@@ -3,11 +3,11 @@ from typing import Any
 import pydantic
 from pydantic import BaseModel, Field
 from torch import nn
-
 from cares_reinforcement_learning.encoders.configurations import (
     BurgessConfig,
     VanillaAEConfig,
 )
+
 
 # pylint disbale-next=unused-import
 
@@ -106,7 +106,7 @@ class AlgorithmConfig(SubscriptableClass):
 
     algorithm: str = Field(description="Name of the algorithm to be used")
     G: int = 1
-    G_model: int = 1
+    G_model: float = 1
     buffer_size: int = 1000000
     batch_size: int = 256
     max_steps_exploration: int = 1000
@@ -120,11 +120,379 @@ class AlgorithmConfig(SubscriptableClass):
     image_observation: int = 0
 
 
-###################################
-#         DQN Algorithms          #
-###################################
+class PPOConfig(AlgorithmConfig):
+    algorithm: str = Field("PPO", Literal=True)
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.99
+    eps_clip: float = 0.2
+    updates_per_iteration: int = 10
+
+    max_steps_per_batch: int = 5000
+
+    actor_config: MLPConfig = MLPConfig(
+        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+    )
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
 
 
+###################################
+#         SAC Algorithms          #
+###################################
+class SACConfig(AlgorithmConfig):
+    algorithm: str = Field("SAC", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+
+class DynaSAC_NSConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_NS", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+
+
+class STEVESACConfig(AlgorithmConfig):
+    algorithm: str = Field("STEVESAC", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+
+    num_models: int = 6
+    num_rwd_models: int = 5
+    world_model_lr: float = 0.001
+
+    horizon: int = 3
+
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+
+
+class STEVESAC_BoundedConfig(AlgorithmConfig):
+    algorithm: str = Field("STEVESAC_Bounded", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+
+    num_models: int = 6
+    num_rwd_models: int = 5
+    world_model_lr: float = 0.001
+
+    horizon: int = 3
+
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+
+    threshold: float = 0.1
+    exploration_sample: int = 5
+
+
+class DynaSAC_BoundedConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_Bounded", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    num_rwd_models: int = 1
+    max_steps_exploration: int = 256
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+    threshold: float = 0.1
+    exploration_sample: int = 5
+
+
+class STEVESAC_Bounded_YaoConfig(AlgorithmConfig):
+    algorithm: str = Field("STEVESAC_Bounded_Yao", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+
+    num_models: int = 6
+    num_rwd_models: int = 5
+    world_model_lr: float = 0.001
+
+    horizon: int = 3
+
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+
+    threshold: float = 0.1
+    exploration_sample: int = 5
+
+
+class DynaSAC_Bounded_YaoConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_Bounded_Yao", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    num_rwd_models: int = 1
+    max_steps_exploration: int = 256
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+    threshold: float = 0.1
+    exploration_sample: int = 5
+
+
+class STEVE_MEANConfig(AlgorithmConfig):
+    algorithm: str = Field("STEVE", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+    sas: bool = False
+    train_reward: bool = True
+    train_both: bool = True
+    gripper: bool = False
+
+
+class DynaSAC_NS_IWConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_NS_IW", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    G: int = (1,)
+    G_model: float = (1,)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    max_steps_exploration: int = 256
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+
+    num_rwd_models: int = 1
+    sas: bool = False
+    threshold: float = 0.1
+    reweight_actor: bool = False
+
+    train_reward: bool = True
+    train_both: bool = False
+    gripper: bool = False
+
+
+class DynaSAC_BIVReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_BIVNS", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+
+    threshold: float = 0.1
+    reweight_actor: bool = False
+
+    train_reward: bool = True
+    train_both: bool = True
+    gripper: bool = False
+
+
+class DynaSAC_SUNRISEReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_SUNRISENS", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+
+    threshold: float = 0.1
+    reweight_actor: bool = False
+
+    train_reward: bool = True
+    train_both: bool = True
+    gripper: bool = False
+
+
+class DynaSAC_UWACReweightConfig(AlgorithmConfig):
+    algorithm: str = Field("DynaSAC_UWACNS", Literal=True)
+    type: str = Field("mbrl", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+    log_std_bounds: list[float] = [-20, 2]
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    num_models: int = 5
+    world_model_lr: float = 0.001
+    horizon: int = 3
+    num_samples: int = 10
+
+    threshold: float = 0.1
+    reweight_actor: bool = False
+
+    train_reward: bool = True
+    train_both: bool = True
+    gripper: bool = False
+
+
+############    Useless to me ###########
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
@@ -161,33 +529,6 @@ class DuelingDQNConfig(AlgorithmConfig):
     advantage_stream_config: MLPConfig = MLPConfig(hidden_sizes=[512])
 
 
-###################################
-#         PPO Algorithms          #
-###################################
-
-
-class PPOConfig(AlgorithmConfig):
-    algorithm: str = Field("PPO", Literal=True)
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
-
-    gamma: float = 0.99
-    eps_clip: float = 0.2
-    updates_per_iteration: int = 10
-
-    max_steps_per_batch: int = 5000
-
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
-    )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
-
-
-###################################
-#         SAC Algorithms          #
-###################################
-
-
 class SACDConfig(AlgorithmConfig):
     algorithm: str = Field("SACD", Literal=True)
     actor_lr: float = 3e-4
@@ -210,25 +551,6 @@ class SACDConfig(AlgorithmConfig):
 
     actor_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
     critic_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
-
-
-class SACConfig(AlgorithmConfig):
-    algorithm: str = Field("SAC", Literal=True)
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-    reward_scale: float = 1.0
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class SACAEConfig(SACConfig):
@@ -482,38 +804,6 @@ class DroQConfig(SACConfig):
         norm_layer="LayerNorm",
         layer_order=["dropout", "layernorm", "activation"],
     )
-
-
-class DynaSACConfig(SACConfig):
-    algorithm: str = Field("DynaSAC", Literal=True)
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-
-    alpha_lr: float = 3e-4
-
-    # TODO this bool doesn't work as expected - needs to be int 1/0
-    use_bounded_active: bool = False
-    num_models: int = 5
-
-    gamma: float = 0.99
-    tau: float = 0.005
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-
-    horizon: int = 3
-    num_samples: int = 10
-    world_model_lr: float = 0.001
-
-
-###################################
-#         TD3 Algorithms          #
-###################################
 
 
 class DDPGConfig(AlgorithmConfig):
