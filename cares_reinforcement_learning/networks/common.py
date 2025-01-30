@@ -67,9 +67,13 @@ class MLP(nn.Module):
 
         for next_size in hidden_sizes:
             if config.linear_layer_type == "noisy":
-                layers.append(NoisyLinear(input_size, next_size, **config.linear_layer_args))
+                layers.append(
+                    NoisyLinear(input_size, next_size, **config.linear_layer_args)
+                )
             else:
-                layers.append(nn.Linear(input_size, next_size, **config.linear_layer_args))
+                layers.append(
+                    nn.Linear(input_size, next_size, **config.linear_layer_args)
+                )
 
             for layer_type in layer_order:
 
@@ -96,7 +100,9 @@ class MLP(nn.Module):
 
         if output_size is not None:
             if config.linear_layer_type == "noisy":
-                layers.append(NoisyLinear(input_size, output_size, **config.linear_layer_args))
+                layers.append(
+                    NoisyLinear(input_size, output_size, **config.linear_layer_args)
+                )
             else:
                 layers.append(nn.Linear(input_size, output_size))
 
