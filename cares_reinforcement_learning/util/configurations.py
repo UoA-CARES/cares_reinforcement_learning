@@ -46,6 +46,7 @@ class MLPConfig(SubscriptableClass):
     input_layer: str = ""
     input_layer_args: dict[str, Any] = Field(default_factory=dict)
 
+    linear_layer_type: str = "linear"
     linear_layer_args: dict[str, Any] = Field(default_factory=dict)
 
     batch_layer: str = ""
@@ -169,9 +170,10 @@ class NoisyNetConfig(AlgorithmConfig):
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
 
-    network_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
-
-    noise_std_init: float = 0.5
+    network_config: MLPConfig = MLPConfig(
+        hidden_sizes=[512, 512],
+        linear_layer_type="noisy",
+        linear_layer_args={"std_init": 0.1},)
 
 
 ###################################

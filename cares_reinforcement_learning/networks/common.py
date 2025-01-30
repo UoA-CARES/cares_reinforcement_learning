@@ -6,6 +6,8 @@ from torch import nn
 from torch.distributions import Normal
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
+from torchrl.modules import NoisyLinear
+
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
@@ -64,7 +66,10 @@ class MLP(nn.Module):
             layers.append(input_layer(input_size, **config.input_layer_args))
 
         for next_size in hidden_sizes:
-            layers.append(nn.Linear(input_size, next_size, **config.linear_layer_args))
+            if config.linear_layer_type == "noisy":
+                layers.append(NoisyLinear(input_size, next_size, **config.linear_layer_args))
+            else:
+                layers.append(nn.Linear(input_size, next_size, **config.linear_layer_args))
 
             for layer_type in layer_order:
 
@@ -90,7 +95,10 @@ class MLP(nn.Module):
             input_size = next_size
 
         if output_size is not None:
-            layers.append(nn.Linear(input_size, output_size))
+            if config.linear_layer_type == "noisy":
+                layers.append(NoisyLinear(input_size, output_size, **config.linear_layer_args))
+            else:
+                layers.append(nn.Linear(input_size, output_size))
 
             if output_activation_function is not None:
                 layers.append(
