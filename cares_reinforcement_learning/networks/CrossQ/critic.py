@@ -28,10 +28,10 @@ class DefaultCritic(TwinQNetwork):
         momentum = 0.01
         self.Q1 = nn.Sequential(
             BatchRenorm1d(input_size, momentum=momentum),
-            nn.Linear(input_size, hidden_sizes[0], bias=False),
+            nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[0], momentum=momentum),
-            nn.Linear(hidden_sizes[0], hidden_sizes[1], bias=False),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[1], momentum=momentum),
             nn.Linear(hidden_sizes[1], 1),
@@ -41,10 +41,10 @@ class DefaultCritic(TwinQNetwork):
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
             BatchRenorm1d(input_size, momentum=momentum),
-            nn.Linear(input_size, hidden_sizes[0], bias=False),
+            nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[0], momentum=momentum),
-            nn.Linear(hidden_sizes[0], hidden_sizes[1], bias=False),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[1], momentum=momentum),
             nn.Linear(hidden_sizes[1], 1),
