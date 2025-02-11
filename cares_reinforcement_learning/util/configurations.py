@@ -454,7 +454,6 @@ class CrossQConfig(AlgorithmConfig):
 
     actor_config: MLPConfig = MLPConfig(
         input_layer="BatchRenorm1d",
-        linear_layer_args={"bias": False},
         hidden_sizes=[256, 256],
         batch_layer="BatchRenorm1d",
         batch_layer_args={"momentum": 0.01},
@@ -462,7 +461,6 @@ class CrossQConfig(AlgorithmConfig):
     )
     critic_config: MLPConfig = MLPConfig(
         input_layer="BatchRenorm1d",
-        linear_layer_args={"bias": False},
         hidden_sizes=[2048, 2048],
         batch_layer="BatchRenorm1d",
         batch_layer_args={"momentum": 0.01},
