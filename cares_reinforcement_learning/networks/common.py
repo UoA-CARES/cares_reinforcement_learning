@@ -100,7 +100,7 @@ class MLP(nn.Module):
 
         if output_size is not None:
             layers.append(
-                linear_layer(input_size, next_size, **config.linear_layer_args)
+                linear_layer(input_size, output_size, **config.linear_layer_args)
             )
 
             if output_activation_function is not None:
