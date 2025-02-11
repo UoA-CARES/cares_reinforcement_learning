@@ -567,9 +567,7 @@ class NoisyLinear(nn.Module):
         self.bias_mu.data.uniform_(-mu_range, mu_range)
 
         self.weight_sigma.data.fill_(self.sigma_init / math.sqrt(self.in_features))
-        self.bias_sigma.data.fill_(
-            self.sigma_init / math.sqrt(self.out_features)
-        )  # 这里要除以out_features
+        self.bias_sigma.data.fill_(self.sigma_init / math.sqrt(self.out_features))
 
     def reset_noise(self):
         epsilon_i = self.scale_noise(self.in_features)
@@ -578,6 +576,6 @@ class NoisyLinear(nn.Module):
         self.bias_epsilon.copy_(epsilon_j)
 
     def scale_noise(self, size):
-        x = torch.randn(size)  # torch.randn产生标准高斯分布
+        x = torch.randn(size)
         x = x.sign().mul(x.abs().sqrt())
         return x

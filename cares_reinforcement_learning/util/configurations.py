@@ -173,7 +173,7 @@ class NoisyNetConfig(AlgorithmConfig):
     network_config: MLPConfig = MLPConfig(
         hidden_sizes=[512, 512],
         linear_layer="noisy",
-        linear_layer_args={"std_init": 0.1},
+        linear_layer_args={"sigma_init": 0.1},
     )
 
 
