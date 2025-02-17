@@ -27,12 +27,19 @@ class DQN:
     ):
         self.type = "value"
         self.network = network.to(device)
+        self.target_network = DQNNetwork(network.network.input_size, network.network.output_size, config).to(device)
+        self.target_network.load_state_dict(self.network.state_dict())
+        self.target_network.eval()
+
         self.device = device
         self.gamma = config.gamma
+        self.target_update_freq = config.target_update_freq
 
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr
         )
+
+        self.train_step_counter = 0
 
     def select_action_from_policy(self, state) -> float:
         self.network.eval()
@@ -64,7 +71,7 @@ class DQN:
 
         q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
 
-        info = {}
+        #info = {}
 
         # Update the Network
         loss = F.mse_loss(best_q_values, q_target)
@@ -72,10 +79,18 @@ class DQN:
         loss.backward()
         self.network_optimiser.step()
 
-        info["loss"] = loss.item()
+        #info["loss"] = loss.item()
 
-        return info
+        #return info
+        self.train_step_counter += 1
+        if self.train_step_counter % self.target_update_freq == 0:
+            self.update_target_network()
+        
+        return {"loss": loss.item()}
 
+    def update_target_network(self) -> None:
+        self.target_network.load_state_dict(self.network.state_dict())
+    
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)

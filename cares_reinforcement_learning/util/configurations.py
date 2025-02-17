@@ -129,6 +129,7 @@ class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
+    target_update_freq: int = 200
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
