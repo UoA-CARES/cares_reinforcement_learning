@@ -64,22 +64,21 @@ class DQN:
 
         # Generate Q Values given state at time t and t + 1
         q_values = self.network(states_tensor)
-        next_q_values = self.network(next_states_tensor)
+        next_q_values = self.target_network(next_states_tensor)
 
         best_q_values = q_values[torch.arange(q_values.size(0)), actions_tensor]
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
         q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
 
-        #info = {}
 
         # Update the Network
         loss = F.mse_loss(best_q_values, q_target)
         self.network_optimiser.zero_grad()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.network.parameters(), 1.0)
         self.network_optimiser.step()
 
-        #info["loss"] = loss.item()
 
         #return info
         self.train_step_counter += 1
