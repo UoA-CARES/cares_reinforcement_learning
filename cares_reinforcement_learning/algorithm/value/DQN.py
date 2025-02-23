@@ -2,6 +2,7 @@
 Original Paper: https://arxiv.org/abs/1312.5602
 """
 
+import copy
 import logging
 import os
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
+import cares_reinforcement_learning.util.helpers as hlp
 
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
@@ -27,10 +29,7 @@ class DQN:
     ):
         self.type = "value"
         self.network = network.to(device)
-        self.target_network = DQNNetwork(
-            network.network.input_size, network.network.output_size, config
-        ).to(device)
-        self.target_network.load_state_dict(self.network.state_dict())
+        self.target_network = copy.deepcopy(self.network).to(device)
         self.target_network.eval()
 
         self.device = device
@@ -83,12 +82,10 @@ class DQN:
         # return info
         self.train_step_counter += 1
         if self.train_step_counter % self.target_update_freq == 0:
-            self.update_target_network()
-
+            hlp.hard_update_params(self.network, self.target_network)
+        
         return {"loss": loss.item()}
 
-    def update_target_network(self) -> None:
-        self.target_network.load_state_dict(self.network.state_dict())
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
