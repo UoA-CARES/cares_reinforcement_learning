@@ -83,9 +83,8 @@ class DQN:
         self.train_step_counter += 1
         if self.train_step_counter % self.target_update_freq == 0:
             hlp.hard_update_params(self.network, self.target_network)
-        
-        return {"loss": loss.item()}
 
+        return {"loss": loss.item()}
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
