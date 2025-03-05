@@ -34,6 +34,8 @@ class DoubleDQN:
         self.gamma = config.gamma
         self.tau = config.tau
 
+        self.max_grad_norm = config.max_grad_norm
+
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr
         )
@@ -76,6 +78,11 @@ class DoubleDQN:
 
         self.network_optimiser.zero_grad()
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(
+            self.network.parameters(), max_norm=self.max_grad_norm
+        )
+
         self.network_optimiser.step()
 
         for target_param, param in zip(

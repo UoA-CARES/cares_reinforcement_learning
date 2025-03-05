@@ -129,7 +129,9 @@ class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
-    target_update_freq: int = 1
+    target_update_freq: int = 10000
+
+    max_grad_norm: float = 10.0
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
@@ -137,11 +139,14 @@ class DQNConfig(AlgorithmConfig):
     network_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
 
 
-class DoubleDQNConfig(DQNConfig):
+class DoubleDQNConfig(AlgorithmConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 0.005
+    target_update_freq: int = 10000
+
+    max_grad_norm: float = 10.0
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95
@@ -153,6 +158,9 @@ class DuelingDQNConfig(AlgorithmConfig):
     algorithm: str = Field("DuelingDQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
+    target_update_freq: int = 10000
+
+    max_grad_norm: float = 10.0
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.95

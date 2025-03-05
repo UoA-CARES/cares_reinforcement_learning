@@ -36,11 +36,13 @@ class DQN:
         self.gamma = config.gamma
         self.target_update_freq = config.target_update_freq
 
+        self.max_grad_norm = config.max_grad_norm
+
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr
         )
 
-        self.train_step_counter = 0
+        self.learn_counter = 0
 
     def select_action_from_policy(self, state) -> float:
         self.network.eval()
@@ -53,6 +55,8 @@ class DQN:
         return action
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        self.learn_counter += 1
+
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
@@ -62,6 +66,8 @@ class DQN:
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+        info = {}
 
         # Generate Q Values given state at time t and t + 1
         q_values = self.network(states_tensor)
@@ -74,17 +80,22 @@ class DQN:
 
         # Update the Network
         loss = F.mse_loss(best_q_values, q_target)
+
+        info["loss"] = loss.item()
+
         self.network_optimiser.zero_grad()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.network.parameters(), 1.0)
+
+        torch.nn.utils.clip_grad_norm_(
+            self.network.parameters(), max_norm=self.max_grad_norm
+        )
+
         self.network_optimiser.step()
 
-        # return info
-        self.train_step_counter += 1
-        if self.train_step_counter % self.target_update_freq == 0:
+        if self.learn_counter % self.target_update_freq == 0:
             hlp.hard_update_params(self.network, self.target_network)
 
-        return {"loss": loss.item()}
+        return info
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
