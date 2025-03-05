@@ -28,11 +28,13 @@ class DQN:
         device: torch.device,
     ):
         self.type = "value"
+        self.device = device
+
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)
         self.target_network.eval()
 
-        self.device = device
+        self.tau = config.tau
         self.gamma = config.gamma
         self.target_update_freq = config.target_update_freq
 
@@ -93,7 +95,7 @@ class DQN:
         self.network_optimiser.step()
 
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.hard_update_params(self.network, self.target_network)
+            hlp.soft_update_params(self.network, self.target_network, self.tau)
 
         return info
 

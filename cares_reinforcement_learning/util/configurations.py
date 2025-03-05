@@ -127,8 +127,9 @@ class AlgorithmConfig(SubscriptableClass):
 
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
-    lr: float = 1e-3
+    lr: float = 1e-4
     gamma: float = 0.99
+    tau: float = 1.0
     target_update_freq: int = 10000
 
     max_grad_norm: float = 10.0
@@ -141,9 +142,9 @@ class DQNConfig(AlgorithmConfig):
 
 class DoubleDQNConfig(AlgorithmConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
-    lr: float = 1e-3
+    lr: float = 1e-4
     gamma: float = 0.99
-    tau: float = 0.005
+    tau: float = 1.0
     target_update_freq: int = 10000
 
     max_grad_norm: float = 10.0
@@ -156,8 +157,9 @@ class DoubleDQNConfig(AlgorithmConfig):
 
 class DuelingDQNConfig(AlgorithmConfig):
     algorithm: str = Field("DuelingDQN", Literal=True)
-    lr: float = 1e-3
+    lr: float = 1e-4
     gamma: float = 0.99
+    tau: float = 1.0
     target_update_freq: int = 10000
 
     max_grad_norm: float = 10.0
