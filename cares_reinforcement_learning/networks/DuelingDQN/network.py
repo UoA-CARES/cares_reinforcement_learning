@@ -34,9 +34,9 @@ class DefaultNetwork(BaseNetwork):
         observation_size: int,
         num_actions: int,
     ):
-        hidden_sizes = [512, 512]
-        value_stream_hidden_sizes = [512]
-        advantage_stream_hidden_sizes = [512]
+        hidden_sizes = [128, 128]
+        value_stream_hidden_sizes = [128]
+        advantage_stream_hidden_sizes = [128]
 
         feature_layer = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),

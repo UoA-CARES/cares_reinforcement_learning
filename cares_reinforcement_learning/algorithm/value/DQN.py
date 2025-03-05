@@ -2,6 +2,7 @@
 Original Paper: https://arxiv.org/abs/1312.5602
 """
 
+import copy
 import logging
 import os
 from typing import Any
@@ -9,30 +10,41 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
+import cares_reinforcement_learning.util.helpers as hlp
 
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
 from cares_reinforcement_learning.networks.DuelingDQN import (
     Network as DuelingDQNNetwork,
 )
-from cares_reinforcement_learning.util.configurations import DQNConfig, DuelingDQNConfig
+from cares_reinforcement_learning.util.configurations import DQNConfig
 
 
 class DQN:
     def __init__(
         self,
         network: DQNNetwork | DuelingDQNNetwork,
-        config: DQNConfig | DuelingDQNConfig,
+        config: DQNConfig,
         device: torch.device,
     ):
         self.type = "value"
-        self.network = network.to(device)
         self.device = device
+
+        self.network = network.to(device)
+        self.target_network = copy.deepcopy(self.network).to(device)
+        self.target_network.eval()
+
+        self.tau = config.tau
         self.gamma = config.gamma
+        self.target_update_freq = config.target_update_freq
+
+        self.max_grad_norm = config.max_grad_norm
 
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr
         )
+
+        self.learn_counter = 0
 
     def select_action_from_policy(self, state) -> float:
         self.network.eval()
@@ -45,6 +57,8 @@ class DQN:
         return action
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        self.learn_counter += 1
+
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
@@ -55,24 +69,33 @@ class DQN:
         next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
+        info = {}
+
         # Generate Q Values given state at time t and t + 1
         q_values = self.network(states_tensor)
-        next_q_values = self.network(next_states_tensor)
+        next_q_values = self.target_network(next_states_tensor)
 
         best_q_values = q_values[torch.arange(q_values.size(0)), actions_tensor]
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
         q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
 
-        info = {}
-
         # Update the Network
         loss = F.mse_loss(best_q_values, q_target)
-        self.network_optimiser.zero_grad()
-        loss.backward()
-        self.network_optimiser.step()
 
         info["loss"] = loss.item()
+
+        self.network_optimiser.zero_grad()
+        loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(
+            self.network.parameters(), max_norm=self.max_grad_norm
+        )
+
+        self.network_optimiser.step()
+
+        if self.learn_counter % self.target_update_freq == 0:
+            hlp.soft_update_params(self.network, self.target_network, self.tau)
 
         return info
 

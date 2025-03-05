@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DoubleDQN import Network
 from cares_reinforcement_learning.util.configurations import DoubleDQNConfig
@@ -30,13 +31,19 @@ class DoubleDQN:
 
         self.network = network.to(self.device)
         self.target_network = copy.deepcopy(self.network).to(self.device)
+        self.target_network.eval()
 
-        self.gamma = config.gamma
         self.tau = config.tau
+        self.gamma = config.gamma
+        self.target_update_freq = config.target_update_freq
+
+        self.max_grad_norm = config.max_grad_norm
 
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr
         )
+
+        self.learn_counter = 0
 
     def select_action_from_policy(self, state: np.ndarray) -> float:
         self.network.eval()
@@ -49,6 +56,8 @@ class DoubleDQN:
         return action
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        self.learn_counter += 1
+
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
@@ -76,14 +85,15 @@ class DoubleDQN:
 
         self.network_optimiser.zero_grad()
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(
+            self.network.parameters(), max_norm=self.max_grad_norm
+        )
+
         self.network_optimiser.step()
 
-        for target_param, param in zip(
-            self.target_network.parameters(), self.network.parameters()
-        ):
-            target_param.data.copy_(
-                param.data * self.tau + target_param.data * (1.0 - self.tau)
-            )
+        if self.learn_counter % self.target_update_freq == 0:
+            hlp.soft_update_params(self.network, self.target_network, self.tau)
 
         info["loss"] = loss.item()
         return info

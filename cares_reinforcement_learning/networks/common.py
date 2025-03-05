@@ -37,6 +37,8 @@ class MLP(nn.Module):
         config: MLPConfig,
     ):
         super().__init__()
+        self.input_size = input_size
+        self.output_size = output_size
 
         hidden_sizes = config.hidden_sizes
 
