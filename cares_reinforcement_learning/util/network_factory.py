@@ -3,7 +3,6 @@ This module provides functions to create different types of reinforcement learni
 with their corresponding network architectures.
 """
 
-import copy
 import inspect
 import logging
 import sys
@@ -32,16 +31,13 @@ def create_DQN(observation_size, action_num, config: acf.DQNConfig):
 
 
 def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig):
-    """
-    Original paper https://arxiv.org/abs/1511.06581
-    """
-    from cares_reinforcement_learning.algorithm.value import DQN
+    from cares_reinforcement_learning.algorithm.value import DuelingDQN
     from cares_reinforcement_learning.networks.DuelingDQN import Network
 
     network = Network(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = DQN(network=network, config=config, device=device)
+    agent = DuelingDQN(network=network, config=config, device=device)
     return agent
 
 
