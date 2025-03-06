@@ -93,6 +93,25 @@ def soft_update_params(net, target_net, tau):
         target_param.data.copy_(param.data)
 
 
+def hard_update_params(net, target_net):
+    """
+    Hard updates the parameters of a target neural network by directly copying the parameters from the source network.
+
+    Args:
+        net (torch.nn.Module): The neural network whose parameters will be copied to the target network.
+        target_net (torch.nn.Module): The target neural network whose parameters will be replaced.
+
+    Returns:
+        None
+    """
+    for param, target_param in zip(net.parameters(), target_net.parameters()):
+        target_param.data.copy_(param.data)
+
+    # Hard update the statistics of the target network
+    for param, target_param in zip(net.buffers(), target_net.buffers()):
+        target_param.data.copy_(param.data)
+
+
 def weight_init(module: torch.nn.Module) -> None:
     """
     Custom weight init for Conv2D and Linear layers

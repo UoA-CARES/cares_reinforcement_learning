@@ -2,7 +2,6 @@ import math
 from typing import Callable
 
 import torch
-import torch.nn.functional as F
 from torch import distributions as pyd
 from torch import nn
 from torch.distributions import Normal
@@ -41,6 +40,8 @@ class MLP(nn.Module):
         config: MLPConfig,
     ):
         super().__init__()
+        self.input_size = input_size
+        self.output_size = output_size
 
         hidden_sizes = config.hidden_sizes
 
