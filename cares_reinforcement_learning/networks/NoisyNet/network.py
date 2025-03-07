@@ -31,13 +31,26 @@ class DefaultNetwork(BaseNetwork):
         )
 
 
-# MLP'iffy once proven to learn
 class Network(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: NoisyNetConfig):
-
-        network = MLP(
-            input_size=observation_size,
-            output_size=num_actions,
-            config=config.network_config,
+        super().__init__(
+            nn.Sequential(
+                nn.Linear(observation_size, 128),
+                nn.ReLU(),
+                NoisyLinear(128, 128, sigma_init=0.25),
+                nn.ReLU(),
+                NoisyLinear(128, num_actions, sigma_init=0.25),
+            )
         )
-        super().__init__(network=network)
+
+
+# # MLP'iffy once proven to learn
+# class Network(BaseNetwork):
+#     def __init__(self, observation_size: int, num_actions: int, config: NoisyNetConfig):
+
+#         network = MLP(
+#             input_size=observation_size,
+#             output_size=num_actions,
+#             config=config.network_config,
+#         )
+#         super().__init__(network=network)

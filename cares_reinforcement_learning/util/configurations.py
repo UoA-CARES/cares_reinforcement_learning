@@ -160,7 +160,7 @@ class DoubleDQNConfig(DQNConfig):
     network_config: MLPConfig = MLPConfig(hidden_sizes=[64, 64])
 
 
-class DuelingDQNConfig(DQNConfig):
+class DuelingDQNConfig(DoubleDQNConfig):
     algorithm: str = Field("DuelingDQN", Literal=True)
     lr: float = 5e-4
     gamma: float = 0.99
@@ -181,19 +181,22 @@ class DuelingDQNConfig(DQNConfig):
 
 class NoisyNetConfig(DoubleDQNConfig):
     algorithm: str = Field("NoisyNet", Literal=True)
-    lr: float = 5e-5
-    tau: float = 0.001
+    lr: float = 1e-4
     gamma: float = 0.99
+    tau: float = 0.005
+    target_update_freq: int = 1
+
+    max_grad_norm: float = 10.0
 
     exploration_min: float = 0
     exploration_decay: float = 0
 
-    batch_size: int = 32
+    batch_size: int = 256
 
     network_config: MLPConfig = MLPConfig(
-        hidden_sizes=[64, 64],
+        hidden_sizes=[128, 128],
         linear_layer="NoisyLinear",
-        linear_layer_args={"std_init": 0.1},
+        linear_layer_args={"sigma_init": 0.25},
     )
 
 

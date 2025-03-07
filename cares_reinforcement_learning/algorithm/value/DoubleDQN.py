@@ -17,13 +17,16 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DoubleDQN import Network as DoubleDQNNetwork
 from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
+from cares_reinforcement_learning.networks.DuelingDQN import (
+    Network as DuelingDQNNetwork,
+)
 from cares_reinforcement_learning.util.configurations import DoubleDQNConfig
 
 
 class DoubleDQN:
     def __init__(
         self,
-        network: DoubleDQNNetwork | NoisyNetwork,
+        network: DoubleDQNNetwork | DuelingDQNNetwork | NoisyNetwork,
         config: DoubleDQNConfig,
         device: torch.device,
     ):
