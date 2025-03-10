@@ -134,6 +134,8 @@ class DQNConfig(AlgorithmConfig):
     tau: float = 1.0
     target_update_freq: int = 1000
 
+    use_double_dqn: int = 0
+
     max_grad_norm: float | None = None
 
     exploration_min: float = 1e-3
@@ -151,6 +153,8 @@ class DoubleDQNConfig(DQNConfig):
     tau: float = 1.0
     target_update_freq: int = 1000
 
+    use_double_dqn: int = 1
+
     max_grad_norm: float | None = None
 
     exploration_min: float = 1e-3
@@ -161,7 +165,7 @@ class DoubleDQNConfig(DQNConfig):
     network_config: MLPConfig = MLPConfig(hidden_sizes=[64, 64])
 
 
-class DuelingDQNConfig(DoubleDQNConfig):
+class DuelingDQNConfig(DQNConfig):
     algorithm: str = Field("DuelingDQN", Literal=True)
     lr: float = 5e-4
     gamma: float = 0.99
@@ -174,6 +178,8 @@ class DuelingDQNConfig(DoubleDQNConfig):
     exploration_decay: float = 0.99
 
     batch_size: int = 32
+
+    use_double_dqn: int = 1
 
     feature_layer_config: MLPConfig = MLPConfig(hidden_sizes=[128, 128])
     value_stream_config: MLPConfig = MLPConfig(hidden_sizes=[128])
