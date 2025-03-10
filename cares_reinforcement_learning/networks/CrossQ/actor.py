@@ -32,10 +32,10 @@ class DefaultActor(TanhGaussianPolicy):
 
         self.act_net = nn.Sequential(
             BatchRenorm1d(observation_size, momentum=momentum),
-            nn.Linear(observation_size, hidden_sizes[0], bias=False),
+            nn.Linear(observation_size, hidden_sizes[0]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[0], momentum=momentum),
-            nn.Linear(hidden_sizes[0], hidden_sizes[1], bias=False),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[1], momentum=momentum),
         )

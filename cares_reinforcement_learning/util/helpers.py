@@ -5,6 +5,23 @@ import numpy as np
 import torch
 
 
+class EpsilonScheduler:
+    def __init__(self, start_epsilon: float, end_epsilon: float, decay_steps: int):
+        self.start_epsilon = start_epsilon
+        self.end_epsilon = end_epsilon
+        self.decay_steps = decay_steps
+        self.epsilon = start_epsilon
+
+    def get_epsilon(self, step: int) -> float:
+        if step < self.decay_steps:
+            self.epsilon = self.start_epsilon - (
+                self.start_epsilon - self.end_epsilon
+            ) * (step / self.decay_steps)
+        else:
+            self.epsilon = self.end_epsilon
+        return self.epsilon
+
+
 def get_device() -> torch.device:
     device = torch.device("cpu")
 

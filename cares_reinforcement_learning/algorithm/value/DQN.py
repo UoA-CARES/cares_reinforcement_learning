@@ -75,7 +75,8 @@ class DQN:
         q_values = self.network(states_tensor)
         next_q_values = self.target_network(next_states_tensor)
 
-        best_q_values = q_values[torch.arange(q_values.size(0)), actions_tensor]
+        # Get Q-values for chosen actions
+        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
         q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
@@ -88,9 +89,10 @@ class DQN:
         self.network_optimiser.zero_grad()
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(
-            self.network.parameters(), max_norm=self.max_grad_norm
-        )
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                self.network.parameters(), max_norm=self.max_grad_norm
+            )
 
         self.network_optimiser.step()
 
