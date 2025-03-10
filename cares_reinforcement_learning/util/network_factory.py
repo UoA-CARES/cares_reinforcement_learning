@@ -56,17 +56,6 @@ def create_DoubleDQN(observation_size, action_num, config: acf.DoubleDQNConfig):
     return agent
 
 
-def create_NoisyNet(observation_size, action_num, config: acf.NoisyNetConfig):
-    from cares_reinforcement_learning.algorithm.value import NoisyNet
-    from cares_reinforcement_learning.networks.NoisyNet import Network
-
-    network = Network(observation_size, action_num, config)
-
-    device = hlp.get_device()
-    agent = NoisyNet(network=network, config=config, device=device)
-    return agent
-
-
 ###################################
 #         PPO Algorithms          #
 ###################################
