@@ -90,9 +90,10 @@ class DoubleDQN:
         self.network_optimiser.zero_grad()
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(
-            self.network.parameters(), max_norm=self.max_grad_norm
-        )
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                self.network.parameters(), max_norm=self.max_grad_norm
+            )
 
         self.network_optimiser.step()
 

@@ -126,17 +126,18 @@ class AlgorithmConfig(SubscriptableClass):
 ###################################
 
 
+# def __init__(self, start_epsilon: float, end_epsilon: float, decay_steps: int):
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
-    tau: float = 0.005
-    target_update_freq: int = 1
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
-    max_grad_norm: float = 10.0
+    max_grad_norm: float | None = None
 
     exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
+    exploration_decay: float = 0.99
 
     batch_size: int = 32
 
@@ -145,12 +146,12 @@ class DQNConfig(AlgorithmConfig):
 
 class DoubleDQNConfig(DQNConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
-    lr: float = 5e-4
+    lr: float = 1e-3
     gamma: float = 0.99
-    tau: float = 0.005
-    target_update_freq: int = 1
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
-    max_grad_norm: float = 10.0
+    max_grad_norm: float | None = None
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.99
@@ -167,7 +168,7 @@ class DuelingDQNConfig(DoubleDQNConfig):
     tau: float = 0.005
     target_update_freq: int = 1
 
-    max_grad_norm: float = 10.0
+    max_grad_norm: float | None = 10.0
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.99
@@ -186,7 +187,7 @@ class NoisyNetConfig(DoubleDQNConfig):
     tau: float = 0.005
     target_update_freq: int = 1
 
-    max_grad_norm: float = 10.0
+    max_grad_norm: float | None = 10.0
 
     exploration_min: float = 0
     exploration_decay: float = 0
@@ -196,7 +197,7 @@ class NoisyNetConfig(DoubleDQNConfig):
     network_config: MLPConfig = MLPConfig(
         hidden_sizes=[128, 128],
         linear_layer="NoisyLinear",
-        linear_layer_args={"sigma_init": 0.25},
+        linear_layer_args={"sigma_init": 0.5},
     )
 
 
