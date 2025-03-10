@@ -14,7 +14,6 @@ import cares_reinforcement_learning.util.helpers as hlp
 
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
-from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
 from cares_reinforcement_learning.networks.DuelingDQN import (
     Network as DuelingDQNNetwork,
 )
@@ -24,7 +23,7 @@ from cares_reinforcement_learning.util.configurations import DQNConfig
 class DQN:
     def __init__(
         self,
-        network: DQNNetwork | DuelingDQNNetwork | NoisyNetwork,
+        network: DQNNetwork | DuelingDQNNetwork,
         config: DQNConfig,
         device: torch.device,
     ):
@@ -76,7 +75,8 @@ class DQN:
         q_values = self.network(states_tensor)
         next_q_values = self.target_network(next_states_tensor)
 
-        best_q_values = q_values[torch.arange(q_values.size(0)), actions_tensor]
+        # Get Q-values for chosen actions
+        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
         best_next_q_values = torch.max(next_q_values, dim=1).values
 
         q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values

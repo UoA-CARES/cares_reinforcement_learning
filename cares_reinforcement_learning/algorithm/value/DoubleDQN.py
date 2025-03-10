@@ -16,7 +16,6 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DoubleDQN import Network as DoubleDQNNetwork
-from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
 from cares_reinforcement_learning.networks.DuelingDQN import (
     Network as DuelingDQNNetwork,
 )
@@ -26,7 +25,7 @@ from cares_reinforcement_learning.util.configurations import DoubleDQNConfig
 class DoubleDQN:
     def __init__(
         self,
-        network: DoubleDQNNetwork | DuelingDQNNetwork | NoisyNetwork,
+        network: DoubleDQNNetwork | DuelingDQNNetwork,
         config: DoubleDQNConfig,
         device: torch.device,
     ):
@@ -72,18 +71,25 @@ class DoubleDQN:
         next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
+        # Generate Q Values given state at time t and t + 1
         q_values = self.network(states_tensor)
+        # Used for action selection
         next_q_values = self.network(next_states_tensor)
-        next_q_state_values = self.target_network(next_states_tensor)
+        # Used for value estimation
+        next_q_values_target = self.target_network(next_states_tensor)
 
-        q_value = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
-        next_q_value = next_q_state_values.gather(
-            1, torch.max(next_q_values, 1)[1].unsqueeze(1)
-        ).squeeze(1)
+        # Get Q-values for chosen actions
+        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
 
-        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * next_q_value
+        # Double DQN: Select best action from online Q-values, evaluate with target Q-values
+        # Online network selects actions
+        next_actions = next_q_values.argmax(dim=1, keepdim=True)
+        # Target network estimates value
+        best_next_q_values = next_q_values_target.gather(1, next_actions).squeeze(1)
 
-        loss = F.mse_loss(q_value, q_target)
+        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
+
+        loss = F.mse_loss(best_q_values, q_target)
 
         info = {}
 
