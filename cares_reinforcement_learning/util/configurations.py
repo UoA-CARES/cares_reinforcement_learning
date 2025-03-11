@@ -191,10 +191,10 @@ class DuelingDQNConfig(DQNConfig):
 
 class NoisyNetConfig(DQNConfig):
     algorithm: str = Field("NoisyNet", Literal=True)
-    lr: float = 5e-4
+    lr: float = 1e-3
     gamma: float = 0.99
-    tau: float = 0.005
-    target_update_freq: int = 1
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
     max_grad_norm: float | None = 10.0
 
@@ -203,6 +203,8 @@ class NoisyNetConfig(DQNConfig):
     decay_steps: int = 0
 
     batch_size: int = 32
+
+    use_double_dqn: int = 1
 
     network_config: MLPConfig = MLPConfig(
         hidden_sizes=[128, 128],
