@@ -66,8 +66,12 @@ def image_states_dict_to_tensor(
     states_vector = [state["vector"] for state in states]
 
     # Convert into tensors - torch.fromy_numpy saves copying the image reducing memory overhead
-    states_images_tensor = torch.from_numpy(states_images).float().to(device)
-    states_vector_tensor = torch.from_numpy(states_vector).float().to(device)
+    states_images_tensor = (
+        torch.from_numpy(np.asarray(states_images)).float().to(device)
+    )
+    states_vector_tensor = (
+        torch.from_numpy(np.asarray(states_vector)).float().to(device)
+    )
 
     # Normalise states and next_states - image portion
     # This because the states are [0-255] and the predictions are [0-1]
