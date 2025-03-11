@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import pydantic
 from pydantic import BaseModel, Field
@@ -153,7 +153,7 @@ class DoubleDQNConfig(DQNConfig):
     tau: float = 1.0
     target_update_freq: int = 1000
 
-    use_double_dqn: int = 1
+    use_double_dqn: Literal[1] = Field(default=1, frozen=True)
 
     max_grad_norm: float | None = None
 
