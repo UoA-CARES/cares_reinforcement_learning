@@ -10,8 +10,8 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
-import cares_reinforcement_learning.util.helpers as hlp
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
 from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
@@ -39,6 +39,8 @@ class DQN:
         self.gamma = config.gamma
         self.target_update_freq = config.target_update_freq
 
+        self.use_double_dqn = config.use_double_dqn
+
         self.max_grad_norm = config.max_grad_norm
 
         self.network_optimiser = torch.optim.Adam(
@@ -57,6 +59,55 @@ class DQN:
         self.network.train()
         return action
 
+    def _dqn_loss(
+        self,
+        states_tensor: torch.Tensor,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_states_tensor: torch.Tensor,
+        dones_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        q_values = self.network(states_tensor)
+        next_q_values_target = self.target_network(next_states_tensor)
+
+        # Get Q-values for chosen actions
+        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+        best_next_q_values = torch.max(next_q_values_target, dim=1).values
+
+        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
+
+        # Update the Network
+        loss = F.mse_loss(best_q_values, q_target)
+        return loss
+
+    def _double_dqn_loss(
+        self,
+        states_tensor: torch.Tensor,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_states_tensor: torch.Tensor,
+        dones_tensor: torch.Tensor,
+    ) -> torch.Tensor:
+        q_values = self.network(states_tensor)
+        next_q_values_target = self.target_network(next_states_tensor)
+
+        # Online Used for action selection
+        next_q_values = self.network(next_states_tensor)
+
+        # Get Q-values for chosen actions
+        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+
+        # Double DQN: Select best action from online Q-values, evaluate with target Q-values
+        # Online network selects actions
+        next_actions = next_q_values.argmax(dim=1, keepdim=True)
+        # Target network estimates value
+        best_next_q_values = next_q_values_target.gather(1, next_actions).squeeze(1)
+
+        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
+
+        loss = F.mse_loss(best_q_values, q_target)
+        return loss
+
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
@@ -73,16 +124,22 @@ class DQN:
         info = {}
 
         # Generate Q Values given state at time t and t + 1
-        q_values = self.network(states_tensor)
-        next_q_values = self.target_network(next_states_tensor)
-
-        best_q_values = q_values[torch.arange(q_values.size(0)), actions_tensor]
-        best_next_q_values = torch.max(next_q_values, dim=1).values
-
-        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
-
-        # Update the Network
-        loss = F.mse_loss(best_q_values, q_target)
+        if self.use_double_dqn:
+            loss = self._double_dqn_loss(
+                states_tensor,
+                actions_tensor,
+                rewards_tensor,
+                next_states_tensor,
+                dones_tensor,
+            )
+        else:
+            loss = self._dqn_loss(
+                states_tensor,
+                actions_tensor,
+                rewards_tensor,
+                next_states_tensor,
+                dones_tensor,
+            )
 
         info["loss"] = loss.item()
 

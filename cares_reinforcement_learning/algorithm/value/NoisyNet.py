@@ -4,12 +4,12 @@ Original Paper: https://arxiv.org/abs/1706.10295
 
 import torch
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.algorithm.value.DoubleDQN import DoubleDQN
+from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.NoisyNet import Network
 from cares_reinforcement_learning.util.configurations import NoisyNetConfig
 
 
-class NoisyNet(DoubleDQN):
+class NoisyNet(DQN):
     def __init__(
         self,
         network: Network,

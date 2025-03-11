@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import pydantic
 from pydantic import BaseModel, Field
@@ -134,10 +134,13 @@ class DQNConfig(AlgorithmConfig):
     tau: float = 1.0
     target_update_freq: int = 1000
 
+    use_double_dqn: int = 0
+
     max_grad_norm: float | None = None
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.99
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
 
     batch_size: int = 32
 
@@ -151,17 +154,20 @@ class DoubleDQNConfig(DQNConfig):
     tau: float = 1.0
     target_update_freq: int = 1000
 
+    use_double_dqn: Literal[1] = Field(default=1, frozen=True)
+
     max_grad_norm: float | None = None
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.99
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
 
     batch_size: int = 32
 
     network_config: MLPConfig = MLPConfig(hidden_sizes=[64, 64])
 
 
-class DuelingDQNConfig(DoubleDQNConfig):
+class DuelingDQNConfig(DQNConfig):
     algorithm: str = Field("DuelingDQN", Literal=True)
     lr: float = 5e-4
     gamma: float = 0.99
@@ -170,29 +176,33 @@ class DuelingDQNConfig(DoubleDQNConfig):
 
     max_grad_norm: float | None = 10.0
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.99
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
 
     batch_size: int = 32
+
+    use_double_dqn: int = 1
 
     feature_layer_config: MLPConfig = MLPConfig(hidden_sizes=[128, 128])
     value_stream_config: MLPConfig = MLPConfig(hidden_sizes=[128])
     advantage_stream_config: MLPConfig = MLPConfig(hidden_sizes=[128])
 
 
-class NoisyNetConfig(DoubleDQNConfig):
+class NoisyNetConfig(DQNConfig):
     algorithm: str = Field("NoisyNet", Literal=True)
-    lr: float = 1e-4
+    lr: float = 5e-4
     gamma: float = 0.99
     tau: float = 0.005
     target_update_freq: int = 1
 
     max_grad_norm: float | None = 10.0
 
-    exploration_min: float = 0
-    exploration_decay: float = 0
+    start_epsilon: float = 0.0
+    end_epsilon: float = 0.0
+    decay_steps: int = 0
 
-    batch_size: int = 256
+    batch_size: int = 32
 
     network_config: MLPConfig = MLPConfig(
         hidden_sizes=[128, 128],
