@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 import pydantic
 from pydantic import BaseModel, Field
@@ -46,6 +46,7 @@ class MLPConfig(SubscriptableClass):
     input_layer: str = ""
     input_layer_args: dict[str, Any] = Field(default_factory=dict)
 
+    linear_layer: str = "linear"
     linear_layer_args: dict[str, Any] = Field(default_factory=dict)
 
     batch_layer: str = ""
@@ -125,17 +126,20 @@ class AlgorithmConfig(SubscriptableClass):
 ###################################
 
 
+# def __init__(self, start_epsilon: float, end_epsilon: float, decay_steps: int):
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
-    tau: float = 0.005
-    target_update_freq: int = 1
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
-    max_grad_norm: float = 10.0
+    use_double_dqn: int = 0
+
+    max_grad_norm: float | None = None
 
     exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
+    exploration_decay: float = 0.99
 
     batch_size: int = 32
 
@@ -144,12 +148,14 @@ class DQNConfig(AlgorithmConfig):
 
 class DoubleDQNConfig(DQNConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
-    lr: float = 5e-4
+    lr: float = 1e-3
     gamma: float = 0.99
-    tau: float = 0.005
-    target_update_freq: int = 1
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
-    max_grad_norm: float = 10.0
+    use_double_dqn: Literal[1] = Field(default=1, frozen=True)
+
+    max_grad_norm: float | None = None
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.99
@@ -166,12 +172,14 @@ class DuelingDQNConfig(DQNConfig):
     tau: float = 0.005
     target_update_freq: int = 1
 
-    max_grad_norm: float = 10.0
+    max_grad_norm: float | None = 10.0
 
     exploration_min: float = 1e-3
     exploration_decay: float = 0.99
 
     batch_size: int = 32
+
+    use_double_dqn: int = 1
 
     feature_layer_config: MLPConfig = MLPConfig(hidden_sizes=[128, 128])
     value_stream_config: MLPConfig = MLPConfig(hidden_sizes=[128])
@@ -211,12 +219,12 @@ class SACDConfig(AlgorithmConfig):
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
 
-    batch_size = 64
+    batch_size: int = 64
 
-    target_entropy_multiplier = 0.98
+    target_entropy_multiplier: float = 0.98
 
-    max_steps_exploration = 20000
-    number_steps_per_train_policy = 4
+    max_steps_exploration: int = 20000
+    number_steps_per_train_policy: int = 4
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -455,7 +463,6 @@ class CrossQConfig(AlgorithmConfig):
 
     actor_config: MLPConfig = MLPConfig(
         input_layer="BatchRenorm1d",
-        linear_layer_args={"bias": False},
         hidden_sizes=[256, 256],
         batch_layer="BatchRenorm1d",
         batch_layer_args={"momentum": 0.01},
@@ -463,7 +470,6 @@ class CrossQConfig(AlgorithmConfig):
     )
     critic_config: MLPConfig = MLPConfig(
         input_layer="BatchRenorm1d",
-        linear_layer_args={"bias": False},
         hidden_sizes=[2048, 2048],
         batch_layer="BatchRenorm1d",
         batch_layer_args={"momentum": 0.01},
