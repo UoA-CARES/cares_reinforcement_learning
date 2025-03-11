@@ -138,8 +138,9 @@ class DQNConfig(AlgorithmConfig):
 
     max_grad_norm: float | None = None
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.99
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
 
     batch_size: int = 32
 
@@ -157,8 +158,9 @@ class DoubleDQNConfig(DQNConfig):
 
     max_grad_norm: float | None = None
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.99
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
 
     batch_size: int = 32
 
@@ -174,8 +176,9 @@ class DuelingDQNConfig(DQNConfig):
 
     max_grad_norm: float | None = 10.0
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.99
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
 
     batch_size: int = 32
 
