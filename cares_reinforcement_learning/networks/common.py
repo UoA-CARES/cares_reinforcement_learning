@@ -577,6 +577,17 @@ class NoisyLinear(nn.Module):
         self.weight_epsilon.data.copy_(epsilon_out.ger(epsilon_in))
         self.bias_epsilon.data.copy_(epsilon_out)
 
+        # Print the noise values
+        # print(
+        #     f"Weight epsilon mean: {self.weight_epsilon.mean().item():.6f}, "
+        #     f"std: {self.weight_epsilon.std().item():.6f}"
+        # )
+        # print(
+        #     f"Bias epsilon mean: {self.bias_epsilon.mean().item():.6f}, "
+        #     f"std: {self.bias_epsilon.std().item():.6f}"
+        # )
+
     def _scale_noise(self, size):
         x = torch.randn(size, device=self.weight_mu.device)
+        # print(f"Raw noise stats: mean {x.mean().item():.6f}, std {x.std().item():.6f}")
         return x.sign().mul(x.abs().sqrt())

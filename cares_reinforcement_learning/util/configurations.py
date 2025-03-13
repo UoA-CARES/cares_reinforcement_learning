@@ -207,9 +207,9 @@ class NoisyNetConfig(DQNConfig):
     use_double_dqn: int = 1
 
     network_config: MLPConfig = MLPConfig(
-        hidden_sizes=[128, 128],
+        hidden_sizes=[64, 64],
         linear_layer="NoisyLinear",
-        linear_layer_args={"sigma_init": 0.5},
+        linear_layer_args={"sigma_init": 1.0},
     )
 
 

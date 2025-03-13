@@ -22,11 +22,11 @@ class DefaultNetwork(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int):
         super().__init__(
             nn.Sequential(
-                NoisyLinear(observation_size, 512),
+                nn.Linear(observation_size, 512),
                 nn.ReLU(),
-                NoisyLinear(512, 512),
+                NoisyLinear(64, 64, sigma_init=1.0),
                 nn.ReLU(),
-                NoisyLinear(512, num_actions),
+                NoisyLinear(64, num_actions, sigma_init=0.5),
             )
         )
 
@@ -35,11 +35,11 @@ class Network(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: NoisyNetConfig):
         super().__init__(
             nn.Sequential(
-                nn.Linear(observation_size, 128),
+                nn.Linear(observation_size, 64),
                 nn.ReLU(),
-                NoisyLinear(128, 128, sigma_init=0.25),
+                NoisyLinear(64, 64, sigma_init=1.0),
                 nn.ReLU(),
-                NoisyLinear(128, num_actions, sigma_init=0.25),
+                NoisyLinear(64, num_actions, sigma_init=0.5),
             )
         )
 
