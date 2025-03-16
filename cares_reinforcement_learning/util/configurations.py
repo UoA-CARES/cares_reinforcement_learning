@@ -40,46 +40,29 @@ class TrainingConfig(SubscriptableClass):
     record_eval_video: int = 1
 
 
-class MLPConfig(SubscriptableClass):
-    hidden_sizes: list[int]
+class TrainableLayer(BaseModel):
+    layer_category: Literal["trainable"] = "trainable"  # Discriminator field
+    layer_type: str
+    in_features: int | None
+    out_features: int
+    params: dict[str, Any] = {}
 
-    input_layer: str = ""
-    input_layer_args: dict[str, Any] = Field(default_factory=dict)
 
-    linear_layer: str = "linear"
-    linear_layer_args: dict[str, Any] = Field(default_factory=dict)
+class NormLayer(BaseModel):
+    layer_category: Literal["norm"] = "norm"  # Discriminator field
+    layer_type: str
+    in_features: int | None
+    params: dict[str, Any] = {}
 
-    batch_layer: str = ""
-    batch_layer_args: dict[str, Any] = Field(default_factory=dict)
 
-    dropout_layer: str = ""
-    dropout_layer_args: dict[str, Any] = Field(default_factory=dict)
+class FunctionLayer(BaseModel):
+    layer_category: Literal["function"] = "function"  # Discriminator field
+    layer_type: str
+    params: dict[str, Any] = {}
 
-    norm_layer: str = ""
-    norm_layer_args: dict[str, Any] = Field(default_factory=dict)
 
-    hidden_activation_function: str = nn.ReLU.__name__
-    hidden_activation_function_args: dict[str, Any] = Field(default_factory=dict)
-
-    output_activation_function: str = ""
-    output_activation_function_args: dict[str, Any] = Field(default_factory=dict)
-
-    layer_order: list[str] = ["batch", "activation", "layernorm", "dropout"]
-
-    @pydantic.root_validator(pre=True)
-    # pylint: disable-next=no-self-argument
-    def convert_none_to_dict(cls, values):
-        if values.get("norm_layer_args") is None:
-            values["norm_layer_args"] = {}
-        if values.get("activation_function_args") is None:
-            values["activation_function_args"] = {}
-        if values.get("final_activation_args") is None:
-            values["final_activation_args"] = {}
-        if values.get("batch_layer_args") is None:
-            values["batch_layer_args"] = {}
-        if values.get("dropout_layer_args") is None:
-            values["dropout_layer_args"] = {}
-        return values
+class MLPConfig(BaseModel):
+    layers: list[TrainableLayer | NormLayer | FunctionLayer]
 
 
 class AlgorithmConfig(SubscriptableClass):

@@ -17,19 +17,22 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     VanillaAutoencoder,
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
-from cares_reinforcement_learning.util.configurations import MLPConfig
+from cares_reinforcement_learning.util.configurations import (
+    MLPConfig,
+    TrainableLayer,
+    NormLayer,
+    FunctionLayer,
+)
 
 
-def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module] | None:
-    if module_name == "":
-        return None
+def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
     if hasattr(nn, module_name):
         return getattr(nn, module_name)
     elif module_name == "BatchRenorm1d":
         return BatchRenorm1d
     elif module_name == "NoisyLinear":
         return NoisyLinear
-    return None
+    raise ValueError(f"Module {module_name} not found in nn or custom modules.")
 
 
 # Standard Multilayer Perceptron (MLP) network - consider making Sequential itself
@@ -41,74 +44,35 @@ class MLP(nn.Module):
         config: MLPConfig,
     ):
         super().__init__()
-        self.input_size = input_size
-        self.output_size = output_size
-
-        hidden_sizes = config.hidden_sizes
-
-        layer_order = config.layer_order
-
-        linear_layer = get_pytorch_module_from_name(config.linear_layer)
-        linear_layer = linear_layer if linear_layer is not None else nn.Linear
-
-        input_layer = get_pytorch_module_from_name(config.input_layer)
-
-        batch_layer = get_pytorch_module_from_name(config.batch_layer)
-
-        dropout_layer = get_pytorch_module_from_name(config.dropout_layer)
-
-        norm_layer = get_pytorch_module_from_name(config.norm_layer)
-
-        hidden_activation_function = get_pytorch_module_from_name(
-            config.hidden_activation_function
-        )
-
-        output_activation_function = get_pytorch_module_from_name(
-            config.output_activation_function
-        )
-
         layers = nn.ModuleList()
 
-        if input_layer is not None:
-            layers.append(input_layer(input_size, **config.input_layer_args))
+        current_size = input_size
 
-        for next_size in hidden_sizes:
-            layers.append(
-                linear_layer(input_size, next_size, **config.linear_layer_args)
-            )
+        for layer_spec in config.layers:
+            if isinstance(layer_spec, TrainableLayer):
+                if layer_spec.in_features is None:
+                    layer_spec.in_features = current_size
+                if layer_spec.out_features is None:
+                    layer_spec.out_features = output_size
 
-            for layer_type in layer_order:
-
-                if (
-                    layer_type == "activation"
-                    and hidden_activation_function is not None
-                ):
-                    layers.append(
-                        hidden_activation_function(
-                            **config.hidden_activation_function_args
-                        )
-                    )
-
-                elif layer_type == "batch" and batch_layer is not None:
-                    layers.append(batch_layer(next_size, **config.batch_layer_args))
-
-                elif layer_type == "layernorm" and norm_layer is not None:
-                    layers.append(norm_layer(next_size, **config.norm_layer_args))
-
-                elif layer_type == "dropout" and dropout_layer is not None:
-                    layers.append(dropout_layer(**config.dropout_layer_args))
-
-            input_size = next_size
-
-        if output_size is not None:
-            layers.append(
-                linear_layer(input_size, output_size, **config.linear_layer_args)
-            )
-
-            if output_activation_function is not None:
-                layers.append(
-                    output_activation_function(**config.output_activation_function_args)
+                layer = get_pytorch_module_from_name(layer_spec.layer_type)(
+                    layer_spec.in_features, layer_spec.out_features, **layer_spec.params
                 )
+            elif isinstance(layer_spec, FunctionLayer):
+                layer = get_pytorch_module_from_name(layer_spec.layer_type)(
+                    **layer_spec.params
+                )
+            elif isinstance(layer_spec, NormLayer):
+                if layer_spec.in_features is None:
+                    layer_spec.in_features = current_size
+
+                layer = get_pytorch_module_from_name(layer_spec.layer_type)(
+                    layer_spec.in_features, **layer_spec.params
+                )
+            else:
+                raise ValueError(f"Unknown layer type {layer_spec}")
+
+            layers.append(layer)
 
         self.model = nn.Sequential(*layers)
 
