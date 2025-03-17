@@ -523,13 +523,8 @@ class NoisyLinear(nn.Module):
         self.reset_noise()
 
     def forward(self, x):
-        if self.training:
-            self.reset_noise()
-            weight = self.weight_mu + self.weight_sigma.mul(self.weight_epsilon)
-            bias = self.bias_mu + self.bias_sigma.mul(self.bias_epsilon)
-        else:
-            weight = self.weight_mu
-            bias = self.bias_mu
+        weight = self.weight_mu + self.weight_sigma.mul(self.weight_epsilon)
+        bias = self.bias_mu + self.bias_sigma.mul(self.bias_epsilon)
 
         return F.linear(x, weight, bias)
 

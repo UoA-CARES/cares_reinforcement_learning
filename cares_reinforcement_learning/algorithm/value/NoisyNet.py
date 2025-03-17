@@ -24,5 +24,5 @@ class NoisyNet(DQN):
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict:
         info = super().train_policy(memory, batch_size)
-        # self.reset_noise()
+        self.reset_noise()
         return info

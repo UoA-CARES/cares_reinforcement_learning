@@ -13,7 +13,7 @@ class BaseNetwork(nn.Module):
         return self.network(state)
 
     def reset_noise(self):
-        for module in self.network.children():
+        for module in self.network.modules():
             if hasattr(module, "reset_noise"):
                 module.reset_noise()
 
