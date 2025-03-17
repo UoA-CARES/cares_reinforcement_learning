@@ -1,19 +1,21 @@
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import TwinQNetwork
-from cares_reinforcement_learning.util.configurations import MAPERTD3Config, MLPConfig
+from cares_reinforcement_learning.networks.common import BaseCritic, TwinQNetwork
+from cares_reinforcement_learning.util.configurations import MAPERTD3Config
 
 
 class DefaultCritic(TwinQNetwork):
+    # pylint: disable=super-init-not-called
     def __init__(self, observation_size: int, num_actions: int):
         input_size = observation_size + num_actions
         hidden_sizes = [256, 256]
         output_size = 1 + 1 + observation_size
 
-        super().__init__(
+        # pylint: disable-next=non-parent-init-called
+        BaseCritic.__init__(
+            self,
             input_size=input_size,
             output_size=output_size,
-            config=MLPConfig(hidden_sizes=hidden_sizes),
         )
 
         # Q1 architecture

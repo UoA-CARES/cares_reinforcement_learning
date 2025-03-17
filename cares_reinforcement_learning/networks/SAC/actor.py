@@ -1,13 +1,14 @@
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import TanhGaussianPolicy
-from cares_reinforcement_learning.util.configurations import MLPConfig, SACConfig
+from cares_reinforcement_learning.networks.common import BasePolicy, TanhGaussianPolicy
+from cares_reinforcement_learning.util.configurations import SACConfig
 
 
 class DefaultActor(TanhGaussianPolicy):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
+    # pylint: disable=super-init-not-called
     def __init__(
         self,
         observation_size: int,
@@ -21,12 +22,8 @@ class DefaultActor(TanhGaussianPolicy):
         if log_std_bounds is None:
             log_std_bounds = [-20.0, 2.0]
 
-        super().__init__(
-            input_size=observation_size,
-            num_actions=num_actions,
-            log_std_bounds=log_std_bounds,
-            config=MLPConfig(hidden_sizes=hidden_sizes),
-        )
+        # pylint: disable-next=non-parent-init-called
+        BasePolicy.__init__(self, observation_size, num_actions)
 
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),
