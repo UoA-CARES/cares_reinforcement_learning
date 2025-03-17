@@ -5,11 +5,12 @@ This is a stub file for the Critic class - reads directly off SAC's Critic class
 # pylint: disable=unused-import
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import TwinQNetwork
+from cares_reinforcement_learning.networks.common import BaseCritic, TwinQNetwork
 from cares_reinforcement_learning.networks.SAC import Critic
-from cares_reinforcement_learning.util.configurations import DroQConfig, MLPConfig
+from cares_reinforcement_learning.util.configurations import DroQConfig
 
 
+# pylint: disable=super-init-not-called
 class DefaultCritic(TwinQNetwork):
     def __init__(
         self,
@@ -19,18 +20,11 @@ class DefaultCritic(TwinQNetwork):
         input_size = observation_size + num_actions
         hidden_sizes = [256, 256]
 
-        critic_config: MLPConfig = MLPConfig(
-            hidden_sizes=hidden_sizes,
-            dropout_layer="Dropout",
-            dropout_layer_args={"p": 0.005},
-            norm_layer="LayerNorm",
-            layer_order=["dropout", "layernorm", "activation"],
-        )
-
-        super().__init__(
+        # pylint: disable-next=non-parent-init-called
+        BaseCritic.__init__(
+            self,
             input_size=input_size,
             output_size=1,
-            config=critic_config,
         )
 
         # Q1 architecture
