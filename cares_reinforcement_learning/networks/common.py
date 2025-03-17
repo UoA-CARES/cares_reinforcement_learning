@@ -49,49 +49,54 @@ class MLP(nn.Module):
 
         layers = nn.ModuleList()
 
-        current_size = input_size
+        current_input_size = self.input_size
+        current_output_size = self.input_size
 
         for layer_spec in config.layers:
             if isinstance(layer_spec, TrainableLayer):
-                if layer_spec.in_features is None:
-                    layer_spec.in_features = current_size
-                if layer_spec.out_features is None:
-                    layer_spec.out_features = output_size
+                if layer_spec.in_features is not None:
+                    current_input_size = layer_spec.in_features
+
+                if layer_spec.out_features is not None:
+                    current_output_size = layer_spec.out_features
+                elif output_size is not None:
+                    current_output_size = output_size
 
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
-                    layer_spec.in_features, layer_spec.out_features, **layer_spec.params
+                    current_input_size, current_output_size, **layer_spec.params
                 )
             elif isinstance(layer_spec, FunctionLayer):
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
                     **layer_spec.params
                 )
             elif isinstance(layer_spec, NormLayer):
-                if layer_spec.in_features is None:
-                    layer_spec.in_features = current_size
+                if layer_spec.in_features is not None:
+                    current_input_size = layer_spec.in_features
 
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
-                    layer_spec.in_features, **layer_spec.params
+                    current_input_size, **layer_spec.params
                 )
             else:
                 raise ValueError(f"Unknown layer type {layer_spec}")
 
             layers.append(layer)
 
+            current_input_size = current_output_size
+
         self.model = nn.Sequential(*layers)
 
-        self.output_size = current_size if output_size is None else output_size
+        self.output_size = current_input_size if output_size is None else output_size
 
     def forward(self, state):
         return self.model(state)
 
 
 class BasePolicy(nn.Module):
-    def __init__(self, input_size: int, num_actions: int, config: MLPConfig):
+    def __init__(self, input_size: int, num_actions: int, **kwargs):
         super().__init__()
 
         self.input_size = input_size
         self.num_actions = num_actions
-        self.config = config
 
     def forward(
         self, state: torch.Tensor
@@ -101,12 +106,12 @@ class BasePolicy(nn.Module):
 
 class DeterministicPolicy(BasePolicy):
     def __init__(self, input_size: int, num_actions: int, config: MLPConfig):
-        super().__init__(input_size, num_actions, config)
+        super().__init__(input_size, num_actions)
 
         self.act_net: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=self.num_actions,
-            config=self.config,
+            config=config,
         )
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
@@ -122,7 +127,7 @@ class GaussianPolicy(BasePolicy):
         log_std_bounds: list[float],
         config: MLPConfig,
     ):
-        super().__init__(input_size, num_actions, config)
+        super().__init__(input_size, num_actions)
 
         self.log_std_bounds = log_std_bounds
 
@@ -163,7 +168,7 @@ class TanhGaussianPolicy(BasePolicy):
         log_std_bounds: list[float],
         config: MLPConfig,
     ):
-        super().__init__(input_size, num_actions, config)
+        super().__init__(input_size, num_actions)
 
         self.log_std_bounds = log_std_bounds
 
@@ -203,12 +208,11 @@ class TanhGaussianPolicy(BasePolicy):
 
 
 class BaseCritic(nn.Module):
-    def __init__(self, input_size: int, output_size: int, config: MLPConfig):
+    def __init__(self, input_size: int, output_size: int, **kwargs):
         super().__init__()
 
         self.input_size = input_size
         self.output_size = output_size
-        self.config = config
 
     def forward(
         self, state: torch.Tensor, action: torch.Tensor
@@ -218,14 +222,14 @@ class BaseCritic(nn.Module):
 
 class QNetwork(BaseCritic):
     def __init__(self, input_size: int, output_size: int, config: MLPConfig):
-        super().__init__(input_size, output_size, config)
+        super().__init__(input_size, output_size)
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=self.output_size,
-            config=self.config,
+            config=config,
         )
 
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
@@ -236,14 +240,14 @@ class QNetwork(BaseCritic):
 
 class TwinQNetwork(BaseCritic):
     def __init__(self, input_size: int, output_size: int, config: MLPConfig):
-        super().__init__(input_size, output_size, config)
+        super().__init__(input_size, output_size)
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q1: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=self.output_size,
-            config=self.config,
+            config=config,
         )
 
         # Q2 architecture
@@ -251,7 +255,7 @@ class TwinQNetwork(BaseCritic):
         self.Q2: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=self.output_size,
-            config=self.config,
+            config=config,
         )
 
     def forward(
@@ -265,18 +269,18 @@ class TwinQNetwork(BaseCritic):
 
 class ContinuousDistributedCritic(BaseCritic):
     def __init__(self, input_size: int, output_size: int, config: MLPConfig):
-        super().__init__(input_size, output_size, config)
+        super().__init__(input_size, output_size)
 
         self.mean_layer: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=self.output_size,
-            config=self.config,
+            config=config,
         )
 
         self.std_layer: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=self.output_size,
-            config=self.config,
+            config=config,
         )
 
         self.soft_std_layer = nn.Softplus()
@@ -292,18 +296,16 @@ class ContinuousDistributedCritic(BaseCritic):
         return mean, std
 
 
-class EnsembleCritic(nn.Module):
+class EnsembleCritic(BaseCritic):
     def __init__(
         self,
         input_size: int,
         output_size: int,
         ensemble_size: int,
         config: MLPConfig,
-        critic_type: type[BaseCritic] = QNetwork,
+        critic_type: type[BaseCritic],
     ):
-        super().__init__()
-        self.input_size = input_size
-        self.output_size = output_size
+        super().__init__(input_size, output_size)
         self.ensemble_size = ensemble_size
 
         self.critics: list[BaseCritic | nn.Sequential] = []
@@ -316,10 +318,10 @@ class EnsembleCritic(nn.Module):
             self.critics.append(critic_net)
 
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
-        quantiles = torch.stack(
+        values = torch.stack(
             tuple(critic(state, action) for critic in self.critics), dim=1
         )
-        return quantiles
+        return values
 
 
 # TODO generalise detach - cnn or output

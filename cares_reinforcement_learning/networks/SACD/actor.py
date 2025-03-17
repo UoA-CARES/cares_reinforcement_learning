@@ -66,7 +66,7 @@ class Actor(BaseActor):
             config=config.actor_config,
         )
 
-        discrete_net_input = config.actor_config.hidden_sizes[-1]
+        discrete_net_input = act_net.output_size
 
         super().__init__(
             act_net=act_net,

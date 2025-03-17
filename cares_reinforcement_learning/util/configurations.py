@@ -213,7 +213,6 @@ class PPOConfig(AlgorithmConfig):
 
     max_steps_per_batch: int = 5000
 
-    #  1024
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=1024),
@@ -396,7 +395,9 @@ class TQCConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=512, out_features=1),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512),
         ]
     )
 
@@ -478,7 +479,7 @@ class MAPERSACConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=400, out_features=300),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=300, out_features=1),
+            TrainableLayer(layer_type="Linear", in_features=300),
         ]
     )
 
@@ -499,6 +500,16 @@ class RDSACConfig(SACConfig):
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
 
 
 class CrossQConfig(AlgorithmConfig):
@@ -908,6 +919,16 @@ class MAPERTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
 
 class RDTD3Config(TD3Config):
     algorithm: str = Field("RDTD3", Literal=True)
@@ -922,6 +943,16 @@ class RDTD3Config(TD3Config):
     min_priority: float = 1.0
 
     policy_update_freq: int = 2
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
 
 
 class CTD4Config(TD3Config):

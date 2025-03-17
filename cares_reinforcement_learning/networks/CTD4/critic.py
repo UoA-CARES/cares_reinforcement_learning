@@ -1,22 +1,25 @@
 from torch import nn
 
 from cares_reinforcement_learning.networks.common import (
+    BaseCritic,
     ContinuousDistributedCritic,
     EnsembleCritic,
 )
-from cares_reinforcement_learning.util.configurations import CTD4Config, MLPConfig
+from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
 # This is the default base network for CTD4 for reference and testing of default network configurations
 class DefaultContinuousDistributedCritic(ContinuousDistributedCritic):
+    # pylint: disable=super-init-not-called
     def __init__(self, observation_size: int, action_num: int):
         input_size = observation_size + action_num
         hidden_sizes = [256, 256]
 
-        super().__init__(
+        # pylint: disable-next=non-parent-init-called
+        BaseCritic.__init__(
+            self,
             input_size=input_size,
             output_size=1,
-            config=MLPConfig(hidden_sizes=hidden_sizes),
         )
 
         self.mean_layer = nn.Sequential(
@@ -39,26 +42,27 @@ class DefaultContinuousDistributedCritic(ContinuousDistributedCritic):
 
 
 class DefaultCritic(EnsembleCritic):
+    # pylint: disable=super-init-not-called
     def __init__(self, observation_size: int, num_actions: int):
         input_size = observation_size + num_actions
 
         ensemble_size = 3
-        hidden_sizes = [256, 256]
 
-        super().__init__(
+        # pylint: disable-next=non-parent-init-called
+        BaseCritic.__init__(
+            self,
             input_size=input_size,
             output_size=1,
-            ensemble_size=ensemble_size,
-            config=MLPConfig(hidden_sizes=hidden_sizes),
-            critic_type=ContinuousDistributedCritic,
         )
+
+        self.critics: list[BaseCritic | nn.Sequential] = []
 
         for i in range(ensemble_size):
             critic_net = DefaultContinuousDistributedCritic(
                 observation_size=observation_size, action_num=num_actions
             )
             self.add_module(f"critic_net_{i}", critic_net)
-            self.critics[i] = critic_net
+            self.critics.append(critic_net)
 
 
 class Critic(EnsembleCritic):
