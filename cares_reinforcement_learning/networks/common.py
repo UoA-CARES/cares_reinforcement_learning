@@ -44,6 +44,9 @@ class MLP(nn.Module):
         config: MLPConfig,
     ):
         super().__init__()
+
+        self.input_size = input_size
+
         layers = nn.ModuleList()
 
         current_size = input_size
@@ -75,6 +78,8 @@ class MLP(nn.Module):
             layers.append(layer)
 
         self.model = nn.Sequential(*layers)
+
+        self.output_size = current_size if output_size is None else output_size
 
     def forward(self, state):
         return self.model(state)
@@ -127,8 +132,8 @@ class GaussianPolicy(BasePolicy):
             config=config,
         )
 
-        self.mean_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
-        self.log_std_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
+        self.mean_linear = nn.Linear(self.act_net.output_size, num_actions)
+        self.log_std_linear = nn.Linear(self.act_net.output_size, num_actions)
 
     def forward(
         self, state: torch.Tensor
@@ -168,8 +173,8 @@ class TanhGaussianPolicy(BasePolicy):
             config=config,
         )
 
-        self.mean_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
-        self.log_std_linear = nn.Linear(config.hidden_sizes[-1], num_actions)
+        self.mean_linear = nn.Linear(self.act_net.output_size, num_actions)
+        self.log_std_linear = nn.Linear(self.act_net.output_size, num_actions)
 
     def forward(
         self, state: torch.Tensor
