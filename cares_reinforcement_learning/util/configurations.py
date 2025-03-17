@@ -215,9 +215,20 @@ class NoisyNetConfig(DQNConfig):
     use_double_dqn: int = 1
 
     network_config: MLPConfig = MLPConfig(
-        hidden_sizes=[64, 64],
-        linear_layer="NoisyLinear",
-        linear_layer_args={"sigma_init": 1.0},
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=64,
+                out_features=64,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear", in_features=64, params={"sigma_init": 0.5}
+            ),
+        ]
     )
 
 

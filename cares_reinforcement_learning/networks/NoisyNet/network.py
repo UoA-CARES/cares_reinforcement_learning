@@ -22,7 +22,7 @@ class DefaultNetwork(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int):
         super().__init__(
             nn.Sequential(
-                nn.Linear(observation_size, 512),
+                nn.Linear(observation_size, 64),
                 nn.ReLU(),
                 NoisyLinear(64, 64, sigma_init=1.0),
                 nn.ReLU(),
@@ -33,24 +33,10 @@ class DefaultNetwork(BaseNetwork):
 
 class Network(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: NoisyNetConfig):
-        super().__init__(
-            nn.Sequential(
-                nn.Linear(observation_size, 64),
-                nn.ReLU(),
-                NoisyLinear(64, 64, sigma_init=1.0),
-                nn.ReLU(),
-                NoisyLinear(64, num_actions, sigma_init=0.5),
-            )
+
+        network = MLP(
+            input_size=observation_size,
+            output_size=num_actions,
+            config=config.network_config,
         )
-
-
-# # MLP'iffy once proven to learn
-# class Network(BaseNetwork):
-#     def __init__(self, observation_size: int, num_actions: int, config: NoisyNetConfig):
-
-#         network = MLP(
-#             input_size=observation_size,
-#             output_size=num_actions,
-#             config=config.network_config,
-#         )
-#         super().__init__(network=network)
+        super().__init__(network=network)
