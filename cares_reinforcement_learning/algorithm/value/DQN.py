@@ -14,6 +14,7 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
+from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
 from cares_reinforcement_learning.networks.DuelingDQN import (
     Network as DuelingDQNNetwork,
 )
@@ -23,7 +24,7 @@ from cares_reinforcement_learning.util.configurations import DQNConfig
 class DQN:
     def __init__(
         self,
-        network: DQNNetwork | DuelingDQNNetwork,
+        network: DQNNetwork | DuelingDQNNetwork | NoisyNetwork,
         config: DQNConfig,
         device: torch.device,
     ):

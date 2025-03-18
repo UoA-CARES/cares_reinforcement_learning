@@ -197,6 +197,41 @@ class DuelingDQNConfig(DQNConfig):
     )
 
 
+class NoisyNetConfig(DQNConfig):
+    algorithm: str = Field("NoisyNet", Literal=True)
+    lr: float = 1e-3
+    gamma: float = 0.99
+    tau: float = 1.0
+    target_update_freq: int = 1000
+
+    max_grad_norm: float | None = 10.0
+
+    start_epsilon: float = 0.0
+    end_epsilon: float = 0.0
+    decay_steps: int = 0
+
+    batch_size: int = 32
+
+    use_double_dqn: int = 1
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=64,
+                out_features=64,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear", in_features=64, params={"sigma_init": 0.5}
+            ),
+        ]
+    )
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
