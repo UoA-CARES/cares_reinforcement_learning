@@ -39,7 +39,13 @@ class DQN:
         self.gamma = config.gamma
         self.target_update_freq = config.target_update_freq
 
+        # Double DQN
         self.use_double_dqn = config.use_double_dqn
+
+        # PER
+        self.use_per_buffer = config.use_per_buffer
+        self.min_priority = config.min_priority
+        self.per_alpha = config.per_alpha
 
         self.max_grad_norm = config.max_grad_norm
 
@@ -59,14 +65,14 @@ class DQN:
         self.network.train()
         return action
 
-    def _dqn_loss(
+    def _dqn_targets(
         self,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         q_values = self.network(states_tensor)
         next_q_values_target = self.target_network(next_states_tensor)
 
@@ -76,18 +82,16 @@ class DQN:
 
         q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
 
-        # Update the Network
-        loss = F.mse_loss(best_q_values, q_target)
-        return loss
+        return best_q_values, q_target
 
-    def _double_dqn_loss(
+    def _double_dqn_targets(
         self,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         q_values = self.network(states_tensor)
         next_q_values_target = self.target_network(next_states_tensor)
 
@@ -105,14 +109,18 @@ class DQN:
 
         q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
 
-        loss = F.mse_loss(best_q_values, q_target)
-        return loss
+        return best_q_values, q_target
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        if self.use_per_buffer:
+            experiences = memory.sample_priority(batch_size)
+            states, actions, rewards, next_states, dones, indices, weights = experiences
+            weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        else:
+            experiences = memory.sample_uniform(batch_size)
+            states, actions, rewards, next_states, dones, _ = experiences
 
         # Convert into tensor
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -121,11 +129,14 @@ class DQN:
         next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
+        if self.use_per_buffer:
+            weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
+
         info = {}
 
         # Generate Q Values given state at time t and t + 1
         if self.use_double_dqn:
-            loss = self._double_dqn_loss(
+            best_q_values, q_target = self._double_dqn_targets(
                 states_tensor,
                 actions_tensor,
                 rewards_tensor,
@@ -133,7 +144,7 @@ class DQN:
                 dones_tensor,
             )
         else:
-            loss = self._dqn_loss(
+            best_q_values, q_target = self._dqn_targets(
                 states_tensor,
                 actions_tensor,
                 rewards_tensor,
@@ -141,11 +152,31 @@ class DQN:
                 dones_tensor,
             )
 
+        if self.use_per_buffer:
+            # PER: calculate loss
+            elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
+            # Update the Priorities
+            priorities = (
+                elementwise_loss.clamp(self.min_priority)
+                .pow(self.per_alpha)
+                .cpu()
+                .data.numpy()
+                .flatten()
+            )
+
+            memory.update_priorities(indices, priorities)
+
+            loss = torch.mean(elementwise_loss * weights_tensor)
+        else:
+            # Calculate loss
+            loss = F.mse_loss(best_q_values, q_target)
+
         info["loss"] = loss.item()
 
         self.network_optimiser.zero_grad()
         loss.backward()
 
+        # Apply gradient clipping if max_grad_norm is set
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 self.network.parameters(), max_norm=self.max_grad_norm
@@ -153,6 +184,7 @@ class DQN:
 
         self.network_optimiser.step()
 
+        # Update target network - a tau of 1.0 equates to a hard update.
         if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.network, self.target_network, self.tau)
 

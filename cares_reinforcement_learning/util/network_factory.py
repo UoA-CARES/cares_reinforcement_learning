@@ -30,6 +30,17 @@ def create_DQN(observation_size, action_num, config: acf.DQNConfig):
     return agent
 
 
+def create_PERDQN(observation_size, action_num, config: acf.PERDQNConfig):
+    from cares_reinforcement_learning.algorithm.value import PERDQN
+    from cares_reinforcement_learning.networks.PERDQN import Network
+
+    network = Network(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = PERDQN(network=network, config=config, device=device)
+    return agent
+
+
 def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig):
     from cares_reinforcement_learning.algorithm.value import DuelingDQN
     from cares_reinforcement_learning.networks.DuelingDQN import Network
