@@ -526,6 +526,7 @@ class NoisyLinear(nn.Module):
         weight = self.weight_mu + self.weight_sigma.mul(self.weight_epsilon)
         bias = self.bias_mu + self.bias_sigma.mul(self.bias_epsilon)
 
+        # pylint: disable-next=not-callable
         return F.linear(x, weight, bias)
 
     def reset_parameters(self):
