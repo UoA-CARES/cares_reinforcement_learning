@@ -34,9 +34,9 @@ class DefaultNetwork(BaseNetwork):
         observation_size: int,
         num_actions: int,
     ):
-        hidden_sizes = [512, 512]
-        value_stream_hidden_sizes = [512]
-        advantage_stream_hidden_sizes = [512]
+        hidden_sizes = [128, 128]
+        value_stream_hidden_sizes = [128]
+        advantage_stream_hidden_sizes = [128]
 
         feature_layer = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),
@@ -71,8 +71,6 @@ class Network(BaseNetwork):
         num_actions: int,
         config: DuelingDQNConfig,
     ):
-        hidden_sizes = config.feature_layer_config.hidden_sizes
-
         feature_layer = MLP(
             input_size=observation_size,
             output_size=None,
@@ -80,13 +78,13 @@ class Network(BaseNetwork):
         )
 
         value_stream = MLP(
-            input_size=hidden_sizes[-1],
+            input_size=feature_layer.output_size,
             output_size=1,
             config=config.value_stream_config,
         )
 
         advantage_stream = MLP(
-            input_size=hidden_sizes[-1],
+            input_size=feature_layer.output_size,
             output_size=num_actions,
             config=config.advantage_stream_config,
         )

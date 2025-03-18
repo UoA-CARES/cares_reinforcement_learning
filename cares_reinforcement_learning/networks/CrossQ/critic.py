@@ -1,11 +1,12 @@
 from torch import nn
 
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
-from cares_reinforcement_learning.networks.common import TwinQNetwork
-from cares_reinforcement_learning.util.configurations import CrossQConfig, MLPConfig
+from cares_reinforcement_learning.networks.common import BaseCritic, TwinQNetwork
+from cares_reinforcement_learning.util.configurations import CrossQConfig
 
 
 class DefaultCritic(TwinQNetwork):
+    # pylint: disable=super-init-not-called
     def __init__(
         self,
         observation_size: int,
@@ -17,10 +18,11 @@ class DefaultCritic(TwinQNetwork):
 
         input_size = observation_size + num_actions
 
-        super().__init__(
+        # pylint: disable-next=non-parent-init-called
+        BaseCritic.__init__(
+            self,
             input_size=input_size,
             output_size=1,
-            config=MLPConfig(hidden_sizes=hidden_sizes),
         )
 
         # Q1 architecture
@@ -28,10 +30,10 @@ class DefaultCritic(TwinQNetwork):
         momentum = 0.01
         self.Q1 = nn.Sequential(
             BatchRenorm1d(input_size, momentum=momentum),
-            nn.Linear(input_size, hidden_sizes[0], bias=False),
+            nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[0], momentum=momentum),
-            nn.Linear(hidden_sizes[0], hidden_sizes[1], bias=False),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[1], momentum=momentum),
             nn.Linear(hidden_sizes[1], 1),
@@ -41,10 +43,10 @@ class DefaultCritic(TwinQNetwork):
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
             BatchRenorm1d(input_size, momentum=momentum),
-            nn.Linear(input_size, hidden_sizes[0], bias=False),
+            nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[0], momentum=momentum),
-            nn.Linear(hidden_sizes[0], hidden_sizes[1], bias=False),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             BatchRenorm1d(hidden_sizes[1], momentum=momentum),
             nn.Linear(hidden_sizes[1], 1),

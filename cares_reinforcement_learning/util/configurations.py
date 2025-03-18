@@ -1,8 +1,6 @@
-from typing import Any
+from typing import Any, Literal
 
-import pydantic
 from pydantic import BaseModel, Field
-from torch import nn
 
 from cares_reinforcement_learning.encoders.configurations import (
     BurgessConfig,
@@ -31,52 +29,38 @@ class TrainingConfig(SubscriptableClass):
         seeds (list[int]): list of random seeds for reproducibility. Default is [10].
         number_steps_per_evaluation (int]): Number of steps per evaluation. Default is 10000.
         number_eval_episodes (int]): Number of episodes to evaluate during training. Default is 10.
+        record_eval_video (int]): Whether to record a video of the evaluation. Default is 1.
     """
 
     seeds: list[int] = [10]
     number_steps_per_evaluation: int = 10000
     number_eval_episodes: int = 10
+    record_eval_video: int = 1
 
 
-class MLPConfig(SubscriptableClass):
-    hidden_sizes: list[int]
+class TrainableLayer(BaseModel):
+    layer_category: Literal["trainable"] = "trainable"  # Discriminator field
+    layer_type: str
+    in_features: int | None = None
+    out_features: int | None = None
+    params: dict[str, Any] = {}
 
-    input_layer: str = ""
-    input_layer_args: dict[str, Any] = Field(default_factory=dict)
 
-    linear_layer_args: dict[str, Any] = Field(default_factory=dict)
+class NormLayer(BaseModel):
+    layer_category: Literal["norm"] = "norm"  # Discriminator field
+    layer_type: str
+    in_features: int | None = None
+    params: dict[str, Any] = {}
 
-    batch_layer: str = ""
-    batch_layer_args: dict[str, Any] = Field(default_factory=dict)
 
-    dropout_layer: str = ""
-    dropout_layer_args: dict[str, Any] = Field(default_factory=dict)
+class FunctionLayer(BaseModel):
+    layer_category: Literal["function"] = "function"  # Discriminator field
+    layer_type: str
+    params: dict[str, Any] = {}
 
-    norm_layer: str = ""
-    norm_layer_args: dict[str, Any] = Field(default_factory=dict)
 
-    hidden_activation_function: str = nn.ReLU.__name__
-    hidden_activation_function_args: dict[str, Any] = Field(default_factory=dict)
-
-    output_activation_function: str = ""
-    output_activation_function_args: dict[str, Any] = Field(default_factory=dict)
-
-    layer_order: list[str] = ["batch", "activation", "layernorm", "dropout"]
-
-    @pydantic.root_validator(pre=True)
-    # pylint: disable-next=no-self-argument
-    def convert_none_to_dict(cls, values):
-        if values.get("norm_layer_args") is None:
-            values["norm_layer_args"] = {}
-        if values.get("activation_function_args") is None:
-            values["activation_function_args"] = {}
-        if values.get("final_activation_args") is None:
-            values["final_activation_args"] = {}
-        if values.get("batch_layer_args") is None:
-            values["batch_layer_args"] = {}
-        if values.get("dropout_layer_args") is None:
-            values["dropout_layer_args"] = {}
-        return values
+class MLPConfig(BaseModel):
+    layers: list[TrainableLayer | NormLayer | FunctionLayer]
 
 
 class AlgorithmConfig(SubscriptableClass):
@@ -123,40 +107,154 @@ class AlgorithmConfig(SubscriptableClass):
 ###################################
 
 
+# def __init__(self, start_epsilon: float, end_epsilon: float, decay_steps: int):
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
+    use_double_dqn: int = 0
+    use_per_buffer: int = 0
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
 
-    network_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
+    max_grad_norm: float | None = None
+
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
+
+    batch_size: int = 32
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+        ]
+    )
 
 
 class DoubleDQNConfig(DQNConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
-    tau: float = 0.005
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
+    use_double_dqn: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: int = 0
 
-    network_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
+    max_grad_norm: float | None = None
+
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
+
+    batch_size: int = 32
 
 
-class DuelingDQNConfig(AlgorithmConfig):
-    algorithm: str = Field("DuelingDQN", Literal=True)
+class PERDQNConfig(DQNConfig):
+    algorithm: str = Field("PERDQN", Literal=True)
     lr: float = 1e-3
     gamma: float = 0.99
+    tau: float = 1.0
+    target_update_freq: int = 1000
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
+    use_double_dqn: int = 1
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
 
-    feature_layer_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
-    value_stream_config: MLPConfig = MLPConfig(hidden_sizes=[512])
-    advantage_stream_config: MLPConfig = MLPConfig(hidden_sizes=[512])
+    max_grad_norm: float | None = None
+
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
+
+    batch_size: int = 32
+
+
+class DuelingDQNConfig(DQNConfig):
+    algorithm: str = Field("DuelingDQN", Literal=True)
+    lr: float = 5e-4
+    gamma: float = 0.99
+    tau: float = 0.005
+    target_update_freq: int = 1
+
+    max_grad_norm: float | None = 10.0
+
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
+
+    batch_size: int = 32
+
+    use_double_dqn: int = 1
+    use_per_buffer: int = 0
+
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=128),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=128, out_features=128),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    value_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", in_features=128, out_features=128),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=128, out_features=1),
+        ]
+    )
+
+    advantage_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", in_features=128, out_features=128),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=128),
+        ]
+    )
+
+
+class NoisyNetConfig(DQNConfig):
+    algorithm: str = Field("NoisyNet", Literal=True)
+    lr: float = 1e-3
+    gamma: float = 0.99
+    tau: float = 1.0
+    target_update_freq: int = 1000
+
+    max_grad_norm: float | None = 10.0
+
+    start_epsilon: float = 0.0
+    end_epsilon: float = 0.0
+    decay_steps: int = 0
+
+    batch_size: int = 32
+
+    use_double_dqn: int = 1
+    use_per_buffer: int = 0
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=64,
+                out_features=64,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear", in_features=64, params={"sigma_init": 0.5}
+            ),
+        ]
+    )
 
 
 class C51Config(AlgorithmConfig):
@@ -191,38 +289,30 @@ class PPOConfig(AlgorithmConfig):
     max_steps_per_batch: int = 5000
 
     actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024),
+            FunctionLayer(layer_type="Tanh"),
+        ]
     )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )
 
 
 ###################################
 #         SAC Algorithms          #
 ###################################
-
-
-class SACDConfig(AlgorithmConfig):
-    algorithm: str = Field("SACD", Literal=True)
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-
-    batch_size = 64
-
-    target_entropy_multiplier = 0.98
-
-    max_steps_exploration = 20000
-    number_steps_per_train_policy = 4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-    reward_scale: float = 1.0
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
 
 
 class SACConfig(AlgorithmConfig):
@@ -240,8 +330,24 @@ class SACConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
 
 
 class SACAEConfig(SACConfig):
@@ -263,8 +369,24 @@ class SACAEConfig(SACConfig):
     policy_update_freq: int = 2
     target_update_freq: int = 2
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )
 
     encoder_tau: float = 0.05
     decoder_update_freq: int = 1
@@ -299,9 +421,6 @@ class PERSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-
 
 class REDQConfig(SACConfig):
     algorithm: str = Field("REDQ", Literal=True)
@@ -317,9 +436,6 @@ class REDQConfig(SACConfig):
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
-
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class TQCConfig(SACConfig):
@@ -339,8 +455,26 @@ class TQCConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512, 512])
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512),
+        ]
+    )
 
 
 class LAPSACConfig(SACConfig):
@@ -361,9 +495,6 @@ class LAPSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-
 
 class LA3PSACConfig(SACConfig):
     algorithm: str = Field("LA3PSAC", Literal=True)
@@ -383,9 +514,6 @@ class LA3PSACConfig(SACConfig):
     log_std_bounds: list[float] = [-20, 2]
 
     target_update_freq: int = 1
-
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class MAPERSACConfig(SACConfig):
@@ -411,8 +539,24 @@ class MAPERSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[400, 300])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[400, 300])
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=400),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=400, out_features=300),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=400),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=400, out_features=300),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=300),
+        ]
+    )
 
 
 class RDSACConfig(SACConfig):
@@ -432,8 +576,15 @@ class RDSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
 
 
 class CrossQConfig(AlgorithmConfig):
@@ -450,20 +601,28 @@ class CrossQConfig(AlgorithmConfig):
     policy_update_freq: int = 3
 
     actor_config: MLPConfig = MLPConfig(
-        input_layer="BatchRenorm1d",
-        linear_layer_args={"bias": False},
-        hidden_sizes=[256, 256],
-        batch_layer="BatchRenorm1d",
-        batch_layer_args={"momentum": 0.01},
-        layer_order=["activation", "batch"],
+        layers=[
+            NormLayer(layer_type="BatchRenorm1d", params={"momentum": 0.01}),
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            NormLayer(layer_type="BatchRenorm1d", params={"momentum": 0.01}),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            NormLayer(layer_type="BatchRenorm1d", params={"momentum": 0.01}),
+        ]
     )
+
     critic_config: MLPConfig = MLPConfig(
-        input_layer="BatchRenorm1d",
-        linear_layer_args={"bias": False},
-        hidden_sizes=[2048, 2048],
-        batch_layer="BatchRenorm1d",
-        batch_layer_args={"momentum": 0.01},
-        layer_order=["activation", "batch"],
+        layers=[
+            NormLayer(layer_type="BatchRenorm1d", params={"momentum": 0.01}),
+            TrainableLayer(layer_type="Linear", out_features=2048),
+            FunctionLayer(layer_type="ReLU"),
+            NormLayer(layer_type="BatchRenorm1d", params={"momentum": 0.01}),
+            TrainableLayer(layer_type="Linear", in_features=2048, out_features=2048),
+            FunctionLayer(layer_type="ReLU"),
+            NormLayer(layer_type="BatchRenorm1d", params={"momentum": 0.01}),
+            TrainableLayer(layer_type="Linear", in_features=2048, out_features=1),
+        ]
     )
 
 
@@ -484,16 +643,18 @@ class DroQConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    hidden_size_actor: list[int] = [256, 256]
-    hidden_size_critic: list[int] = [256, 256]
-
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
     critic_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256],
-        dropout_layer="Dropout",
-        dropout_layer_args={"p": 0.005},
-        norm_layer="LayerNorm",
-        layer_order=["dropout", "layernorm", "activation"],
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="Dropout", params={"p": 0.005}),
+            NormLayer(layer_type="LayerNorm"),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="Dropout", params={"p": 0.005}),
+            NormLayer(layer_type="LayerNorm"),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
     )
 
 
@@ -516,12 +677,49 @@ class DynaSACConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-
     horizon: int = 3
     num_samples: int = 10
     world_model_lr: float = 0.001
+
+
+class SACDConfig(AlgorithmConfig):
+    algorithm: str = Field("SACD", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+
+    batch_size: int = 64
+
+    target_entropy_multiplier: float = 0.98
+
+    max_steps_exploration: int = 20000
+    number_steps_per_train_policy: int = 4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512),
+        ]
+    )
 
 
 ###################################
@@ -538,9 +736,25 @@ class DDPGConfig(AlgorithmConfig):
     tau: float = 0.005
 
     actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024),
+            FunctionLayer(layer_type="Tanh"),
+        ]
     )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )
 
 
 class TD3Config(AlgorithmConfig):
@@ -554,9 +768,25 @@ class TD3Config(AlgorithmConfig):
     policy_update_freq: int = 2
 
     actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+            FunctionLayer(layer_type="Tanh"),
+        ]
     )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
 
 
 class TD3AEConfig(TD3Config):
@@ -575,9 +805,25 @@ class TD3AEConfig(TD3Config):
     policy_update_freq: int = 2
 
     actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024),
+            FunctionLayer(layer_type="Tanh"),
+        ]
     )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )
 
     encoder_tau: float = 0.05
     decoder_update_freq: int = 1
@@ -611,10 +857,35 @@ class NaSATD3Config(TD3Config):
     policy_update_freq: int = 2
 
     actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[1024, 1024], output_activation_function=nn.Tanh.__name__
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024),
+            FunctionLayer(layer_type="Tanh"),
+        ]
     )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[1024, 1024])
-    epm_config: MLPConfig = MLPConfig(hidden_sizes=[512, 512])
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )
+
+    epm_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512),
+        ]
+    )
 
     intrinsic_on: int = 1
 
@@ -655,11 +926,6 @@ class PERTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
-    )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-
 
 class LAPTD3Config(TD3Config):
     algorithm: str = Field("LAPTD3", Literal=True)
@@ -674,11 +940,6 @@ class LAPTD3Config(TD3Config):
     min_priority: float = 1.0
 
     policy_update_freq: int = 2
-
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
-    )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class PALTD3Config(TD3Config):
@@ -695,11 +956,6 @@ class PALTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
-    )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
-
 
 class LA3PTD3Config(TD3Config):
     algorithm: str = Field("LA3PTD3", Literal=True)
@@ -715,11 +971,6 @@ class LA3PTD3Config(TD3Config):
     prioritized_fraction: float = 0.5
 
     policy_update_freq: int = 2
-
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
-    )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class MAPERTD3Config(TD3Config):
@@ -743,10 +994,15 @@ class MAPERTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
     )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class RDTD3Config(TD3Config):
@@ -763,10 +1019,15 @@ class RDTD3Config(TD3Config):
 
     policy_update_freq: int = 2
 
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
     )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
 
 class CTD4Config(TD3Config):
@@ -783,10 +1044,5 @@ class CTD4Config(TD3Config):
     noise_scale: float = 0.1
 
     policy_update_freq: int = 2
-
-    actor_config: MLPConfig = MLPConfig(
-        hidden_sizes=[256, 256], output_activation_function=nn.Tanh.__name__
-    )
-    critic_config: MLPConfig = MLPConfig(hidden_sizes=[256, 256])
 
     fusion_method: str = "kalman"  # kalman, minimum, average

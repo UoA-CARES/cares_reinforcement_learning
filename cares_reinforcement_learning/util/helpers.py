@@ -5,6 +5,23 @@ import numpy as np
 import torch
 
 
+class EpsilonScheduler:
+    def __init__(self, start_epsilon: float, end_epsilon: float, decay_steps: int):
+        self.start_epsilon = start_epsilon
+        self.end_epsilon = end_epsilon
+        self.decay_steps = decay_steps
+        self.epsilon = start_epsilon
+
+    def get_epsilon(self, step: int) -> float:
+        if step < self.decay_steps:
+            self.epsilon = self.start_epsilon - (
+                self.start_epsilon - self.end_epsilon
+            ) * (step / self.decay_steps)
+        else:
+            self.epsilon = self.end_epsilon
+        return self.epsilon
+
+
 def get_device() -> torch.device:
     device = torch.device("cpu")
 
@@ -34,6 +51,9 @@ def image_state_dict_to_tensor(
 
     image_tensor = torch.FloatTensor(state["image"]).to(device)
     image_tensor = image_tensor.unsqueeze(0)
+
+    # Normalise states - image portion
+    # This because the states are [0-255] and the predictions are [0-1]
     image_tensor = image_tensor / 255
 
     return {"image": image_tensor, "vector": vector_tensor}
@@ -45,9 +65,13 @@ def image_states_dict_to_tensor(
     states_images = [state["image"] for state in states]
     states_vector = [state["vector"] for state in states]
 
-    # Convert into tensor
-    states_images_tensor = torch.FloatTensor(np.asarray(states_images)).to(device)
-    states_vector_tensor = torch.FloatTensor(np.asarray(states_vector)).to(device)
+    # Convert into tensors - torch.fromy_numpy saves copying the image reducing memory overhead
+    states_images_tensor = (
+        torch.from_numpy(np.asarray(states_images)).float().to(device)
+    )
+    states_vector_tensor = (
+        torch.from_numpy(np.asarray(states_vector)).float().to(device)
+    )
 
     # Normalise states and next_states - image portion
     # This because the states are [0-255] and the predictions are [0-1]
@@ -87,6 +111,29 @@ def soft_update_params(net, target_net, tau):
     """
     for param, target_param in zip(net.parameters(), target_net.parameters()):
         target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+
+    # Hard update the statistics of the target network
+    for param, target_param in zip(net.buffers(), target_net.buffers()):
+        target_param.data.copy_(param.data)
+
+
+def hard_update_params(net, target_net):
+    """
+    Hard updates the parameters of a target neural network by directly copying the parameters from the source network.
+
+    Args:
+        net (torch.nn.Module): The neural network whose parameters will be copied to the target network.
+        target_net (torch.nn.Module): The target neural network whose parameters will be replaced.
+
+    Returns:
+        None
+    """
+    for param, target_param in zip(net.parameters(), target_net.parameters()):
+        target_param.data.copy_(param.data)
+
+    # Hard update the statistics of the target network
+    for param, target_param in zip(net.buffers(), target_net.buffers()):
+        target_param.data.copy_(param.data)
 
 
 def weight_init(module: torch.nn.Module) -> None:

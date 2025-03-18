@@ -368,6 +368,13 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
+        "--param_tags",
+        type=str,
+        nargs="+",
+        help="Tags to add to labels based on provided parameters",
+    )
+
+    parser.add_argument(
         "--plot_seeds",
         action=argparse.BooleanOptionalAction,
         help="Plot Individual Seeds for each algorithm in addition to the average of all seeds",
@@ -399,6 +406,14 @@ def plot_evaluations():
     train_plot_frames = []
     labels = []
 
+    param_tags = args["param_tags"]
+    if param_tags is not None:
+        if len(param_tags) != len(args["data_directories"]):
+            logging.error(
+                "Number of param tags should be equal to number of data directories"
+            )
+            return
+
     for index, data_directory in enumerate(args["data_directories"]):
         logging.info(
             f"Processing {index+1}/{len(args['data_directories'])} Data for {data_directory}"
@@ -409,6 +424,10 @@ def plot_evaluations():
         result_directories = [x for x in directory if x.is_dir()]
 
         title, algorithm, task, label = generate_labels(args, title, model_path)
+        if param_tags is not None:
+            param_tag = param_tags[index]
+            label += "-" + param_tag
+
         labels.append(label)
 
         average_train_data = pd.DataFrame()

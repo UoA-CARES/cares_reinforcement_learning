@@ -3,7 +3,6 @@ This module provides functions to create different types of reinforcement learni
 with their corresponding network architectures.
 """
 
-import copy
 import inspect
 import logging
 import sys
@@ -31,17 +30,25 @@ def create_DQN(observation_size, action_num, config: acf.DQNConfig):
     return agent
 
 
+def create_PERDQN(observation_size, action_num, config: acf.PERDQNConfig):
+    from cares_reinforcement_learning.algorithm.value import PERDQN
+    from cares_reinforcement_learning.networks.PERDQN import Network
+
+    network = Network(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = PERDQN(network=network, config=config, device=device)
+    return agent
+
+
 def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig):
-    """
-    Original paper https://arxiv.org/abs/1511.06581
-    """
-    from cares_reinforcement_learning.algorithm.value import DQN
+    from cares_reinforcement_learning.algorithm.value import DuelingDQN
     from cares_reinforcement_learning.networks.DuelingDQN import Network
 
     network = Network(observation_size, action_num, config=config)
 
     device = hlp.get_device()
-    agent = DQN(network=network, config=config, device=device)
+    agent = DuelingDQN(network=network, config=config, device=device)
     return agent
 
 
@@ -57,6 +64,17 @@ def create_DoubleDQN(observation_size, action_num, config: acf.DoubleDQNConfig):
         config=config,
         device=device,
     )
+    return agent
+
+
+def create_NoisyNet(observation_size, action_num, config: acf.NoisyNetConfig):
+    from cares_reinforcement_learning.algorithm.value import NoisyNet
+    from cares_reinforcement_learning.networks.NoisyNet import Network
+
+    network = Network(observation_size, action_num, config)
+
+    device = hlp.get_device()
+    agent = NoisyNet(network=network, config=config, device=device)
     return agent
 
 

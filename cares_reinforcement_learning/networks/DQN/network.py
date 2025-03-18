@@ -26,7 +26,7 @@ class DefaultNetwork(BaseNetwork):
         observation_size: int,
         num_actions: int,
     ):
-        hidden_sizes = [512, 512]
+        hidden_sizes = [64, 64]
 
         network = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),

@@ -32,6 +32,7 @@ class Record:
         task: str,
         agent: nn.Module | None = None,
         memory_buffer: MemoryBuffer | None = None,
+        record_video: bool = True,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -49,9 +50,10 @@ class Record:
 
         self.agent = agent
 
-        self.video: cv2.VideoWriter = None
-
         self.memory_buffer = memory_buffer
+
+        self.record_video = record_video
+        self.video: cv2.VideoWriter = None
 
         self.log_count = 0
 
@@ -87,7 +89,17 @@ class Record:
             logging.info(f"Saving {config_name} configuration")
             self.save_config(config, config_name)
 
+    def enable_record_video(self) -> None:
+        self.record_video = True
+
+    def disable_record_video(self) -> None:
+        self.record_video = False
+
     def start_video(self, file_name: str, frame, fps=30):
+        if not self.record_video:
+            logging.warning("Video recording is disabled")
+            return
+
         video_name = f"{self.current_sub_directory}/videos/{file_name}.mp4"
         height, width, _ = frame.shape
         self.video = cv2.VideoWriter(
@@ -95,7 +107,19 @@ class Record:
         )
         self.log_video(frame)
 
+    def log_video(self, frame: np.ndarray) -> None:
+        if not self.record_video:
+            return
+        if self.video is None:
+            logging.warning(
+                "Video recording is not started - use start_video method first - no video is being recorded"
+            )
+            return
+        self.video.write(frame)
+
     def stop_video(self) -> None:
+        if self.video is None:
+            return
         self.video.release()
 
     def save_memory(self):
@@ -109,9 +133,6 @@ class Record:
             self.agent.save_models(
                 f"{self.current_sub_directory}/models/{folder_name}", f"{file_name}"
             )
-
-    def log_video(self, frame: np.ndarray) -> None:
-        self.video.write(frame)
 
     def _save_data(
         self, data_frame: pd.DataFrame, filename: str, logs: dict, display: bool = True
