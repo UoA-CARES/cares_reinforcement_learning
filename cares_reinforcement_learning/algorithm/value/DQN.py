@@ -75,7 +75,7 @@ class DQN:
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> torch.Tensor:
-        """Computes the elementwise loss for DQN."""
+        """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
         q_values = self.network(states_tensor)
         next_q_values_target = self.target_network(next_states_tensor)
 
@@ -103,7 +103,6 @@ class DQN:
         if self.use_per_buffer:
             experiences = memory.sample_priority(batch_size)
             states, actions, rewards, next_states, dones, indices, weights = experiences
-            weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
         else:
             experiences = memory.sample_uniform(batch_size)
             states, actions, rewards, next_states, dones, _ = experiences
