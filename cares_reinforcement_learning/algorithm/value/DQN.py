@@ -75,7 +75,7 @@ class DQN:
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> torch.Tensor:
-        # Calculate loss - overriden by C51
+        """Computes the elementwise loss for DQN."""
         q_values = self.network(states_tensor)
         next_q_values_target = self.target_network(next_states_tensor)
 
