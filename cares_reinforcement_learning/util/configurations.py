@@ -115,10 +115,19 @@ class DQNConfig(AlgorithmConfig):
     tau: float = 1.0
     target_update_freq: int = 1000
 
+    # Double DQN
     use_double_dqn: int = 0
+
+    # PER
     use_per_buffer: int = 0
     min_priority: float = 1e-6
     per_alpha: float = 0.6
+
+    # C51
+    use_c51: int = 0
+    num_atoms: int = 51
+    v_min: float = 0.0
+    v_max: float = 200.0
 
     max_grad_norm: float | None = None
 
@@ -255,6 +264,23 @@ class NoisyNetConfig(DQNConfig):
             ),
         ]
     )
+
+
+class C51Config(DQNConfig):
+    algorithm: str = Field("C51", Literal=True)
+    lr: float = 1e-3
+    gamma: float = 0.99
+
+    exploration_min: float = 1e-3
+    exploration_decay: float = 0.95
+
+    use_double_dqn: int = 0
+    use_per_buffer: int = 0
+
+    use_c51: Literal[1] = Field(default=1, frozen=True)
+    num_atoms: int = 51
+    v_min: float = 0.0
+    v_max: float = 200.0
 
 
 ###################################
