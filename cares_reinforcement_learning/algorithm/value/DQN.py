@@ -48,13 +48,6 @@ class DQN:
         self.min_priority = config.min_priority
         self.per_alpha = config.per_alpha
 
-        # C51
-        self.use_c51 = config.use_c51
-        self.num_atoms = config.num_atoms
-        self.v_min = config.v_min
-        self.v_max = config.v_max
-        self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms).to(device)
-
         self.max_grad_norm = config.max_grad_norm
 
         self.network_optimiser = torch.optim.Adam(
@@ -73,57 +66,6 @@ class DQN:
         self.network.train()
         return action
 
-    def _dqn_loss(
-        self,
-        states_tensor: torch.Tensor,
-        actions_tensor: torch.Tensor,
-        rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
-        dones_tensor: torch.Tensor,
-    ) -> torch.Tensor:
-        q_values = self.network(states_tensor)
-        next_q_values_target = self.target_network(next_states_tensor)
-
-        # Get Q-values for chosen actions
-        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
-        # Get the best Q-values from the online network
-        best_next_q_values = torch.max(next_q_values_target, dim=1).values
-
-        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
-
-        elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
-
-        return elementwise_loss
-
-    def _double_dqn_loss(
-        self,
-        states_tensor: torch.Tensor,
-        actions_tensor: torch.Tensor,
-        rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
-        dones_tensor: torch.Tensor,
-    ) -> torch.Tensor:
-        q_values = self.network(states_tensor)
-        next_q_values_target = self.target_network(next_states_tensor)
-
-        # Online Used for action selection
-        next_q_values = self.network(next_states_tensor)
-
-        # Get Q-values for chosen actions
-        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
-
-        # Double DQN: Select best action from online Q-values, evaluate with target Q-values
-        # Online network selects actions
-        next_actions = next_q_values.argmax(dim=1, keepdim=True)
-        # Target network estimates value
-        best_next_q_values = next_q_values_target.gather(1, next_actions).squeeze(1)
-
-        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
-
-        elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
-
-        return elementwise_loss
-
     def _compute_loss(
         self,
         states_tensor: torch.Tensor,
@@ -133,16 +75,26 @@ class DQN:
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> torch.Tensor:
-        compute_dqn_loss_fn = (
-            self._double_dqn_loss if self.use_double_dqn else self._dqn_loss
-        )
-        elementwise_loss = compute_dqn_loss_fn(
-            states_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_tensor,
-            dones_tensor,
-        )
+        # Calculate loss - overriden by C51
+        q_values = self.network(states_tensor)
+        next_q_values_target = self.target_network(next_states_tensor)
+
+        # Get Q-values for chosen actions
+        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+
+        if self.use_double_dqn:
+            # Online network selects best actions
+            next_q_values_online = self.network(next_states_tensor)
+            next_actions = next_q_values_online.argmax(dim=1, keepdim=True)
+            # Target network estimates their values
+            best_next_q_values = next_q_values_target.gather(1, next_actions).squeeze(1)
+        else:
+            # Standard DQN: Use target network to select best Q-values
+            best_next_q_values = torch.max(next_q_values_target, dim=1).values
+
+        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
+        elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
+
         return elementwise_loss
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
@@ -168,6 +120,7 @@ class DQN:
 
         info = {}
 
+        # Calculate loss - overriden by C51
         elementwise_loss = self._compute_loss(
             states_tensor,
             actions_tensor,
