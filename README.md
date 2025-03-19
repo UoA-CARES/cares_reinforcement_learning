@@ -204,8 +204,11 @@ A factory class for creating a memory buffer that has been implemented into the 
 | Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
 | ----------- | -------------------------- | ------------ | ----------------------------------------------------------- |
 | DQN         | Vector                     | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602)                |
+| PERDQN      | Vector                     | Discrete     | [PERDQN Paper]()                |
 | DoubleDQN   | Vector                     | Discrete     | [DoubleDQN Paper](https://arxiv.org/abs/1509.06461)         |
 | DuelingDQN  | Vector                     | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581)        |
+| NoisyNet    | Vector                     | Discrete     | [NoisyNet Paper]()                |
+| C51         | Vector                     | Discrete     | [C51 Paper]()                |
 | SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | PPO         | Vector                     | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347)               |

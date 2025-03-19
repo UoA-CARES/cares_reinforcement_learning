@@ -78,6 +78,17 @@ def create_NoisyNet(observation_size, action_num, config: acf.NoisyNetConfig):
     return agent
 
 
+def create_C51(observation_size, action_num, config: acf.C51Config):
+    from cares_reinforcement_learning.algorithm.value import C51
+    from cares_reinforcement_learning.networks.C51 import Network
+
+    network = Network(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = C51(network=network, config=config, device=device)
+    return agent
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################

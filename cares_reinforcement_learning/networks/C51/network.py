@@ -10,7 +10,7 @@ class BaseNetwork(nn.Module):
         self,
         input_size: int,
         output_size: int,
-        atom_size: int,
+        num_atoms: int,
         v_min: float,
         v_max: float,
         network: MLP | nn.Sequential,
@@ -19,25 +19,33 @@ class BaseNetwork(nn.Module):
 
         self.input_size = input_size
         self.output_size = output_size
-        self.atom_size = atom_size
+        self.num_atoms = num_atoms
 
         self.v_min = v_min
         self.v_max = v_max
 
-        self.support = torch.linspace(self.v_min, self.v_max, self.atom_size)
+        self.support = torch.linspace(self.v_min, self.v_max, self.num_atoms)
 
         self.network = network
 
-    def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        output = self.network(state)
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        dist = self.dist(state)
 
-        q_atoms = output.view(-1, self.output_size, self.atom_size)
-        dist = torch.softmax(q_atoms, dim=-1)
-        dist = dist.clamp(min=1e-3)
-
+        self.support = self.support.to(dist.device)
         q = torch.sum(dist * self.support, dim=2)
 
-        return q, dist
+        return q
+
+    def dist(self, state: torch.Tensor) -> torch.Tensor:
+        output = self.network(state)
+
+        out_dim = int(self.output_size / self.num_atoms)
+        q_atoms = output.view(-1, out_dim, self.num_atoms)
+
+        dist = torch.softmax(q_atoms, dim=-1)
+        dist = dist.clamp(min=1e-3)  # for avoiding nans
+
+        return dist
 
 
 # This is the default base network for DQN for reference and testing of default network configurations
@@ -64,7 +72,7 @@ class DefaultNetwork(BaseNetwork):
         super().__init__(
             input_size=observation_size,
             output_size=output_size,
-            atom_size=atom_size,
+            num_atoms=atom_size,
             v_min=v_min,
             v_max=v_max,
             network=network,
@@ -74,7 +82,7 @@ class DefaultNetwork(BaseNetwork):
 class Network(BaseNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: C51Config):
 
-        output_size = num_actions + config.num_atoms
+        output_size = num_actions * config.num_atoms
 
         network = MLP(
             input_size=observation_size,
@@ -84,7 +92,7 @@ class Network(BaseNetwork):
         super().__init__(
             input_size=observation_size,
             output_size=output_size,
-            atom_size=config.num_atoms,
+            num_atoms=config.num_atoms,
             v_min=config.v_min,
             v_max=config.v_max,
             network=network,
