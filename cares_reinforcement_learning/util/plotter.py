@@ -52,7 +52,7 @@ def plot_data(
         alpha=0.3,
     )
 
-    plt.legend(loc="best", bbox_to_anchor=(1, 1)).set_draggable(True)
+    plt.legend(loc="upper left", bbox_to_anchor=(1, 1)).set_draggable(True)
 
     plt.tight_layout(pad=0.5)
 
