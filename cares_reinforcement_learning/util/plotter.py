@@ -417,6 +417,7 @@ def plot_evaluations():
 
     param_tags = args["param_tags"]
 
+    directories: list[str] = []
     if args.get("data_directories") is not None:
         directories = args["data_directories"]
     elif args.get("task_directory") is not None:
