@@ -48,6 +48,9 @@ class DQN:
         self.min_priority = config.min_priority
         self.per_alpha = config.per_alpha
 
+        # n-step
+        self.n_step = config.n_step
+
         self.max_grad_norm = config.max_grad_norm
 
         self.network_optimiser = torch.optim.Adam(
@@ -92,7 +95,10 @@ class DQN:
             # Standard DQN: Use target network to select best Q-values
             best_next_q_values = torch.max(next_q_values_target, dim=1).values
 
-        q_target = rewards_tensor + self.gamma * (1 - dones_tensor) * best_next_q_values
+        q_target = (
+            rewards_tensor
+            + (self.gamma**self.n_step) * (1 - dones_tensor) * best_next_q_values
+        )
         elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
 
         return elementwise_loss

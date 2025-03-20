@@ -123,11 +123,8 @@ class DQNConfig(AlgorithmConfig):
     min_priority: float = 1e-6
     per_alpha: float = 0.6
 
-    # C51
-    use_c51: int = 0
-    num_atoms: int = 51
-    v_min: float = 0.0
-    v_max: float = 200.0
+    # n-step
+    n_step: int = 1
 
     max_grad_norm: float | None = None
 
@@ -150,40 +147,15 @@ class DQNConfig(AlgorithmConfig):
 
 class DoubleDQNConfig(DQNConfig):
     algorithm: str = Field("DoubleDQN", Literal=True)
-    lr: float = 1e-3
-    gamma: float = 0.99
-    tau: float = 1.0
-    target_update_freq: int = 1000
 
     use_double_dqn: Literal[1] = Field(default=1, frozen=True)
-    use_per_buffer: int = 0
-
-    max_grad_norm: float | None = None
-
-    start_epsilon: float = 1.0
-    end_epsilon: float = 1e-3
-    decay_steps: int = 100000
-
-    batch_size: int = 32
 
 
 class PERDQNConfig(DQNConfig):
     algorithm: str = Field("PERDQN", Literal=True)
-    lr: float = 1e-3
-    gamma: float = 0.99
-    tau: float = 1.0
-    target_update_freq: int = 1000
 
     use_double_dqn: int = 1
     use_per_buffer: Literal[1] = Field(default=1, frozen=True)
-
-    max_grad_norm: float | None = None
-
-    start_epsilon: float = 1.0
-    end_epsilon: float = 1e-3
-    decay_steps: int = 100000
-
-    batch_size: int = 32
 
 
 class DuelingDQNConfig(DQNConfig):
@@ -195,14 +167,7 @@ class DuelingDQNConfig(DQNConfig):
 
     max_grad_norm: float | None = 10.0
 
-    start_epsilon: float = 1.0
-    end_epsilon: float = 1e-3
-    decay_steps: int = 100000
-
-    batch_size: int = 32
-
     use_double_dqn: int = 1
-    use_per_buffer: int = 0
 
     feature_layer_config: MLPConfig = MLPConfig(
         layers=[
@@ -232,10 +197,6 @@ class DuelingDQNConfig(DQNConfig):
 
 class NoisyNetConfig(DQNConfig):
     algorithm: str = Field("NoisyNet", Literal=True)
-    lr: float = 1e-3
-    gamma: float = 0.99
-    tau: float = 1.0
-    target_update_freq: int = 1000
 
     max_grad_norm: float | None = 10.0
 
@@ -243,10 +204,7 @@ class NoisyNetConfig(DQNConfig):
     end_epsilon: float = 0.0
     decay_steps: int = 0
 
-    batch_size: int = 32
-
     use_double_dqn: int = 1
-    use_per_buffer: int = 0
 
     network_config: MLPConfig = MLPConfig(
         layers=[
@@ -268,16 +226,7 @@ class NoisyNetConfig(DQNConfig):
 
 class C51Config(DQNConfig):
     algorithm: str = Field("C51", Literal=True)
-    lr: float = 1e-3
-    gamma: float = 0.99
 
-    exploration_min: float = 1e-3
-    exploration_decay: float = 0.95
-
-    use_double_dqn: int = 0
-    use_per_buffer: int = 0
-
-    use_c51: Literal[1] = Field(default=1, frozen=True)
     num_atoms: int = 51
     v_min: float = 0.0
     v_max: float = 200.0

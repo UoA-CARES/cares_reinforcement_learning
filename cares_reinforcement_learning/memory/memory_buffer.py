@@ -26,7 +26,8 @@ class MemoryBuffer:
         min_priority (float): The minimum priority value. Default is 1e-4 - just above 0.
         beta (float): The initial value of the beta parameter for importance weight calculation. Default is 0.4.
         d_beta (float): The rate of change for the beta parameter. Default is 6e-7 - presumned over 1,000,000 steps.
-        **priority_params: Additional parameters for priority calculation.
+        n_step (int): The number of steps to use for n-step learning. Default is 1.
+        gamma (float): The discount factor for n-step learning. Default is 0.99.
 
     Attributes:
         priority_params (dict): Additional parameters for priority calculation.
@@ -64,7 +65,6 @@ class MemoryBuffer:
         d_beta: float = 6e-7,
         n_step: int = 1,
         gamma: float = 0.99,
-        **priority_params,
     ):
         # pylint: disable-next=unused-argument
 
