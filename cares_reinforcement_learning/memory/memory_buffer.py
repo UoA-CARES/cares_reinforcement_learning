@@ -7,6 +7,7 @@ https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
 
 import pickle
 import random
+from collections import deque
 
 import numpy as np
 
@@ -61,6 +62,8 @@ class MemoryBuffer:
         min_priority: float = 1e-4,
         beta: float = 0.4,
         d_beta: float = 6e-7,
+        n_step: int = 1,
+        gamma: float = 0.99,
         **priority_params,
     ):
         # pylint: disable-next=unused-argument
@@ -79,6 +82,11 @@ class MemoryBuffer:
         # 4 done = []
         # 5 ... = [] e.g. log_prob = []
         # n ... = []
+
+        # n-step learning
+        self.n_step = n_step
+        self.n_step_buffer: deque[list] = deque(maxlen=self.n_step)
+        self.gamma = gamma
 
         # The SumTree is an efficient data structure for sampling based on priorities
         self.sum_tree = SumTree(self.max_capacity)
@@ -107,6 +115,20 @@ class MemoryBuffer:
         """
         return self.current_size
 
+    def _apply_n_step(self, n_step_buffer: deque) -> list:
+        """Apply n-step reward to the experiences."""
+        state, action, reward, next_state, done, *extra = n_step_buffer[-1]
+
+        for transition in reversed(list(n_step_buffer)[:-1]):
+            step_reward, step_next_state, step_done = transition[-3:]
+
+            reward = step_reward + self.gamma * reward * (1 - step_done)
+            next_state, done = (
+                (step_next_state, step_done) if step_done else (next_state, done)
+            )
+
+        return [state, action, reward, next_state, done, *extra]
+
     def add(self, state, action, reward, next_state, done, *extra) -> None:
         """
         Adds a single experience to the prioritized replay buffer.
@@ -126,6 +148,14 @@ class MemoryBuffer:
         """
         experience = [state, action, reward, next_state, done, *extra]
 
+        # n-step learning - default is 1-step which means regular buffer behaviour
+        self.n_step_buffer.append(experience)
+        if len(self.n_step_buffer) < self.n_step:
+            return
+
+        # Calculate the n-step return - default is 1-step which means regular buffer behaviour
+        experience = self._apply_n_step(self.n_step_buffer)
+
         # Iterate over the list of experiences (state, action, reward, next_state, done, ...) and add them to the buffer
         for index, exp in enumerate(experience):
             # Dynamically create the full memory size on first experience
@@ -137,6 +167,7 @@ class MemoryBuffer:
             # This adds to the latest position in the buffer
             self.memory_buffers[index][self.tree_pointer] = exp
 
+        # Add the priority to the SumTree - Prioritised Experience Replay
         new_priority = self.max_priority
         self.sum_tree.set(self.tree_pointer, new_priority)
 
