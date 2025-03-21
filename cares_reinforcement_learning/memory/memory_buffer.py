@@ -116,17 +116,19 @@ class MemoryBuffer:
         return self.current_size
 
     def _apply_n_step(self, n_step_buffer: deque) -> list:
-        """Apply n-step reward to the experiences."""
-        state, action, reward, next_state, done, *extra = n_step_buffer[-1]
+        """Return n step rew, next_obs, and done."""
+        # info of the last transition
+        state, action, reward, next_state, done, *_ = n_step_buffer[-1]
 
         for transition in reversed(list(n_step_buffer)[:-1]):
-            step_reward, step_next_state, step_done = transition[-3:]
+            _, _, step_reward, step_next_state, step_done, *_ = transition
 
             reward = step_reward + self.gamma * reward * (1 - step_done)
             next_state, done = (
                 (step_next_state, step_done) if step_done else (next_state, done)
             )
 
+        state, action, _, _, _, *extra = n_step_buffer[0]
         return [state, action, reward, next_state, done, *extra]
 
     def add(self, state, action, reward, next_state, done, *extra) -> None:
