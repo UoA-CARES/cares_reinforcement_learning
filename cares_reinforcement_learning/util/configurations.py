@@ -232,6 +232,64 @@ class C51Config(DQNConfig):
     v_max: float = 200.0
 
 
+class RainbowConfig(C51Config):
+    algorithm: str = Field("Rainbow", Literal=True)
+
+    max_grad_norm: float | None = 10.0
+
+    start_epsilon: float = 0.0
+    end_epsilon: float = 0.0
+    decay_steps: int = 0
+
+    # Double DQN
+    use_double_dqn: int = 1
+
+    # PER
+    use_per_buffer: int = 1
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # n-step
+    n_step: int = 3
+
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=128),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    value_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear", in_features=128, params={"sigma_init": 0.5}
+            ),
+        ]
+    )
+
+    advantage_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear", in_features=128, params={"sigma_init": 0.5}
+            ),
+        ]
+    )
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
