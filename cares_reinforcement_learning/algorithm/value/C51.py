@@ -19,7 +19,6 @@ class C51(DQN):
         super().__init__(network=network, config=config, device=device)
 
         # C51
-        self.use_c51 = config.use_c51
         self.num_atoms = config.num_atoms
         self.v_min = config.v_min
         self.v_max = config.v_max
@@ -50,7 +49,9 @@ class C51(DQN):
 
             t_z = (
                 rewards_tensor.unsqueeze(1)
-                + (1 - dones_tensor.unsqueeze(1)) * self.gamma * self.support
+                + (1 - dones_tensor.unsqueeze(1))
+                * (self.gamma**self.n_step)
+                * self.support
             )
             t_z = t_z.clamp(min=self.v_min, max=self.v_max)
 

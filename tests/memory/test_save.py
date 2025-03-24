@@ -3,7 +3,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from memory import memory_buffer, memory_buffer_1e6
+from memory import memory_buffer, memory_buffer_n_step
 
 from cares_reinforcement_learning.memory import MemoryBuffer
 
@@ -67,7 +67,7 @@ def _compare_buffer(memory, loaded_memory, experience_size, image_state=False):
         assert np.array_equal(a, b)
 
 
-def test_save_load_image(memory_buffer_1e6):
+def test_save_load_image(memory_buffer_n_step):
     data_size = 10
 
     observation_size = (3, 84, 84)
@@ -76,7 +76,7 @@ def test_save_load_image(memory_buffer_1e6):
     for i in range(data_size):
         test_image = np.random.randint(0, 255, size=observation_size)
         experience = [test_image, i, i, i, i % 2, i]
-        memory_buffer_1e6.add(*experience)
+        memory_buffer_n_step.add(*experience)
 
     home = Path.home()
 
@@ -84,20 +84,22 @@ def test_save_load_image(memory_buffer_1e6):
     if not os.path.exists(f"{file_path}"):
         os.makedirs(f"{file_path}")
 
-    memory_buffer_1e6.save(file_path, "memory_buffer")
+    memory_buffer_n_step.save(file_path, "memory_buffer")
 
     loaded_memory = MemoryBuffer.load(file_path, "memory_buffer")
 
-    _compare_buffer(memory_buffer_1e6, loaded_memory, len(experience), image_state=True)
+    _compare_buffer(
+        memory_buffer_n_step, loaded_memory, len(experience), image_state=True
+    )
 
 
-def test_save_load_vector(memory_buffer_1e6):
+def test_save_load_vector(memory_buffer_n_step):
     data_size = 1000000
 
     experience = []
     for i in range(data_size):
         experience = [i, i, i, i, i % 2, i]
-        memory_buffer_1e6.add(*experience)
+        memory_buffer_n_step.add(*experience)
 
     home = Path.home()
 
@@ -105,8 +107,8 @@ def test_save_load_vector(memory_buffer_1e6):
     if not os.path.exists(f"{file_path}"):
         os.makedirs(f"{file_path}")
 
-    memory_buffer_1e6.save(file_path, "memory_buffer")
+    memory_buffer_n_step.save(file_path, "memory_buffer")
 
     loaded_memory = MemoryBuffer.load(file_path, "memory_buffer")
 
-    _compare_buffer(memory_buffer_1e6, loaded_memory, len(experience))
+    _compare_buffer(memory_buffer_n_step, loaded_memory, len(experience))

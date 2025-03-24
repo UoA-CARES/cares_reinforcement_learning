@@ -52,7 +52,7 @@ def plot_data(
         alpha=0.3,
     )
 
-    plt.legend(loc="best").set_draggable(True)
+    plt.legend(loc="upper left", bbox_to_anchor=(1, 1)).set_draggable(True)
 
     plt.tight_layout(pad=0.5)
 
@@ -279,13 +279,12 @@ def parse_args() -> dict:
     #     help="List of Algorithm Directories with data you want to compare",
     # )
 
-    # group.add_argument(
-    #     "-t",
-    #     "--task_directories",
-    #     type=str,
-    #     nargs="+",
-    #     help="List of Task Directories with data you want to compare",
-    # )
+    group.add_argument(
+        "-t",
+        "--task_directory",
+        type=str,
+        help="Task Directory with algorithm results you want to compare",
+    )
 
     parser.add_argument(
         "-s",
@@ -385,6 +384,16 @@ def parse_args() -> dict:
     return args
 
 
+def _get_task_directoies(task_directory: str) -> list[str]:
+
+    model_path = Path(f"{task_directory}")
+    directory = model_path.glob("*")
+
+    result_directories: list[str] = [str(x) for x in directory if x.is_dir()]
+
+    return result_directories
+
+
 def plot_evaluations():
     args = parse_args()
 
@@ -407,16 +416,24 @@ def plot_evaluations():
     labels = []
 
     param_tags = args["param_tags"]
+
+    directories: list[str] = []
+    if args.get("data_directories") is not None:
+        directories = args["data_directories"]
+    elif args.get("task_directory") is not None:
+        directories = _get_task_directoies(args["task_directory"])
+
     if param_tags is not None:
-        if len(param_tags) != len(args["data_directories"]):
+        if len(param_tags) != len(directories):
             logging.error(
                 "Number of param tags should be equal to number of data directories"
             )
             return
 
-    for index, data_directory in enumerate(args["data_directories"]):
+    # plot list of directories against each other
+    for index, data_directory in enumerate(directories):
         logging.info(
-            f"Processing {index+1}/{len(args['data_directories'])} Data for {data_directory}"
+            f"Processing {index+1}/{len(directories)} Data for {data_directory}"
         )
         model_path = Path(f"{data_directory}")
         directory = model_path.glob("*")
@@ -437,6 +454,7 @@ def plot_evaluations():
         seed_eval_plot_frames = []
         seed_label = []
 
+        # Single Seed Data for result
         for i, result_directory in enumerate(result_directories):
             logging.info(
                 f"Processing Data for {algorithm}: {i+1}/{len(result_directories)} on task {task}"

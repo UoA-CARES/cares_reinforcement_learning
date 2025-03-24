@@ -7,6 +7,7 @@ https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
 
 import pickle
 import random
+from collections import deque
 
 import numpy as np
 
@@ -25,7 +26,8 @@ class MemoryBuffer:
         min_priority (float): The minimum priority value. Default is 1e-4 - just above 0.
         beta (float): The initial value of the beta parameter for importance weight calculation. Default is 0.4.
         d_beta (float): The rate of change for the beta parameter. Default is 6e-7 - presumned over 1,000,000 steps.
-        **priority_params: Additional parameters for priority calculation.
+        n_step (int): The number of steps to use for n-step learning. Default is 1.
+        gamma (float): The discount factor for n-step learning. Default is 0.99.
 
     Attributes:
         priority_params (dict): Additional parameters for priority calculation.
@@ -61,7 +63,8 @@ class MemoryBuffer:
         min_priority: float = 1e-4,
         beta: float = 0.4,
         d_beta: float = 6e-7,
-        **priority_params,
+        n_step: int = 1,
+        gamma: float = 0.99,
     ):
         # pylint: disable-next=unused-argument
 
@@ -79,6 +82,11 @@ class MemoryBuffer:
         # 4 done = []
         # 5 ... = [] e.g. log_prob = []
         # n ... = []
+
+        # n-step learning
+        self.n_step = n_step
+        self.n_step_buffer: deque[list] = deque(maxlen=self.n_step)
+        self.gamma = gamma
 
         # The SumTree is an efficient data structure for sampling based on priorities
         self.sum_tree = SumTree(self.max_capacity)
@@ -107,6 +115,22 @@ class MemoryBuffer:
         """
         return self.current_size
 
+    def _apply_n_step(self, n_step_buffer: deque) -> list:
+        """Return n step rew, next_obs, and done."""
+        # info of the last transition
+        state, action, reward, next_state, done, *_ = n_step_buffer[-1]
+
+        for transition in reversed(list(n_step_buffer)[:-1]):
+            _, _, step_reward, step_next_state, step_done, *_ = transition
+
+            reward = step_reward + self.gamma * reward * (1 - step_done)
+            next_state, done = (
+                (step_next_state, step_done) if step_done else (next_state, done)
+            )
+
+        state, action, _, _, _, *extra = n_step_buffer[0]
+        return [state, action, reward, next_state, done, *extra]
+
     def add(self, state, action, reward, next_state, done, *extra) -> None:
         """
         Adds a single experience to the prioritized replay buffer.
@@ -126,6 +150,14 @@ class MemoryBuffer:
         """
         experience = [state, action, reward, next_state, done, *extra]
 
+        # n-step learning - default is 1-step which means regular buffer behaviour
+        self.n_step_buffer.append(experience)
+        if len(self.n_step_buffer) < self.n_step:
+            return
+
+        # Calculate the n-step return - default is 1-step which means regular buffer behaviour
+        experience = self._apply_n_step(self.n_step_buffer)
+
         # Iterate over the list of experiences (state, action, reward, next_state, done, ...) and add them to the buffer
         for index, exp in enumerate(experience):
             # Dynamically create the full memory size on first experience
@@ -137,6 +169,7 @@ class MemoryBuffer:
             # This adds to the latest position in the buffer
             self.memory_buffers[index][self.tree_pointer] = exp
 
+        # Add the priority to the SumTree - Prioritised Experience Replay
         new_priority = self.max_priority
         self.sum_tree.set(self.tree_pointer, new_priority)
 
