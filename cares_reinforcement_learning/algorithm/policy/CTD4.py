@@ -272,27 +272,31 @@ class CTD4:
         batch_size = len(states)
 
         # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
-        # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        # Reshape to batch_size x whatever
+        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
+        dones_tensor = dones_tensor.reshape(batch_size, 1)
 
         info: dict[str, Any] = {}
 
         # Update Critics
         critic_loss_totals = self._update_critics(
-            states, actions, rewards, next_states, dones
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
         )
         info["critic_loss_totals"] = critic_loss_totals
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states)
+            actor_loss = self._update_actor(states_tensor)
             info["actor_loss"] = actor_loss
 
             # Update ensemble of target critics

@@ -186,8 +186,8 @@ class TD3AE:
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
-        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
+        dones_tensor = dones_tensor.reshape(batch_size, 1)
 
         info = {}
 

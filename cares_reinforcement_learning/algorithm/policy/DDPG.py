@@ -113,8 +113,8 @@ class DDPG:
         dones_tensors = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size x whatever
-        rewards_tensors = rewards_tensors.unsqueeze(0).reshape(batch_size, 1)
-        dones_tensors = dones_tensors.unsqueeze(0).reshape(batch_size, 1)
+        rewards_tensors = rewards_tensors.reshape(batch_size, 1)
+        dones_tensors = dones_tensors.reshape(batch_size, 1)
 
         info = {}
 

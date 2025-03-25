@@ -176,8 +176,8 @@ class LAPSAC:
         weights = torch.LongTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        rewards = rewards.reshape(batch_size, 1)
+        dones = dones.reshape(batch_size, 1)
 
         info = {}
 
