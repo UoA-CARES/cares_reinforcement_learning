@@ -56,8 +56,8 @@ class DefaultNetwork(BaseNetwork):
         num_actions: int,
     ):
         hidden_sizes = [64, 64]
-        atom_size = 51
-        output_size = num_actions * atom_size
+        num_atoms = 51
+        output_size = num_actions * num_atoms
 
         v_min = 0.0
         v_max = 200.0
@@ -72,7 +72,7 @@ class DefaultNetwork(BaseNetwork):
         super().__init__(
             input_size=observation_size,
             output_size=output_size,
-            num_atoms=atom_size,
+            num_atoms=num_atoms,
             v_min=v_min,
             v_max=v_max,
             network=network,

@@ -89,6 +89,17 @@ def create_C51(observation_size, action_num, config: acf.C51Config):
     return agent
 
 
+def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
+    from cares_reinforcement_learning.algorithm.value import Rainbow
+    from cares_reinforcement_learning.networks.Rainbow import Network
+
+    network = Network(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = Rainbow(network=network, config=config, device=device)
+    return agent
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
