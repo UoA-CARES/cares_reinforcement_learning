@@ -99,8 +99,8 @@ class LA3PTD3:
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
         # Reshape to batch_size
-        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(len(rewards_tensor), 1)
-        dones_tensor = dones_tensor.unsqueeze(0).reshape(len(dones_tensor), 1)
+        rewards_tensor = rewards_tensor.reshape(len(rewards_tensor), 1)
+        dones_tensor = dones_tensor.reshape(len(dones_tensor), 1)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states_tensor)
