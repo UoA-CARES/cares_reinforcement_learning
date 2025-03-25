@@ -31,8 +31,8 @@ class Record:
         algorithm: str,
         task: str,
         agent: nn.Module | None = None,
-        memory_buffer: MemoryBuffer | None = None,
         record_video: bool = True,
+        record_memory: bool = False,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -50,10 +50,11 @@ class Record:
 
         self.agent = agent
 
-        self.memory_buffer = memory_buffer
+        self.record_memory = record_memory
+        self.memory_buffer: MemoryBuffer | None = None
 
         self.record_video = record_video
-        self.video: cv2.VideoWriter = None
+        self.video: cv2.VideoWriter | None = None
 
         self.log_count = 0
 
@@ -72,6 +73,9 @@ class Record:
 
     def set_agent(self, agent: nn.Module) -> None:
         self.agent = agent
+
+    def set_memory_buffer(self, memory_buffer: MemoryBuffer) -> None:
+        self.memory_buffer = memory_buffer
 
     def save_config(self, configuration: SubscriptableClass, file_name: str) -> None:
         if not os.path.exists(self.base_directory):
@@ -94,6 +98,12 @@ class Record:
 
     def disable_record_video(self) -> None:
         self.record_video = False
+
+    def enable_record_memory(self) -> None:
+        self.record_memory = True
+
+    def disable_record_memory(self) -> None:
+        self.record_memory = False
 
     def start_video(self, file_name: str, frame, fps=30):
         if not self.record_video:
@@ -123,10 +133,18 @@ class Record:
         self.video.release()
 
     def save_memory(self):
-        if self.memory_buffer is not None:
-            self.memory_buffer.save(
-                filepath=f"{self.current_sub_directory}/memory", file_name="memory"
+        if not self.record_memory:
+            return
+
+        if self.memory_buffer is None:
+            logging.warning(
+                "Memory Buffer is not set - use set_memory_buffer method first"
             )
+            return
+
+        self.memory_buffer.save(
+            filepath=f"{self.current_sub_directory}/memory", file_name="memory"
+        )
 
     def save_agent(self, file_name: str, folder_name: str) -> None:
         if self.agent is not None:
