@@ -599,5 +599,9 @@ class NetworkFactory:
 
         if agent is None:
             logging.warning(f"Unkown {agent} algorithm.")
+        else:
+            if config.model_path is not None:
+                logging.info(f"Loading model wieghts from {config.model_path}")
+                agent.load_models(filepath=config.model_path, filename=config.algorithm)
 
         return agent
