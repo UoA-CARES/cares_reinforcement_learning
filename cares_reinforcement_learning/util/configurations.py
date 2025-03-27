@@ -232,6 +232,13 @@ class C51Config(DQNConfig):
     v_max: float = 200.0
 
 
+class QRDQNConfig(DQNConfig):
+    algorithm: str = Field("QRDQN", Literal=True)
+
+    quantiles: int = 9
+    kappa: float = 1.0
+
+
 class RainbowConfig(C51Config):
     algorithm: str = Field("Rainbow", Literal=True)
 
