@@ -19,6 +19,7 @@ from cares_reinforcement_learning.networks.DuelingDQN import (
     Network as DuelingDQNNetwork,
 )
 from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
+from cares_reinforcement_learning.networks.QRDQN import Network as QRDQNNetwork
 from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
 from cares_reinforcement_learning.util.configurations import DQNConfig
 
@@ -27,7 +28,12 @@ class DQN:
     def __init__(
         self,
         network: (
-            DQNNetwork | DuelingDQNNetwork | NoisyNetwork | C51Network | RainbowNetwork
+            DQNNetwork
+            | DuelingDQNNetwork
+            | NoisyNetwork
+            | C51Network
+            | QRDQNNetwork
+            | RainbowNetwork
         ),
         config: DQNConfig,
         device: torch.device,
