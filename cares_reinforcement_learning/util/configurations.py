@@ -101,6 +101,8 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: int = 0
 
+    model_path: str | None = None
+
 
 ###################################
 #         DQN Algorithms          #
