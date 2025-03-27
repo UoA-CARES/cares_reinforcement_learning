@@ -234,9 +234,21 @@ class C51Config(DQNConfig):
 
 class QRDQNConfig(DQNConfig):
     algorithm: str = Field("QRDQN", Literal=True)
+    lr: float = 5e-5
 
-    quantiles: int = 9
+    quantiles: int = 51
     kappa: float = 1.0
+
+    # use_double_dqn: int = 1
+    # network_config: MLPConfig = MLPConfig(
+    #     layers=[
+    #         TrainableLayer(layer_type="Linear", out_features=8),
+    #         FunctionLayer(layer_type="ReLU"),
+    #         TrainableLayer(layer_type="Linear", in_features=8, out_features=8),
+    #         FunctionLayer(layer_type="ReLU"),
+    #         TrainableLayer(layer_type="Linear", in_features=8),
+    #     ]
+    # )
 
 
 class RainbowConfig(C51Config):
