@@ -236,7 +236,7 @@ class QRDQNConfig(DQNConfig):
     algorithm: str = Field("QRDQN", Literal=True)
     lr: float = 5e-5
 
-    quantiles: int = 51
+    quantiles: int = 9
     kappa: float = 1.0
 
     # use_double_dqn: int = 1

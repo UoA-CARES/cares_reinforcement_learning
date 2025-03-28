@@ -288,7 +288,7 @@ def compare_models(model_1: torch.nn.Module, model_2: torch.nn.Module) -> bool:
 
 
 def prioritized_approximate_loss(
-    x: torch.Tensor, min_priority: float, alpha: float
+    sample: torch.Tensor, min_priority: float, alpha: float
 ) -> torch.Tensor:
     """
     Calculates the prioritized approximate loss.
@@ -302,29 +302,48 @@ def prioritized_approximate_loss(
         torch.Tensor: The calculated prioritized approximate loss.
     """
     return torch.where(
-        x.abs() < min_priority,
-        (min_priority**alpha) * 0.5 * x.pow(2),
-        min_priority * x.abs().pow(1.0 + alpha) / (1.0 + alpha),
+        sample.abs() < min_priority,
+        (min_priority**alpha) * 0.5 * sample.pow(2),
+        min_priority * sample.abs().pow(1.0 + alpha) / (1.0 + alpha),
     ).mean()
 
 
-def huber(x: torch.Tensor, min_priority: float) -> torch.Tensor:
+def calculate_huber_loss(
+    sample: torch.Tensor,
+    kappa: float,
+    mean_reduction: bool = True,
+    quadratic_smoothing: bool = True,
+) -> torch.Tensor:
     """
     Computes the Huber loss function.
 
     Args:
         x (torch.Tensor): The input tensor.
-        min_priority (float): The minimum priority value.
+        kappa (float): The threshold value for huber calculation
 
     Returns:
         torch.Tensor: The computed Huber loss.
 
     """
-    return torch.where(x < min_priority, 0.5 * x.pow(2), min_priority * x).mean()
+    # Smoothing factor for quadratic smoothing
+    smoothing_factor = 0.0  # linear smoothing
+    if quadratic_smoothing:
+        smoothing_factor = 0.5  # quadratic smoothing
+
+    element_wise_loss = torch.where(
+        sample.abs() <= kappa,
+        0.5 * sample.pow(2),
+        kappa * (sample - smoothing_factor * kappa),
+    )
+    return element_wise_loss.mean() if mean_reduction else element_wise_loss
 
 
-def quantile_huber_loss_f(
-    quantiles: torch.Tensor, samples: torch.Tensor
+def calculate_quantile_huber_loss(
+    quantiles: torch.Tensor,
+    samples: torch.Tensor,
+    quantile_tau: torch.Tensor,
+    kappa: float = 1.0,
+    mean_reduction: bool = True,
 ) -> torch.Tensor:
     """
     Calculates the quantile Huber loss for a given set of quantiles and samples.
@@ -337,24 +356,19 @@ def quantile_huber_loss_f(
         torch.Tensor: The quantile Huber loss.
 
     """
-    pairwise_delta = (
-        samples[:, None, None, :] - quantiles[:, :, :, None]
-    )  # batch x nets x quantiles x samples
-    abs_pairwise_delta = torch.abs(pairwise_delta)
-    huber_loss = torch.where(
-        abs_pairwise_delta > 1, abs_pairwise_delta - 0.5, pairwise_delta**2 * 0.5
-    )
+    # batch x nets x quantiles x samples
+    pairwise_delta = samples[:, None, None, :] - quantiles[:, :, :, None]
+    # abs_pairwise_delta = torch.abs(pairwise_delta)
 
-    n_quantiles = quantiles.shape[2]
+    huber_loss = calculate_huber_loss(pairwise_delta, kappa=1.0, mean_reduction=False)
 
-    tau = (
-        torch.arange(n_quantiles, device=pairwise_delta.device).float() / n_quantiles
-        + 1 / 2 / n_quantiles
-    )
     loss = (
-        torch.abs(tau[None, None, :, None] - (pairwise_delta < 0).float()) * huber_loss
-    ).mean()
-    return loss
+        torch.abs(quantile_tau[None, None, :, None] - (pairwise_delta < 0).float())
+        * huber_loss
+        / kappa
+    )
+
+    return loss.mean() if mean_reduction else loss
 
 
 # TODO rename this function to something more descriptive

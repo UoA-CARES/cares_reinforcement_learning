@@ -142,8 +142,12 @@ class LA3PTD3:
                 .detach()
             )
         else:
-            huber_lose_one = hlp.huber(td_error_one, self.min_priority)
-            huber_lose_two = hlp.huber(td_error_two, self.min_priority)
+            huber_lose_one = hlp.calculate_huber_loss(
+                td_error_one, self.min_priority, quadratic_smoothing=False
+            )
+            huber_lose_two = hlp.calculate_huber_loss(
+                td_error_two, self.min_priority, quadratic_smoothing=False
+            )
             critic_loss_total = huber_lose_one + huber_lose_two
 
         # Update the Critic

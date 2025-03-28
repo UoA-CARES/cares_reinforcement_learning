@@ -46,6 +46,10 @@ class TQC:
 
         self.quantiles_total = num_quantiles * num_critics
 
+        self.quantile_taus = torch.FloatTensor(
+            [i / num_quantiles + 0.5 / num_quantiles for i in range(0, num_quantiles)]
+        ).to(device)
+
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
         self.target_update_freq = config.target_update_freq
@@ -121,7 +125,10 @@ class TQC:
             )
 
         q_values = self.critic_net(states, actions)
-        critic_loss_total = hlp.quantile_huber_loss_f(q_values, q_target)
+
+        critic_loss_total = hlp.calculate_quantile_huber_loss(
+            q_values, q_target, self.quantile_taus
+        )
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()

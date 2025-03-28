@@ -6,6 +6,7 @@ import torch
 
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.QRDQN import Network
+from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.configurations import QRDQNConfig
 
 
@@ -22,20 +23,15 @@ class QRDQN(DQN):
         self.kappa = config.kappa
 
         self.quantiles = config.quantiles
-        self.quantile_tau = torch.FloatTensor(
+        self.quantile_taus = torch.FloatTensor(
             [i / self.quantiles for i in range(1, self.quantiles + 1)]
         ).to(device)
 
-    def calculate_huber_loss(self, td_errors, kappa=1.0):
-        return torch.where(
-            td_errors.abs() <= kappa,
-            0.5 * td_errors.pow(2),
-            kappa * (td_errors.abs() - 0.5 * kappa),
-        )
-
     def calculate_quantile_huber_loss(self, td_errors, taus, kappa=1.0):
         # Calculate huber loss element-wisely.
-        element_wise_huber_loss = self.calculate_huber_loss(td_errors, kappa)
+        element_wise_huber_loss = hlp.calculate_huber_loss(
+            td_errors, kappa, mean_reduction=False
+        )
 
         # Calculate quantile huber loss element-wisely.
         element_wise_quantile_huber_loss = (
@@ -130,7 +126,7 @@ class QRDQN(DQN):
         td_errors = target_q_values - current_action_q_values
 
         element_wise_loss = self.calculate_quantile_huber_loss(
-            td_errors, self.quantile_tau, self.kappa
+            td_errors, self.quantile_taus, self.kappa
         )
 
         return element_wise_loss
