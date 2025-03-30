@@ -311,8 +311,8 @@ def prioritized_approximate_loss(
 def calculate_huber_loss(
     sample: torch.Tensor,
     kappa: float,
-    mean_reduction: bool = True,
-    quadratic_smoothing: bool = True,
+    use_mean_reduction: bool = True,
+    use_quadratic_smoothing: bool = True,
 ) -> torch.Tensor:
     """
     Computes the Huber loss function.
@@ -320,55 +320,94 @@ def calculate_huber_loss(
     Args:
         x (torch.Tensor): The input tensor.
         kappa (float): The threshold value for huber calculation
+        use_mean_reduction (bool): If True, reduces the loss by taking the mean. If False, returns the loss without reduction.
+        use_quadratic_smoothing (bool): If True, applies quadratic smoothing to the Huber loss. If False, applies linear smoothing.
 
     Returns:
         torch.Tensor: The computed Huber loss.
 
     """
+
     # Smoothing factor for quadratic smoothing
     smoothing_factor = 0.0  # linear smoothing
-    if quadratic_smoothing:
+    if use_quadratic_smoothing:
         smoothing_factor = 0.5  # quadratic smoothing
 
     element_wise_loss = torch.where(
         sample.abs() <= kappa,
         0.5 * sample.pow(2),
-        kappa * (sample - smoothing_factor * kappa),
+        kappa * (sample.abs() - smoothing_factor * kappa),
     )
-    return element_wise_loss.mean() if mean_reduction else element_wise_loss
+
+    return element_wise_loss.mean() if use_mean_reduction else element_wise_loss
 
 
 def calculate_quantile_huber_loss(
     quantiles: torch.Tensor,
-    samples: torch.Tensor,
-    quantile_tau: torch.Tensor,
+    target_values: torch.Tensor,
+    quantile_taus: torch.Tensor,
     kappa: float = 1.0,
-    mean_reduction: bool = True,
+    use_pairwise_loss: bool = True,
+    use_mean_reduction: bool = True,
+    use_quadratic_smoothing: bool = True,
 ) -> torch.Tensor:
     """
-    Calculates the quantile Huber loss for a given set of quantiles and samples.
+    Calculates the quantile Huber loss for a given set of quantiles and target_values.
 
     Args:
-        quantiles (torch.Tensor): A tensor of shape (batch_size, num_nets, num_quantiles) representing the quantiles.
-        samples (torch.Tensor): A tensor of shape (batch_size, num_samples) representing the samples.
+        quantiles (torch.Tensor): A tensor of shape (batch_size, num_critics, num_quantiles) representing the quantiles.
+        target_values (torch.Tensor): A tensor of shape (batch_size, num_samples) representing the samples.
+        quantile_taus (torch.Tensor): A tensor of shape (num_quantiles) representing the quantile levels.
+        kappa (float): The threshold value for Huber calculation.
+        use_pairwise_loss (bool): If True, uses pairwise delta (TQC). If False, uses direct element-wise loss (QR-DQN).
+        use_mean_reduction (bool): If True, reduces the loss by taking the mean. If False, returns the loss without reduction.
+        use_quadratic_smoothing (bool): If True, applies quadratic smoothing to the Huber loss. If False, applies linear smoothing.
 
     Returns:
         torch.Tensor: The quantile Huber loss.
 
     """
+
     # batch x nets x quantiles x samples
-    pairwise_delta = samples[:, None, None, :] - quantiles[:, :, :, None]
-    # abs_pairwise_delta = torch.abs(pairwise_delta)
+    if use_pairwise_loss:
+        # TQC-style: Compute pairwise differences (batch x nets x quantiles x samples)
+        pairwise_delta = target_values[:, None, None, :] - quantiles[:, :, :, None]
 
-    huber_loss = calculate_huber_loss(pairwise_delta, kappa=1.0, mean_reduction=False)
+        element_wise_huber_loss = calculate_huber_loss(
+            pairwise_delta,
+            kappa=kappa,
+            use_mean_reduction=False,
+            use_quadratic_smoothing=use_quadratic_smoothing,
+        )
 
-    loss = (
-        torch.abs(quantile_tau[None, None, :, None] - (pairwise_delta < 0).float())
-        * huber_loss
-        / kappa
-    )
+        element_wise_loss = (
+            torch.abs(quantile_taus[None, None, :, None] - (pairwise_delta < 0).float())
+            * element_wise_huber_loss
+            / kappa
+        )
+    else:
+        # QR-DQN-style: Compute element-wise TD error loss directly
+        quantiles = quantiles.squeeze(1)
 
-    return loss.mean() if mean_reduction else loss
+        td_errors = target_values - quantiles
+
+        element_wise_huber_loss = calculate_huber_loss(
+            td_errors,
+            kappa=kappa,
+            use_mean_reduction=False,
+            use_quadratic_smoothing=use_quadratic_smoothing,
+        )
+
+        element_wise_loss = (
+            torch.abs(
+                quantile_taus[..., None]
+                - (td_errors.unsqueeze(-1).detach() < 0).float()
+            )
+            * element_wise_huber_loss.unsqueeze(-1)
+            / kappa
+        )
+
+    return element_wise_loss.mean() if use_mean_reduction else element_wise_loss
 
 
 # TODO rename this function to something more descriptive

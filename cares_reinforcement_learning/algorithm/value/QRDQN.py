@@ -29,9 +29,9 @@ class QRDQN(DQN):
 
     def calculate_quantile_huber_loss(self, td_errors, taus, kappa=1.0):
         # Calculate huber loss element-wisely.
-        element_wise_huber_loss = hlp.calculate_huber_loss(
-            td_errors, kappa, mean_reduction=False
-        )
+        element_wise_huber_loss = hlp.calculate_huber_loss(td_errors, kappa, use_=False)
+        print(f"1a element_wise_huber_loss: {element_wise_huber_loss.mean()}")
+        print(f"1a element_wise_huber_loss: {element_wise_huber_loss.shape}")
 
         # Calculate quantile huber loss element-wisely.
         element_wise_quantile_huber_loss = (
@@ -40,10 +40,16 @@ class QRDQN(DQN):
             / kappa
         )
 
+        print(
+            f"1b element_wise_quantile_huber_loss: {element_wise_quantile_huber_loss.mean()}"
+        )
+
         # Quantile huber loss.
         batch_quantile_huber_loss = element_wise_quantile_huber_loss.sum(dim=1).mean(
             dim=1, keepdim=True
         )
+
+        print(f"1c batch_quantile_huber_loss: {batch_quantile_huber_loss.mean()}")
 
         return batch_quantile_huber_loss
 
@@ -122,11 +128,18 @@ class QRDQN(DQN):
                 * best_next_q_values
             )
 
-        # Calculate TD errors
-        td_errors = target_q_values - current_action_q_values
-
-        element_wise_loss = self.calculate_quantile_huber_loss(
-            td_errors, self.quantile_taus, self.kappa
+        # Calculate TD errors.
+        element_wise_loss = hlp.calculate_quantile_huber_loss(
+            current_action_q_values.permute(0, 2, 1),
+            target_q_values.squeeze(-1),
+            self.quantile_taus,
+            self.kappa,
+            use_mean_reduction=False,
+            use_pairwise_loss=False,
         )
 
-        return element_wise_loss
+        batch_quantile_huber_loss = element_wise_loss.sum(dim=1).mean(
+            dim=1, keepdim=True
+        )
+
+        return batch_quantile_huber_loss

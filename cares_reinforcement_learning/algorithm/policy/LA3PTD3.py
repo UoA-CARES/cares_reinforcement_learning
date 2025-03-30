@@ -143,10 +143,10 @@ class LA3PTD3:
             )
         else:
             huber_lose_one = hlp.calculate_huber_loss(
-                td_error_one, self.min_priority, quadratic_smoothing=False
+                td_error_one, self.min_priority, use_quadratic_smoothing=False
             )
             huber_lose_two = hlp.calculate_huber_loss(
-                td_error_two, self.min_priority, quadratic_smoothing=False
+                td_error_two, self.min_priority, use_quadratic_smoothing=False
             )
             critic_loss_total = huber_lose_one + huber_lose_two
 
