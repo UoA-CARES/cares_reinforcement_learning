@@ -387,8 +387,6 @@ def calculate_quantile_huber_loss(
         )
     else:
         # QR-DQN-style: Compute element-wise TD error loss directly
-        # quantiles = quantiles.squeeze(1)
-
         td_errors = target_values - quantiles
 
         element_wise_huber_loss = calculate_huber_loss(
