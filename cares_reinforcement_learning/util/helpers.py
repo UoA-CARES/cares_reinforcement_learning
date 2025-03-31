@@ -387,7 +387,7 @@ def calculate_quantile_huber_loss(
         )
     else:
         # QR-DQN-style: Compute element-wise TD error loss directly
-        quantiles = quantiles.squeeze(1)
+        # quantiles = quantiles.squeeze(1)
 
         td_errors = target_values - quantiles
 
@@ -399,11 +399,8 @@ def calculate_quantile_huber_loss(
         )
 
         element_wise_loss = (
-            torch.abs(
-                quantile_taus[..., None]
-                - (td_errors.unsqueeze(-1).detach() < 0).float()
-            )
-            * element_wise_huber_loss.unsqueeze(-1)
+            torch.abs(quantile_taus - (td_errors.detach() < 0).float())
+            * element_wise_huber_loss
             / kappa
         )
 

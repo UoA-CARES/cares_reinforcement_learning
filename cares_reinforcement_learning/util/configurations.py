@@ -234,10 +234,12 @@ class C51Config(DQNConfig):
 
 class QRDQNConfig(DQNConfig):
     algorithm: str = Field("QRDQN", Literal=True)
-    lr: float = 5e-5
+    lr: float = 1e-3
 
     quantiles: int = 9
     kappa: float = 1.0
+
+    batch_size: int = 2
 
     # use_double_dqn: int = 1
     # network_config: MLPConfig = MLPConfig(

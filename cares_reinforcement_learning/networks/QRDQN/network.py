@@ -24,16 +24,22 @@ class BaseNetwork(nn.Module):
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         quantiles = self.calculate_quantiles(state)
-        return quantiles.mean(dim=1)
+        return quantiles.mean(dim=-1)
 
     def calculate_quantiles(self, state: torch.Tensor) -> torch.Tensor:
         output = self.network(state)
 
         return output.view(
             state.shape[0],
-            self.quantiles,
             self.num_actions,
+            self.quantiles,
         )
+
+        # return output.view(
+        #     state.shape[0],
+        #     self.quantiles,
+        #     self.num_actions,
+        # )
 
 
 # This is the default base network for DQN for reference and testing of default network configurations

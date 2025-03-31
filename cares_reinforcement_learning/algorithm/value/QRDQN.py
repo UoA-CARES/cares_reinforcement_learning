@@ -24,47 +24,21 @@ class QRDQN(DQN):
 
         self.quantiles = config.quantiles
         self.quantile_taus = torch.FloatTensor(
-            [i / self.quantiles for i in range(1, self.quantiles + 1)]
+            [i / (self.quantiles + 1) for i in range(1, self.quantiles + 1)]
         ).to(device)
-
-    def calculate_quantile_huber_loss(self, td_errors, taus, kappa=1.0):
-        # Calculate huber loss element-wisely.
-        element_wise_huber_loss = hlp.calculate_huber_loss(td_errors, kappa, use_=False)
-        print(f"1a element_wise_huber_loss: {element_wise_huber_loss.mean()}")
-        print(f"1a element_wise_huber_loss: {element_wise_huber_loss.shape}")
-
-        # Calculate quantile huber loss element-wisely.
-        element_wise_quantile_huber_loss = (
-            torch.abs(taus[..., None] - (td_errors.detach() < 0).float())
-            * element_wise_huber_loss
-            / kappa
-        )
-
-        print(
-            f"1b element_wise_quantile_huber_loss: {element_wise_quantile_huber_loss.mean()}"
-        )
-
-        # Quantile huber loss.
-        batch_quantile_huber_loss = element_wise_quantile_huber_loss.sum(dim=1).mean(
-            dim=1, keepdim=True
-        )
-
-        print(f"1c batch_quantile_huber_loss: {batch_quantile_huber_loss.mean()}")
-
-        return batch_quantile_huber_loss
 
     def evaluate_quantile_at_action(self, s_quantiles, actions):
         batch_size = s_quantiles.shape[0]
-        num_quantiles = s_quantiles.shape[1]
 
         # Reshape actions to (batch_size, 1, 1) so it can be broadcasted properly
         actions = actions.view(batch_size, 1, 1)
 
         # Expand actions to (batch_size, num_quantiles, 1) for indexing
-        action_index = actions.expand(batch_size, num_quantiles, 1)
+        # action_index = actions.expand(batch_size, 1, num_quantiles)
+        action_index = actions.expand(-1, -1, self.quantiles)
 
         # Calculate quantile values at specified actions.
-        sa_quantiles = s_quantiles.gather(dim=2, index=action_index)
+        sa_quantiles = s_quantiles.gather(dim=1, index=action_index)
 
         return sa_quantiles
 
@@ -77,6 +51,22 @@ class QRDQN(DQN):
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> torch.Tensor:
+
+        # print(states_tensor)
+        states_tensor = torch.tensor(
+            [[-0.1474, -0.5691, 0.1097, 0.8927], [0.0344, 0.3533, -0.0321, -0.5400]],
+            device="cuda:0",
+        )
+
+        next_states_tensor = torch.tensor(
+            [[-0.1587, -0.3756, 0.1276, 0.6364], [0.0415, 0.5489, -0.0429, -0.8426]],
+            device="cuda:0",
+        )
+
+        actions_tensor = torch.tensor([[[1]], [[1]]], device="cuda:0")
+
+        rewards_tensor = torch.tensor([[[1.0]], [[1.0]]], device="cuda:0")
+        dones_tensor = torch.tensor([[[0.0]], [[0.0]]], device="cuda:0")
 
         # Predicted Q-value quantiles for current state
         current_quantile_values = self.network.calculate_quantiles(states_tensor)
@@ -93,11 +83,11 @@ class QRDQN(DQN):
                 # the action selection and the quantile calculation.
                 next_state_q_values = self.network.calculate_quantiles(
                     next_states_tensor
-                ).mean(dim=1)
+                ).mean(dim=-1)
             else:
                 next_state_q_values = self.target_network.calculate_quantiles(
                     next_states_tensor
-                ).mean(dim=1)
+                ).mean(dim=-1)
 
             # Calculate greedy actions.
             next_state_best_actions = torch.argmax(
@@ -113,33 +103,24 @@ class QRDQN(DQN):
                 next_quantile_values, next_state_best_actions
             )
 
-            rewards_expanded = (
-                rewards_tensor.unsqueeze(-1).unsqueeze(-1).expand(-1, self.quantiles, 1)
-            )
-            dones_expanded = (
-                dones_tensor.unsqueeze(-1).unsqueeze(-1).expand(-1, self.quantiles, 1)
-            )
-
             # Calculate target quantile values.
             target_q_values = (
-                rewards_expanded
-                + (1.0 - dones_expanded)
-                * (self.gamma**self.n_step)
-                * best_next_q_values
+                rewards_tensor
+                + (1.0 - dones_tensor) * (self.gamma**self.n_step) * best_next_q_values
             )
 
         # Calculate TD errors.
-        element_wise_loss = hlp.calculate_quantile_huber_loss(
-            current_action_q_values.permute(0, 2, 1),
-            target_q_values.squeeze(-1),
+        element_wise_quantile_huber_loss = hlp.calculate_quantile_huber_loss(
+            current_action_q_values,
+            target_q_values,
             self.quantile_taus,
             self.kappa,
             use_mean_reduction=False,
             use_pairwise_loss=False,
         )
 
-        batch_quantile_huber_loss = element_wise_loss.sum(dim=1).mean(
+        element_wise_loss = element_wise_quantile_huber_loss.sum(dim=1).mean(
             dim=1, keepdim=True
         )
 
-        return batch_quantile_huber_loss
+        return element_wise_loss
