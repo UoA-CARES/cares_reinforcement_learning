@@ -52,22 +52,6 @@ class QRDQN(DQN):
         batch_size: int,
     ) -> torch.Tensor:
 
-        # print(states_tensor)
-        states_tensor = torch.tensor(
-            [[-0.1474, -0.5691, 0.1097, 0.8927], [0.0344, 0.3533, -0.0321, -0.5400]],
-            device="cuda:0",
-        )
-
-        next_states_tensor = torch.tensor(
-            [[-0.1587, -0.3756, 0.1276, 0.6364], [0.0415, 0.5489, -0.0429, -0.8426]],
-            device="cuda:0",
-        )
-
-        actions_tensor = torch.tensor([[[1]], [[1]]], device="cuda:0")
-
-        rewards_tensor = torch.tensor([[[1.0]], [[1.0]]], device="cuda:0")
-        dones_tensor = torch.tensor([[[0.0]], [[0.0]]], device="cuda:0")
-
         # Predicted Q-value quantiles for current state
         current_quantile_values = self.network.calculate_quantiles(states_tensor)
 
@@ -105,8 +89,10 @@ class QRDQN(DQN):
 
             # Calculate target quantile values.
             target_q_values = (
-                rewards_tensor
-                + (1.0 - dones_tensor) * (self.gamma**self.n_step) * best_next_q_values
+                rewards_tensor[..., None, None]
+                + (1.0 - dones_tensor[..., None, None])
+                * (self.gamma**self.n_step)
+                * best_next_q_values
             )
 
         # Calculate TD errors.

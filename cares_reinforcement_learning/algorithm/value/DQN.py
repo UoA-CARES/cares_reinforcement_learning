@@ -75,6 +75,7 @@ class DQN:
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
             action = torch.argmax(q_values).item()
+
         self.network.train()
         return action
 
