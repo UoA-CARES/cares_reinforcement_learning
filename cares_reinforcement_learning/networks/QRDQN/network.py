@@ -50,7 +50,7 @@ class DefaultNetwork(BaseNetwork):
         observation_size: int,
         num_actions: int,
     ):
-        quantiles = 32
+        quantiles = 200
         hidden_sizes = [256, 256]
 
         network = nn.Sequential(
