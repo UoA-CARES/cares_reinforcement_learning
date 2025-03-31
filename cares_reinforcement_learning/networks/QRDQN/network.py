@@ -24,6 +24,7 @@ class BaseNetwork(nn.Module):
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
         quantiles = self.calculate_quantiles(state)
+
         return quantiles.mean(dim=-1)
 
     def calculate_quantiles(self, state: torch.Tensor) -> torch.Tensor:

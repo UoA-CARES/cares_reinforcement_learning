@@ -92,7 +92,7 @@ class QRDQN(DQN):
                 + (1.0 - dones_tensor[..., None, None])
                 * (self.gamma**self.n_step)
                 * best_next_q_values
-            )
+            ).squeeze(1)
 
         # Calculate TD errors.
         element_wise_quantile_huber_loss = hlp.calculate_quantile_huber_loss(
