@@ -33,8 +33,7 @@ class QRDQN(DQN):
         # Reshape actions to (batch_size, 1, 1) so it can be broadcasted properly
         actions = actions.view(batch_size, 1, 1)
 
-        # Expand actions to (batch_size, num_quantiles, 1) for indexing
-        # action_index = actions.expand(batch_size, 1, num_quantiles)
+        # Expand actions to (batch_size, 1, num_quantiles) for indexing
         action_index = actions.expand(-1, -1, self.quantiles)
 
         # Calculate quantile values at specified actions.
