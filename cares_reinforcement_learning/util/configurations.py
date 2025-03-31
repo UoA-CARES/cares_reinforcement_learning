@@ -234,6 +234,26 @@ class C51Config(DQNConfig):
     v_max: float = 200.0
 
 
+class QRDQNConfig(DQNConfig):
+    algorithm: str = Field("QRDQN", Literal=True)
+    lr: float = 5e-5
+
+    target_update_freq: int = 5000
+
+    quantiles: int = 200
+    kappa: float = 1.0
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
 class RainbowConfig(C51Config):
     algorithm: str = Field("Rainbow", Literal=True)
 

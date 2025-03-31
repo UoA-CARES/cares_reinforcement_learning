@@ -103,8 +103,12 @@ class LAPTD3:
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_lose_one = hlp.huber(td_error_one, self.min_priority)
-        huber_lose_two = hlp.huber(td_error_two, self.min_priority)
+        huber_lose_one = hlp.calculate_huber_loss(
+            td_error_one, self.min_priority, use_quadratic_smoothing=False
+        )
+        huber_lose_two = hlp.calculate_huber_loss(
+            td_error_two, self.min_priority, use_quadratic_smoothing=False
+        )
         critic_loss_total = huber_lose_one + huber_lose_two
 
         self.critic_net_optimiser.zero_grad()
