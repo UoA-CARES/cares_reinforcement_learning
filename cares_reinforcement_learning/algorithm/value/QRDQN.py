@@ -1,5 +1,5 @@
 """
-Original Paper:
+Original Paper: https://arxiv.org/pdf/1710.10044
 """
 
 import torch
