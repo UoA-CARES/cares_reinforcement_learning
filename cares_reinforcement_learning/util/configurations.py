@@ -254,6 +254,16 @@ class QRDQNConfig(DQNConfig):
     )
 
 
+class IQNConfig(DQNConfig):
+    algorithm: str = Field("IQN", Literal=True)
+
+    quantiles: int = 64
+    samples_per_quantile: int = 32
+    embedding_dim: int = 64
+    cosine_basis_functions: int = 64
+    kappa: float = 1.0
+
+
 class RainbowConfig(C51Config):
     algorithm: str = Field("Rainbow", Literal=True)
 

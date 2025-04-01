@@ -20,6 +20,7 @@ from cares_reinforcement_learning.networks.DuelingDQN import (
 )
 from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
 from cares_reinforcement_learning.networks.QRDQN import Network as QRDQNNetwork
+from cares_reinforcement_learning.networks.IQN import Network as IQNNetwork
 from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
 from cares_reinforcement_learning.util.configurations import DQNConfig
 
@@ -33,6 +34,7 @@ class DQN:
             | NoisyNetwork
             | C51Network
             | QRDQNNetwork
+            | IQNNetwork
             | RainbowNetwork
         ),
         config: DQNConfig,

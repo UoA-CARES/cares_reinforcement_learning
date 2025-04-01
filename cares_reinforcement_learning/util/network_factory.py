@@ -100,6 +100,17 @@ def create_QRDQN(observation_size, action_num, config: acf.QRDQNConfig):
     return agent
 
 
+def create_IQN(observation_size, action_num, config: acf.IQNConfig):
+    from cares_reinforcement_learning.algorithm.value import IQN
+    from cares_reinforcement_learning.networks.IQN import Network
+
+    network = Network(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = IQN(network=network, config=config, device=device)
+    return agent
+
+
 def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
     from cares_reinforcement_learning.algorithm.value import Rainbow
     from cares_reinforcement_learning.networks.Rainbow import Network

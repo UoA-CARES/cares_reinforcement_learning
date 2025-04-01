@@ -405,6 +405,36 @@ def calculate_quantile_huber_loss(
     return element_wise_loss.mean() if use_mean_reduction else element_wise_loss
 
 
+def evaluate_quantile_at_action(
+    quantiles: torch.Tensor, actions: torch.Tensor
+) -> torch.Tensor:
+    """
+    Extracts the quantile values corresponding to the specified actions from a given tensor of quantiles.
+    Args:
+        quantiles (torch.Tensor): A tensor of shape (batch_size, num_actions, num_quantiles)
+            containing quantile values for each action in the batch.
+        actions (torch.Tensor): A tensor of shape (batch_size,) containing the indices of the
+            actions for which quantile values are to be extracted.
+    Returns:
+        torch.Tensor: A tensor of shape (batch_size, 1, num_quantiles) containing the quantile
+            values corresponding to the specified actions for each batch element.
+    """
+
+    batch_size = quantiles.shape[0]
+    num_quantiles = quantiles.shape[2]
+
+    # Reshape actions to (batch_size, 1, 1) so it can be broadcasted properly
+    actions = actions.view(batch_size, 1, 1)
+
+    # Expand actions to (batch_size, 1, num_quantiles) for indexing
+    action_index = actions.expand(-1, -1, num_quantiles)
+
+    # Calculate quantile values at specified actions.
+    action_quantiles = quantiles.gather(dim=1, index=action_index)
+
+    return action_quantiles
+
+
 # TODO rename this function to something more descriptive
 def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     """
