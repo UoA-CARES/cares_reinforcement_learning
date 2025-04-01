@@ -36,12 +36,6 @@ class BaseNetwork(nn.Module):
             self.quantiles,
         )
 
-        # return output.view(
-        #     state.shape[0],
-        #     self.quantiles,
-        #     self.num_actions,
-        # )
-
 
 # This is the default base network for DQN for reference and testing of default network configurations
 class DefaultNetwork(BaseNetwork):

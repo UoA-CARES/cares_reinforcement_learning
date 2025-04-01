@@ -5,4 +5,5 @@ from .DuelingDQN import DuelingDQN
 from .PERDQN import PERDQN
 from .C51 import C51
 from .QRDQN import QRDQN
+from .IQN import IQN
 from .Rainbow import Rainbow
