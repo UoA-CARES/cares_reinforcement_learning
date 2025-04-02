@@ -21,6 +21,9 @@ class RunConfig(SubscriptableClass):
     command: str
     data_path: str | None
 
+    seeds: list[int] | None = None
+    episodes: int | None = None
+
 
 class RLParser:
     def __init__(self, environment_config: type[EnvironmentConfig]) -> None:
@@ -88,7 +91,7 @@ class RLParser:
         # Add an argument
         parser.add_argument(
             "command",
-            choices=["train", "evaluate"],
+            choices=["train", "evaluate", "test"],
             help="Commands to run this package",
         )
 
@@ -101,12 +104,12 @@ class RLParser:
             sys.exit(1)
 
         # use dispatch pattern to invoke method with same name
-        self.args = getattr(self, f"_{cmd_arg.command}")()
+        run_args, self.args = getattr(self, f"_{cmd_arg.command}")()
         logging.debug(self.args)
 
         configs = {}
-        data_path = self.args["data_path"] if "data_path" in self.args else None
-        configs["run_config"] = RunConfig(command=cmd_arg.command, data_path=data_path)
+        # data_path = self.args["data_path"] if "data_path" in self.args else None
+        configs["run_config"] = RunConfig(command=cmd_arg.command, **run_args)
 
         for name, configuration in self.configurations.items():
             configuration = configuration(**self.args)
@@ -138,24 +141,8 @@ class RLParser:
 
         return vars(args)
 
-    def _config(self, initial_index) -> dict:
-        parser = argparse.ArgumentParser()
-
-        required = parser.add_argument_group("required arguments")
-
-        required.add_argument(
-            "--data_path",
-            type=str,
-            required=True,
-            help="Path to training configuration files - e.g. alg_config.json, env_config.json, train_config.json",
-        )
-
-        config_args = parser.parse_args(sys.argv[initial_index:])
-
+    def _load_args_from_configs(self, data_path: str) -> dict:
         args = {}
-        args["data_path"] = config_args.data_path
-
-        data_path = config_args.data_path
 
         with open(f"{data_path}/alg_config.json", encoding="utf-8") as f:
             algorithm_config = json.load(f)
@@ -169,10 +156,65 @@ class RLParser:
 
         return args
 
-    def _evaluate(self) -> dict:
-        return self._config(initial_index=2)
+    def _config(self, initial_index) -> tuple[str, dict]:
+        parser = argparse.ArgumentParser()
 
-    def _train(self) -> dict:
+        required = parser.add_argument_group("required arguments")
+
+        required.add_argument(
+            "--data_path",
+            type=str,
+            required=True,
+            help="Path to training configuration files - e.g. alg_config.json, env_config.json, train_config.json",
+        )
+
+        config_args = parser.parse_args(sys.argv[initial_index:])
+
+        data_path = config_args.data_path
+
+        return data_path, self._load_args_from_configs(data_path)
+
+    def _test(self) -> tuple[dict, dict]:
+        parser = argparse.ArgumentParser()
+
+        required = parser.add_argument_group("required arguments")
+
+        required.add_argument(
+            "--data_path",
+            type=str,
+            required=True,
+            help="Path to testing configuration files - e.g. alg_config.json, env_config.json, train_config.json",
+        )
+
+        required.add_argument(
+            "--seeds",
+            type=int,
+            nargs="+",
+            required=True,
+            help="List of seeds to use for testing trained models against",
+        )
+
+        required.add_argument(
+            "--episodes",
+            type=int,
+            required=True,
+            help="Number of evaluation episodes to run",
+        )
+
+        run_args = parser.parse_args(sys.argv[2:])
+
+        model_args = self._load_args_from_configs(run_args.data_path)
+
+        return vars(run_args), model_args
+
+    def _evaluate(self) -> tuple[dict, dict]:
+        data_path, model_args = self._config(initial_index=2)
+
+        run_args = {"data_path": data_path}
+
+        return run_args, model_args
+
+    def _train(self) -> tuple[dict, dict]:
         parser = argparse.ArgumentParser()
 
         parser.add_argument(
@@ -181,13 +223,16 @@ class RLParser:
             help="Set training configuration from CLI or config files",
         )
 
+        run_args = {}
+
         load_arg = parser.parse_args(sys.argv[2:3])
         if load_arg.load == "cli":
             args = self._cli(initial_index=3)
         else:
-            args = self._config(initial_index=3)
+            data_path, args = self._config(initial_index=3)
+            run_args = {"data_path": data_path}
 
-        return args
+        return run_args, args
 
 
 ## Example of how to use the RLParser for custom environments -
