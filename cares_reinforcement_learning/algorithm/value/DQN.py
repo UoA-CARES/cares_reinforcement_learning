@@ -68,7 +68,7 @@ class DQN:
 
         self.learn_counter = 0
 
-    def select_action_from_policy(self, state) -> float:
+    def select_action_from_policy(self, state: np.ndarray) -> float:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)

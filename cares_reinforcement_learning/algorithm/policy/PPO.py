@@ -53,7 +53,7 @@ class PPO:
         self.cov_mat = torch.diag(self.cov_var)
 
     def select_action_from_policy(
-        self, state: torch.Tensor
+        self, state: torch.Tensor, evaluation: bool = False, noise_scale: float = 0.0
     ) -> tuple[np.ndarray, np.ndarray]:
         self.actor_net.eval()
         with torch.no_grad():
