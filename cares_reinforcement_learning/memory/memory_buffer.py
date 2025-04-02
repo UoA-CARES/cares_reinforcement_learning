@@ -148,6 +148,7 @@ class MemoryBuffer:
         Returns:
             None
         """
+
         experience = [state, action, reward, next_state, done, *extra]
 
         # n-step learning - default is 1-step which means regular buffer behaviour

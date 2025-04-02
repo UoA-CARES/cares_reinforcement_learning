@@ -326,7 +326,9 @@ class PPOConfig(AlgorithmConfig):
     eps_clip: float = 0.2
     updates_per_iteration: int = 10
 
-    max_steps_per_batch: int = 5000
+    number_steps_per_train_policy: int = 5000
+
+    max_steps_exploration: int = 0
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
