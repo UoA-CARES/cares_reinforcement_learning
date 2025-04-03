@@ -65,23 +65,23 @@ class SAC:
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr
+        )
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
-        # pylint: disable-next=unused-argument
-
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
-            if evaluation is False:
-                (action, _, _) = self.actor_net(state_tensor)
-            else:
+            if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
+            else:
+                (action, _, _) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
