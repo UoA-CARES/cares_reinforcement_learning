@@ -32,15 +32,20 @@ class SAC:
         self.device = device
 
         # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(device)
+        self.actor_net = actor_network.to(self.device)
 
         # this may be called soft_q_net in other implementations
-        self.critic_net = critic_network.to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
         self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
+
+        # PERSAC
+        self.use_per_buffer = config.use_per_buffer
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
         self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
@@ -56,27 +61,27 @@ class SAC:
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
-        # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=config.alpha_lr
-        )
+        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
 
+    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
     ) -> np.ndarray:
+        # pylint: disable-next=unused-argument
+
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
-            if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
-            else:
+            if evaluation is False:
                 (action, _, _) = self.actor_net(state_tensor)
+            else:
+                (_, _, action) = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -92,7 +97,8 @@ class SAC:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> tuple[float, float, float]:
+        weights: torch.Tensor,
+    ) -> tuple[float, float, float, np.ndarray]:
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -111,15 +117,36 @@ class SAC:
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        td_error_one = (q_values_one - q_target).abs()
+        td_error_two = (q_values_two - q_target).abs()
+
+        critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
+        critic_loss_one = (critic_loss_one * weights).mean()
+
+        critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
+        critic_loss_two = (critic_loss_two * weights).mean()
+
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+        # Update the Priorities
+        priorities = (
+            torch.max(td_error_one, td_error_two)
+            .clamp(self.min_priority)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
+        return (
+            critic_loss_one.item(),
+            critic_loss_two.item(),
+            critic_loss_total.item(),
+            priorities,
+        )
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
@@ -147,8 +174,13 @@ class SAC:
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        if self.use_per_buffer:
+            experiences = memory.sample_priority(batch_size)
+            states, actions, rewards, next_states, dones, indices, weights = experiences
+        else:
+            experiences = memory.sample_uniform(batch_size)
+            states, actions, rewards, next_states, dones, _ = experiences
+            weights = [1.0] * batch_size
 
         batch_size = len(states)
 
@@ -158,20 +190,25 @@ class SAC:
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
         dones_tensor = dones_tensor.reshape(batch_size, 1)
+        weights_tensor = weights_tensor.reshape(batch_size, 1)
 
         info = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_tensor,
-            dones_tensor,
+        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
+            self._update_critic(
+                states_tensor,
+                actions_tensor,
+                rewards_tensor,
+                next_states_tensor,
+                dones_tensor,
+                weights_tensor,
+            )
         )
         info["critic_loss_one"] = critic_loss_one
         info["critic_loss_two"] = critic_loss_two
@@ -186,6 +223,10 @@ class SAC:
 
         if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+
+        # Update the Priorities
+        if self.use_per_buffer:
+            memory.update_priorities(indices, priorities)
 
         return info
 

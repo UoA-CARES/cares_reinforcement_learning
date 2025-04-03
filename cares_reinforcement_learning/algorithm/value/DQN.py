@@ -49,6 +49,8 @@ class DQN:
         self.gamma = config.gamma
         self.target_update_freq = config.target_update_freq
 
+        self.max_grad_norm = config.max_grad_norm
+
         # Double DQN
         self.use_double_dqn = config.use_double_dqn
 
@@ -59,8 +61,6 @@ class DQN:
 
         # n-step
         self.n_step = config.n_step
-
-        self.max_grad_norm = config.max_grad_norm
 
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr

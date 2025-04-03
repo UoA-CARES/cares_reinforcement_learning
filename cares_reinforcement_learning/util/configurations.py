@@ -372,6 +372,12 @@ class SACConfig(AlgorithmConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    # PER
+    use_per_buffer: int = 0
+    beta: float = 0.4
+    per_alpha: float = 0.6
+    min_priority: float = 1e-6
+
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),
@@ -453,7 +459,9 @@ class PERSACConfig(SACConfig):
     critic_lr: float = 3e-4
     gamma: float = 0.99
     tau: float = 0.005
+    reward_scale: float = 1.0
 
+    use_per_buffer: int = 1
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
