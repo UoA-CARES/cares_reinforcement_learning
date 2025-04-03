@@ -969,6 +969,8 @@ class PERTD3Config(TD3Config):
 
     # PER
     use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
@@ -982,8 +984,8 @@ class LAPTD3Config(TD3Config):
     per_sampling_strategy: str = "simple"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
-    per_alpha: float = 0.6
-    min_priority: float = 1e-6
+    per_alpha: float = 0.4
+    min_priority: float = 1.0
 
 
 class PALTD3Config(TD3Config):

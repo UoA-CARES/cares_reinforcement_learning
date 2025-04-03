@@ -82,16 +82,3 @@ class LAPTD3(TD3):
             critic_loss_total.item(),
             priorities,
         )
-
-    def _update_actor(self, states: torch.Tensor) -> float:
-        actions = self.actor_net(states)
-        with hlp.evaluating(self.critic_net):
-            actor_q_values, _ = self.critic_net(states, actions)
-
-        actor_loss = -actor_q_values.mean()
-
-        self.actor_net_optimiser.zero_grad()
-        actor_loss.backward()
-        self.actor_net_optimiser.step()
-
-        return actor_loss.item()
