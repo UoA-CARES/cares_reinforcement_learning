@@ -139,6 +139,7 @@ class TD3:
             priorities,
         )
 
+    # Weights is set for methods like MAPERTD3 that use weights in the actor update
     def _update_actor(
         self,
         states: torch.Tensor,

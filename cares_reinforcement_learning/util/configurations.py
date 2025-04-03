@@ -1025,6 +1025,10 @@ class MAPERTD3Config(TD3Config):
     gamma: float = 0.98
     tau: float = 0.005
 
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "population"
     beta: float = 1.0
     per_alpha: float = 0.7
     min_priority: float = 1e-6
