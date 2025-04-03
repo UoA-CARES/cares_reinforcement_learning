@@ -1,7 +1,6 @@
 """
 Original Paper: https://arxiv.org/abs/1802.09477v3
 
-Original code: https://github.com/sfujim/TD3
 """
 
 import copy
@@ -15,15 +14,18 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+from cares_reinforcement_learning.networks.common import (
+    DeterministicPolicy,
+    TwinQNetwork,
+)
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
 class TD3:
     def __init__(
         self,
-        actor_network: Actor,
-        critic_network: Critic,
+        actor_network: DeterministicPolicy,
+        critic_network: TwinQNetwork,
         config: TD3Config,
         device: torch.device,
     ):
@@ -137,7 +139,11 @@ class TD3:
             priorities,
         )
 
-    def _update_actor(self, states: torch.Tensor) -> float:
+    def _update_actor(
+        self,
+        states: torch.Tensor,
+        weights: torch.Tensor,  # pylint: disable=unused-argument
+    ) -> float:
         actions = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -200,7 +206,7 @@ class TD3:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states_tensor)
+            actor_loss = self._update_actor(states_tensor, weights_tensor)
             info["actor_loss"] = actor_loss
 
             # Update target network params

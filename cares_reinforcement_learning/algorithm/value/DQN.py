@@ -88,7 +88,7 @@ class DQN:
         rewards_tensor: torch.Tensor,
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
-        batch_size: int,
+        batch_size: int,  # pylint: disable=unused-argument
     ) -> torch.Tensor:
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
         q_values = self.network(states_tensor)
