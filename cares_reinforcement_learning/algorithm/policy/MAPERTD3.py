@@ -246,7 +246,9 @@ class MAPERTD3:
 
         # Sample replay buffer
         experiences = memory.sample_priority(
-            batch_size, sampling="stratified", weight_normalisation="population"
+            batch_size,
+            sampling_stratagy="stratified",
+            weight_normalisation="population",
         )
         states, actions, rewards, next_states, dones, indices, weights = experiences
 

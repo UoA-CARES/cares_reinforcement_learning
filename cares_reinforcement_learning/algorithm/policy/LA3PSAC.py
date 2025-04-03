@@ -232,7 +232,9 @@ class LA3PSAC:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
-        experiences = memory.sample_priority(priority_batch_size, sampling="simple")
+        experiences = memory.sample_priority(
+            priority_batch_size, sampling_stratagy="simple"
+        )
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
         info_priority = {}

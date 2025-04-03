@@ -216,7 +216,9 @@ class LA3PTD3:
             self._update_target_network()
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
-        experiences = memory.sample_priority(priority_batch_size, sampling="simple")
+        experiences = memory.sample_priority(
+            priority_batch_size, sampling_stratagy="simple"
+        )
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
         info_priority = {}

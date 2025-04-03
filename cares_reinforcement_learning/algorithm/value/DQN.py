@@ -56,6 +56,8 @@ class DQN:
 
         # PER
         self.use_per_buffer = config.use_per_buffer
+        self.per_sampling_strategy = config.per_sampling_strategy
+        self.per_weight_normalisation = config.per_weight_normalisation
         self.min_priority = config.min_priority
         self.per_alpha = config.per_alpha
 
@@ -117,7 +119,11 @@ class DQN:
         self.learn_counter += 1
 
         if self.use_per_buffer:
-            experiences = memory.sample_priority(batch_size)
+            experiences = memory.sample_priority(
+                batch_size,
+                sampling_stratagy=self.per_sampling_strategy,
+                weight_normalisation=self.per_weight_normalisation,
+            )
             states, actions, rewards, next_states, dones, indices, weights = experiences
         else:
             experiences = memory.sample_uniform(batch_size)

@@ -28,18 +28,23 @@ class TD3:
         device: torch.device,
     ):
         self.type = "policy"
+        self.device = device
+
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
-        self.target_actor_net = copy.deepcopy(self.actor_net)
+        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
         self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
-        self.target_critic_net = copy.deepcopy(self.critic_net)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
         self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
 
+        # PER
         self.use_per_buffer = config.use_per_buffer
+        self.per_sampling_strategy = config.per_sampling_strategy
+        self.per_weight_normalisation = config.per_weight_normalisation
         self.per_alpha = config.per_alpha
         self.min_priority = config.min_priority
 
@@ -50,7 +55,6 @@ class TD3:
         self.policy_update_freq = config.policy_update_freq
 
         self.action_num = self.actor_net.num_actions
-        self.device = device
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
@@ -117,7 +121,7 @@ class TD3:
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        # Update the Priorities
+        # Update the Priorities - PER only
         priorities = (
             torch.max(td_error_one, td_error_two)
             .clamp(self.min_priority)
@@ -151,7 +155,11 @@ class TD3:
         self.learn_counter += 1
 
         if self.use_per_buffer:
-            experiences = memory.sample_priority(batch_size)
+            experiences = memory.sample_priority(
+                batch_size,
+                sampling_stratagy=self.per_sampling_strategy,
+                weight_normalisation=self.per_weight_normalisation,
+            )
             states, actions, rewards, next_states, dones, indices, weights = experiences
         else:
             experiences = memory.sample_uniform(batch_size)
