@@ -361,6 +361,7 @@ class PPOConfig(AlgorithmConfig):
 
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
+
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
@@ -524,20 +525,13 @@ class TQCConfig(SACConfig):
 class LAPSACConfig(SACConfig):
     algorithm: str = Field("LAPSAC", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-    per_alpha: float = 0.6
-    reward_scale: float = 1.0
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.4
+    per_alpha: float = 0.4
     min_priority: float = 1.0
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
 
 
 class LA3PSACConfig(SACConfig):
@@ -803,6 +797,7 @@ class DDPGConfig(AlgorithmConfig):
 
 class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
+
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
 
@@ -991,16 +986,11 @@ class LAPTD3Config(TD3Config):
 class PALTD3Config(TD3Config):
     algorithm: str = Field("PALTD3", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
+    # PER values but not PER buffer: see paper
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
-
-    policy_update_freq: int = 2
 
 
 class LA3PTD3Config(TD3Config):
