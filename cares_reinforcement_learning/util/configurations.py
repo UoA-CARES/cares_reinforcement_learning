@@ -807,6 +807,12 @@ class TD3Config(AlgorithmConfig):
 
     policy_update_freq: int = 2
 
+    # PER
+    use_per_buffer: int = 0
+    beta: float = 0.4
+    per_alpha: float = 0.6
+    min_priority: float = 1e-6
+
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),
@@ -955,16 +961,11 @@ class NaSATD3Config(TD3Config):
 class PERTD3Config(TD3Config):
     algorithm: str = Field("PERTD3", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
-
-    policy_update_freq: int = 2
 
 
 class LAPTD3Config(TD3Config):
