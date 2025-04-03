@@ -16,15 +16,18 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.SAC import Actor, Critic
+from cares_reinforcement_learning.networks.common import (
+    TanhGaussianPolicy,
+    TwinQNetwork,
+)
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
 class SAC:
     def __init__(
         self,
-        actor_network: Actor,
-        critic_network: Critic,
+        actor_network: TanhGaussianPolicy,
+        critic_network: TwinQNetwork,
         config: SACConfig,
         device: torch.device,
     ):
@@ -73,7 +76,10 @@ class SAC:
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self,
+        state: np.ndarray,
+        evaluation: bool = False,
+        noise_scale: float = 0,  # pylint: disable=unused-argument
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
@@ -150,7 +156,11 @@ class SAC:
             priorities,
         )
 
-    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
+    def _update_actor_alpha(
+        self,
+        states: torch.Tensor,
+        weights: torch.Tensor,  # pylint: disable=unused-argument
+    ) -> tuple[float, float]:
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -222,7 +232,9 @@ class SAC:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
+            actor_loss, alpha_loss = self._update_actor_alpha(
+                states_tensor, weights_tensor
+            )
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()

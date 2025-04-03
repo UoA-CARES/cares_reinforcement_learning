@@ -565,10 +565,6 @@ class MAPERSACConfig(SACConfig):
     gamma: float = 0.98
     tau: float = 0.02
 
-    beta: float = 0.4
-    per_alpha: float = 0.7
-    min_priority: float = 1e-6
-
     G: int = 64
     number_steps_per_train_policy: int = 64
 
@@ -576,6 +572,14 @@ class MAPERSACConfig(SACConfig):
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
+
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "population"
+    beta: float = 0.4
+    per_alpha: float = 0.7
+    min_priority: float = 1e-6
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
