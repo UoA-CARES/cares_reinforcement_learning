@@ -41,7 +41,7 @@ class LA3PTD3(TD3):
         next_states: np.ndarray,
         dones: np.ndarray,
         uniform_sampling: bool,
-    ) -> tuple[float, np.ndarray]:
+    ) -> tuple[float, float, float, np.ndarray]:
         # Convert into tensor
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -77,13 +77,13 @@ class LA3PTD3(TD3):
         td_error_two = (q_values_two - q_target).abs()
 
         if uniform_sampling:
-            pal_loss_one = hlp.prioritized_approximate_loss(
+            critic_loss_one = hlp.prioritized_approximate_loss(
                 td_error_one, self.min_priority, self.per_alpha
             )
-            pal_loss_two = hlp.prioritized_approximate_loss(
+            critic_loss_two = hlp.prioritized_approximate_loss(
                 td_error_two, self.min_priority, self.per_alpha
             )
-            critic_loss_total = pal_loss_one + pal_loss_two
+            critic_loss_total = critic_loss_one + critic_loss_two
 
             critic_loss_total /= (
                 torch.max(td_error_one, td_error_two)
@@ -93,13 +93,13 @@ class LA3PTD3(TD3):
                 .detach()
             )
         else:
-            huber_lose_one = hlp.calculate_huber_loss(
+            critic_loss_one = hlp.calculate_huber_loss(
                 td_error_one, self.min_priority, use_quadratic_smoothing=False
             )
-            huber_lose_two = hlp.calculate_huber_loss(
+            critic_loss_two = hlp.calculate_huber_loss(
                 td_error_two, self.min_priority, use_quadratic_smoothing=False
             )
-            critic_loss_total = huber_lose_one + huber_lose_two
+            critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -115,7 +115,12 @@ class LA3PTD3(TD3):
             .flatten()
         )
 
-        return critic_loss_total.item(), priorities
+        return (
+            critic_loss_one.item(),
+            critic_loss_two.item(),
+            critic_loss_total.item(),
+            priorities,
+        )
 
     def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
         self.learn_counter += 1
@@ -131,14 +136,18 @@ class LA3PTD3(TD3):
 
         info_uniform = {}
 
-        critic_loss_total, priorities = self._train_critic(
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-            uniform_sampling=True,
+        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
+            self._train_critic(
+                states,
+                actions,
+                rewards,
+                next_states,
+                dones,
+                uniform_sampling=True,
+            )
         )
+        info_uniform["critic_loss_one"] = critic_loss_one
+        info_uniform["critic_loss_two"] = critic_loss_two
         info_uniform["critic_loss_total"] = critic_loss_total
 
         memory.update_priorities(indices, priorities)
@@ -161,14 +170,18 @@ class LA3PTD3(TD3):
 
         info_priority = {}
 
-        critic_loss_total, priorities = self._train_critic(
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-            uniform_sampling=False,
+        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
+            self._train_critic(
+                states,
+                actions,
+                rewards,
+                next_states,
+                dones,
+                uniform_sampling=False,
+            )
         )
+        info_priority["critic_loss_one"] = critic_loss_one
+        info_priority["critic_loss_two"] = critic_loss_two
         info_priority["critic_loss_total"] = critic_loss_total
 
         memory.update_priorities(indices, priorities)
