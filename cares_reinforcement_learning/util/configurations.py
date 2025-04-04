@@ -540,18 +540,14 @@ class LA3PSACConfig(SACConfig):
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
     reward_scale: float = 5.0
 
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
     prioritized_fraction: float = 0.5
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    target_update_freq: int = 1
 
 
 class MAPERSACConfig(SACConfig):
