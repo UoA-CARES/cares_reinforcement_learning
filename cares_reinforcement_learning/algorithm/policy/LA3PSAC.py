@@ -144,7 +144,6 @@ class LA3PSAC(SAC):
         info_uniform["critic_loss_one"] = critic_loss_one
         info_uniform["critic_loss_two"] = critic_loss_two
         info_uniform["critic_loss_total"] = critic_loss_total
-        print("critic_loss_total", critic_loss_total)
 
         memory.update_priorities(indices, priorities)
 
@@ -157,8 +156,6 @@ class LA3PSAC(SAC):
         info_uniform["actor_loss"] = actor_loss
         info_uniform["alpha_loss"] = alpha_loss
         info_uniform["alpha"] = self.alpha.item()
-
-        print("actor_loss", actor_loss)
 
         if target_update:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
@@ -184,7 +181,6 @@ class LA3PSAC(SAC):
         info_priority["critic_loss_one"] = critic_loss_one
         info_priority["critic_loss_two"] = critic_loss_two
         info_priority["critic_loss_total"] = critic_loss_total
-        print("critic_loss_total", critic_loss_total)
 
         memory.update_priorities(indices, priorities)
 
@@ -203,9 +199,7 @@ class LA3PSAC(SAC):
         info_priority["actor_loss"] = actor_loss
         info_priority["alpha_loss"] = alpha_loss
         info_priority["alpha"] = self.alpha.item()
-        print("actor_loss", actor_loss)
 
         info = {"uniform": info_uniform, "priority": info_priority}
 
-        exit()
         return info
