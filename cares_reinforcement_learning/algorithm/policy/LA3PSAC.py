@@ -88,13 +88,13 @@ class LA3PSAC(SAC):
                 .detach()
             )
         else:
-            critic_lose_one = hlp.calculate_huber_loss(
+            critic_loss_one = hlp.calculate_huber_loss(
                 td_error_one, self.min_priority, use_quadratic_smoothing=False
             )
-            critic_lose_two = hlp.calculate_huber_loss(
+            critic_loss_two = hlp.calculate_huber_loss(
                 td_error_two, self.min_priority, use_quadratic_smoothing=False
             )
-            critic_loss_total = critic_lose_one + critic_lose_two
+            critic_loss_total = critic_loss_one + critic_loss_two
 
         # Update the Critic
         self.critic_net_optimiser.zero_grad()
@@ -111,8 +111,8 @@ class LA3PSAC(SAC):
         )
 
         return (
-            critic_lose_one.item(),
-            critic_lose_two.item(),
+            critic_loss_one.item(),
+            critic_loss_two.item(),
             critic_loss_total.item(),
             priorities,
         )
