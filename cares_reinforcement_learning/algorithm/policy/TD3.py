@@ -50,6 +50,7 @@ class TD3:
         self.per_alpha = config.per_alpha
         self.min_priority = config.min_priority
 
+        # TODO pull out to TD3
         self.noise_clip = 0.5
         self.policy_noise = 0.2
 
