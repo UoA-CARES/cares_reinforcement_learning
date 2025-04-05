@@ -247,10 +247,6 @@ class SAC:
         if self.use_per_buffer:
             memory.update_priorities(indices, priorities)
 
-        print(f"critic_loss_total: {critic_loss_total}")
-        print(f"actor_loss: {actor_loss}")
-        exit()
-
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:
@@ -265,7 +261,3 @@ class SAC:
         self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
         self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
         logging.info("models has been loaded...")
-
-
-# critic_loss_total: 443.9271240234375
-# actor_loss: 15.133413314819336

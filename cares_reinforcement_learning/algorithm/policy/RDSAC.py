@@ -27,7 +27,7 @@ class RDSAC(SAC):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    def _update_critics(
+    def _update_critic(
         self,
         states: torch.Tensor,
         actions: torch.Tensor,
