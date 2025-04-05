@@ -136,7 +136,7 @@ class TQC:
 
         return critic_loss_total.item()
 
-    def _update_actor(self, states: torch.Tensor) -> tuple[float, float]:
+    def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         new_action, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -192,7 +192,7 @@ class TQC:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_loss, alpha_loss = self._update_actor(states_tensor)
+            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()
