@@ -33,7 +33,9 @@ class MAPERTD3(TD3):
         self.scale_r = 1.0
         self.scale_s = 1.0
 
-    def _split_output(self, target):
+    def _split_output(
+        self, target: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
     def _update_critic(

@@ -162,7 +162,9 @@ class LA3PSAC(SAC):
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
         experiences = memory.sample_priority(
-            priority_batch_size, sampling_stratagy="simple"
+            priority_batch_size,
+            sampling_stratagy=self.per_sampling_strategy,
+            weight_normalisation=self.per_weight_normalisation,
         )
         states, actions, rewards, next_states, dones, indices, _ = experiences
 

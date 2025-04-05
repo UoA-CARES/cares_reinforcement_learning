@@ -544,6 +544,8 @@ class LA3PSACConfig(SACConfig):
 
     # PER
     use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
@@ -602,9 +604,13 @@ class RDSACConfig(SACConfig):
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
+    alpha_lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 0.005
 
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.7
     min_priority: float = 1.0
@@ -998,6 +1004,8 @@ class LA3PTD3Config(TD3Config):
 
     # PER
     use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
