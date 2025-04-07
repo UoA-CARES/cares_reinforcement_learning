@@ -108,12 +108,10 @@ class TQC(SAC):
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> tuple[float, float]:
-        new_action, log_pi, _ = self.actor_net(states)
+        pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
-            mean_qf_pi = (
-                self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
-            )
+            mean_qf_pi = self.critic_net(states, pi).mean(2).mean(1, keepdim=True)
 
         actor_loss = (self.alpha * log_pi - mean_qf_pi).mean()
 

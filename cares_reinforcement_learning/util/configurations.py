@@ -474,6 +474,7 @@ class REDQConfig(SACConfig):
     algorithm: str = Field("REDQ", Literal=True)
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
+    alpha_lr: float = 1e-3
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -484,6 +485,8 @@ class REDQConfig(SACConfig):
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
+
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
 
 
 class TQCConfig(SACConfig):
