@@ -634,7 +634,7 @@ class RDSACConfig(SACConfig):
     )
 
 
-class CrossQConfig(AlgorithmConfig):
+class CrossQConfig(SACConfig):
     algorithm: str = Field("CrossQ", Literal=True)
 
     actor_lr: float = 1e-3
