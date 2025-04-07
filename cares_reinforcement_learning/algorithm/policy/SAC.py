@@ -17,6 +17,7 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
+    EnsembleCritic,
     TanhGaussianPolicy,
     TwinQNetwork,
 )
@@ -27,7 +28,7 @@ class SAC:
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
-        critic_network: TwinQNetwork,
+        critic_network: TwinQNetwork | EnsembleCritic,
         config: SACConfig,
         device: torch.device,
     ):
@@ -149,6 +150,7 @@ class SAC:
             .data.numpy()
             .flatten()
         )
+
         return (
             critic_loss_one.item(),
             critic_loss_two.item(),
