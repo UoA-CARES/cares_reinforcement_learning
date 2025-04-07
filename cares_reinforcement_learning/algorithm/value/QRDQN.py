@@ -27,20 +27,6 @@ class QRDQN(DQN):
             [i / (self.quantiles + 1) for i in range(1, self.quantiles + 1)]
         ).to(device)
 
-    def evaluate_quantile_at_action(self, s_quantiles, actions):
-        batch_size = s_quantiles.shape[0]
-
-        # Reshape actions to (batch_size, 1, 1) so it can be broadcasted properly
-        actions = actions.view(batch_size, 1, 1)
-
-        # Expand actions to (batch_size, 1, num_quantiles) for indexing
-        action_index = actions.expand(-1, -1, self.quantiles)
-
-        # Calculate quantile values at specified actions.
-        sa_quantiles = s_quantiles.gather(dim=1, index=action_index)
-
-        return sa_quantiles
-
     def _compute_loss(
         self,
         states_tensor: torch.Tensor,
@@ -55,7 +41,7 @@ class QRDQN(DQN):
         current_quantile_values = self.network.calculate_quantiles(states_tensor)
 
         # Gather Q-value quantiles of actions actually taken
-        current_action_q_values = self.evaluate_quantile_at_action(
+        current_action_q_values = hlp.evaluate_quantile_at_action(
             current_quantile_values, actions_tensor
         )
 
@@ -82,7 +68,7 @@ class QRDQN(DQN):
                 next_states_tensor
             )
 
-            best_next_q_values = self.evaluate_quantile_at_action(
+            best_next_q_values = hlp.evaluate_quantile_at_action(
                 next_quantile_values, next_state_best_actions
             )
 
