@@ -60,10 +60,10 @@ class SAC:
         self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=config.critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
@@ -71,7 +71,7 @@ class SAC:
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=config.alpha_lr
+            [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
     # pylint: disable-next=unused-argument

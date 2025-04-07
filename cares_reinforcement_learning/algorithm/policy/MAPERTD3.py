@@ -137,7 +137,7 @@ class MAPERTD3(TD3):
         diff_td_mean = torch.cat([diff_td_one, diff_td_two], -1)
         diff_td_mean = torch.mean(diff_td_mean, 1)
         diff_td_mean = diff_td_mean.view(-1, 1)
-        diff_td_mean = diff_td_mean[:, 0].detach().data.cpu().numpy()
+        numpy_td_mean = diff_td_mean[:, 0].detach().data.cpu().numpy()
 
         diff_reward_mean = torch.cat([diff_reward_one, diff_reward_two], -1)
         diff_reward_mean = torch.mean(diff_reward_mean, 1)
@@ -153,7 +153,7 @@ class MAPERTD3(TD3):
 
         # calculate priority
         priorities_tensor = (
-            diff_td_mean
+            numpy_td_mean
             + self.scale_s * diff_next_state_mean
             + self.scale_r * diff_reward_mean
         )
@@ -170,8 +170,8 @@ class MAPERTD3(TD3):
 
         # Update Scales
         if self.learn_counter == 1:
-            self.scale_r = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
-            self.scale_s = np.mean(diff_td_mean) / (np.mean(diff_next_state_mean))
+            self.scale_r = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
+            self.scale_s = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
 
         return (
             critic_loss_one.item(),

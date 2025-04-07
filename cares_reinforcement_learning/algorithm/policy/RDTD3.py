@@ -1,16 +1,8 @@
-import copy
-import logging
-import os
-from typing import Any
-
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch import optim
 
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import RDTD3Config
 
@@ -149,21 +141,3 @@ class RDTD3(TD3):
             critic_loss_total.item(),
             priorities,
         )
-
-    def _update_actor(self, states: torch.Tensor, weights: torch.Tensor) -> float:
-        actions = self.actor_net(states.detach())
-
-        with hlp.evaluating(self.critic_net):
-            actor_q_one, actor_q_two = self.critic_net(states.detach(), actions)
-
-        actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-        actor_val, _, _ = self._split_output(actor_q_values)
-
-        actor_loss = -(actor_val * weights).mean()
-
-        # Optimize the actor
-        self.actor_net_optimiser.zero_grad()
-        actor_loss.backward()
-        self.actor_net_optimiser.step()
-
-        return actor_loss.item()

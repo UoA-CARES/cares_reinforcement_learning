@@ -45,10 +45,10 @@ class CrossQ:
         self.target_entropy = -np.prod(self.actor_net.num_actions)
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr, betas=(0.5, 0.999)
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=config.critic_lr, betas=(0.5, 0.999)
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
         # Temperature (alpha) for the entropy loss
@@ -57,12 +57,15 @@ class CrossQ:
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=config.alpha_lr
+            [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
     # pylint: disable-next=unused-argument
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self,
+        state: np.ndarray,
+        evaluation: bool = False,
+        noise_scale: float = 0,  # pylint: disable=unused-argument
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()

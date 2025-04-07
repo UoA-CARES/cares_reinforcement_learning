@@ -363,8 +363,11 @@ class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
 
     actor_lr: float = 3e-4
+    actor_lr_params: dict[str, Any] = {}
     critic_lr: float = 3e-4
+    critic_lr_params: dict[str, Any] = {}
     alpha_lr: float = 3e-4
+    alpha_lr_params: dict[str, Any] = {}
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -633,9 +636,13 @@ class RDSACConfig(SACConfig):
 
 class CrossQConfig(AlgorithmConfig):
     algorithm: str = Field("CrossQ", Literal=True)
+
     actor_lr: float = 1e-3
+    actor_lr_params: dict[str, Any] = {"betas": (0.5, 0.999)}
     critic_lr: float = 1e-3
+    critic_lr_params: dict[str, Any] = {"betas": (0.5, 0.999)}
     alpha_lr: float = 1e-3
+    alpha_lr_params: dict[str, Any] = {}
 
     gamma: float = 0.99
     reward_scale: float = 1.0
@@ -805,7 +812,9 @@ class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
 
     actor_lr: float = 3e-4
+    actor_lr_params: dict[str, Any] = {}
     critic_lr: float = 3e-4
+    critic_lr_params: dict[str, Any] = {}
 
     gamma: float = 0.99
     tau: float = 0.005
