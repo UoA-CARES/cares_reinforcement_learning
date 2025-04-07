@@ -184,7 +184,7 @@ class CrossQ:
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_loss, alpha_loss = self._update_actor_alpha(states)
+            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()
