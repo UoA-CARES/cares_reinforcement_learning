@@ -824,6 +824,9 @@ class TD3Config(AlgorithmConfig):
     gamma: float = 0.99
     tau: float = 0.005
 
+    noise_clip: float = 0.5
+    policy_noise: float = 0.2
+
     policy_update_freq: int = 2
 
     # PER

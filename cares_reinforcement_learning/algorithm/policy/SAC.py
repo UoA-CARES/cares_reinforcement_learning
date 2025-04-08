@@ -108,6 +108,7 @@ class SAC:
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[float, float, float, np.ndarray]:
+
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)

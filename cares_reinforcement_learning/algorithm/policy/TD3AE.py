@@ -52,8 +52,8 @@ class TD3AE:
         self.gamma = config.gamma
         self.tau = config.tau
 
-        self.noise_clip = 0.5
-        self.policy_noise = 0.2
+        self.noise_clip = config.noise_clip
+        self.policy_noise = config.policy_noise
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -67,7 +67,7 @@ class TD3AE:
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
-        self.loss_function = AELoss(
+        self.ae_loss_function = AELoss(
             latent_lambda=config.autoencoder_config.latent_lambda
         )
 
@@ -154,7 +154,7 @@ class TD3AE:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
 
-        ae_loss = self.loss_function.calculate_loss(
+        ae_loss = self.ae_loss_function.calculate_loss(
             data=states,
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,
