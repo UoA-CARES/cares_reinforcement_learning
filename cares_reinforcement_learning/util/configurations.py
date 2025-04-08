@@ -1103,6 +1103,12 @@ class CTD4Config(TD3Config):
     noise_decay: float = 0.999999
     noise_scale: float = 0.1
 
+    policy_noise_decay: float = 0.999999
+    target_policy_noise_scale: float = 0.2
+    min_policy_noise: float = 0.0
+
     policy_update_freq: int = 2
 
     fusion_method: str = "kalman"  # kalman, minimum, average
+
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)

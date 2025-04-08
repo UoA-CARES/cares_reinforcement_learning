@@ -16,6 +16,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
+    EnsembleCritic,
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import TD3Config
@@ -25,7 +26,7 @@ class TD3:
     def __init__(
         self,
         actor_network: DeterministicPolicy,
-        critic_network: TwinQNetwork,
+        critic_network: TwinQNetwork | EnsembleCritic,
         config: TD3Config,
         device: torch.device,
     ):

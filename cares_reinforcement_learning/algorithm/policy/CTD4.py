@@ -7,21 +7,19 @@ Each Critic outputs a normal distribution
 Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/1fce6fcde5183bafe4efce0aa30fc59f630a8429/cares_reinforcement_learning/algorithm/policy/CTD4.py
 """
 
-import copy
-import logging
-import os
 from typing import Any
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
-class CTD4:
+class CTD4(TD3):
     def __init__(
         self,
         actor_network: Actor,
@@ -30,44 +28,23 @@ class CTD4:
         device: torch.device,
     ):
 
-        self.type = "policy"
-        self.device = device
-
-        self.actor_net = actor_network.to(self.device)
-        self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
-        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
-
-        self.ensemble_critic = ensemble_critic.to(self.device)
-        self.target_ensemble_critic = copy.deepcopy(self.ensemble_critic).to(
-            self.device
+        super().__init__(
+            actor_network=actor_network,
+            critic_network=ensemble_critic,
+            config=config,
+            device=device,
         )
-        self.target_ensemble_critic.eval()  # never in training mode - helps with batch/drop out layers
-
-        self.gamma = config.gamma
-        self.tau = config.tau
-
-        self.noise_clip = 0.5
-        self.policy_noise_decay = 0.999999
-        self.min_policy_noise = 0.0
-
-        self.target_policy_noise_scale = 0.2
 
         self.fusion_method = config.fusion_method
 
-        self.learn_counter = 0
-        self.policy_update_freq = config.policy_update_freq
-
-        self.action_num = self.actor_net.num_actions
-
-        self.actor_lr = config.actor_lr
-        self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=self.actor_lr
-        )
+        self.policy_noise_decay = config.policy_noise_decay
+        self.target_policy_noise_scale = config.target_policy_noise_scale
+        self.min_policy_noise = config.min_policy_noise
 
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
             torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
-            for critic_net in self.ensemble_critic.critics
+            for critic_net in self.critic_net.critics
         ]
 
     def select_action_from_policy(
@@ -172,7 +149,7 @@ class CTD4:
             u_set = []
             std_set = []
 
-            for target_critic_net in self.target_ensemble_critic.critics:
+            for target_critic_net in self.target_critic_net.critics:
                 u, std = target_critic_net(next_states, next_actions)
 
                 u_set.append(u)
@@ -199,7 +176,7 @@ class CTD4:
         critic_loss_totals = []
 
         for critic_net, critic_net_optimiser in zip(
-            self.ensemble_critic.critics, self.ensemble_critic_optimizers
+            self.critic_net.critics, self.ensemble_critic_optimizers
         ):
             u_current, std_current = critic_net(states, actions)
             current_distribution = torch.distributions.normal.Normal(
@@ -219,15 +196,16 @@ class CTD4:
 
         return critic_loss_totals
 
-    def _update_actor(self, states: torch.Tensor) -> float:
+    # pylint: disable-next=arguments-differ, arguments-renamed
+    def _update_actor(self, states: torch.Tensor) -> float:  # type: ignore[override]
         batch_size = len(states)
 
         actor_q_u_set = []
         actor_q_std_set = []
 
         actions = self.actor_net(states)
-        with hlp.evaluating(self.ensemble_critic):
-            for critic_net in self.ensemble_critic.critics:
+        with hlp.evaluating(self.critic_net):
+            for critic_net in self.critic_net.critics:
                 actor_q_u, actor_q_std = critic_net(states, actions)
 
                 actor_q_u_set.append(actor_q_u)
@@ -301,7 +279,7 @@ class CTD4:
 
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
-                self.ensemble_critic.critics, self.target_ensemble_critic.critics
+                self.critic_net.critics, self.target_critic_net.critics
             ):
                 hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 
@@ -309,21 +287,3 @@ class CTD4:
             hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
         return info
-
-    def save_models(self, filepath: str, filename: str) -> None:
-        if not os.path.exists(filepath):
-            os.makedirs(filepath)
-
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(
-            self.ensemble_critic.state_dict(), f"{filepath}/{filename}_ensemble.pht"
-        )
-        logging.info("models has been saved...")
-
-    def load_models(self, filepath: str, filename: str) -> None:
-        actor_path = f"{filepath}/{filename}_actor.pht"
-        ensemble_path = f"{filepath}/{filename}_ensemble.pht"
-
-        self.actor_net.load_state_dict(torch.load(actor_path))
-        self.ensemble_critic.load_state_dict(torch.load(ensemble_path))
-        logging.info("models have been loaded successfully.")
