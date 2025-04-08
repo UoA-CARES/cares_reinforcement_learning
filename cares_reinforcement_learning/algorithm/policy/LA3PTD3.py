@@ -33,7 +33,8 @@ class LA3PTD3(TD3):
         hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
         hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
-    def _train_critic(
+    # pylint: disable-next=arguments-differ, arguments-renamed
+    def _update_critic(  # type: ignore[override]
         self,
         states: np.ndarray,
         actions: np.ndarray,
@@ -137,7 +138,7 @@ class LA3PTD3(TD3):
         info_uniform = {}
 
         critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._train_critic(
+            self._update_critic(
                 states,
                 actions,
                 rewards,
@@ -173,7 +174,7 @@ class LA3PTD3(TD3):
         info_priority = {}
 
         critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._train_critic(
+            self._update_critic(
                 states,
                 actions,
                 rewards,

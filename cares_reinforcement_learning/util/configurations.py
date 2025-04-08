@@ -497,9 +497,11 @@ class TQCConfig(SACConfig):
 
     gamma: float = 0.99
     tau: float = 0.005
+
     top_quantiles_to_drop: int = 2
     num_quantiles: int = 25
     num_critics: int = 5
+    kappa: float = 1.0
 
     log_std_bounds: list[float] = [-20, 2]
 

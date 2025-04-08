@@ -32,6 +32,7 @@ class TQC(SAC):
         # TQC specific parameters
         self.num_quantiles = config.num_quantiles
         self.num_critics = config.num_critics
+        self.kappa = config.kappa
 
         self.quantiles_total = self.num_quantiles * self.num_critics
 
@@ -85,7 +86,13 @@ class TQC(SAC):
         td_error = td_errors.abs().mean(dim=1)  # mean over quantiles
 
         critic_loss_total = hlp.calculate_quantile_huber_loss(
-            q_values, q_target, self.quantile_taus
+            q_values,
+            q_target,
+            self.quantile_taus,
+            kappa=self.kappa,
+            use_pairwise_loss=True,
+            use_mean_reduction=True,
+            use_quadratic_smoothing=True,
         )
 
         self.critic_net_optimiser.zero_grad()

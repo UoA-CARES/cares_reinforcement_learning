@@ -37,7 +37,7 @@ class CrossQ(SAC):
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-        weights: torch.Tensor,  # pylint: disable=unused-argument
+        weights: torch.Tensor,
     ) -> tuple[float, float, float, np.ndarray]:
 
         with torch.no_grad():

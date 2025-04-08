@@ -28,7 +28,8 @@ class LA3PSAC(SAC):
 
         self.prioritized_fraction = config.prioritized_fraction
 
-    def _train_critic(
+    # pylint: disable-next=arguments-differ, arguments-renamed
+    def _update_critic(  # type: ignore[override]
         self,
         states: np.ndarray,
         actions: np.ndarray,
@@ -132,7 +133,7 @@ class LA3PSAC(SAC):
         info_uniform = {}
 
         critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._train_critic(
+            self._update_critic(
                 states,
                 actions,
                 rewards,
@@ -171,7 +172,7 @@ class LA3PSAC(SAC):
         info_priority = {}
 
         critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._train_critic(
+            self._update_critic(
                 states,
                 actions,
                 rewards,
