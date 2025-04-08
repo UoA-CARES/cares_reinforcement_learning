@@ -68,9 +68,10 @@ class PPO:
             log_prob = dist.log_prob(action)
 
             action = action.cpu().data.numpy().flatten()
-            log_prob = (
-                log_prob.cpu().data.numpy().flatten()
-            )  # just to have this as numpy array
+
+            # just to have this as numpy array
+            log_prob = log_prob.cpu().data.numpy().flatten()
+
         self.actor_net.train()
         return action, log_prob
 
@@ -98,12 +99,12 @@ class PPO:
         # pylint: disable-next=unused-argument
 
         experiences = memory.flush()
-        states, actions, rewards, next_states, dones, log_probs = experiences
+        states, actions, rewards, _, dones, log_probs = experiences
 
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
         log_probs_tensor = torch.FloatTensor(np.asarray(log_probs)).to(self.device)
 

@@ -27,7 +27,6 @@ class CTD4(TD3):
         config: CTD4Config,
         device: torch.device,
     ):
-
         super().__init__(
             actor_network=actor_network,
             critic_network=ensemble_critic,
@@ -46,22 +45,6 @@ class CTD4(TD3):
             torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
             for critic_net in self.critic_net.critics
         ]
-
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
-    ) -> np.ndarray:
-        self.actor_net.eval()
-        with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            action = self.actor_net(state_tensor)
-            action = action.cpu().data.numpy().flatten()
-            if not evaluation:
-                noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
-                action = action + noise
-                action = np.clip(action, a_min=-1, a_max=1)
-        self.actor_net.train()
-        return action
 
     def _fusion_kalman(
         self,
@@ -126,7 +109,8 @@ class CTD4(TD3):
         )
         return fusion_u, fusion_std
 
-    def _update_critics(
+    # pylint: disable-next=arguments-differ, arguments-renamed
+    def _update_critic(  # type: ignore[override]
         self,
         states: torch.Tensor,
         actions: torch.Tensor,
@@ -263,7 +247,7 @@ class CTD4(TD3):
         info: dict[str, Any] = {}
 
         # Update Critics
-        critic_loss_totals = self._update_critics(
+        critic_loss_totals = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
