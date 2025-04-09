@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -43,20 +43,20 @@ class TrainableLayer(BaseModel):
     layer_type: str
     in_features: int | None = None
     out_features: int | None = None
-    params: dict[str, Any] = {}
+    params: dict = {}
 
 
 class NormLayer(BaseModel):
     layer_category: Literal["norm"] = "norm"  # Discriminator field
     layer_type: str
     in_features: int | None = None
-    params: dict[str, Any] = {}
+    params: dict = {}
 
 
 class FunctionLayer(BaseModel):
     layer_category: Literal["function"] = "function"  # Discriminator field
     layer_type: str
-    params: dict[str, Any] = {}
+    params: dict = {}
 
 
 class MLPConfig(BaseModel):
@@ -363,11 +363,11 @@ class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
 
     actor_lr: float = 3e-4
-    actor_lr_params: dict[str, Any] = {}
+    actor_lr_params: dict = {}
     critic_lr: float = 3e-4
-    critic_lr_params: dict[str, Any] = {}
+    critic_lr_params: dict = {}
     alpha_lr: float = 3e-4
-    alpha_lr_params: dict[str, Any] = {}
+    alpha_lr_params: dict = {}
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -643,11 +643,11 @@ class CrossQConfig(SACConfig):
     algorithm: str = Field("CrossQ", Literal=True)
 
     actor_lr: float = 1e-3
-    actor_lr_params: dict[str, Any] = {"betas": (0.5, 0.999)}
+    actor_lr_params: dict = {"betas": (0.5, 0.999)}
     critic_lr: float = 1e-3
-    critic_lr_params: dict[str, Any] = {"betas": (0.5, 0.999)}
+    critic_lr_params: dict = {"betas": (0.5, 0.999)}
     alpha_lr: float = 1e-3
-    alpha_lr_params: dict[str, Any] = {}
+    alpha_lr_params: dict = {}
 
     gamma: float = 0.99
     reward_scale: float = 1.0
@@ -817,9 +817,9 @@ class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
 
     actor_lr: float = 3e-4
-    actor_lr_params: dict[str, Any] = {}
+    actor_lr_params: dict = {}
     critic_lr: float = 3e-4
-    critic_lr_params: dict[str, Any] = {}
+    critic_lr_params: dict = {}
 
     gamma: float = 0.99
     tau: float = 0.005

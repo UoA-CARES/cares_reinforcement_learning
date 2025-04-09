@@ -42,7 +42,11 @@ class CTD4(TD3):
 
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
-            torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
+            torch.optim.Adam(
+                critic_net.parameters(),
+                lr=self.lr_ensemble_critic,
+                **config.critic_lr_params,
+            )
             for critic_net in self.critic_net.critics
         ]
 
