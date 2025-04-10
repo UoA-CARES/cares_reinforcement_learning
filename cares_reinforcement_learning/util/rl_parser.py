@@ -56,26 +56,18 @@ class RLParser:
             if default_value is None and field.default_factory is not None:
                 default_value = field.default_factory()
 
+            field_type = field.type_
             if get_origin(field.annotation) in [dict, tuple]:
-                parser.add_argument(
-                    f"--{name}",
-                    dest=name,
-                    type=ast.literal_eval,
-                    default=default_value,
-                    help=field.field_info.description,
-                    required=field.required,  # type: ignore[arg-type]
-                    nargs=nargs,
-                )
-            else:
-                parser.add_argument(
-                    f"--{name}",
-                    dest=name,
-                    type=field.type_,
-                    default=default_value,
-                    help=field.field_info.description,
-                    required=field.required,  # type: ignore[arg-type]
-                    nargs=nargs,
-                )
+                field_type = ast.literal_eval
+            parser.add_argument(
+                f"--{name}",
+                dest=name,
+                type=field_type,
+                default=default_value,
+                help=field.field_info.description,
+                required=field.required,  # type: ignore[arg-type]
+                nargs=nargs,
+            )
 
     def _get_algorithm_parser(
         self,
