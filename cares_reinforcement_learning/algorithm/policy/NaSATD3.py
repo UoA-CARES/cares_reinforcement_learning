@@ -35,8 +35,8 @@ class NaSATD3:
         self.gamma = config.gamma
         self.tau = config.tau
 
-        self.noise_clip = 0.5
-        self.policy_noise = 0.2
+        self.noise_clip = config.noise_clip
+        self.policy_noise = config.policy_noise
 
         self.ensemble_size = config.ensemble_size
         self.intrinsic_on = config.intrinsic_on

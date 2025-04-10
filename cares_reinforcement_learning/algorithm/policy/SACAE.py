@@ -74,7 +74,7 @@ class SACAE:
             betas=(critic_beta, 0.999),
         )
 
-        self.loss_function = AELoss(
+        self.ae_loss_function = AELoss(
             latent_lambda=config.autoencoder_config.latent_lambda
         )
 
@@ -186,7 +186,7 @@ class SACAE:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
 
-        ae_loss = self.loss_function.calculate_loss(
+        ae_loss = self.ae_loss_function.calculate_loss(
             data=states,
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,

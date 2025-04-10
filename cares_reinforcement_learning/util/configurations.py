@@ -1,4 +1,4 @@
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -43,20 +43,20 @@ class TrainableLayer(BaseModel):
     layer_type: str
     in_features: int | None = None
     out_features: int | None = None
-    params: dict[str, Any] = {}
+    params: dict = {}
 
 
 class NormLayer(BaseModel):
     layer_category: Literal["norm"] = "norm"  # Discriminator field
     layer_type: str
     in_features: int | None = None
-    params: dict[str, Any] = {}
+    params: dict = {}
 
 
 class FunctionLayer(BaseModel):
     layer_category: Literal["function"] = "function"  # Discriminator field
     layer_type: str
-    params: dict[str, Any] = {}
+    params: dict = {}
 
 
 class MLPConfig(BaseModel):
@@ -121,6 +121,8 @@ class DQNConfig(AlgorithmConfig):
     use_double_dqn: int = 0
 
     # PER
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
     use_per_buffer: int = 0
     min_priority: float = 1e-6
     per_alpha: float = 0.6
@@ -359,9 +361,13 @@ class PPOConfig(AlgorithmConfig):
 
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
+
     actor_lr: float = 3e-4
+    actor_lr_params: dict = {}
     critic_lr: float = 3e-4
+    critic_lr_params: dict = {}
     alpha_lr: float = 3e-4
+    alpha_lr_params: dict = {}
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -371,6 +377,14 @@ class SACConfig(AlgorithmConfig):
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
+
+    # PER
+    use_per_buffer: int = 0
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.4
+    per_alpha: float = 0.6
+    min_priority: float = 1e-6
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -449,25 +463,18 @@ class SACAEConfig(SACConfig):
 class PERSACConfig(SACConfig):
     algorithm: str = Field("PERSAC", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
 
 
 class REDQConfig(SACConfig):
     algorithm: str = Field("REDQ", Literal=True)
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
+    alpha_lr: float = 1e-3
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -479,6 +486,8 @@ class REDQConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
+
 
 class TQCConfig(SACConfig):
     algorithm: str = Field("TQC", Literal=True)
@@ -488,9 +497,11 @@ class TQCConfig(SACConfig):
 
     gamma: float = 0.99
     tau: float = 0.005
+
     top_quantiles_to_drop: int = 2
     num_quantiles: int = 25
     num_critics: int = 5
+    kappa: float = 1.0
 
     log_std_bounds: list[float] = [-20, 2]
 
@@ -522,20 +533,13 @@ class TQCConfig(SACConfig):
 class LAPSACConfig(SACConfig):
     algorithm: str = Field("LAPSAC", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
-
-    gamma: float = 0.99
-    tau: float = 0.005
-    per_alpha: float = 0.6
-    reward_scale: float = 1.0
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.4
+    per_alpha: float = 0.4
     min_priority: float = 1.0
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
 
 
 class LA3PSACConfig(SACConfig):
@@ -544,18 +548,16 @@ class LA3PSACConfig(SACConfig):
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
     reward_scale: float = 5.0
 
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
     prioritized_fraction: float = 0.5
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    target_update_freq: int = 1
 
 
 class MAPERSACConfig(SACConfig):
@@ -569,10 +571,6 @@ class MAPERSACConfig(SACConfig):
     gamma: float = 0.98
     tau: float = 0.02
 
-    beta: float = 0.4
-    per_alpha: float = 0.7
-    min_priority: float = 1e-6
-
     G: int = 64
     number_steps_per_train_policy: int = 64
 
@@ -580,6 +578,14 @@ class MAPERSACConfig(SACConfig):
 
     policy_update_freq: int = 1
     target_update_freq: int = 1
+
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "population"
+    beta: float = 0.4
+    per_alpha: float = 0.7
+    min_priority: float = 1e-6
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -606,9 +612,13 @@ class RDSACConfig(SACConfig):
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
+    alpha_lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 0.005
 
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.7
     min_priority: float = 1.0
@@ -629,11 +639,15 @@ class RDSACConfig(SACConfig):
     )
 
 
-class CrossQConfig(AlgorithmConfig):
+class CrossQConfig(SACConfig):
     algorithm: str = Field("CrossQ", Literal=True)
+
     actor_lr: float = 1e-3
+    actor_lr_params: dict = {"betas": (0.5, 0.999)}
     critic_lr: float = 1e-3
+    critic_lr_params: dict = {"betas": (0.5, 0.999)}
     alpha_lr: float = 1e-3
+    alpha_lr_params: dict = {}
 
     gamma: float = 0.99
     reward_scale: float = 1.0
@@ -801,13 +815,27 @@ class DDPGConfig(AlgorithmConfig):
 
 class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
+
     actor_lr: float = 3e-4
+    actor_lr_params: dict = {}
     critic_lr: float = 3e-4
+    critic_lr_params: dict = {}
 
     gamma: float = 0.99
     tau: float = 0.005
 
+    noise_clip: float = 0.5
+    policy_noise: float = 0.2
+
     policy_update_freq: int = 2
+
+    # PER
+    use_per_buffer: int = 0
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.4
+    per_alpha: float = 0.6
+    min_priority: float = 1e-6
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -957,62 +985,48 @@ class NaSATD3Config(TD3Config):
 class PERTD3Config(TD3Config):
     algorithm: str = Field("PERTD3", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
-
-    policy_update_freq: int = 2
 
 
 class LAPTD3Config(TD3Config):
     algorithm: str = Field("LAPTD3", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
-
-    policy_update_freq: int = 2
 
 
 class PALTD3Config(TD3Config):
     algorithm: str = Field("PALTD3", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
+    # PER values but not PER buffer: see paper
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
-
-    policy_update_freq: int = 2
 
 
 class LA3PTD3Config(TD3Config):
     algorithm: str = Field("LA3PTD3", Literal=True)
 
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-    gamma: float = 0.99
-    tau: float = 0.005
-
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
     prioritized_fraction: float = 0.5
-
-    policy_update_freq: int = 2
 
 
 class MAPERTD3Config(TD3Config):
@@ -1027,6 +1041,10 @@ class MAPERTD3Config(TD3Config):
     gamma: float = 0.98
     tau: float = 0.005
 
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "population"
     beta: float = 1.0
     per_alpha: float = 0.7
     min_priority: float = 1e-6
@@ -1055,6 +1073,9 @@ class RDTD3Config(TD3Config):
     gamma: float = 0.99
     tau: float = 0.005
 
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
     beta: float = 0.4
     per_alpha: float = 0.7
     min_priority: float = 1.0
@@ -1085,6 +1106,12 @@ class CTD4Config(TD3Config):
     noise_decay: float = 0.999999
     noise_scale: float = 0.1
 
+    policy_noise_decay: float = 0.999999
+    target_policy_noise_scale: float = 0.2
+    min_policy_noise: float = 0.0
+
     policy_update_freq: int = 2
 
     fusion_method: str = "kalman"  # kalman, minimum, average
+
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)

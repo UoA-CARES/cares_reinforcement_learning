@@ -49,18 +49,20 @@ class DQN:
         self.gamma = config.gamma
         self.target_update_freq = config.target_update_freq
 
+        self.max_grad_norm = config.max_grad_norm
+
         # Double DQN
         self.use_double_dqn = config.use_double_dqn
 
         # PER
         self.use_per_buffer = config.use_per_buffer
+        self.per_sampling_strategy = config.per_sampling_strategy
+        self.per_weight_normalisation = config.per_weight_normalisation
         self.min_priority = config.min_priority
         self.per_alpha = config.per_alpha
 
         # n-step
         self.n_step = config.n_step
-
-        self.max_grad_norm = config.max_grad_norm
 
         self.network_optimiser = torch.optim.Adam(
             self.network.parameters(), lr=config.lr
@@ -86,7 +88,7 @@ class DQN:
         rewards_tensor: torch.Tensor,
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
-        batch_size: int,
+        batch_size: int,  # pylint: disable=unused-argument
     ) -> torch.Tensor:
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
         q_values = self.network(states_tensor)
@@ -117,7 +119,11 @@ class DQN:
         self.learn_counter += 1
 
         if self.use_per_buffer:
-            experiences = memory.sample_priority(batch_size)
+            experiences = memory.sample_priority(
+                batch_size,
+                sampling_stratagy=self.per_sampling_strategy,
+                weight_normalisation=self.per_weight_normalisation,
+            )
             states, actions, rewards, next_states, dones, indices, weights = experiences
         else:
             experiences = memory.sample_uniform(batch_size)
