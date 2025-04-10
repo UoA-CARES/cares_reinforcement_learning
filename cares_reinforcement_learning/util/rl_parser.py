@@ -1,3 +1,4 @@
+import ast
 import argparse
 import inspect
 import json
@@ -7,6 +8,7 @@ from argparse import Namespace
 from typing import Any, get_origin
 
 from pydantic import Field
+
 
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import (
@@ -54,15 +56,26 @@ class RLParser:
             if default_value is None and field.default_factory is not None:
                 default_value = field.default_factory()
 
-            parser.add_argument(
-                f"--{name}",
-                dest=name,
-                type=field.type_,
-                default=default_value,
-                help=field.field_info.description,
-                required=field.required,  # type: ignore[arg-type]
-                nargs=nargs,
-            )
+            if get_origin(field.annotation) in [dict, tuple]:
+                parser.add_argument(
+                    f"--{name}",
+                    dest=name,
+                    type=ast.literal_eval,
+                    default=default_value,
+                    help=field.field_info.description,
+                    required=field.required,  # type: ignore[arg-type]
+                    nargs=nargs,
+                )
+            else:
+                parser.add_argument(
+                    f"--{name}",
+                    dest=name,
+                    type=field.type_,
+                    default=default_value,
+                    help=field.field_info.description,
+                    required=field.required,  # type: ignore[arg-type]
+                    nargs=nargs,
+                )
 
     def _get_algorithm_parser(
         self,
