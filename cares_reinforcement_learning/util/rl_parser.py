@@ -60,7 +60,7 @@ class RLParser:
                 type=field.type_,
                 default=default_value,
                 help=field.field_info.description,
-                required=field.required,
+                required=field.required,  # type: ignore[arg-type]
                 nargs=nargs,
             )
 
@@ -114,7 +114,7 @@ class RLParser:
         run_args, self.args = getattr(self, f"_{cmd_arg.command}")()
         logging.debug(self.args)
 
-        configs = {}
+        configs: dict[str, SubscriptableClass] = {}
         # data_path = self.args["data_path"] if "data_path" in self.args else None
         configs["run_config"] = RunConfig(command=cmd_arg.command, **run_args)
 
