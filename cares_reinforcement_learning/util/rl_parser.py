@@ -1,3 +1,4 @@
+import ast
 import argparse
 import inspect
 import json
@@ -7,6 +8,7 @@ from argparse import Namespace
 from typing import Any, get_origin
 
 from pydantic import Field
+
 
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import (
@@ -46,14 +48,25 @@ class RLParser:
     ) -> None:
         fields = model.__fields__
         for name, field in fields.items():
+            # Check for list type (or other iterable types)
             nargs = "+" if get_origin(field.annotation) is list else None
+
+            # Handle default_factory for mutable fields like dict or list
+            default_value = field.default
+            if default_value is None and field.default_factory is not None:
+                default_value = field.default_factory()
+
+            field_type = field.type_
+            if get_origin(field.annotation) in [dict, tuple]:
+                field_type = ast.literal_eval
+
             parser.add_argument(
                 f"--{name}",
                 dest=name,
-                type=field.type_,
-                default=field.default,
+                type=field_type,
+                default=default_value,
                 help=field.field_info.description,
-                required=field.required,
+                required=field.required,  # type: ignore[arg-type]
                 nargs=nargs,
             )
 
@@ -107,7 +120,7 @@ class RLParser:
         run_args, self.args = getattr(self, f"_{cmd_arg.command}")()
         logging.debug(self.args)
 
-        configs = {}
+        configs: dict[str, SubscriptableClass] = {}
         # data_path = self.args["data_path"] if "data_path" in self.args else None
         configs["run_config"] = RunConfig(command=cmd_arg.command, **run_args)
 
