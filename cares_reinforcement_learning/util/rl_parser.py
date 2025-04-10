@@ -46,12 +46,19 @@ class RLParser:
     ) -> None:
         fields = model.__fields__
         for name, field in fields.items():
+            # Check for list type (or other iterable types)
             nargs = "+" if get_origin(field.annotation) is list else None
+
+            # Handle default_factory for mutable fields like dict or list
+            default_value = field.default
+            if default_value is None and field.default_factory is not None:
+                default_value = field.default_factory()
+
             parser.add_argument(
                 f"--{name}",
                 dest=name,
                 type=field.type_,
-                default=field.default,
+                default=default_value,
                 help=field.field_info.description,
                 required=field.required,
                 nargs=nargs,
