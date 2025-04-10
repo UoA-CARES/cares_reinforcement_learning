@@ -59,6 +59,7 @@ class RLParser:
             field_type = field.type_
             if get_origin(field.annotation) in [dict, tuple]:
                 field_type = ast.literal_eval
+
             parser.add_argument(
                 f"--{name}",
                 dest=name,
