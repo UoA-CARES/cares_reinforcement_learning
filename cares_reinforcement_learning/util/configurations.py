@@ -79,21 +79,20 @@ class AlgorithmConfig(SubscriptableClass):
         max_steps_training (int]): Maximum number of steps for training.
         number_steps_per_train_policy (int]): Number of steps per updating the training policy.
 
-        min_noise (float]): Minimum noise value.
-        noise_scale (float]): Noise scale.
-        noise_decay (float]): Noise decay.
-
         image_observation (int]): Whether the observation is an image.
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")
+
     G: int = 1
     G_model: int = 1
+    number_steps_per_train_policy: int = 1
+
     buffer_size: int = 1000000
     batch_size: int = 256
+
     max_steps_exploration: int = 1000
     max_steps_training: int = 1000000
-    number_steps_per_train_policy: int = 1
 
     image_observation: int = 0
 
@@ -111,6 +110,9 @@ class DQNConfig(AlgorithmConfig):
     lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 1.0
+
+    batch_size: int = 32
+
     target_update_freq: int = 1000
 
     # Double DQN
@@ -128,11 +130,11 @@ class DQNConfig(AlgorithmConfig):
 
     max_grad_norm: float | None = None
 
+    # Exploration via Epsilon Greedy
+    max_steps_exploration: int = 0
     start_epsilon: float = 1.0
     end_epsilon: float = 1e-3
     decay_steps: int = 100000
-
-    batch_size: int = 32
 
     network_config: MLPConfig = MLPConfig(
         layers=[
