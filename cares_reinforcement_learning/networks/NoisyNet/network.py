@@ -2,11 +2,12 @@ import torch
 from torch import nn
 from cares_reinforcement_learning.networks.common import MLP, NoisyLinear
 from cares_reinforcement_learning.util.configurations import NoisyNetConfig
+from cares_reinforcement_learning.networks.DQN import BaseNetwork
 
 
-class BaseNetwork(nn.Module):
-    def __init__(self, network: nn.Module):
-        super().__init__()
+class BaseNoisyNetwork(BaseNetwork):
+    def __init__(self, observation_size: int, num_actions: int, network: nn.Module):
+        super().__init__(observation_size=observation_size, num_actions=num_actions)
         self.network = network
 
     def forward(self, state: torch.Tensor) -> torch.Tensor:
@@ -18,20 +19,21 @@ class BaseNetwork(nn.Module):
                 module.reset_noise()
 
 
-class DefaultNetwork(BaseNetwork):
+class DefaultNetwork(BaseNoisyNetwork):
     def __init__(self, observation_size: int, num_actions: int):
+        network = nn.Sequential(
+            nn.Linear(observation_size, 64),
+            nn.ReLU(),
+            NoisyLinear(64, 64, sigma_init=1.0),
+            nn.ReLU(),
+            NoisyLinear(64, num_actions, sigma_init=0.5),
+        )
         super().__init__(
-            nn.Sequential(
-                nn.Linear(observation_size, 64),
-                nn.ReLU(),
-                NoisyLinear(64, 64, sigma_init=1.0),
-                nn.ReLU(),
-                NoisyLinear(64, num_actions, sigma_init=0.5),
-            )
+            observation_size=observation_size, num_actions=num_actions, network=network
         )
 
 
-class Network(BaseNetwork):
+class Network(BaseNoisyNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: NoisyNetConfig):
 
         network = MLP(
@@ -39,4 +41,6 @@ class Network(BaseNetwork):
             output_size=num_actions,
             config=config.network_config,
         )
-        super().__init__(network=network)
+        super().__init__(
+            observation_size=observation_size, num_actions=num_actions, network=network
+        )

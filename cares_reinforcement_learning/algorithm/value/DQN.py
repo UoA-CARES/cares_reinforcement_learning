@@ -15,14 +15,7 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.C51 import Network as C51Network
-from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
-from cares_reinforcement_learning.networks.DuelingDQN import (
-    Network as DuelingDQNNetwork,
-)
-from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwork
-from cares_reinforcement_learning.networks.QRDQN import Network as QRDQNNetwork
-from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
+from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
@@ -30,14 +23,7 @@ from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 class DQN(VectorAlgorithm):
     def __init__(
         self,
-        network: (
-            DQNNetwork
-            | DuelingDQNNetwork
-            | NoisyNetwork
-            | C51Network
-            | QRDQNNetwork
-            | RainbowNetwork
-        ),
+        network: BaseNetwork,
         config: DQNConfig,
         device: torch.device,
     ):

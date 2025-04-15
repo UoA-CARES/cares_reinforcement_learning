@@ -122,7 +122,7 @@ def test_algorithms(tmp_path):
         agent.save_models(tmp_path, f"{algorithm}")
         agent.load_models(tmp_path, f"{algorithm}")
 
-        if agent.type == "policy":
+        if agent.policy_type == "policy":
             memory_buffer = _policy_buffer(
                 memory_buffer,
                 capacity,
@@ -131,7 +131,7 @@ def test_algorithms(tmp_path):
                 alg_config.image_observation,
                 add_log_prob=(alg_config.algorithm == "PPO"),
             )
-        elif agent.type == "value" or agent.type == "discrete_policy":
+        elif agent.policy_type == "value" or agent.type == "discrete_policy":
             memory_buffer = _value_buffer(
                 memory_buffer,
                 capacity,
