@@ -77,7 +77,7 @@ class DynaSAC(VectorAlgorithm):
         return self.log_alpha.exp()
 
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self, state: np.ndarray, evaluation: bool = False
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
 

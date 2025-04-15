@@ -15,12 +15,13 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
-class SACD:
+class SACD(VectorAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -28,8 +29,7 @@ class SACD:
         config: SACDConfig,
         device: torch.device,
     ):
-        self.type = "discrete_policy"
-        self.device = device
+        super().__init__(policy_type="discrete_policy", device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -161,7 +161,9 @@ class SACD:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
