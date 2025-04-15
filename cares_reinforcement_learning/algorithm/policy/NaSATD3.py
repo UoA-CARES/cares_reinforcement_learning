@@ -12,6 +12,7 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
@@ -21,7 +22,7 @@ from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
-class NaSATD3:
+class NaSATD3(ImageAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -29,13 +30,12 @@ class NaSATD3:
         config: NaSATD3Config,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         self.gamma = config.gamma
         self.tau = config.tau
 
-        self.noise_clip = config.noise_clip
+        self.noise_clip = config.policy_noise_clip
         self.policy_noise = config.policy_noise
 
         self.ensemble_size = config.ensemble_size
@@ -96,6 +96,7 @@ class NaSATD3:
         state: dict[str, np.ndarray],
         evaluation: bool = False,
         noise_scale: float = 0.1,
+        **kwargs: Any,
     ) -> np.ndarray:
         self.actor.eval()
         self.autoencoder.eval()
@@ -216,7 +217,9 @@ class NaSATD3:
 
         return pred_losses
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.actor.train()
         self.critic.train()
         self.autoencoder.train()
@@ -343,7 +346,12 @@ class NaSATD3:
         state: dict[str, np.ndarray],
         action: np.ndarray,
         next_state: dict[str, np.ndarray],
+        **kwargs: Any,
     ) -> float:
+        if not self.intrinsic_on:
+            logging.warning("Intrinsic reward is not activated, returning 0.0")
+            return 0.0
+
         with torch.no_grad():
             vector_tensor = torch.FloatTensor(state["vector"]).to(self.device)
             vector_tensor = vector_tensor.unsqueeze(0)

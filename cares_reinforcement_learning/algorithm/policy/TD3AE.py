@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
@@ -20,7 +21,7 @@ from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
-class TD3AE:
+class TD3AE(ImageAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -29,8 +30,7 @@ class TD3AE:
         config: TD3AEConfig,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
@@ -52,7 +52,7 @@ class TD3AE:
         self.gamma = config.gamma
         self.tau = config.tau
 
-        self.noise_clip = config.noise_clip
+        self.noise_clip = config.policy_noise_clip
         self.policy_noise = config.policy_noise
 
         self.learn_counter = 0
@@ -85,6 +85,7 @@ class TD3AE:
         state: dict[str, np.ndarray],
         evaluation: bool = False,
         noise_scale: float = 0.1,
+        **kwargs: Any,
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
@@ -168,7 +169,9 @@ class TD3AE:
 
         return ae_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)

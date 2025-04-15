@@ -36,10 +36,6 @@ class CTD4(TD3):
 
         self.fusion_method = config.fusion_method
 
-        self.policy_noise_decay = config.policy_noise_decay
-        self.target_policy_noise_scale = config.target_policy_noise_scale
-        self.min_policy_noise = config.min_policy_noise
-
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
             torch.optim.Adam(
@@ -127,10 +123,11 @@ class CTD4(TD3):
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
 
-            target_noise = self.target_policy_noise_scale * torch.randn_like(
-                next_actions
+            target_noise = self.policy_noise * torch.randn_like(next_actions)
+            target_noise = torch.clamp(
+                target_noise, -self.policy_noise_clip, self.policy_noise_clip
             )
-            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
+
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -224,13 +221,13 @@ class CTD4(TD3):
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        self.target_policy_noise_scale *= self.policy_noise_decay
-        self.target_policy_noise_scale = max(
-            self.min_policy_noise, self.target_policy_noise_scale
-        )
+        self.policy_noise *= self.policy_noise_decay
+        self.target_policy_noise_scale = max(self.min_policy_noise, self.policy_noise)
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences

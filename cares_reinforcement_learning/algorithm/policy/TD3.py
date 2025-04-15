@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
@@ -20,9 +21,10 @@ from cares_reinforcement_learning.networks.common import (
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import TD3Config
+from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class TD3:
+class TD3(VectorAlgorithm):
     def __init__(
         self,
         actor_network: DeterministicPolicy,
@@ -30,8 +32,7 @@ class TD3:
         config: TD3Config,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -51,8 +52,17 @@ class TD3:
         self.per_alpha = config.per_alpha
         self.min_priority = config.min_priority
 
-        self.noise_clip = config.noise_clip
+        # Policy noise
+        self.min_policy_noise = config.min_policy_noise
         self.policy_noise = config.policy_noise
+        self.policy_noise_decay = config.policy_noise_decay
+
+        self.policy_noise_clip = config.policy_noise_clip
+
+        # Action noise
+        self.min_action_noise = config.min_action_noise
+        self.action_noise = config.action_noise
+        self.action_noise_decay = config.action_noise_decay
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -66,8 +76,19 @@ class TD3:
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
+        # Epsilon scheduler
+        # self.epsilon_scheduler = EpsilonScheduler(
+        #     start_epsilon=config.,
+        #     end_epsilon=config.,
+        #     decay_steps=config.,
+        # )
+
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+        self,
+        state: np.ndarray,
+        evaluation: bool = False,
+        noise_scale: float = 0.1,
+        **kwargs: Any,
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
@@ -77,10 +98,13 @@ class TD3:
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
-                noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
+                noise = np.random.normal(
+                    0, scale=self.action_noise, size=self.action_num
+                )
                 action = action + noise
                 action = np.clip(action, -1, 1)
         self.actor_net.train()
+
         return action
 
     def _update_critic(
@@ -94,8 +118,12 @@ class TD3:
     ) -> tuple[float, float, float, np.ndarray]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.policy_noise * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
+            target_noise = torch.clamp(
+                target_noise, -self.policy_noise_clip, self.policy_noise_clip
+            )
+
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -159,7 +187,9 @@ class TD3:
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         if self.use_per_buffer:

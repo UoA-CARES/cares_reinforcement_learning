@@ -11,6 +11,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.C51 import Network as C51Network
@@ -24,7 +25,7 @@ from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetw
 from cares_reinforcement_learning.util.configurations import DQNConfig
 
 
-class DQN:
+class DQN(VectorAlgorithm):
     def __init__(
         self,
         network: (
@@ -38,8 +39,7 @@ class DQN:
         config: DQNConfig,
         device: torch.device,
     ):
-        self.type = "value"
-        self.device = device
+        super().__init__(policy_type="value", device=device)
 
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)
@@ -70,7 +70,7 @@ class DQN:
 
         self.learn_counter = 0
 
-    def select_action_from_policy(self, state: np.ndarray) -> float:
+    def select_action_from_policy(self, state: np.ndarray, **kwargs: Any) -> float:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -115,7 +115,9 @@ class DQN:
 
         return elementwise_loss
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         if self.use_per_buffer:

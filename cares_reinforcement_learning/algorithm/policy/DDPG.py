@@ -12,12 +12,13 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
-class DDPG:
+class DDPG(Algorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -25,8 +26,7 @@ class DDPG:
         config: DDPGConfig,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
@@ -47,8 +47,7 @@ class DDPG:
     def select_action_from_policy(
         self,
         state: np.ndarray,
-        evaluation: bool = False,
-        noise_scale: float = 0,
+        **kwargs: Any,
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
 
@@ -99,7 +98,9 @@ class DDPG:
 
         return actor_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         experiences = memory.sample_uniform(batch_size)
         (states, actions, rewards, next_states, dones, _) = experiences
 

@@ -95,10 +95,6 @@ class AlgorithmConfig(SubscriptableClass):
     max_steps_training: int = 1000000
     number_steps_per_train_policy: int = 1
 
-    min_noise: float = 0.0
-    noise_scale: float = 0.1
-    noise_decay: float = 1.0
-
     image_observation: int = 0
 
     model_path: str | None = None
@@ -828,8 +824,17 @@ class TD3Config(AlgorithmConfig):
     gamma: float = 0.99
     tau: float = 0.005
 
-    noise_clip: float = 0.5
+    # Exploration noise
+    min_action_noise: float = 0.0
+    action_noise: float = 0.1
+    action_noise_decay: float = 1.0
+
+    # Target policy smoothing
+    policy_noise_clip: float = 0.5
+
+    min_policy_noise: float = 0.2
     policy_noise: float = 0.2
+    policy_noise_decay: float = 1.0
 
     policy_update_freq: int = 2
 
@@ -1106,13 +1111,15 @@ class CTD4Config(TD3Config):
     tau: float = 0.005
     ensemble_size: int = 3
 
-    min_noise: float = 0.0
-    noise_decay: float = 0.999999
-    noise_scale: float = 0.1
+    policy_noise_clip: float = 0.5
 
-    policy_noise_decay: float = 0.999999
-    target_policy_noise_scale: float = 0.2
+    min_action_noise: float = 0.0
+    action_noise: float = 0.1
+    action_noise_decay: float = 0.999999
+
     min_policy_noise: float = 0.0
+    policy_noise: float = 0.2
+    policy_noise_decay: float = 0.999999
 
     policy_update_freq: int = 2
 

@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
@@ -24,7 +25,7 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class SAC:
+class SAC(VectorAlgorithm):
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
@@ -32,8 +33,7 @@ class SAC:
         config: SACConfig,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
@@ -75,12 +75,11 @@ class SAC:
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self,
         state: np.ndarray,
         evaluation: bool = False,
-        noise_scale: float = 0,  # pylint: disable=unused-argument
+        **kwargs: Any,
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
@@ -187,7 +186,9 @@ class SAC:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         if self.use_per_buffer:

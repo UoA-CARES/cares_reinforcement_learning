@@ -18,11 +18,13 @@ class NoisyNet(DQN):
     ):
         super().__init__(network=network, config=config, device=device)
 
-    def reset_noise(self):
+    def _reset_noise(self):
         self.network.reset_noise()
         self.target_network.reset_noise()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict:
-        info = super().train_policy(memory, batch_size)
-        self.reset_noise()
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict:
+        info = super().train_policy(memory, batch_size, training_step)
+        self._reset_noise()
         return info

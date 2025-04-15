@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
@@ -22,7 +23,7 @@ from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
-class SACAE:
+class SACAE(ImageAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -31,8 +32,7 @@ class SACAE:
         config: SACAEConfig,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -100,10 +100,8 @@ class SACAE:
         self,
         state: dict[str, np.ndarray],
         evaluation: bool = False,
-        noise_scale: float = 0,
+        **kwargs: Any,
     ) -> np.ndarray:
-        # pylint: disable-next=unused-argument
-
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
@@ -200,7 +198,9 @@ class SACAE:
 
         return ae_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
