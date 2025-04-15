@@ -227,7 +227,10 @@ class CTD4(TD3):
         self.learn_counter += 1
 
         self.policy_noise *= self.policy_noise_decay
-        self.target_policy_noise_scale = max(self.min_policy_noise, self.policy_noise)
+        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
+
+        self.action_noise *= self.action_noise_decay
+        self.action_noise = max(self.min_action_noise, self.action_noise)
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences

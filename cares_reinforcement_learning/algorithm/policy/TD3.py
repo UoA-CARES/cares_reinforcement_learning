@@ -21,7 +21,6 @@ from cares_reinforcement_learning.networks.common import (
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import TD3Config
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
 class TD3(VectorAlgorithm):
@@ -76,19 +75,10 @@ class TD3(VectorAlgorithm):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-        # Epsilon scheduler
-        # self.epsilon_scheduler = EpsilonScheduler(
-        #     start_epsilon=config.,
-        #     end_epsilon=config.,
-        #     decay_steps=config.,
-        # )
-
     def select_action_from_policy(
         self,
         state: np.ndarray,
         evaluation: bool = False,
-        noise_scale: float = 0.1,
-        **kwargs: Any,
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
@@ -191,6 +181,12 @@ class TD3(VectorAlgorithm):
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
         self.learn_counter += 1
+
+        self.policy_noise *= self.policy_noise_decay
+        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
+
+        self.action_noise *= self.action_noise_decay
+        self.action_noise = max(self.min_action_noise, self.action_noise)
 
         if self.use_per_buffer:
             experiences = memory.sample_priority(

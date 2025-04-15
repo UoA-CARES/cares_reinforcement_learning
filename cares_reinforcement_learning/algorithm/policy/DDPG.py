@@ -47,7 +47,7 @@ class DDPG(Algorithm):
     def select_action_from_policy(
         self,
         state: np.ndarray,
-        **kwargs: Any,
+        evaluation: bool = False,
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
 

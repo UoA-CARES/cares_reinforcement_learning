@@ -825,7 +825,7 @@ class TD3Config(AlgorithmConfig):
     tau: float = 0.005
 
     # Exploration noise
-    min_action_noise: float = 0.0
+    min_action_noise: float = 0.1
     action_noise: float = 0.1
     action_noise_decay: float = 1.0
 
@@ -1110,8 +1110,6 @@ class CTD4Config(TD3Config):
     gamma: float = 0.99
     tau: float = 0.005
     ensemble_size: int = 3
-
-    policy_noise_clip: float = 0.5
 
     min_action_noise: float = 0.0
     action_noise: float = 0.1

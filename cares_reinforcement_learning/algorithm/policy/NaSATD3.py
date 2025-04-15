@@ -35,14 +35,23 @@ class NaSATD3(ImageAlgorithm):
         self.gamma = config.gamma
         self.tau = config.tau
 
-        self.noise_clip = config.policy_noise_clip
-        self.policy_noise = config.policy_noise
-
         self.ensemble_size = config.ensemble_size
         self.intrinsic_on = config.intrinsic_on
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
+
+        # Policy noise
+        self.min_policy_noise = config.min_policy_noise
+        self.policy_noise = config.policy_noise
+        self.policy_noise_decay = config.policy_noise_decay
+
+        self.policy_noise_clip = config.policy_noise_clip
+
+        # Action noise
+        self.min_action_noise = config.min_action_noise
+        self.action_noise = config.action_noise
+        self.action_noise_decay = config.action_noise_decay
 
         # Doesn't matter which autoencoder is used, as long as it is the same for all networks
         self.autoencoder: VanillaAutoencoder | BurgessAutoencoder = (
@@ -95,8 +104,6 @@ class NaSATD3(ImageAlgorithm):
         self,
         state: dict[str, np.ndarray],
         evaluation: bool = False,
-        noise_scale: float = 0.1,
-        **kwargs: Any,
     ) -> np.ndarray:
         self.actor.eval()
         self.autoencoder.eval()
@@ -107,8 +114,10 @@ class NaSATD3(ImageAlgorithm):
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
-                action += noise_scale * np.random.randn(self.action_num)
-                noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
+                action += self.action_noise * np.random.randn(self.action_num)
+                noise = np.random.normal(
+                    0, scale=self.action_noise, size=self.action_num
+                )
                 action = action + noise
                 action = np.clip(action, -1, 1)
 
@@ -127,7 +136,9 @@ class NaSATD3(ImageAlgorithm):
         with torch.no_grad():
             next_actions = self.actor_target(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
+            target_noise = torch.clamp(
+                target_noise, -self.policy_noise_clip, self.policy_noise_clip
+            )
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -227,6 +238,12 @@ class NaSATD3(ImageAlgorithm):
         self.autoencoder.decoder.train()
 
         self.learn_counter += 1
+
+        self.policy_noise *= self.policy_noise_decay
+        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
+
+        self.action_noise *= self.action_noise_decay
+        self.action_noise = max(self.min_action_noise, self.action_noise)
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences

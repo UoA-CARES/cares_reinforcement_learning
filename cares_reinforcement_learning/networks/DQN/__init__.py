@@ -1,2 +1,1 @@
-from .network import Network
-from .network import DefaultNetwork
+from .network import BaseNetwork, DefaultNetwork, Network

@@ -100,7 +100,6 @@ class SACAE(ImageAlgorithm):
         self,
         state: dict[str, np.ndarray],
         evaluation: bool = False,
-        **kwargs: Any,
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()

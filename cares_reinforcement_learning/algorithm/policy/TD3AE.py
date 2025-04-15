@@ -85,7 +85,6 @@ class TD3AE(ImageAlgorithm):
         state: dict[str, np.ndarray],
         evaluation: bool = False,
         noise_scale: float = 0.1,
-        **kwargs: Any,
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():

@@ -5,14 +5,15 @@ Original Paper: https://arxiv.org/abs/1312.5602
 import copy
 import logging
 import os
+import random
 from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.C51 import Network as C51Network
 from cares_reinforcement_learning.networks.DQN import Network as DQNNetwork
@@ -23,6 +24,7 @@ from cares_reinforcement_learning.networks.NoisyNet import Network as NoisyNetwo
 from cares_reinforcement_learning.networks.QRDQN import Network as QRDQNNetwork
 from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
 from cares_reinforcement_learning.util.configurations import DQNConfig
+from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
 class DQN(VectorAlgorithm):
@@ -51,6 +53,14 @@ class DQN(VectorAlgorithm):
 
         self.max_grad_norm = config.max_grad_norm
 
+        # Epsilon
+        self.epsilon_scheduler = EpsilonScheduler(
+            start_epsilon=config.start_epsilon,
+            end_epsilon=config.end_epsilon,
+            decay_steps=config.decay_steps,
+        )
+        self.epsilon = self.epsilon_scheduler.get_epsilon(0)
+
         # Double DQN
         self.use_double_dqn = config.use_double_dqn
 
@@ -70,7 +80,10 @@ class DQN(VectorAlgorithm):
 
         self.learn_counter = 0
 
-    def select_action_from_policy(self, state: np.ndarray, **kwargs: Any) -> float:
+    def _explore(self) -> float:
+        return random.randrange(self.network.num_actions)
+
+    def _exploit(self, state: np.ndarray) -> float:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -80,6 +93,20 @@ class DQN(VectorAlgorithm):
 
         self.network.train()
         return action
+
+    def select_action_from_policy(
+        self, state: np.ndarray, evaluation: bool = False
+    ) -> float:
+        """
+        Select an action from the policy based on epsilon-greedy strategy.
+        """
+        if evaluation:
+            return self._exploit(state)
+
+        if random.random() < self.epsilon:
+            return self._explore()
+
+        return self._exploit(state)
 
     def _compute_loss(
         self,
@@ -119,6 +146,11 @@ class DQN(VectorAlgorithm):
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
         self.learn_counter += 1
+
+        self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
+
+        if len(memory) < batch_size:
+            return {}
 
         if self.use_per_buffer:
             experiences = memory.sample_priority(
@@ -171,6 +203,7 @@ class DQN(VectorAlgorithm):
             loss = elementwise_loss.mean()
 
         info["loss"] = loss.item()
+        info["epsilon"] = self.epsilon
 
         self.network_optimiser.zero_grad()
         loss.backward()

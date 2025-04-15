@@ -2,22 +2,23 @@ import torch
 from torch import nn
 
 from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.util.configurations import C51Config
 
 
-class BaseNetwork(nn.Module):
+class BaseC51Network(BaseNetwork):
     def __init__(
         self,
-        input_size: int,
+        observation_size: int,
+        num_actions: int,
         output_size: int,
         num_atoms: int,
         v_min: float,
         v_max: float,
         network: MLP | nn.Sequential,
     ):
-        super().__init__()
+        super().__init__(observation_size=observation_size, num_actions=num_actions)
 
-        self.input_size = input_size
         self.output_size = output_size
         self.num_atoms = num_atoms
 
@@ -49,7 +50,7 @@ class BaseNetwork(nn.Module):
 
 
 # This is the default base network for DQN for reference and testing of default network configurations
-class DefaultNetwork(BaseNetwork):
+class DefaultNetwork(BaseC51Network):
     def __init__(
         self,
         observation_size: int,
@@ -70,7 +71,8 @@ class DefaultNetwork(BaseNetwork):
             nn.Linear(hidden_sizes[1], output_size),
         )
         super().__init__(
-            input_size=observation_size,
+            observation_size=observation_size,
+            num_actions=num_actions,
             output_size=output_size,
             num_atoms=num_atoms,
             v_min=v_min,
@@ -79,7 +81,7 @@ class DefaultNetwork(BaseNetwork):
         )
 
 
-class Network(BaseNetwork):
+class Network(BaseC51Network):
     def __init__(self, observation_size: int, num_actions: int, config: C51Config):
 
         output_size = num_actions * config.num_atoms
@@ -90,7 +92,8 @@ class Network(BaseNetwork):
             config=config.network_config,
         )
         super().__init__(
-            input_size=observation_size,
+            observation_size=observation_size,
+            num_actions=num_actions,
             output_size=output_size,
             num_atoms=config.num_atoms,
             v_min=config.v_min,
