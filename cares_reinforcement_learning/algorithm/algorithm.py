@@ -15,7 +15,7 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 class Algorithm(ABC):
     def __init__(
         self,
-        policy_type: Literal["value", "policy", "discrete_policy"],
+        policy_type: Literal["value", "policy", "discrete_policy", "mbrl"],
         device: torch.device,
     ):
         self.policy_type = policy_type

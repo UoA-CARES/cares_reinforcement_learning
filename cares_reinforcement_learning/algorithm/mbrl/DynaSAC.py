@@ -9,12 +9,14 @@ This code runs automatic entropy tuning
 import copy
 import logging
 import os
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
@@ -23,7 +25,7 @@ from cares_reinforcement_learning.networks.world_models.ensemble_integrated impo
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
 
 
-class DynaSAC:
+class DynaSAC(VectorAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -32,8 +34,7 @@ class DynaSAC:
         config: DynaSACConfig,
         device: torch.device,
     ):
-        self.type = "mbrl"
-        self.device = device
+        super().__init__(policy_type="mbrl", device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
@@ -181,7 +182,9 @@ class DynaSAC:
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> None:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)
@@ -199,6 +202,8 @@ class DynaSAC:
 
         # # # Step 2 Dyna add more data
         self._dyna_generate_and_train(next_states=next_states)
+
+        return {}
 
     def train_world_model(self, memory: MemoryBuffer, batch_size: int) -> None:
         experiences = memory.sample_consecutive(batch_size)
