@@ -9,6 +9,7 @@ import sys
 
 import cares_reinforcement_learning.util.configurations as acf
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -592,14 +593,13 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     return agent
 
 
-# TODO return type base "Algorithm" class?
 class NetworkFactory:
     def create_network(
         self,
         observation_size,
         action_num: int,
         config: acf.AlgorithmConfig,
-    ):
+    ) -> Algorithm | None:
         algorithm = config.algorithm
 
         agent = None
