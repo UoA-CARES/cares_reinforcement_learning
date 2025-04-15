@@ -142,7 +142,7 @@ def test_algorithms(tmp_path):
         else:
             continue
 
-        info = agent.train_policy(memory_buffer, batch_size)
+        info = agent.train_policy(memory_buffer, batch_size, training_step=0)
         assert isinstance(
             info, dict
         ), f"{algorithm} did not return a dictionary of training info"
