@@ -54,9 +54,22 @@ class PPO(VectorAlgorithm):
         )
         self.cov_mat = torch.diag(self.cov_var)
 
+    def _calculate_log_prob(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> torch.Tensor:
+        self.actor_net.eval()
+        with torch.no_grad():
+            mean = self.actor_net(state)
+
+            dist = MultivariateNormal(mean, self.cov_mat)
+            log_prob = dist.log_prob(action)
+
+        self.actor_net.train()
+        return log_prob
+
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -67,16 +80,12 @@ class PPO(VectorAlgorithm):
 
             # Sample an action from the distribution and get its log prob
             sample = dist.sample()
-            log_prob = dist.log_prob(sample)
 
             action = sample.cpu().data.numpy().flatten()
 
-            # just to have this as numpy array
-            log_prob = log_prob.cpu().data.numpy().flatten()
-
         self.actor_net.train()
 
-        return action, log_prob
+        return action
 
     def _evaluate_policy(
         self, state: torch.Tensor, action: torch.Tensor
@@ -104,16 +113,14 @@ class PPO(VectorAlgorithm):
         # pylint: disable-next=unused-argument
 
         experiences = memory.flush()
-        states, actions, rewards, _, dones, log_probs = experiences
+        states, actions, rewards, _, dones = experiences
 
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        log_probs_tensor = torch.FloatTensor(np.asarray(log_probs)).to(self.device)
 
-        log_probs_tensor = log_probs_tensor.squeeze()
+        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
         # compute reward to go:
         rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)

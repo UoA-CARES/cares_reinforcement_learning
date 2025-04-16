@@ -21,10 +21,11 @@ class Algorithm(ABC):
         self.policy_type = policy_type
         self.device = device
 
+    # TODO replace with tuple
     @abstractmethod
     def select_action_from_policy(
         self, state: Any, evaluation: bool = False
-    ) -> np.ndarray | float | tuple[np.ndarray, np.ndarray]: ...
+    ) -> float | np.ndarray: ...
 
     @abstractmethod
     def train_policy(
@@ -56,7 +57,7 @@ class VectorAlgorithm(Algorithm):
     @abstractmethod
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False
-    ) -> np.ndarray | float | tuple[np.ndarray, np.ndarray]:
+    ) -> float | np.ndarray:
         raise NotImplementedError("Implement in base class")
 
 
@@ -65,5 +66,5 @@ class ImageAlgorithm(Algorithm):
     @abstractmethod
     def select_action_from_policy(
         self, state: dict[str, np.ndarray], evaluation: bool = False
-    ) -> np.ndarray | float | tuple[np.ndarray, np.ndarray]:
+    ) -> float | np.ndarray:
         raise NotImplementedError("Implement in base class")

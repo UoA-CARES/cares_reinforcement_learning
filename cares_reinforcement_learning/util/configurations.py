@@ -324,6 +324,8 @@ class PPOConfig(AlgorithmConfig):
 
     gamma: float = 0.99
     eps_clip: float = 0.2
+
+    # TODO is this G?
     updates_per_iteration: int = 10
 
     number_steps_per_train_policy: int = 5000
