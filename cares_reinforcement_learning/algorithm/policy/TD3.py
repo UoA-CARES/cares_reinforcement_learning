@@ -105,7 +105,7 @@ class TD3(VectorAlgorithm):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
 
@@ -151,19 +151,20 @@ class TD3(VectorAlgorithm):
             .data.numpy()
             .flatten()
         )
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+        return info, priorities
 
     # Weights is set for methods like MAPERTD3 that use weights in the actor update
     def _update_actor(
         self,
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
-    ) -> float:
+    ) -> dict[str, Any]:
         actions = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -175,7 +176,11 @@ class TD3(VectorAlgorithm):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        return actor_loss.item()
+        actor_info = {
+            "actor_loss": actor_loss.item(),
+        }
+
+        return actor_info
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -215,27 +220,23 @@ class TD3(VectorAlgorithm):
         dones_tensor = dones_tensor.reshape(batch_size, 1)
         weights_tensor = weights_tensor.reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states_tensor,
-                actions_tensor,
-                rewards_tensor,
-                next_states_tensor,
-                dones_tensor,
-                weights_tensor,
-            )
+        critic_info, priorities = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["critic_loss"] = critic_loss_total
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states_tensor, weights_tensor)
-            info["actor_loss"] = actor_loss
+            actor_info = self._update_actor(states_tensor, weights_tensor)
+            info |= actor_info
 
             # Update target network params
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)

@@ -2,6 +2,8 @@
 Original Paper: https://arxiv.org/abs/2007.06049
 """
 
+from typing import Any
+
 import numpy as np
 import torch
 
@@ -34,7 +36,7 @@ class PALTD3(TD3):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -79,9 +81,10 @@ class PALTD3(TD3):
         batch_size = states.shape[0]
         priorities = np.array([1.0] * batch_size)
 
-        return (
-            pal_loss_one.item(),
-            pal_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": pal_loss_one.item(),
+            "critic_loss_two": pal_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities

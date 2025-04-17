@@ -21,7 +21,6 @@ class Algorithm(ABC):
         self.policy_type = policy_type
         self.device = device
 
-    # TODO replace with tuple
     @abstractmethod
     def select_action_from_policy(
         self, state: Any, evaluation: bool = False

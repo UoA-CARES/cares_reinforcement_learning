@@ -42,7 +42,7 @@ class LA3PTD3(TD3):
         next_states: np.ndarray,
         dones: np.ndarray,
         uniform_sampling: bool,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         # Convert into tensor
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
@@ -118,12 +118,13 @@ class LA3PTD3(TD3):
             .flatten()
         )
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -139,21 +140,17 @@ class LA3PTD3(TD3):
         experiences = memory.sample_uniform(uniform_batch_size)
         states, actions, rewards, next_states, dones, indices = experiences
 
-        info_uniform = {}
+        info_uniform: dict[str, Any] = {}
 
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states,
-                actions,
-                rewards,
-                next_states,
-                dones,
-                uniform_sampling=True,
-            )
+        critic_info, priorities = self._update_critic(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            uniform_sampling=True,
         )
-        info_uniform["critic_loss_one"] = critic_loss_one
-        info_uniform["critic_loss_two"] = critic_loss_two
-        info_uniform["critic_loss_total"] = critic_loss_total
+        info_uniform |= critic_info
 
         memory.update_priorities(indices, priorities)
 
@@ -175,21 +172,17 @@ class LA3PTD3(TD3):
         )
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        info_priority = {}
+        info_priority: dict[str, Any] = {}
 
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states,
-                actions,
-                rewards,
-                next_states,
-                dones,
-                uniform_sampling=False,
-            )
+        critic_info, priorities = self._update_critic(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            uniform_sampling=False,
         )
-        info_priority["critic_loss_one"] = critic_loss_one
-        info_priority["critic_loss_two"] = critic_loss_two
-        info_priority["critic_loss_total"] = critic_loss_total
+        info_priority |= critic_info
 
         memory.update_priorities(indices, priorities)
 
@@ -202,8 +195,8 @@ class LA3PTD3(TD3):
             weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
             states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
 
-            actor_loss = self._update_actor(states_tensor, weights_tensor)
-            info_priority["actor_loss"] = actor_loss
+            actor_info = self._update_actor(states_tensor, weights_tensor)
+            info_priority |= actor_info
 
             self._update_target_network()
 

@@ -2,6 +2,8 @@
 Original Paper: https://arxiv.org/abs/2007.06049
 """
 
+from typing import Any
+
 import numpy as np
 import torch
 
@@ -34,7 +36,7 @@ class LAPTD3(TD3):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
 
@@ -78,9 +80,11 @@ class LAPTD3(TD3):
             .data.numpy()
             .flatten()
         )
-        return (
-            huber_lose_one.item(),
-            huber_lose_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+
+        info = {
+            "critic_loss_one": huber_lose_one.item(),
+            "critic_loss_two": huber_lose_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities

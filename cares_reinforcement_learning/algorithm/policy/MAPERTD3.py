@@ -4,6 +4,8 @@ Original Paper: https://openreview.net/pdf?id=WuEiafqdy9H
 https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithms/td3/matd3.py
 """
 
+from typing import Any
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -46,7 +48,7 @@ class MAPERTD3(TD3):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states, actions)
         q_value_one, predicted_reward_one, next_states_one = self._split_output(
@@ -175,14 +177,17 @@ class MAPERTD3(TD3):
             self.scale_r = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
             self.scale_s = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
 
-    def _update_actor(self, states: torch.Tensor, weights: torch.Tensor) -> float:
+        return info, priorities
+
+    def _update_actor(
+        self, states: torch.Tensor, weights: torch.Tensor
+    ) -> dict[str, Any]:
         actions = self.actor_net(states.detach())
 
         with hlp.evaluating(self.critic_net):
@@ -198,4 +203,7 @@ class MAPERTD3(TD3):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        return actor_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+        }
+        return info

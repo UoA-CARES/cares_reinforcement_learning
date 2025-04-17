@@ -105,7 +105,7 @@ class SAC(VectorAlgorithm):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -150,19 +150,20 @@ class SAC(VectorAlgorithm):
             .flatten()
         )
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities
 
     # Weights is set for methods like MAPERTD3 that use weights in the actor update
     def _update_actor_alpha(
         self,
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
-    ) -> tuple[float, float]:
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -183,7 +184,12 @@ class SAC(VectorAlgorithm):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
+
+        return info
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -217,30 +223,23 @@ class SAC(VectorAlgorithm):
         dones_tensor = dones_tensor.reshape(batch_size, 1)
         weights_tensor = weights_tensor.reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states_tensor,
-                actions_tensor,
-                rewards_tensor,
-                next_states_tensor,
-                dones_tensor,
-                weights_tensor,
-            )
+        critic_info, priorities = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["critic_loss"] = critic_loss_total
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_loss, alpha_loss = self._update_actor_alpha(
-                states_tensor, weights_tensor
-            )
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
+            actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
+            info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:

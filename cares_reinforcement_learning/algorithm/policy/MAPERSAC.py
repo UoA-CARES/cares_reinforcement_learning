@@ -4,6 +4,8 @@ Original Paper: https://openreview.net/pdf?id=WuEiafqdy9H
 https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithms/sac/masac.py
 """
 
+from typing import Any
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -41,7 +43,7 @@ class MAPERSAC(SAC):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, predicted_reward_one, next_states_one = self._split_output(
@@ -162,16 +164,17 @@ class MAPERSAC(SAC):
             self.scale_r = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
             self.scale_s = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities
 
     def _update_actor_alpha(
         self, states: torch.Tensor, weights: torch.Tensor
-    ) -> tuple[float, float]:
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -198,4 +201,9 @@ class MAPERSAC(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
+
+        return info

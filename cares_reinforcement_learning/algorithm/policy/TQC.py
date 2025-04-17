@@ -5,6 +5,8 @@ Code based on: https://github.com/SamsungLabs/tqc_pytorch
 This code runs automatic entropy tuning
 """
 
+from typing import Any
+
 import numpy as np
 import torch
 
@@ -53,7 +55,7 @@ class TQC(SAC):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         batch_size = len(states)
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -108,13 +110,18 @@ class TQC(SAC):
             .flatten()
         )
 
-        return 0, 0, critic_loss_total.item(), priorities
+        info = {
+            "critic_loss": critic_loss_total.item(),
+            "td_error": td_error.mean().item(),
+        }
+
+        return info, priorities
 
     def _update_actor_alpha(
         self,
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
-    ) -> tuple[float, float]:
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -133,4 +140,8 @@ class TQC(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
+        return info

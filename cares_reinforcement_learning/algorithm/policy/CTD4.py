@@ -109,15 +109,15 @@ class CTD4(TD3):
         )
         return fusion_u, fusion_std
 
-    # pylint: disable-next=arguments-differ, arguments-renamed
-    def _update_critic(  # type: ignore[override]
+    def _update_critic(
         self,
         states: torch.Tensor,
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> list[float]:
+        weights: torch.Tensor,  # pylint: disable=unused-argument
+    ) -> tuple[dict[str, Any], np.ndarray]:
         batch_size = len(states)
 
         with torch.no_grad():
@@ -179,10 +179,17 @@ class CTD4(TD3):
 
             critic_loss_totals.append(critic_individual_loss.item())
 
-        return critic_loss_totals
+        info = {
+            "critic_loss_totals": critic_loss_totals,
+        }
 
-    # pylint: disable-next=arguments-differ, arguments-renamed
-    def _update_actor(self, states: torch.Tensor) -> float:  # type: ignore[override]
+        return info, np.array([1.0] * batch_size)
+
+    def _update_actor(
+        self,
+        states: torch.Tensor,
+        weights: torch.Tensor,  # pylint: disable=unused-argument
+    ) -> dict[str, Any]:
         batch_size = len(states)
 
         actor_q_u_set = []
@@ -219,59 +226,63 @@ class CTD4(TD3):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        return actor_loss.item()
-
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
-        self.learn_counter += 1
-
-        self.policy_noise *= self.policy_noise_decay
-        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
-
-        self.action_noise *= self.action_noise_decay
-        self.action_noise = max(self.min_action_noise, self.action_noise)
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-
-        info: dict[str, Any] = {}
-
-        # Update Critics
-        critic_loss_totals = self._update_critic(
-            states_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_tensor,
-            dones_tensor,
-        )
-        info["critic_loss_totals"] = critic_loss_totals
-
-        if self.learn_counter % self.policy_update_freq == 0:
-            # Update Actor
-            actor_loss = self._update_actor(states_tensor)
-            info["actor_loss"] = actor_loss
-
-            # Update ensemble of target critics
-            for critic_net, target_critic_net in zip(
-                self.critic_net.critics, self.target_critic_net.critics
-            ):
-                hlp.soft_update_params(critic_net, target_critic_net, self.tau)
-
-            # Update target actor
-            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+        info = {
+            "actor_loss": actor_loss.item(),
+        }
 
         return info
+
+    # def train_policy(
+    #     self, memory: MemoryBuffer, batch_size: int, training_step: int
+    # ) -> dict[str, Any]:
+    #     self.learn_counter += 1
+
+    #     self.policy_noise *= self.policy_noise_decay
+    #     self.policy_noise = max(self.min_policy_noise, self.policy_noise)
+
+    #     self.action_noise *= self.action_noise_decay
+    #     self.action_noise = max(self.min_action_noise, self.action_noise)
+
+    #     experiences = memory.sample_uniform(batch_size)
+    #     states, actions, rewards, next_states, dones, _ = experiences
+
+    #     batch_size = len(states)
+
+    #     # Convert into tensor
+    #     states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+    #     actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+    #     rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+    #     next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+    #     dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+
+    #     # Reshape to batch_size x whatever
+    #     rewards_tensor = rewards_tensor.reshape(batch_size, 1)
+    #     dones_tensor = dones_tensor.reshape(batch_size, 1)
+
+    #     info: dict[str, Any] = {}
+
+    #     # Update Critics
+    #     critic_loss_totals = self._update_critic(
+    #         states_tensor,
+    #         actions_tensor,
+    #         rewards_tensor,
+    #         next_states_tensor,
+    #         dones_tensor,
+    #     )
+    #     info["critic_loss_totals"] = critic_loss_totals
+
+    #     if self.learn_counter % self.policy_update_freq == 0:
+    #         # Update Actor
+    #         actor_loss = self._update_actor(states_tensor)
+    #         info["actor_loss"] = actor_loss
+
+    #         # Update ensemble of target critics
+    #         for critic_net, target_critic_net in zip(
+    #             self.critic_net.critics, self.target_critic_net.critics
+    #         ):
+    #             hlp.soft_update_params(critic_net, target_critic_net, self.tau)
+
+    #         # Update target actor
+    #         hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+
+    #     return info
