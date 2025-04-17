@@ -129,7 +129,7 @@ def test_algorithms(tmp_path):
                 observation_size,
                 action_num,
                 alg_config.image_observation,
-                add_log_prob=(alg_config.algorithm == "PPO"),
+                False,
             )
         elif agent.policy_type == "value" or agent.policy_type == "discrete_policy":
             memory_buffer = _value_buffer(
