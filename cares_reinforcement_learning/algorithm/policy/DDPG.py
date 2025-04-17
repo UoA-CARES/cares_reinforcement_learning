@@ -67,7 +67,7 @@ class DDPG(Algorithm):
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> float:
+    ) -> dict[str, Any]:
         with torch.no_grad():
             self.target_actor_net.eval()
             next_actions = self.target_actor_net(next_states)
@@ -83,9 +83,13 @@ class DDPG(Algorithm):
         critic_loss.backward()
         self.critic_net_optimiser.step()
 
-        return critic_loss.item()
+        info = {
+            "critic_loss": critic_loss.item(),
+        }
 
-    def _update_actor(self, states: torch.Tensor) -> float:
+        return info
+
+    def _update_actor(self, states: torch.Tensor) -> dict[str, Any]:
         self.critic_net.eval()
         actor_q = self.critic_net(states, self.actor_net(states))
         self.critic_net.train()
@@ -96,7 +100,8 @@ class DDPG(Algorithm):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        return actor_loss.item()
+        info = {"actor_loss": actor_loss.item()}
+        return info
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -117,21 +122,21 @@ class DDPG(Algorithm):
         rewards_tensors = rewards_tensors.reshape(batch_size, 1)
         dones_tensors = dones_tensors.reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update Critic
-        critic_loss = self._update_critic(
+        critic_info = self._update_critic(
             states_tensors,
             actions_tensors,
             rewards_tensors,
             next_states_tensors,
             dones_tensors,
         )
-        info["critic_loss"] = critic_loss
+        info |= critic_info
 
         # Update Actor
-        actor_loss = self._update_actor(states_tensors)
-        info["actor_loss"] = actor_loss
+        actor_info = self._update_actor(states_tensors)
+        info |= actor_info
 
         hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
         hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)

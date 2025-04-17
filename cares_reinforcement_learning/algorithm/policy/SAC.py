@@ -45,14 +45,14 @@ class SAC(VectorAlgorithm):
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.reward_scale = config.reward_scale
 
-        # PERSAC
+        # PER
         self.use_per_buffer = config.use_per_buffer
         self.per_sampling_strategy = config.per_sampling_strategy
         self.per_weight_normalisation = config.per_weight_normalisation
         self.per_alpha = config.per_alpha
         self.min_priority = config.min_priority
-        self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq

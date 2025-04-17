@@ -55,23 +55,24 @@ class SACAE(ImageAlgorithm):
         self.tau = config.tau
         self.reward_scale = config.reward_scale
 
+        # PER
+        self.use_per_buffer = config.use_per_buffer
+        self.per_sampling_strategy = config.per_sampling_strategy
+        self.per_weight_normalisation = config.per_weight_normalisation
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
+
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
         self.target_update_freq = config.target_update_freq
 
-        actor_beta = 0.9
-        critic_beta = 0.9
-        alpha_beta = 0.5
-
         self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr, betas=(actor_beta, 0.999)
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(),
-            lr=config.critic_lr,
-            betas=(critic_beta, 0.999),
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
         self.ae_loss_function = AELoss(
@@ -87,13 +88,12 @@ class SACAE(ImageAlgorithm):
             **config.autoencoder_config.decoder_optim_kwargs,
         )
 
-        # Temperature (alpha) for the entropy loss
-        # Set to initial alpha to 0.1 according to other baselines.
-        init_temperature = 0.1
+        # Set to initial alpha to 1.0 according to other baselines.
+        init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=config.alpha_lr, betas=(alpha_beta, 0.999)
+            [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
     def select_action_from_policy(
@@ -125,7 +125,8 @@ class SACAE(ImageAlgorithm):
         rewards: torch.Tensor,
         next_states: dict[str, torch.Tensor],
         dones: torch.Tensor,
-    ) -> tuple[float, float, float]:
+        weights: torch.Tensor,
+    ) -> tuple[dict[str, Any], np.ndarray]:
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -145,19 +146,40 @@ class SACAE(ImageAlgorithm):
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        critic_loss_one = F.mse_loss(q_values_one, q_target)
-        critic_loss_two = F.mse_loss(q_values_two, q_target)
+        td_error_one = (q_values_one - q_target).abs()
+        td_error_two = (q_values_two - q_target).abs()
+
+        critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
+        critic_loss_one = (critic_loss_one * weights).mean()
+
+        critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
+        critic_loss_two = (critic_loss_two * weights).mean()
+
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+        # Update the Priorities - PER only
+        priorities = (
+            torch.max(td_error_one, td_error_two)
+            .clamp(self.min_priority)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
-    def _update_actor_alpha(
-        self, states: dict[str, torch.Tensor]
-    ) -> tuple[float, float]:
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss": critic_loss_total.item(),
+        }
+
+        return info, priorities
+
+    def _update_actor_alpha(self, states: dict[str, torch.Tensor]) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
 
         with hlp.evaluating(self.critic_net):
@@ -177,9 +199,14 @@ class SACAE(ImageAlgorithm):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
 
-    def _update_autoencoder(self, states: torch.Tensor) -> float:
+        return info
+
+    def _update_autoencoder(self, states: torch.Tensor) -> dict[str, Any]:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
 
@@ -195,15 +222,27 @@ class SACAE(ImageAlgorithm):
         self.encoder_net_optimiser.step()
         self.decoder_net_optimiser.step()
 
-        return ae_loss.item()
+        info = {
+            "ae_loss": ae_loss.item(),
+        }
+        return info
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        if self.use_per_buffer:
+            experiences = memory.sample_priority(
+                batch_size,
+                sampling_stratagy=self.per_sampling_strategy,
+                weight_normalisation=self.per_weight_normalisation,
+            )
+            states, actions, rewards, next_states, dones, indices, weights = experiences
+        else:
+            experiences = memory.sample_uniform(batch_size)
+            states, actions, rewards, next_states, dones, _ = experiences
+            weights = [1.0] * batch_size
 
         batch_size = len(states)
 
@@ -215,30 +254,30 @@ class SACAE(ImageAlgorithm):
         next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
 
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size x whatever
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
         dones_tensor = dones_tensor.reshape(batch_size, 1)
+        weights_tensor = weights_tensor.reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
+        critic_info, priorities = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
             next_states_tensor,
             dones_tensor,
+            weights_tensor,
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["critic_loss"] = critic_loss_total
+        info |= critic_info
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
+            actor_info = self._update_actor_alpha(states_tensor)
+            info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
@@ -256,8 +295,12 @@ class SACAE(ImageAlgorithm):
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_loss = self._update_autoencoder(states_tensor["image"])
-            info["ae_loss"] = ae_loss
+            ae_info = self._update_autoencoder(states_tensor["image"])
+            info |= ae_info
+
+        # Update the Priorities
+        if self.use_per_buffer:
+            memory.update_priorities(indices, priorities)
 
         return info
 

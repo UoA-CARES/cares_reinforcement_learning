@@ -413,8 +413,17 @@ class SACAEConfig(SACConfig):
     batch_size: int = 128
 
     actor_lr: float = 1e-3
+    actor_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.9, 0.999)}
+    )
     critic_lr: float = 1e-3
+    critic_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.9, 0.999)}
+    )
     alpha_lr: float = 1e-4
+    alpha_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.5, 0.999)}
+    )
 
     gamma: float = 0.99
     tau: float = 0.005
