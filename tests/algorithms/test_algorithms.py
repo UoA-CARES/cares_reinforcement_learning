@@ -1,7 +1,4 @@
-import importlib.util
 import inspect
-import sys
-from pathlib import Path
 from random import randrange
 
 import numpy as np
@@ -18,7 +15,6 @@ def _policy_buffer(
     observation_size,
     action_num,
     image_state,
-    add_log_prob=False,
 ):
     if image_state:
         state_vector = list(range(observation_size["vector"]))
@@ -44,10 +40,7 @@ def _policy_buffer(
     done = False
 
     for _ in range(capacity):
-        if add_log_prob:
-            memory_buffer.add(state, action, reward, next_state, done, 0.0)
-        else:
-            memory_buffer.add(state, action, reward, next_state, done)
+        memory_buffer.add(state, action, reward, next_state, done)
 
     return memory_buffer
 
@@ -129,7 +122,6 @@ def test_algorithms(tmp_path):
                 observation_size,
                 action_num,
                 alg_config.image_observation,
-                False,
             )
         elif agent.policy_type == "value" or agent.policy_type == "discrete_policy":
             memory_buffer = _value_buffer(
