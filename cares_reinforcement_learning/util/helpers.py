@@ -149,7 +149,8 @@ def weight_init(module: torch.nn.Module) -> None:
     elif isinstance(module, (torch.nn.Conv2d, torch.nn.ConvTranspose2d)):
         assert module.weight.size(2) == module.weight.size(3)
         module.weight.data.fill_(0.0)
-        module.bias.data.fill_(0.0)
+        if module.bias is not None:
+            module.bias.data.fill_(0.0)
         mid = module.weight.size(2) // 2
         gain = torch.nn.init.calculate_gain("relu")
         torch.nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
