@@ -26,6 +26,7 @@ class Algorithm(ABC):
         self, state: Any, evaluation: bool = False
     ) -> float | np.ndarray: ...
 
+    # TODO push batch_size into the algorithm
     @abstractmethod
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int

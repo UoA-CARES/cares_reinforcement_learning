@@ -1135,5 +1135,3 @@ class CTD4Config(TD3Config):
     policy_update_freq: int = 2
 
     fusion_method: str = "kalman"  # kalman, minimum, average
-
-    use_per_buffer: Literal[0] = Field(default=0, frozen=True)

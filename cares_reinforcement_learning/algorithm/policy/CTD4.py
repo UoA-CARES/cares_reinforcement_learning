@@ -154,11 +154,13 @@ class CTD4(TD3):
             # Create the target distribution = aX+b
             u_target = rewards + self.gamma * fusion_u * (1 - dones)
             std_target = self.gamma * fusion_std
+
             target_distribution = torch.distributions.normal.Normal(
                 u_target, std_target
             )
 
         critic_loss_totals = []
+        critic_loss_elementwise = []
 
         for critic_net, critic_net_optimiser in zip(
             self.critic_net.critics, self.ensemble_critic_optimizers
@@ -169,21 +171,35 @@ class CTD4(TD3):
             )
 
             # Compute each critic loss
-            critic_individual_loss = torch.distributions.kl.kl_divergence(
+            critic_elementwise_loss = torch.distributions.kl.kl_divergence(
                 current_distribution, target_distribution
-            ).mean()
+            )
+            critic_loss_elementwise.append(critic_elementwise_loss)
+
+            critic_loss = critic_elementwise_loss.mean()
+            critic_loss_totals.append(critic_loss.item())
 
             critic_net_optimiser.zero_grad()
-            critic_individual_loss.backward()
+            critic_loss.backward()
             critic_net_optimiser.step()
 
-            critic_loss_totals.append(critic_individual_loss.item())
+        critic_losses = torch.stack(critic_loss_elementwise, dim=0)
+        critic_losses = torch.max(critic_losses, dim=0).values
+
+        # Update the Priorities - PER only
+        priorities = (
+            critic_losses.clamp(self.min_priority)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
         info = {
             "critic_loss_totals": critic_loss_totals,
         }
 
-        return info, np.array([1.0] * batch_size)
+        return info, priorities
 
     def _update_actor(
         self,

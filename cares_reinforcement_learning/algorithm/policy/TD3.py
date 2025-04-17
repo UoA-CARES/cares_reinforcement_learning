@@ -182,6 +182,7 @@ class TD3(VectorAlgorithm):
 
         return actor_info
 
+    # TODO use training_step with decay rates
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
