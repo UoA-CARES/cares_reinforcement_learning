@@ -170,7 +170,7 @@ class CTD4(TD3):
                 u_current, std_current
             )
 
-            # Compute each critic loss
+            # Compute each critic los
             critic_elementwise_loss = torch.distributions.kl.kl_divergence(
                 current_distribution, target_distribution
             )
