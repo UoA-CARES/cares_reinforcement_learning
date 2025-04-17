@@ -67,6 +67,10 @@ class SAC(VectorAlgorithm):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
+        print(actor_network)
+        print(critic_network)
+
+
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)

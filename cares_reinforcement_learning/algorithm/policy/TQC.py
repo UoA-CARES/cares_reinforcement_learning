@@ -47,6 +47,9 @@ class TQC(SAC):
             ]
         ).to(device)
 
+        print(actor_network)
+        print(critic_network)
+
     def _update_critic(
         self,
         states: torch.Tensor,

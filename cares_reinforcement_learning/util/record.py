@@ -217,7 +217,7 @@ class Record:
             "eval",
         )
 
-        self.save_agent(f"{self.algorithm}", f"{logs['total_steps']}")
+        # self.save_agent(f"{self.algorithm}", f"{logs['total_steps']}")
 
     def save(self) -> None:
         logging.info("Saving final outputs")

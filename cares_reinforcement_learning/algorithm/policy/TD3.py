@@ -75,6 +75,9 @@ class TD3(VectorAlgorithm):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
+        print(actor_network)
+        print(critic_network)
+
     def select_action_from_policy(
         self,
         state: np.ndarray,

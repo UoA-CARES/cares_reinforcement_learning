@@ -46,6 +46,9 @@ class CTD4(TD3):
             for critic_net in self.critic_net.critics
         ]
 
+        print(actor_network)
+        print(ensemble_critic)
+
     def _fusion_kalman(
         self,
         std_1: torch.Tensor,
