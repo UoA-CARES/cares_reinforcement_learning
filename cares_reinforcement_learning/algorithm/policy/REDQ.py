@@ -116,7 +116,9 @@ class REDQ(SAC):
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         experiences = memory.sample_uniform(batch_size)

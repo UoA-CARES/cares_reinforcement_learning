@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -33,7 +35,8 @@ class RDTD3(TD3):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
+
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
@@ -67,7 +70,9 @@ class RDTD3(TD3):
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
+            target_noise = torch.clamp(
+                target_noise, -self.policy_noise_clip, self.policy_noise_clip
+            )
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -135,9 +140,9 @@ class RDTD3(TD3):
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+        return info, priorities

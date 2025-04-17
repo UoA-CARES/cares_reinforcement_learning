@@ -592,7 +592,6 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     return agent
 
 
-# TODO return type base "Algorithm" class?
 class NetworkFactory:
     def create_network(
         self,

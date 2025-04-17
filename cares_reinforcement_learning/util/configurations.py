@@ -79,25 +79,20 @@ class AlgorithmConfig(SubscriptableClass):
         max_steps_training (int]): Maximum number of steps for training.
         number_steps_per_train_policy (int]): Number of steps per updating the training policy.
 
-        min_noise (float]): Minimum noise value.
-        noise_scale (float]): Noise scale.
-        noise_decay (float]): Noise decay.
-
         image_observation (int]): Whether the observation is an image.
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")
+
     G: int = 1
     G_model: int = 1
-    buffer_size: int = 1000000
-    batch_size: int = 256
-    max_steps_exploration: int = 1000
-    max_steps_training: int = 1000000
     number_steps_per_train_policy: int = 1
 
-    min_noise: float = 0.0
-    noise_scale: float = 0.1
-    noise_decay: float = 1.0
+    buffer_size: int = 1000000
+    batch_size: int = 256
+
+    max_steps_exploration: int = 1000
+    max_steps_training: int = 1000000
 
     image_observation: int = 0
 
@@ -115,6 +110,9 @@ class DQNConfig(AlgorithmConfig):
     lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 1.0
+
+    batch_size: int = 32
+
     target_update_freq: int = 1000
 
     # Double DQN
@@ -132,11 +130,11 @@ class DQNConfig(AlgorithmConfig):
 
     max_grad_norm: float | None = None
 
+    # Exploration via Epsilon Greedy
+    max_steps_exploration: int = 0
     start_epsilon: float = 1.0
     end_epsilon: float = 1e-3
     decay_steps: int = 100000
-
-    batch_size: int = 32
 
     network_config: MLPConfig = MLPConfig(
         layers=[
@@ -326,6 +324,8 @@ class PPOConfig(AlgorithmConfig):
 
     gamma: float = 0.99
     eps_clip: float = 0.2
+
+    # TODO is this G?
     updates_per_iteration: int = 10
 
     number_steps_per_train_policy: int = 5000
@@ -413,8 +413,17 @@ class SACAEConfig(SACConfig):
     batch_size: int = 128
 
     actor_lr: float = 1e-3
+    actor_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.9, 0.999)}
+    )
     critic_lr: float = 1e-3
+    critic_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.9, 0.999)}
+    )
     alpha_lr: float = 1e-4
+    alpha_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.5, 0.999)}
+    )
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -828,8 +837,17 @@ class TD3Config(AlgorithmConfig):
     gamma: float = 0.99
     tau: float = 0.005
 
-    noise_clip: float = 0.5
+    # Exploration noise
+    min_action_noise: float = 0.1
+    action_noise: float = 0.1
+    action_noise_decay: float = 1.0
+
+    # Target policy smoothing
+    policy_noise_clip: float = 0.5
+
+    min_policy_noise: float = 0.2
     policy_noise: float = 0.2
+    policy_noise_decay: float = 1.0
 
     policy_update_freq: int = 2
 
@@ -1106,16 +1124,14 @@ class CTD4Config(TD3Config):
     tau: float = 0.005
     ensemble_size: int = 3
 
-    min_noise: float = 0.0
-    noise_decay: float = 0.999999
-    noise_scale: float = 0.1
+    min_action_noise: float = 0.0
+    action_noise: float = 0.1
+    action_noise_decay: float = 0.999999
 
-    policy_noise_decay: float = 0.999999
-    target_policy_noise_scale: float = 0.2
     min_policy_noise: float = 0.0
+    policy_noise: float = 0.2
+    policy_noise_decay: float = 0.999999
 
     policy_update_freq: int = 2
 
     fusion_method: str = "kalman"  # kalman, minimum, average
-
-    use_per_buffer: Literal[0] = Field(default=0, frozen=True)

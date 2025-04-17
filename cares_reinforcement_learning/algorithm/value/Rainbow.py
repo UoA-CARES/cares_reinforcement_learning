@@ -2,6 +2,8 @@
 Original Paper:
 """
 
+from typing import Any
+
 import torch
 
 from cares_reinforcement_learning.algorithm.value import C51
@@ -19,11 +21,13 @@ class Rainbow(C51):
     ):
         super().__init__(network=network, config=config, device=device)
 
-    def reset_noise(self):
+    def _reset_noise(self) -> None:
         self.network.reset_noise()
         self.target_network.reset_noise()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict:
-        info = super().train_policy(memory, batch_size)
-        self.reset_noise()
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
+        info = super().train_policy(memory, batch_size, training_step)
+        self._reset_noise()
         return info

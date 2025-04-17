@@ -17,12 +17,13 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.util.configurations import PPOConfig
 
 
-class PPO:
+class PPO(VectorAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -30,7 +31,8 @@ class PPO:
         config: PPOConfig,
         device: torch.device,
     ):
-        self.type = "policy"
+        super().__init__(policy_type="policy", device=device)
+
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
@@ -52,9 +54,22 @@ class PPO:
         )
         self.cov_mat = torch.diag(self.cov_var)
 
+    def _calculate_log_prob(
+        self, state: torch.Tensor, action: torch.Tensor
+    ) -> torch.Tensor:
+        self.actor_net.eval()
+        with torch.no_grad():
+            mean = self.actor_net(state)
+
+            dist = MultivariateNormal(mean, self.cov_mat)
+            log_prob = dist.log_prob(action)
+
+        self.actor_net.train()
+        return log_prob
+
     def select_action_from_policy(
-        self, state: torch.Tensor, evaluation: bool = False, noise_scale: float = 0.0
-    ) -> tuple[np.ndarray, np.ndarray]:
+        self, state: np.ndarray, evaluation: bool = False
+    ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -64,16 +79,13 @@ class PPO:
             dist = MultivariateNormal(mean, self.cov_mat)
 
             # Sample an action from the distribution and get its log prob
-            action = dist.sample()
-            log_prob = dist.log_prob(action)
+            sample = dist.sample()
 
-            action = action.cpu().data.numpy().flatten()
-
-            # just to have this as numpy array
-            log_prob = log_prob.cpu().data.numpy().flatten()
+            action = sample.cpu().data.numpy().flatten()
 
         self.actor_net.train()
-        return action, log_prob
+
+        return action
 
     def _evaluate_policy(
         self, state: torch.Tensor, action: torch.Tensor
@@ -95,20 +107,20 @@ class PPO:
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
         return batch_rtgs
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int = 0) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
 
         experiences = memory.flush()
-        states, actions, rewards, _, dones, log_probs = experiences
+        states, actions, rewards, _, dones = experiences
 
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        log_probs_tensor = torch.FloatTensor(np.asarray(log_probs)).to(self.device)
 
-        log_probs_tensor = log_probs_tensor.squeeze()
+        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
         # compute reward to go:
         rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)

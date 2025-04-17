@@ -5,6 +5,8 @@ Code based on: https://github.com/modelbased/minirllab/blob/main/agents/sac_cros
 This code runs automatic entropy tuning
 """
 
+from typing import Any
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -38,7 +40,7 @@ class CrossQ(SAC):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -87,9 +89,10 @@ class CrossQ(SAC):
             .flatten()
         )
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities

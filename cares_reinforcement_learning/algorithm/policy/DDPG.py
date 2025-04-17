@@ -12,12 +12,13 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
-class DDPG:
+class DDPG(Algorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -25,8 +26,7 @@ class DDPG:
         config: DDPGConfig,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
@@ -48,7 +48,6 @@ class DDPG:
         self,
         state: np.ndarray,
         evaluation: bool = False,
-        noise_scale: float = 0,
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
 
@@ -68,7 +67,7 @@ class DDPG:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> float:
+    ) -> dict[str, Any]:
         with torch.no_grad():
             self.target_actor_net.eval()
             next_actions = self.target_actor_net(next_states)
@@ -84,9 +83,13 @@ class DDPG:
         critic_loss.backward()
         self.critic_net_optimiser.step()
 
-        return critic_loss.item()
+        info = {
+            "critic_loss": critic_loss.item(),
+        }
 
-    def _update_actor(self, states: torch.Tensor) -> float:
+        return info
+
+    def _update_actor(self, states: torch.Tensor) -> dict[str, Any]:
         self.critic_net.eval()
         actor_q = self.critic_net(states, self.actor_net(states))
         self.critic_net.train()
@@ -97,9 +100,12 @@ class DDPG:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        return actor_loss.item()
+        info = {"actor_loss": actor_loss.item()}
+        return info
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         experiences = memory.sample_uniform(batch_size)
         (states, actions, rewards, next_states, dones, _) = experiences
 
@@ -116,21 +122,21 @@ class DDPG:
         rewards_tensors = rewards_tensors.reshape(batch_size, 1)
         dones_tensors = dones_tensors.reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update Critic
-        critic_loss = self._update_critic(
+        critic_info = self._update_critic(
             states_tensors,
             actions_tensors,
             rewards_tensors,
             next_states_tensors,
             dones_tensors,
         )
-        info["critic_loss"] = critic_loss
+        info |= critic_info
 
         # Update Actor
-        actor_loss = self._update_actor(states_tensors)
-        info["actor_loss"] = actor_loss
+        actor_info = self._update_actor(states_tensors)
+        info |= actor_info
 
         hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
         hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)

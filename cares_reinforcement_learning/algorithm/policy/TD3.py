@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
@@ -22,7 +23,7 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
-class TD3:
+class TD3(VectorAlgorithm):
     def __init__(
         self,
         actor_network: DeterministicPolicy,
@@ -30,8 +31,7 @@ class TD3:
         config: TD3Config,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -51,8 +51,17 @@ class TD3:
         self.per_alpha = config.per_alpha
         self.min_priority = config.min_priority
 
-        self.noise_clip = config.noise_clip
+        # Policy noise
+        self.min_policy_noise = config.min_policy_noise
         self.policy_noise = config.policy_noise
+        self.policy_noise_decay = config.policy_noise_decay
+
+        self.policy_noise_clip = config.policy_noise_clip
+
+        # Action noise
+        self.min_action_noise = config.min_action_noise
+        self.action_noise = config.action_noise
+        self.action_noise_decay = config.action_noise_decay
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -67,7 +76,9 @@ class TD3:
         )
 
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0.1
+        self,
+        state: np.ndarray,
+        evaluation: bool = False,
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
@@ -77,10 +88,13 @@ class TD3:
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
-                noise = np.random.normal(0, scale=noise_scale, size=self.action_num)
+                noise = np.random.normal(
+                    0, scale=self.action_noise, size=self.action_num
+                )
                 action = action + noise
                 action = np.clip(action, -1, 1)
         self.actor_net.train()
+
         return action
 
     def _update_critic(
@@ -91,11 +105,15 @@ class TD3:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
+
             target_noise = self.policy_noise * torch.randn_like(next_actions)
-            target_noise = torch.clamp(target_noise, -self.noise_clip, self.noise_clip)
+            target_noise = torch.clamp(
+                target_noise, -self.policy_noise_clip, self.policy_noise_clip
+            )
+
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -133,19 +151,20 @@ class TD3:
             .data.numpy()
             .flatten()
         )
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+        return info, priorities
 
     # Weights is set for methods like MAPERTD3 that use weights in the actor update
     def _update_actor(
         self,
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
-    ) -> float:
+    ) -> dict[str, Any]:
         actions = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -157,10 +176,23 @@ class TD3:
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        return actor_loss.item()
+        actor_info = {
+            "actor_loss": actor_loss.item(),
+        }
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        return actor_info
+
+    # TODO use training_step with decay rates
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
+
+        self.policy_noise *= self.policy_noise_decay
+        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
+
+        self.action_noise *= self.action_noise_decay
+        self.action_noise = max(self.min_action_noise, self.action_noise)
 
         if self.use_per_buffer:
             experiences = memory.sample_priority(
@@ -189,27 +221,23 @@ class TD3:
         dones_tensor = dones_tensor.reshape(batch_size, 1)
         weights_tensor = weights_tensor.reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states_tensor,
-                actions_tensor,
-                rewards_tensor,
-                next_states_tensor,
-                dones_tensor,
-                weights_tensor,
-            )
+        critic_info, priorities = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["critic_loss"] = critic_loss_total
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states_tensor, weights_tensor)
-            info["actor_loss"] = actor_loss
+            actor_info = self._update_actor(states_tensor, weights_tensor)
+            info |= actor_info
 
             # Update target network params
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)

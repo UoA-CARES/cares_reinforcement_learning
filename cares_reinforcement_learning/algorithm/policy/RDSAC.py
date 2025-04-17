@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import torch
 import torch.nn.functional as F
@@ -35,7 +37,7 @@ class RDSAC(SAC):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
         q_value_one, reward_one, next_states_one = self._split_output(output_one)
@@ -135,16 +137,17 @@ class RDSAC(SAC):
             self.scale_r = np.mean(numpy_td_err) / (np.mean(numpy_reward_err))
             self.scale_s = np.mean(numpy_td_err) / (np.mean(numpy_state_err))
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities
 
     def _update_actor_alpha(
         self, states: torch.Tensor, weights: torch.Tensor
-    ) -> tuple[float, float]:
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -166,4 +169,8 @@ class RDSAC(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
+        return info

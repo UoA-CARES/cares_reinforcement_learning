@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
@@ -24,7 +25,7 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class SAC:
+class SAC(VectorAlgorithm):
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
@@ -32,8 +33,7 @@ class SAC:
         config: SACConfig,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.device = device
+        super().__init__(policy_type="policy", device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
@@ -45,14 +45,14 @@ class SAC:
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.reward_scale = config.reward_scale
 
-        # PERSAC
+        # PER
         self.use_per_buffer = config.use_per_buffer
         self.per_sampling_strategy = config.per_sampling_strategy
         self.per_weight_normalisation = config.per_weight_normalisation
         self.per_alpha = config.per_alpha
         self.min_priority = config.min_priority
-        self.reward_scale = config.reward_scale
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -75,12 +75,10 @@ class SAC:
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
-    # pylint: disable-next=unused-argument
     def select_action_from_policy(
         self,
         state: np.ndarray,
         evaluation: bool = False,
-        noise_scale: float = 0,  # pylint: disable=unused-argument
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
@@ -107,7 +105,7 @@ class SAC:
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -152,19 +150,20 @@ class SAC:
             .flatten()
         )
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities
 
     # Weights is set for methods like MAPERTD3 that use weights in the actor update
     def _update_actor_alpha(
         self,
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
-    ) -> tuple[float, float]:
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -185,9 +184,16 @@ class SAC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        return info
+
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         if self.use_per_buffer:
@@ -217,30 +223,23 @@ class SAC:
         dones_tensor = dones_tensor.reshape(batch_size, 1)
         weights_tensor = weights_tensor.reshape(batch_size, 1)
 
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states_tensor,
-                actions_tensor,
-                rewards_tensor,
-                next_states_tensor,
-                dones_tensor,
-                weights_tensor,
-            )
+        critic_info, priorities = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["critic_loss"] = critic_loss_total
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_loss, alpha_loss = self._update_actor_alpha(
-                states_tensor, weights_tensor
-            )
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
+            actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
+            info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:

@@ -7,14 +7,14 @@ import torch
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.C51 import Network as C51Network
 from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
-from cares_reinforcement_learning.util.configurations import C51Config
+from cares_reinforcement_learning.util.configurations import C51Config, RainbowConfig
 
 
 class C51(DQN):
     def __init__(
         self,
         network: C51Network | RainbowNetwork,
-        config: C51Config,
+        config: C51Config | RainbowConfig,
         device: torch.device,
     ):
         super().__init__(network=network, config=config, device=device)

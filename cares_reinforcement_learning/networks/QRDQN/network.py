@@ -2,20 +2,21 @@ import torch
 from torch import nn
 
 from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.util.configurations import QRDQNConfig
 
 
-class BaseNetwork(nn.Module):
+class BaseQRNetwork(BaseNetwork):
     def __init__(
         self,
-        input_size: int,
+        observation_size: int,
         num_actions: int,
         quantiles: int,
         network: nn.Module | nn.Sequential,
     ):
-        super().__init__()
+        super().__init__(observation_size=observation_size, num_actions=num_actions)
 
-        self.input_size = input_size
+        self.observation_size = observation_size
 
         self.num_actions = num_actions
         self.quantiles = quantiles
@@ -36,15 +37,9 @@ class BaseNetwork(nn.Module):
             self.quantiles,
         )
 
-        # return output.view(
-        #     state.shape[0],
-        #     self.quantiles,
-        #     self.num_actions,
-        # )
-
 
 # This is the default base network for DQN for reference and testing of default network configurations
-class DefaultNetwork(BaseNetwork):
+class DefaultNetwork(BaseQRNetwork):
     def __init__(
         self,
         observation_size: int,
@@ -61,14 +56,14 @@ class DefaultNetwork(BaseNetwork):
             nn.Linear(hidden_sizes[1], num_actions * quantiles),
         )
         super().__init__(
-            input_size=observation_size,
+            observation_size=observation_size,
             num_actions=num_actions,
             quantiles=quantiles,
             network=network,
         )
 
 
-class Network(BaseNetwork):
+class Network(BaseQRNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: QRDQNConfig):
 
         network = MLP(
@@ -77,7 +72,7 @@ class Network(BaseNetwork):
             config=config.network_config,
         )
         super().__init__(
-            input_size=observation_size,
+            observation_size=observation_size,
             num_actions=num_actions,
             quantiles=config.quantiles,
             network=network,

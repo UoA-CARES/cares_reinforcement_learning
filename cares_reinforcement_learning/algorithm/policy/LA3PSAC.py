@@ -37,7 +37,7 @@ class LA3PSAC(SAC):
         next_states: np.ndarray,
         dones: np.ndarray,
         uniform_sampling: bool,
-    ) -> tuple[float, float, float, np.ndarray]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
 
         # Convert into tensor
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
@@ -111,14 +111,17 @@ class LA3PSAC(SAC):
             .flatten()
         )
 
-        return (
-            critic_loss_one.item(),
-            critic_loss_two.item(),
-            critic_loss_total.item(),
-            priorities,
-        )
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        return info, priorities
+
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
@@ -130,21 +133,17 @@ class LA3PSAC(SAC):
         experiences = memory.sample_uniform(uniform_batch_size)
         states, actions, rewards, next_states, dones, indices = experiences
 
-        info_uniform = {}
+        info_uniform: dict[str, Any] = {}
 
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states,
-                actions,
-                rewards,
-                next_states,
-                dones,
-                uniform_sampling=True,
-            )
+        critic_info, priorities = self._update_critic(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            uniform_sampling=True,
         )
-        info_uniform["critic_loss_one"] = critic_loss_one
-        info_uniform["critic_loss_two"] = critic_loss_two
-        info_uniform["critic_loss_total"] = critic_loss_total
+        info_uniform |= critic_info
 
         memory.update_priorities(indices, priorities)
 
@@ -153,9 +152,8 @@ class LA3PSAC(SAC):
         weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
 
-        actor_loss, alpha_loss = self._update_actor_alpha(states_tensor, weights_tensor)
-        info_uniform["actor_loss"] = actor_loss
-        info_uniform["alpha_loss"] = alpha_loss
+        actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
+        info_uniform |= actor_info
         info_uniform["alpha"] = self.alpha.item()
 
         if target_update:
@@ -169,21 +167,17 @@ class LA3PSAC(SAC):
         )
         states, actions, rewards, next_states, dones, indices, _ = experiences
 
-        info_priority = {}
+        info_priority: dict[str, Any] = {}
 
-        critic_loss_one, critic_loss_two, critic_loss_total, priorities = (
-            self._update_critic(
-                states,
-                actions,
-                rewards,
-                next_states,
-                dones,
-                uniform_sampling=False,
-            )
+        critic_info, priorities = self._update_critic(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            uniform_sampling=False,
         )
-        info_priority["critic_loss_one"] = critic_loss_one
-        info_priority["critic_loss_two"] = critic_loss_two
-        info_priority["critic_loss_total"] = critic_loss_total
+        info_priority |= critic_info
 
         memory.update_priorities(indices, priorities)
 
@@ -198,9 +192,8 @@ class LA3PSAC(SAC):
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
-        actor_loss, alpha_loss = self._update_actor_alpha(states_tensor, weights_tensor)
-        info_priority["actor_loss"] = actor_loss
-        info_priority["alpha_loss"] = alpha_loss
+        actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
+        info_priority |= actor_info
         info_priority["alpha"] = self.alpha.item()
 
         info = {"uniform": info_uniform, "priority": info_priority}
