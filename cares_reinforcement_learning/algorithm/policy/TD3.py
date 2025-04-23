@@ -36,10 +36,11 @@ class TD3(VectorAlgorithm):
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
+        # print("hellooooooooo")
         self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
-        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+        # self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
-        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
+        # self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
