@@ -9,14 +9,10 @@ The CARES reinforcement learning bed used as the foundation for RL related proje
 **Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
 
 # Usage
-
 Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki) for a guide on how to use the package
 
 # Installation Instructions
-
-If you want to utilise the GPU with Pytorch install CUDA first - https://developer.nvidia.com/cuda-toolkit
-
-Install Pytorch following the instructions here - https://pytorch.org/get-started/locally/
+![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 
 `git clone` the repository into your desired directory on your local machine
 
