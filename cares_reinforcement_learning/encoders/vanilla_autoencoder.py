@@ -279,6 +279,6 @@ class Decoder(nn.Module):
         for i in range(0, self.num_layers - 1):
             deconv = torch.relu(self.deconvs[i](deconv))
 
-        observation = self.deconvs[-1](deconv)
+        observation = torch.sigmoid(self.deconvs[-1](deconv))
 
         return observation
