@@ -174,7 +174,7 @@ class SACAE(ImageAlgorithm):
         info = {
             "critic_loss_one": critic_loss_one.item(),
             "critic_loss_two": critic_loss_two.item(),
-            "critic_loss": critic_loss_total.item(),
+            "critic_loss_total": critic_loss_total.item(),
         }
 
         return info, priorities
