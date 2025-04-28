@@ -208,36 +208,24 @@ def read_train_config(result_directory: str) -> dict:
     return train_config
 
 
-def get_param_value(param_tag: str, config: dict) -> str | None:
-    if param_tag in config:
-        return config[param_tag]
-    return None
+def get_param_label(param_tag: str, alg_config: dict, train_config: dict) -> str:
+    label = ""
+    if param_tag == "":
+        return label
 
+    def get_param_value(param_tag: str, config: dict) -> str | None:
+        if param_tag in config:
+            return config[param_tag]
+        return None
 
-def get_param_tag(param_tags: dict, alg_config: dict, train_config: dict) -> str:
-    if len(param_tags) == 0:
-        return ""
+    value = get_param_value(param_tag, alg_config)
+    if value is None:
+        value = get_param_value(param_tag, train_config)
 
-    param_tag = ""
-    for key, tags in param_tags.items():
+    if value is not None:
+        label += f"_{param_tag}_{value}"
 
-        value = get_param_value(key, alg_config)
-        if value is None:
-            value = get_param_value(key, train_config)
-
-        if isinstance(value, dict):
-            tags = tags.split(",")
-
-            for tag in tags:
-                tag = tag.strip()
-                secondary_value = get_param_value(tag, value)
-                if secondary_value is not None:
-                    param_tag += f"_{tag}_{secondary_value}"
-
-        elif value is not None:
-            param_tag += f"_{key}_{value}"
-
-    return param_tag
+    return label
 
 
 def generate_labels(
@@ -252,7 +240,7 @@ def generate_labels(
     task = env_config["task"]
     task = task if domain == "" else f"{domain}-{task}"
 
-    param_tag = get_param_tag(args["param_tag"], alg_config, train_config)
+    param_tag = get_param_label(args["param_tag"], alg_config, train_config)
     label = algorithm + param_tag
 
     title = task if title == "" else title
@@ -361,16 +349,9 @@ def parse_args() -> dict:
 
     parser.add_argument(
         "--param_tag",
-        type=ast.literal_eval,
-        default="{}",
-        help="Tag to add to labels based on algorithm or training parameter",
-    )
-
-    parser.add_argument(
-        "--param_tags",
         type=str,
-        nargs="+",
-        help="Tags to add to labels based on provided parameters",
+        default="",
+        help="Tag to add to labels based on algorithm or training parameter",
     )
 
     parser.add_argument(
@@ -415,20 +396,12 @@ def plot_evaluations():
     train_plot_frames = []
     labels = []
 
-    param_tags = args["param_tags"]
-
     directories: list[str] = []
+
     if args.get("data_directories") is not None:
         directories = args["data_directories"]
     elif args.get("task_directory") is not None:
         directories = _get_task_directoies(args["task_directory"])
-
-    if param_tags is not None:
-        if len(param_tags) != len(directories):
-            logging.error(
-                "Number of param tags should be equal to number of data directories"
-            )
-            return
 
     # plot list of directories against each other
     for index, data_directory in enumerate(directories):
@@ -441,9 +414,6 @@ def plot_evaluations():
         result_directories = [x for x in directory if x.is_dir()]
 
         title, algorithm, task, label = generate_labels(args, title, model_path)
-        if param_tags is not None:
-            param_tag = param_tags[index]
-            label += "-" + param_tag
 
         labels.append(label)
 
