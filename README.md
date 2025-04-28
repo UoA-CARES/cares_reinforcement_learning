@@ -233,3 +233,14 @@ A factory class for creating a memory buffer that has been implemented into the 
 | NaSATD3     | Image                      | Continuous   | [NaSATD3 Paper](https://ieeexplore.ieee.org/abstract/document/10801857) |
 | TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |
 | SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741)             |
+
+# Citation
+```
+@misc{cares_reinforcement_learning,
+  title = {CARES Reinforcement Learning},
+  author = {CARES},
+  year = {2025},
+  publisher = {GitHub},
+  url = {https://https://github.com/UoA-CARES/cares_reinforcement_learning.}
+}
+```
