@@ -592,6 +592,21 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     return agent
 
 
+def _compare_mlp_parts(obj1: acf.AlgorithmConfig, obj2: acf.AlgorithmConfig) -> bool:
+    # Extract fields where the value is of type mlp_type
+    def get_mlp_fields(obj):
+        return {
+            name: value.dict()
+            for name, value in obj.__dict__.items()
+            if isinstance(value, acf.MLPConfig)
+        }
+
+    mlp_fields1 = get_mlp_fields(obj1)
+    mlp_fields2 = get_mlp_fields(obj2)
+
+    return mlp_fields1 == mlp_fields2
+
+
 class NetworkFactory:
     def create_network(
         self,
@@ -599,12 +614,10 @@ class NetworkFactory:
         action_num: int,
         config: acf.AlgorithmConfig,
     ):
-        algorithm = config.algorithm
-
         agent = None
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if inspect.isfunction(obj):
-                if name == f"create_{algorithm}":
+                if name == f"create_{config.algorithm}":
                     agent = obj(observation_size, action_num, config)
 
         if agent is None:
@@ -613,5 +626,10 @@ class NetworkFactory:
             if config.model_path is not None:
                 logging.info(f"Loading model weights from {config.model_path}")
                 agent.load_models(filepath=config.model_path, filename=config.algorithm)
+
+            if not _compare_mlp_parts(type(config)(algorithm=config.algorithm), config):
+                logging.warning(
+                    "The network architecture has changed from the default configuration."
+                )
 
         return agent
