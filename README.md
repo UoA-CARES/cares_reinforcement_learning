@@ -22,7 +22,7 @@ To make the module **globally accessible** in your working environment run `pip3
 
 # Running an Example
 
-This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own environments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks.
+This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. Check out our [examples](./examples/README.md) for a series of simple applications of the package. For a more complex example of how to use this package in your own environments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks.
 
 ## Gym Environments
 
