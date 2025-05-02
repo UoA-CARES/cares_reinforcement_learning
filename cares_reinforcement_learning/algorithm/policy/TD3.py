@@ -36,11 +36,11 @@ class TD3(VectorAlgorithm):
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
 
-        print("always eval")
+        # print("hellooooooooo")
         self.target_actor_net = copy.deepcopy(self.actor_net).to(self.device)
-        self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
+        # self.target_actor_net.eval()  # never in training mode - helps with batch/drop out layers
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
-        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
+        # self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -244,8 +244,8 @@ class TD3(VectorAlgorithm):
             info |= actor_info
 
             # Update target network params
-            hlp.hard_update_params(self.critic_net, self.target_critic_net)#, self.tau)
-            hlp.hard_update_params(self.actor_net, self.target_actor_net)#, self.tau)
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
         # Update the Priorities
         if self.use_per_buffer:
