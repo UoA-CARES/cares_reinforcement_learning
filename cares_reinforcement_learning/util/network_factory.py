@@ -235,6 +235,23 @@ def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
     return agent
 
 
+def create_IDC(observation_size, action_num, config: acf.IDCConfig):
+    from cares_reinforcement_learning.algorithm.policy import IDC
+    from cares_reinforcement_learning.networks.IDC import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    ensemble_critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = IDC(
+        actor_network=actor,
+        ensemble_critic=ensemble_critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_TQC(observation_size, action_num, config: acf.TQCConfig):
     from cares_reinforcement_learning.algorithm.policy import TQC
     from cares_reinforcement_learning.networks.TQC import Actor, Critic
