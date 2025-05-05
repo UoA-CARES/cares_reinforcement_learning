@@ -134,8 +134,7 @@ class PPO(VectorAlgorithm):
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
 
-        td_errors = torch.abs(advantages)
-        td_errors = td_errors.data.cpu().numpy()
+        td_errors = torch.abs(advantages).data.cpu().numpy()
 
         for _ in range(self.updates_per_iteration):
             v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor)

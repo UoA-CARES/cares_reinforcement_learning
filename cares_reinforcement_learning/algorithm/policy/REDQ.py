@@ -52,7 +52,7 @@ class REDQ(SAC):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         idx: np.ndarray,
-    ) -> list[float]:
+    ) -> dict[str, Any]:
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -87,14 +87,18 @@ class REDQ(SAC):
 
             critic_loss_totals.append(critic_loss_total.item())
 
-        return critic_loss_totals
+        info = {
+            "critic_loss_totals": critic_loss_totals,
+        }
+
+        return info
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_actor_alpha(  # type: ignore[override]
         self,
         states: torch.Tensor,
         idx: np.ndarray,
-    ) -> tuple[float, float]:
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
         qf1_pi = self.target_critic_net.critics[idx[0]](states, pi)
@@ -114,7 +118,12 @@ class REDQ(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
+
+        return info
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -143,9 +152,10 @@ class REDQ(SAC):
         )
 
         info: dict[str, Any] = {}
+        info["critic_ids"] = idx
 
         # Update the Critics
-        critic_loss_totals = self._update_critic(
+        critic_info = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
@@ -153,13 +163,12 @@ class REDQ(SAC):
             dones_tensor,
             idx,
         )
-        info["critic_loss_totals"] = critic_loss_totals
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor, idx)
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
+            actor_info = self._update_actor_alpha(states_tensor, idx)
+            info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:

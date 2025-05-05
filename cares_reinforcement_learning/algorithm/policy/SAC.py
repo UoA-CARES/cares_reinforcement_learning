@@ -8,7 +8,7 @@ This code runs automatic entropy tuning
 import copy
 import logging
 import os
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 import torch

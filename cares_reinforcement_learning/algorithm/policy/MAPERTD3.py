@@ -146,23 +146,25 @@ class MAPERTD3(TD3):
         diff_reward_mean = torch.cat([diff_reward_one, diff_reward_two], -1)
         diff_reward_mean = torch.mean(diff_reward_mean, 1)
         diff_reward_mean = diff_reward_mean.view(-1, 1)
-        diff_reward_mean = diff_reward_mean[:, 0].detach().data.cpu().numpy()
+        diff_reward_mean_numpy = diff_reward_mean[:, 0].detach().data.cpu().numpy()
 
         diff_next_state_mean = torch.cat(
             [diff_next_states_one, diff_next_states_two], -1
         )
         diff_next_state_mean = torch.mean(diff_next_state_mean, 1)
         diff_next_state_mean = diff_next_state_mean.view(-1, 1)
-        diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
-
-        # calculate priority
-        priorities_tensor = (
-            numpy_td_mean
-            + self.scale_s * diff_next_state_mean
-            + self.scale_r * diff_reward_mean
+        diff_next_state_mean_numpy = (
+            diff_next_state_mean[:, 0].detach().data.cpu().numpy()
         )
 
-        priorities_tensor = torch.Tensor(priorities_tensor)
+        # calculate priority
+        priorities = (
+            numpy_td_mean
+            + self.scale_s * diff_next_state_mean_numpy
+            + self.scale_r * diff_reward_mean_numpy
+        )
+
+        priorities_tensor = torch.Tensor(priorities)
 
         priorities = (
             priorities_tensor.clamp(min=self.min_priority)
