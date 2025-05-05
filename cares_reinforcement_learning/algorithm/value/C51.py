@@ -11,6 +11,9 @@ from cares_reinforcement_learning.util.configurations import C51Config, RainbowC
 
 
 class C51(DQN):
+    network: C51Network | RainbowNetwork
+    target_network: C51Network | RainbowNetwork
+
     def __init__(
         self,
         network: C51Network | RainbowNetwork,

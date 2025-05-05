@@ -16,6 +16,9 @@ from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
 class REDQ(SAC):
+    critic_net: Critic
+    target_critic_net: Critic
+
     def __init__(
         self,
         actor_network: Actor,

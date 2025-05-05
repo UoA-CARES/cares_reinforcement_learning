@@ -19,6 +19,9 @@ from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
 class CTD4(TD3):
+    critic_net: Critic
+    target_critic_net: Critic
+
     def __init__(
         self,
         actor_network: Actor,

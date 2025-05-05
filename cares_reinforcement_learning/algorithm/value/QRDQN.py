@@ -11,6 +11,9 @@ from cares_reinforcement_learning.util.configurations import QRDQNConfig
 
 
 class QRDQN(DQN):
+    network: Network
+    target_network: Network
+
     def __init__(
         self,
         network: Network,
