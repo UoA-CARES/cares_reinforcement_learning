@@ -90,6 +90,10 @@ class PEQ(SAC):
 
             # TODO - do REDQ style but use the one with the lower td_error
             # Use the same q_target for all critics - use the q_target from the critic with the weighted/lowest td_error
+
+            # 2. Ensemble Cross-Validation (Inter-Critic Consistency)
+            # 3. n-Step Bootstrapped Returns (Temporal Bias Estimate)
+
             with torch.no_grad():
                 # shape (batch_size, num_critics, 1)
                 target_q_values = target_critic(next_states, next_actions)
