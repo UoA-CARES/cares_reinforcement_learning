@@ -252,6 +252,23 @@ def create_IDC(observation_size, action_num, config: acf.IDCConfig):
     return agent
 
 
+def create_PEQ(observation_size, action_num, config: acf.PEQConfig):
+    from cares_reinforcement_learning.algorithm.policy import PEQ
+    from cares_reinforcement_learning.networks.PEQ import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    ensemble_critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = PEQ(
+        actor_network=actor,
+        ensemble_critic=ensemble_critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_TQC(observation_size, action_num, config: acf.TQCConfig):
     from cares_reinforcement_learning.algorithm.policy import TQC
     from cares_reinforcement_learning.networks.TQC import Actor, Critic

@@ -12,8 +12,8 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.IDC import Actor, Critic
-from cares_reinforcement_learning.util.configurations import IDCConfig
+from cares_reinforcement_learning.networks.PEQ import Actor, Critic
+from cares_reinforcement_learning.util.configurations import PEQConfig
 
 # Train all critics on the same batch and use the critic with the lowest overall td_error on the batch for the actor
 # REDQ just randomly samples and uses the same critics for updating the critic and actor
@@ -24,12 +24,12 @@ from cares_reinforcement_learning.util.configurations import IDCConfig
 # and use the one with the lowest average td_error and standard deviation of td_error to update the actor - or weighted average
 
 
-class IDC(SAC):
+class PEQ(SAC):
     def __init__(
         self,
         actor_network: Actor,
         ensemble_critic: Critic,
-        config: IDCConfig,
+        config: PEQConfig,
         device: torch.device,
     ):
         super().__init__(
@@ -53,6 +53,17 @@ class IDC(SAC):
 
         self.std_weight = config.std_weight
 
+    def _choose_critic(self, scores: list[float], select_lowest: bool = False) -> int:
+        if select_lowest:
+            return scores.index(min(scores))
+
+        # Bias toward lower scores
+        inverted = [1 / (s + 1e-6) for s in scores]
+        total = sum(inverted)
+        weights = [w / total for w in inverted]
+
+        return random.choices(range(len(scores)), weights=weights, k=1)[0]
+
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
         self,
@@ -61,21 +72,24 @@ class IDC(SAC):
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> tuple[list[float], list[float]]:
-        scores = []
+    ) -> tuple[list[float], int]:
+
         critic_loss_totals = []
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
-        for critic_id, (critic_net, target_critic, critic_net_optimiser) in enumerate(
-            zip(
-                self.critic_net.critics,
-                self.target_critic_net.critics,
-                self.ensemble_critic_optimizers,
-            )
+        scores = []
+        q_targets = []
+        for critic_net, target_critic, critic_net_optimiser in zip(
+            self.critic_net.critics,
+            self.target_critic_net.critics,
+            self.ensemble_critic_optimizers,
         ):
+
+            # TODO - do REDQ style but use the one with the lower td_error
+            # Use the same q_target for all critics - use the q_target from the critic with the weighted/lowest td_error
             with torch.no_grad():
                 # shape (batch_size, num_critics, 1)
                 target_q_values = target_critic(next_states, next_actions)
@@ -83,19 +97,28 @@ class IDC(SAC):
                 target_q_values = target_q_values - self.alpha * next_log_pi
 
                 q_target = rewards + self.gamma * (1 - dones) * target_q_values
+                q_targets.append(q_target)
 
+                q_values = critic_net(states, actions)
+
+                td_error = (q_values - q_target).abs()
+
+                # Mean TD-error
+                mean_td_error = td_error.mean()
+
+                # Standard deviation of TD-error
+                std_td_error = td_error.std(unbiased=False)
+
+                score = mean_td_error + self.std_weight * std_td_error
+                scores.append(score)
+
+        critic_id = self._choose_critic(scores, select_lowest=False)
+        q_target = q_targets[critic_id]
+
+        for critic_net, critic_net_optimiser in zip(
+            self.critic_net.critics, self.ensemble_critic_optimizers
+        ):
             q_values = critic_net(states, actions)
-
-            td_error = (q_values - q_target).abs()
-
-            # Mean TD-error
-            mean_td_error = td_error.mean()
-
-            # Standard deviation of TD-error
-            std_td_error = td_error.std(unbiased=False)
-
-            score = mean_td_error + self.std_weight * std_td_error
-            scores.append(score)
 
             critic_loss_total = 0.5 * F.mse_loss(q_values, q_target)
 
@@ -105,7 +128,7 @@ class IDC(SAC):
 
             critic_loss_totals.append(critic_loss_total.item())
 
-        return critic_loss_totals, scores
+        return critic_loss_totals, critic_id
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_actor_alpha(  # type: ignore[override]
@@ -131,17 +154,6 @@ class IDC(SAC):
 
         return actor_loss.item(), alpha_loss.item()
 
-    def _choose_critic(self, scores: list[float], select_lowest: bool = False) -> int:
-        if select_lowest:
-            return scores.index(min(scores))
-
-        # Bias toward lower scores
-        inverted = [1 / (s + 1e-6) for s in scores]
-        total = sum(inverted)
-        weights = [w / total for w in inverted]
-
-        return random.choices(range(len(scores)), weights=weights, k=1)[0]
-
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
@@ -166,7 +178,7 @@ class IDC(SAC):
         info: dict[str, Any] = {}
 
         # Update the Critics
-        critic_loss_totals, scores = self._update_critic(
+        critic_loss_totals, critic_id = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
@@ -174,9 +186,7 @@ class IDC(SAC):
             dones_tensor,
         )
         info["critic_loss_totals"] = critic_loss_totals
-        info["scores"] = scores
-
-        critic_id = self._choose_critic(scores, select_lowest=False)
+        info["critic_id"] = critic_id
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor

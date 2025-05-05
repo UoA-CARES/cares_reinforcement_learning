@@ -23,3 +23,4 @@ from .TQC import TQC
 from .CrossQ import CrossQ
 from .DroQ import DroQ
 from .IDC import IDC
+from .PEQ import PEQ
