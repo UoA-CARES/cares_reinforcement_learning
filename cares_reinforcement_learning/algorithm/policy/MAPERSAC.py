@@ -163,8 +163,12 @@ class MAPERSAC(SAC):
 
         # Update Scales
         if self.learn_counter == 1:
-            self.scale_r = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
-            self.scale_s = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
+            self.scale_r = np.mean(numpy_td_mean) / (
+                np.mean(diff_next_state_mean_numpy)
+            )
+            self.scale_s = np.mean(numpy_td_mean) / (
+                np.mean(diff_next_state_mean_numpy)
+            )
 
         info = {
             "critic_loss_one": critic_loss_one.item(),
