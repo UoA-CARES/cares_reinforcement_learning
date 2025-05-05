@@ -43,7 +43,7 @@ class Algorithm(ABC):
         state: dict[str, np.ndarray],  # pylint: disable=unused-argument
         action: np.ndarray,  # pylint: disable=unused-argument
         next_state: dict[str, np.ndarray],  # pylint: disable=unused-argument
-        **kwargs: Any,
+        **kwargs: Any,  # pylint: disable=unused-argument
     ) -> float:
         """
         Calculate intrinsic reward based on the state, action, and next state.

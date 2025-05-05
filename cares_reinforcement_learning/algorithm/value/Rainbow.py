@@ -13,6 +13,9 @@ from cares_reinforcement_learning.util.configurations import RainbowConfig
 
 
 class Rainbow(C51):
+    network: Network
+    target_network: Network
+
     def __init__(
         self,
         network: Network,
