@@ -10,21 +10,45 @@ import numpy as np
 import torch
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 
 class Algorithm(ABC):
     def __init__(
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl"],
+        config: AlgorithmConfig,
         device: torch.device,
     ):
         self.policy_type = policy_type
+
+        self.gamma = config.gamma
+
+        self.G = config.G
+        self.number_steps_per_train_policy = config.number_steps_per_train_policy
+
+        self.buffer_size = config.buffer_size
+        self.batch_size = config.batch_size
+
+        self.max_steps_exploration = config.max_steps_exploration
+        self.max_steps_training = config.max_steps_training
+
+        self.image_observation = config.image_observation
+
         self.device = device
 
     @abstractmethod
     def select_action_from_policy(
         self, state: Any, evaluation: bool = False
-    ) -> float | np.ndarray: ...
+    ) -> int | np.ndarray: ...
+
+    @abstractmethod
+    def calculate_bias(
+        self,
+        episode_states: list[Any],
+        episode_actions: list[np.ndarray | int],
+        episode_rewards: list[float],
+    ) -> dict[str, Any]: ...
 
     # TODO push batch_size into the algorithm
     @abstractmethod
@@ -57,8 +81,15 @@ class VectorAlgorithm(Algorithm):
     @abstractmethod
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False
-    ) -> float | np.ndarray:
-        raise NotImplementedError("Implement in base class")
+    ) -> int | np.ndarray: ...
+
+    @abstractmethod
+    def calculate_bias(
+        self,
+        episode_states: list[np.ndarray],
+        episode_actions: list[np.ndarray | int],
+        episode_rewards: list[float],
+    ) -> dict[str, Any]: ...
 
 
 class ImageAlgorithm(Algorithm):
@@ -66,5 +97,12 @@ class ImageAlgorithm(Algorithm):
     @abstractmethod
     def select_action_from_policy(
         self, state: dict[str, np.ndarray], evaluation: bool = False
-    ) -> float | np.ndarray:
-        raise NotImplementedError("Implement in base class")
+    ) -> int | np.ndarray: ...
+
+    @abstractmethod
+    def calculate_bias(
+        self,
+        episode_states: list[dict[str, np.ndarray]],
+        episode_actions: list[np.ndarray | int],
+        episode_rewards: list[float],
+    ) -> dict[str, Any]: ...

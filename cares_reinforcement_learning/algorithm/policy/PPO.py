@@ -31,7 +31,7 @@ class PPO(VectorAlgorithm):
         config: PPOConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", device=device)
+        super().__init__(policy_type="policy", config=config, device=device)
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)

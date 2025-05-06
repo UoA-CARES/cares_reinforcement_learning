@@ -422,3 +422,55 @@ def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     self.fc1 = nn.Linear(r*r*128, 1024)
     """
     return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
+
+
+def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float]:
+    """
+    Compute discounted returns G_t from a list of rewards.
+
+    Args:
+        rewards (list or np.ndarray): Rewards [r_0, r_1, ..., r_T]
+        gamma (float): Discount factor (0 <= gamma <= 1)
+
+    Returns:
+        list: Discounted returns [G_0, G_1, ..., G_T]
+    """
+    returns: list[float] = [0.0] * len(rewards)
+    G = 0.0
+    for t in reversed(range(len(rewards))):
+        G = rewards[t] + gamma * G
+        returns[t] = G
+    return returns
+
+
+def split_and_calculate_stats(
+    data: list[float], num_segments: int
+) -> dict[str, dict[str, float]]:
+    n = len(data)
+    if n == 0:
+        return {
+            f"segment_{i+1}": {"mean": 0.0, "abs_mean": 0.0, "std": 0.0}
+            for i in range(num_segments)
+        }
+
+    segment_size = max(1, n // num_segments)  # Ensure at least one element per segment
+    segments = [data[i : i + segment_size] for i in range(0, n, segment_size)]
+
+    def segment_stats(segment: list[float]) -> dict[str, float]:
+        return {
+            "mean": float(np.mean(segment)),
+            "abs_mean": float(np.mean(np.abs(segment))),
+            "std": float(np.std(segment)),
+        }
+
+    segment_info = {}
+    for i, segment in enumerate(
+        segments[:num_segments]
+    ):  # Ensure not exceeding num_segments
+        segment_info[f"segment_{i+1}"] = segment_stats(segment)
+
+    # If there are less segments than requested, fill remaining ones with default values
+    for i in range(len(segments), num_segments):
+        segment_info[f"segment_{i+1}"] = {"mean": 0.0, "abs_mean": 0.0, "std": 0.0}
+
+    return segment_info

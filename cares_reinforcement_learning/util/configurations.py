@@ -84,6 +84,8 @@ class AlgorithmConfig(SubscriptableClass):
 
     algorithm: str = Field(description="Name of the algorithm to be used")
 
+    gamma: float
+
     G: int = 1
     G_model: int = 1
     number_steps_per_train_policy: int = 1

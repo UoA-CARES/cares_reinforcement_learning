@@ -30,7 +30,7 @@ class NaSATD3(ImageAlgorithm):
         config: NaSATD3Config,
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", device=device)
+        super().__init__(policy_type="policy", config=config, device=device)
 
         self.gamma = config.gamma
         self.tau = config.tau

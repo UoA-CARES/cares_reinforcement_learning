@@ -33,7 +33,7 @@ class SAC(VectorAlgorithm):
         config: SACConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", device=device)
+        super().__init__(policy_type="policy", config=config, device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)
