@@ -9,6 +9,7 @@ from typing import Any, Literal
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
@@ -42,13 +43,82 @@ class Algorithm(ABC):
         self, state: Any, evaluation: bool = False
     ) -> int | np.ndarray: ...
 
-    @abstractmethod
+    def _fixed_step_bias_segments(
+        self, values: list[float], step_boundaries: list[int] | None = None
+    ) -> dict[str, dict[str, float]]:
+
+        if step_boundaries is None:
+            step_boundaries = [0, 100, 200, 300, 400]
+
+        n = len(values)
+        segment_stats = {}
+
+        for i, start in enumerate(step_boundaries):
+            end = step_boundaries[i + 1] if i + 1 < len(step_boundaries) else n
+            if start >= n:
+                continue  # skip if start beyond episode length
+
+            segment = values[start : min(end, n)]
+            if len(segment) == 0:
+                continue
+
+            key = f"bias_segment_{start}_{end if end < n else 'end'}"
+            segment_stats[key] = {
+                "mean": float(np.mean(segment)),
+                "abs_mean": float(np.mean(np.abs(segment))),
+                "std": float(np.std(segment)),
+            }
+
+        return segment_stats
+
+    # @abstractmethod
+    def _calculate_value(self, state: Any, action: int | np.ndarray) -> float:
+        return 0.0
+
     def calculate_bias(
         self,
-        episode_states: list[Any],
-        episode_actions: list[np.ndarray | int],
+        episode_states: Any,
+        episode_actions: list[int | np.ndarray],
         episode_rewards: list[float],
-    ) -> dict[str, Any]: ...
+    ) -> dict[str, Any]:
+
+        discounted_returns = hlp.compute_discounted_returns(episode_rewards, self.gamma)
+        average_discounted_return = np.mean(discounted_returns)
+
+        biases = []
+        biases_normalised = []
+        for state, action, discounted_return in zip(
+            episode_states, episode_actions, discounted_returns
+        ):
+            value = self._calculate_value(state, action)
+
+            bias = value - discounted_return
+            biases.append(bias)
+
+            bias_normalised = bias / (max(np.abs(average_discounted_return), 1e-8))
+            biases_normalised.append(bias_normalised)
+
+        bias_mean = np.mean(biases)
+        bias_abs_mean = np.mean(np.abs(biases))
+        bias_std = np.std(biases)
+
+        bias_mean_normalised = np.mean(biases_normalised)
+        bias_abs_mean_normalised = np.mean(np.abs(biases_normalised))
+        bias_std_normalised = np.std(biases_normalised)
+
+        bias_segments = self._fixed_step_bias_segments(biases_normalised)
+
+        info = {
+            "bias_mean": bias_mean,
+            "bias_abs_mean": bias_abs_mean,
+            "bias_std": bias_std,
+            "bias_mean_normalised": bias_mean_normalised,
+            "bias_abs_mean_normalised": bias_abs_mean_normalised,
+            "bias_std_normalised": bias_std_normalised,
+            "average_discounted_return": average_discounted_return,
+            "bias_segments": bias_segments,
+        }
+        return info
 
     # TODO push batch_size into the algorithm
     @abstractmethod
@@ -83,14 +153,6 @@ class VectorAlgorithm(Algorithm):
         self, state: np.ndarray, evaluation: bool = False
     ) -> int | np.ndarray: ...
 
-    @abstractmethod
-    def calculate_bias(
-        self,
-        episode_states: list[np.ndarray],
-        episode_actions: list[np.ndarray | int],
-        episode_rewards: list[float],
-    ) -> dict[str, Any]: ...
-
 
 class ImageAlgorithm(Algorithm):
 
@@ -98,11 +160,3 @@ class ImageAlgorithm(Algorithm):
     def select_action_from_policy(
         self, state: dict[str, np.ndarray], evaluation: bool = False
     ) -> int | np.ndarray: ...
-
-    @abstractmethod
-    def calculate_bias(
-        self,
-        episode_states: list[dict[str, np.ndarray]],
-        episode_actions: list[np.ndarray | int],
-        episode_rewards: list[float],
-    ) -> dict[str, Any]: ...

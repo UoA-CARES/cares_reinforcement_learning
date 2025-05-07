@@ -97,43 +97,6 @@ class TD3(VectorAlgorithm):
 
         return action
 
-    def calculate_bias(
-        self,
-        episode_states: list[np.ndarray],
-        episode_actions: list[np.ndarray],  # type: ignore[override]
-        episode_rewards: list[float],
-    ) -> dict[str, Any]:
-
-        discounted_returns = hlp.compute_discounted_returns(episode_rewards, self.gamma)
-
-        biases = []
-        for state, action, discounted_return in zip(
-            episode_states, episode_actions, discounted_returns
-        ):
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-
-            action_tensor = torch.FloatTensor(action).to(self.device)
-            action_tensor = action_tensor.unsqueeze(0)
-
-            q_values_one, q_values_two = self.critic_net(state_tensor, action_tensor)
-
-            q_value = torch.minimum(q_values_one, q_values_two).item()
-
-            bias = q_value - discounted_return
-            biases.append(bias)
-
-        bias_mean = np.mean(biases)
-        bias_abs_mean = np.mean(np.abs(biases))
-        bias_std = np.std(biases)
-
-        info = {
-            "bias_mean": bias_mean,
-            "bias_abs_mean": bias_abs_mean,
-            "bias_std": bias_std,
-        }
-        return info
-
     def _update_critic(
         self,
         states: torch.Tensor,

@@ -95,38 +95,14 @@ class DQN(VectorAlgorithm):
 
         return self._exploit(state)
 
-    def calculate_bias(
-        self,
-        episode_states: list[np.ndarray],
-        episode_actions: list[int],  # type: ignore[override]
-        episode_rewards: list[float],
-    ) -> dict[str, Any]:
+    def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
 
-        discounted_returns = hlp.compute_discounted_returns(episode_rewards, self.gamma)
+        q_values = self.network(state_tensor)
+        q_value = q_values[0][action].item()
 
-        biases = []
-        for state, action, discounted_return in zip(
-            episode_states, episode_actions, discounted_returns
-        ):
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-
-            q_values = self.network(state_tensor)
-            q_value = q_values[0][action].item()
-
-            bias = q_value - discounted_return
-            biases.append(bias)
-
-        bias_mean = np.mean(biases)
-        bias_abs_mean = np.mean(np.abs(biases))
-        bias_std = np.std(biases)
-
-        info = {
-            "bias_mean": bias_mean,
-            "bias_abs_mean": bias_abs_mean,
-            "bias_std": bias_std,
-        }
-        return info
+        return q_value
 
     def _compute_loss(
         self,
