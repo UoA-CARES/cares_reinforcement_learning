@@ -93,6 +93,18 @@ class SAC(VectorAlgorithm):
         self.actor_net.train()
         return action
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        q_values_one, q_values_two = self.critic_net(state_tensor, action_tensor)
+        q_value = torch.minimum(q_values_one, q_values_two)
+
+        return q_value[0].item()
+
     @property
     def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()

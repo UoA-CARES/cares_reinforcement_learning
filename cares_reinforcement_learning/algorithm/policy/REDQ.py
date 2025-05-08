@@ -82,15 +82,17 @@ class REDQ(SAC):
         ):
             q_values = critic_net(states, actions)
 
-            critic_loss_total = 0.5 * F.mse_loss(q_values, q_target)
+            critic_loss = 0.5 * F.mse_loss(q_values, q_target)
 
             critic_net_optimiser.zero_grad()
-            critic_loss_total.backward()
+            critic_loss.backward()
             critic_net_optimiser.step()
 
-            critic_loss_totals.append(critic_loss_total.item())
+            critic_loss_totals.append(critic_loss.item())
 
+        critic_loss_total = np.mean(critic_loss_totals)
         info = {
+            "critic_loss_total": critic_loss_total,
             "critic_loss_totals": critic_loss_totals,
         }
 

@@ -87,6 +87,14 @@ class PPO(VectorAlgorithm):
 
         return action
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        value = self.critic_net(state_tensor)
+
+        return value[0].item()
+
     def _evaluate_policy(
         self, state: torch.Tensor, action: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:

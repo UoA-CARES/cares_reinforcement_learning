@@ -50,19 +50,23 @@ class Algorithm(ABC):
         if step_boundaries is None:
             step_boundaries = [0, 100, 200, 300, 400]
 
-        n = len(values)
+        episode_length = len(values)
         segment_stats = {}
 
         for i, start in enumerate(step_boundaries):
-            end = step_boundaries[i + 1] if i + 1 < len(step_boundaries) else n
-            if start >= n:
+            end = (
+                step_boundaries[i + 1]
+                if i + 1 < len(step_boundaries)
+                else episode_length
+            )
+            if start >= episode_length:
                 continue  # skip if start beyond episode length
 
-            segment = values[start : min(end, n)]
+            segment = values[start : min(end, episode_length)]
             if len(segment) == 0:
                 continue
 
-            key = f"bias_segment_{start}_{end if end < n else 'end'}"
+            key = f"bias_segment_{start}_{end if end < episode_length else 'end'}"
             segment_stats[key] = {
                 "mean": float(np.mean(segment)),
                 "abs_mean": float(np.mean(np.abs(segment))),
@@ -72,7 +76,9 @@ class Algorithm(ABC):
         return segment_stats
 
     # @abstractmethod
-    def _calculate_value(self, state: Any, action: int | np.ndarray) -> float:
+    def _calculate_value(
+        self, state: Any, action: int | np.ndarray
+    ) -> float:  # pylint: disable=unused-argument
         return 0.0
 
     def calculate_bias(

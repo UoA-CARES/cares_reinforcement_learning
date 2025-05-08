@@ -111,8 +111,7 @@ class TQC(SAC):
         )
 
         info = {
-            "critic_loss": critic_loss_total.item(),
-            "td_error": td_error.mean().item(),
+            "critic_loss_total": critic_loss_total.item(),
         }
 
         return info, priorities
