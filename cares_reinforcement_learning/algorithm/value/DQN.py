@@ -99,8 +99,9 @@ class DQN(VectorAlgorithm):
         state_tensor = torch.FloatTensor(state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
-        q_values = self.network(state_tensor)
-        q_value = q_values[0][action].item()
+        with torch.no_grad():
+            q_values = self.network(state_tensor)
+            q_value = q_values[0][action].item()
 
         return q_value
 

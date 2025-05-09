@@ -100,8 +100,12 @@ class SAC(VectorAlgorithm):
         action_tensor = torch.FloatTensor(action).to(self.device)
         action_tensor = action_tensor.unsqueeze(0)
 
-        q_values_one, q_values_two = self.critic_net(state_tensor, action_tensor)
-        q_value = torch.minimum(q_values_one, q_values_two)
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                q_values_one, q_values_two = self.critic_net(
+                    state_tensor, action_tensor
+                )
+                q_value = torch.minimum(q_values_one, q_values_two)
 
         return q_value[0].item()
 
