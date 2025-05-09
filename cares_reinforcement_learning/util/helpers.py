@@ -417,3 +417,20 @@ def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     self.fc1 = nn.Linear(r*r*128, 1024)
     """
     return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
+
+
+def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float]:
+    """
+    Compute discounted returns G_t from a list of rewards.
+    Args:
+        rewards (list or np.ndarray): Rewards [r_0, r_1, ..., r_T]
+        gamma (float): Discount factor (0 <= gamma <= 1)
+    Returns:
+        list: Discounted returns [G_0, G_1, ..., G_T]
+    """
+    returns: list[float] = [0.0] * len(rewards)
+    G = 0.0
+    for t in reversed(range(len(rewards))):
+        G = rewards[t] + gamma * G
+        returns[t] = G
+    return returns
