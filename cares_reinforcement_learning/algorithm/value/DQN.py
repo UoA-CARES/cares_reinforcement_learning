@@ -27,7 +27,7 @@ class DQN(VectorAlgorithm):
         config: DQNConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="value", device=device)
+        super().__init__(policy_type="value", config=config, device=device)
 
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)
@@ -66,23 +66,24 @@ class DQN(VectorAlgorithm):
 
         self.learn_counter = 0
 
-    def _explore(self) -> float:
+    def _explore(self) -> int:
         return random.randrange(self.network.num_actions)
 
-    def _exploit(self, state: np.ndarray) -> float:
+    def _exploit(self, state: np.ndarray) -> int:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
-            action = torch.argmax(q_values).item()
+            action = int(torch.argmax(q_values, dim=1).item())
 
         self.network.train()
+
         return action
 
     def select_action_from_policy(
         self, state: np.ndarray, evaluation: bool = False
-    ) -> float:
+    ) -> int:
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
@@ -93,6 +94,15 @@ class DQN(VectorAlgorithm):
             return self._explore()
 
         return self._exploit(state)
+
+    def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        q_values = self.network(state_tensor)
+        q_value = q_values[0][action].item()
+
+        return q_value
 
     def _compute_loss(
         self,

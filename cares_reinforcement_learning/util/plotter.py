@@ -1,5 +1,4 @@
 import argparse
-import ast
 import json
 import logging
 import os
@@ -11,6 +10,41 @@ import pandas as pd
 import seaborn as sns
 
 logging.basicConfig(level=logging.INFO)
+
+
+def _create_plot(
+    title: str,
+    x_label: str,
+    y_label: str,
+    x_label_two: str = "",
+    y_label_two: str = "",
+    label_fontsize: int = 15,
+    title_fontsize: int = 20,
+    ticks_fontsize: int = 10,
+) -> tuple[plt.Axes, plt.Axes | None]:
+    matplotlib.use("agg")
+
+    # Plot Styles
+    plt.style.use("seaborn-v0_8")
+
+    _, axis_one = plt.subplots()
+
+    axis_one.set_xlabel(x_label, fontsize=label_fontsize)
+    axis_one.set_ylabel(y_label, fontsize=label_fontsize)
+    axis_one.tick_params(axis="y")
+    axis_one.tick_params(axis="x", labelsize=ticks_fontsize)
+    axis_one.tick_params(axis="y", labelsize=ticks_fontsize)
+    axis_one.set_title(title, fontsize=title_fontsize)
+
+    axis_two = None
+    if x_label_two != "" and y_label_two != "":
+        axis_two = axis_one.twinx()
+        axis_two.set_xlabel(x_label_two, fontsize=label_fontsize)
+        axis_two.set_ylabel(y_label_two, fontsize=label_fontsize)
+        axis_two.tick_params(axis="y", labelsize=ticks_fontsize)
+        axis_two.tick_params(axis="x", labelsize=ticks_fontsize)
+
+    return axis_one, axis_two
 
 
 def plot_data(
@@ -76,21 +110,77 @@ def plot_comparisons(
     label_fontsize: int = 15,
     title_fontsize: int = 20,
     ticks_fontsize: int = 10,
+    x_label_two: str = "",
+    y_label_two: str = "",
 ) -> None:
-    for plot_frame, label in zip(plot_frames, labels):
-        plot_data(
-            plot_frame,
-            title,
-            label,
-            x_label,
-            y_label,
-            directory,
-            filename,
-            label_fontsize=label_fontsize,
-            title_fontsize=title_fontsize,
-            ticks_fontsize=ticks_fontsize,
-            close_figure=False,
+
+    axis_one, axis_two = _create_plot(
+        title,
+        x_label,
+        y_label,
+        x_label_two=x_label_two,
+        y_label_two=y_label_two,
+        label_fontsize=label_fontsize,
+        title_fontsize=title_fontsize,
+        ticks_fontsize=ticks_fontsize,
+    )
+
+    for (plot_frame_one, plot_frame_two), label in zip(plot_frames, labels):
+        sns.lineplot(
+            data=plot_frame_one,
+            x="x_data",
+            y="y_data",
+            ax=axis_one,
+            label=label,
+            legend=False,
         )
+
+        axis_one.fill_between(
+            plot_frame_one["x_data"],
+            plot_frame_one["y_data"] - plot_frame_one["std_dev"],
+            plot_frame_one["y_data"] + plot_frame_one["std_dev"],
+            alpha=0.3,
+        )
+
+        if plot_frame_two is not None and axis_two is not None:
+            sns.lineplot(
+                data=plot_frame_two,
+                x="x_data",
+                y="y_data",
+                ax=axis_two,
+                label=label,
+                linestyle="--",
+                legend=False,
+            )
+
+            axis_two.fill_between(
+                plot_frame_two["x_data"],
+                plot_frame_two["y_data"] - plot_frame_two["std_dev"],
+                plot_frame_two["y_data"] + plot_frame_two["std_dev"],
+                alpha=0.3,
+            )
+
+    lines, labels = axis_one.get_legend_handles_labels()
+
+    if axis_two is not None:
+        lines_two, labels_two = (
+            axis_two.get_legend_handles_labels() if axis_two else ([], [])
+        )
+
+        labels = [f"{label} ({y_label})" for label in labels]
+        labels_two = [f"{label} ({y_label_two})" for label in labels_two]
+
+        lines += lines_two
+        labels += labels_two
+
+    axis_one.legend(lines, labels, loc="best", bbox_to_anchor=(1.05, 1))
+
+    plt.tight_layout(pad=0.5)
+
+    if not os.path.exists(f"{directory}/figures"):
+        os.makedirs(f"{directory}/figures")
+
+    plt.savefig(f"{directory}/figures/{filename}.png")
 
     plt.close()
 
@@ -297,6 +387,13 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
+        "--y_train_two",
+        type=str,
+        default=None,
+        help="Data you want to plot in second y_axis for train graphs - default is None",
+    )
+
+    parser.add_argument(
         "--x_eval",
         type=str,
         default="total_steps",
@@ -311,6 +408,13 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
+        "--y_eval_two",
+        type=str,
+        default=None,
+        help="Data you want to plot in a second y_axis for eval graphs - default is None",
+    )
+
+    parser.add_argument(
         "--title",
         type=str,
         default="",
@@ -318,17 +422,45 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
-        "--x_label",
+        "--x_label_train",
         type=str,
         default=None,
         help="X Axis Label for the plot - default is x_data",
     )
 
     parser.add_argument(
-        "--y_label",
+        "--x_label_eval",
+        type=str,
+        default=None,
+        help="X Axis Label for the plot - default is x_eval",
+    )
+
+    parser.add_argument(
+        "--y_label_train",
         type=str,
         default=None,
         help="Y Axis Label for the plot - default is y_data",
+    )
+
+    parser.add_argument(
+        "--y_label_train_two",
+        type=str,
+        default=None,
+        help="Y Axis Label for the plot - default is y_data_two",
+    )
+
+    parser.add_argument(
+        "--y_label_eval",
+        type=str,
+        default=None,
+        help="Y Axis Label for the plot - default is y_eval",
+    )
+
+    parser.add_argument(
+        "--y_label_eval_two",
+        type=str,
+        default=None,
+        help="Y Axis Label for the plot - default is y_eval_two",
     )
 
     parser.add_argument(
@@ -375,18 +507,50 @@ def _get_task_directoies(task_directory: str) -> list[str]:
     return result_directories
 
 
+def _read_data(
+    result_directory: str, file_name: str, window_size: int, x_data: str, y_data: str
+) -> pd.DataFrame:
+    data = pd.read_csv(f"{result_directory}/data/{file_name}.csv")
+
+    plot_frame = _prepare_plot_frame(
+        data, window_size=window_size, x_data=x_data, y_data=y_data
+    )
+
+    return plot_frame
+
+
 def plot_evaluations():
     args = parse_args()
 
     x_train = args["x_train"]
     y_train = args["y_train"]
+    y_train_two = args["y_train_two"]
 
     x_eval = args["x_eval"]
     y_eval = args["y_eval"]
+    y_eval_two = args["y_eval_two"]
 
+    # TODO eval_y and train_y should be different and based on their train/eval data
     title = args["title"]
-    x_label = x_train if args["x_label"] is None else args["x_label"]
-    y_label = y_train if args["y_label"] is None else args["y_label"]
+    x_label_train = x_train if args["x_label_train"] is None else args["x_label_train"]
+    y_label_train = y_train if args["y_label_train"] is None else args["y_label_train"]
+
+    y_label_train_two = ""
+    if y_train_two is not None:
+        y_label_train_two = (
+            y_train_two
+            if args["y_label_train_two"] is None
+            else args["y_label_train_two"]
+        )
+
+    x_label_eval = x_eval if args["x_label_eval"] is None else args["x_label_eval"]
+    y_label_eval = y_eval if args["y_label_eval"] is None else args["y_label_eval"]
+
+    y_label_eval_two = ""
+    if y_eval_two is not None:
+        y_label_eval_two = (
+            y_eval_two if args["y_label_eval_two"] is None else args["y_label_eval_two"]
+        )
 
     window_size = args["window_size"]
 
@@ -418,7 +582,10 @@ def plot_evaluations():
         labels.append(label)
 
         average_train_data = pd.DataFrame()
+        average_train_data_two = pd.DataFrame() if y_train_two is not None else None
+
         average_eval_data = pd.DataFrame()
+        average_eval_data_two = pd.DataFrame() if y_eval_two is not None else None
 
         seed_train_plot_frames = []
         seed_eval_plot_frames = []
@@ -436,12 +603,17 @@ def plot_evaluations():
                 )
                 continue
 
-            train_data = pd.read_csv(f"{result_directory}/data/train.csv")
-
-            # Concat the train seed data into a single data frame - rolling window for training data
-            train_data = _prepare_plot_frame(
-                train_data, window_size=window_size, x_data=x_train, y_data=y_train
+            train_data = _read_data(
+                result_directory, "train", window_size, x_train, y_train
             )
+
+            if y_train_two is not None:
+                train_data_two = _read_data(
+                    result_directory, "train", window_size, x_train, y_train_two
+                )
+                average_train_data_two = pd.concat(
+                    [average_train_data_two, train_data_two], ignore_index=True
+                )
 
             average_train_data = pd.concat(
                 [average_train_data, train_data], ignore_index=True
@@ -453,12 +625,17 @@ def plot_evaluations():
                 )
                 continue
 
-            eval_data = pd.read_csv(f"{result_directory}/data/eval.csv")
-
-            # Concat the eval seed data into a single data frame - window size is 1 for evaluation data
-            eval_data = _prepare_plot_frame(
-                eval_data, window_size=1, x_data=x_eval, y_data=y_eval
+            eval_data = _read_data(
+                result_directory, "eval", window_size, x_eval, y_eval
             )
+
+            if y_eval_two is not None:
+                eval_data_two = _read_data(
+                    result_directory, "eval", window_size, x_eval, y_eval_two
+                )
+                average_eval_data_two = pd.concat(
+                    [average_eval_data_two, eval_data_two], ignore_index=True
+                )
 
             average_eval_data = pd.concat(
                 [average_eval_data, eval_data], ignore_index=True
@@ -475,8 +652,8 @@ def plot_evaluations():
                 seed_train_plot_frames,
                 f"{title}",
                 seed_label,
-                x_label,
-                y_label,
+                x_label_train,
+                y_label_train,
                 save_directory,
                 f"{title}-{algorithm}-train",
                 label_fontsize=args["label_fontsize"],
@@ -489,8 +666,8 @@ def plot_evaluations():
                 seed_eval_plot_frames,
                 f"{title}",
                 seed_label,
-                x_label,
-                y_label,
+                x_label_eval,
+                y_label_eval,
                 save_directory,
                 f"{title}-{algorithm}-eval",
                 label_fontsize=args["label_fontsize"],
@@ -498,24 +675,36 @@ def plot_evaluations():
                 ticks_fontsize=args["ticks_fontsize"],
             )
 
-        eval_plot_frame = _perpare_average_plot_frame(average_eval_data)
-        eval_plot_frames.append(eval_plot_frame)
-
         train_plot_frame = _perpare_average_plot_frame(average_train_data)
-        train_plot_frames.append(train_plot_frame)
+
+        train_plot_frame_two = None
+        if y_train_two is not None:
+            train_plot_frame_two = _perpare_average_plot_frame(average_train_data_two)
+
+        train_plot_frames.append([train_plot_frame, train_plot_frame_two])
+
+        eval_plot_frame = _perpare_average_plot_frame(average_eval_data)
+
+        eval_plot_frame_two = None
+        if y_eval_two is not None:
+            eval_plot_frame_two = _perpare_average_plot_frame(average_eval_data_two)
+
+        eval_plot_frames.append([eval_plot_frame, eval_plot_frame_two])
 
     # Plot the training comparisons
     plot_comparisons(
         train_plot_frames,
         f"{title}",
         labels,
-        x_label,
-        y_label,
+        x_label_train,
+        y_label_train,
         save_directory,
         f"{title}-compare-train",
         label_fontsize=args["label_fontsize"],
         title_fontsize=args["title_fontsize"],
         ticks_fontsize=args["ticks_fontsize"],
+        x_label_two=x_label_train,
+        y_label_two=y_label_train_two,
     )
 
     # Plot the evaluation comparisons
@@ -523,13 +712,15 @@ def plot_evaluations():
         eval_plot_frames,
         f"{title}",
         labels,
-        x_label,
-        y_label,
+        x_label_eval,
+        y_label_eval,
         save_directory,
         f"{title}-compare-eval",
         label_fontsize=args["label_fontsize"],
         title_fontsize=args["title_fontsize"],
         ticks_fontsize=args["ticks_fontsize"],
+        x_label_two=x_label_eval,
+        y_label_two=y_label_eval_two,
     )
 
 

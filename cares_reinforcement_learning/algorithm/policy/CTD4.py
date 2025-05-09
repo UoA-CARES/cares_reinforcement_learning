@@ -197,7 +197,10 @@ class CTD4(TD3):
             .flatten()
         )
 
+        critic_loss_total = np.mean(critic_loss_totals)
+
         info = {
+            "critic_loss_total": critic_loss_total,
             "critic_loss_totals": critic_loss_totals,
         }
 

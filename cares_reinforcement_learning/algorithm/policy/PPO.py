@@ -31,7 +31,7 @@ class PPO(VectorAlgorithm):
         config: PPOConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", device=device)
+        super().__init__(policy_type="policy", config=config, device=device)
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -86,6 +86,14 @@ class PPO(VectorAlgorithm):
         self.actor_net.train()
 
         return action
+
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        value = self.critic_net(state_tensor)
+
+        return value[0].item()
 
     def _evaluate_policy(
         self, state: torch.Tensor, action: torch.Tensor
