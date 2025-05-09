@@ -91,7 +91,8 @@ class PPO(VectorAlgorithm):
         state_tensor = torch.FloatTensor(state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
-        value = self.critic_net(state_tensor)
+        with torch.no_grad():
+            value = self.critic_net(state_tensor)
 
         return value[0].item()
 
