@@ -47,6 +47,23 @@ class TQC(SAC):
             ]
         ).to(device)
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                q_value = (
+                    self.critic_net(state_tensor, action_tensor)
+                    .mean(2)
+                    .mean(1, keepdim=True)
+                )
+
+        return q_value.item()
+
     def _update_critic(
         self,
         states: torch.Tensor,
