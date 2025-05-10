@@ -48,6 +48,28 @@ class CTD4(TD3):
             for critic_net in self.critic_net.critics
         ]
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        q_u_set = []
+        q_std_set = []
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                for critic_net in self.critic_net.critics:
+                    actor_q_u, actor_q_std = critic_net(state_tensor, action_tensor)
+
+                    q_u_set.append(actor_q_u)
+                    q_std_set.append(actor_q_std)
+
+        fusion_u_a, _ = self._fuse_critic_outputs(1, q_u_set, q_std_set)
+
+        return fusion_u_a.item()
+
     def _fusion_kalman(
         self,
         std_1: torch.Tensor,
@@ -111,6 +133,22 @@ class CTD4(TD3):
         )
         return fusion_u, fusion_std
 
+    def _fuse_critic_outputs(
+        self, batch_size: int, u_set: list[torch.Tensor], std_set: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.fusion_method == "kalman":
+            fusion_u, fusion_std = self._kalman(u_set, std_set)
+        elif self.fusion_method == "average":
+            fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
+        elif self.fusion_method == "minimum":
+            fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
+        else:
+            raise ValueError(
+                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
+            )
+
+        return fusion_u, fusion_std
+
     def _update_critic(
         self,
         states: torch.Tensor,
@@ -142,16 +180,7 @@ class CTD4(TD3):
                 u_set.append(u)
                 std_set.append(std)
 
-            if self.fusion_method == "kalman":
-                fusion_u, fusion_std = self._kalman(u_set, std_set)
-            elif self.fusion_method == "average":
-                fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
-            elif self.fusion_method == "minimum":
-                fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
-            else:
-                raise ValueError(
-                    f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
-                )
+            fusion_u, fusion_std = self._fuse_critic_outputs(batch_size, u_set, std_set)
 
             # Create the target distribution = aX+b
             u_target = rewards + self.gamma * fusion_u * (1 - dones)
@@ -224,22 +253,9 @@ class CTD4(TD3):
                 actor_q_u_set.append(actor_q_u)
                 actor_q_std_set.append(actor_q_std)
 
-        if self.fusion_method == "kalman":
-            # Kalman filter combination of all critics and then a single mean for the actor loss
-            fusion_u_a, _ = self._kalman(actor_q_u_set, actor_q_std_set)
-
-        elif self.fusion_method == "average":
-            # Average combination of all critics and then a single mean for the actor loss
-            fusion_u_a, _ = self._average(actor_q_u_set, actor_q_std_set, batch_size)
-
-        elif self.fusion_method == "minimum":
-            # Minimum all critics and then a single mean for the actor loss
-            fusion_u_a, _ = self._minimum(actor_q_u_set, actor_q_std_set, batch_size)
-
-        else:
-            raise ValueError(
-                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
-            )
+        fusion_u_a, _ = self._fuse_critic_outputs(
+            batch_size, actor_q_u_set, actor_q_std_set
+        )
 
         actor_loss = -fusion_u_a.mean()
 

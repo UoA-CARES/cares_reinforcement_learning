@@ -46,6 +46,20 @@ class REDQ(SAC):
             for critic_net in self.critic_net.critics
         ]
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                q_values = self.critic_net(state_tensor, action_tensor)
+                q_value = q_values.mean()
+
+        return q_value.item()
+
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
         self,
