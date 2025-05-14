@@ -34,7 +34,7 @@ class DynaSAC(VectorAlgorithm):
         config: DynaSACConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="mbrl", device=device)
+        super().__init__(policy_type="mbrl", config=config, device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(self.device)

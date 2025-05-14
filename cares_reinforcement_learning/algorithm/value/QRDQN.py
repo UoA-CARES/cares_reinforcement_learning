@@ -2,6 +2,7 @@
 Original Paper: https://arxiv.org/pdf/1710.10044
 """
 
+import numpy as np
 import torch
 
 from cares_reinforcement_learning.algorithm.value import DQN
@@ -11,6 +12,9 @@ from cares_reinforcement_learning.util.configurations import QRDQNConfig
 
 
 class QRDQN(DQN):
+    network: Network
+    target_network: Network
+
     def __init__(
         self,
         network: Network,
@@ -27,7 +31,7 @@ class QRDQN(DQN):
             [i / (self.quantiles + 1) for i in range(1, self.quantiles + 1)]
         ).to(device)
 
-    def evaluate_quantile_at_action(self, s_quantiles, actions):
+    def _evaluate_quantile_at_action(self, s_quantiles, actions):
         batch_size = s_quantiles.shape[0]
 
         # Reshape actions to (batch_size, 1, 1) so it can be broadcasted properly
@@ -55,7 +59,7 @@ class QRDQN(DQN):
         current_quantile_values = self.network.calculate_quantiles(states_tensor)
 
         # Gather Q-value quantiles of actions actually taken
-        current_action_q_values = self.evaluate_quantile_at_action(
+        current_action_q_values = self._evaluate_quantile_at_action(
             current_quantile_values, actions_tensor
         )
 
@@ -82,7 +86,7 @@ class QRDQN(DQN):
                 next_states_tensor
             )
 
-            best_next_q_values = self.evaluate_quantile_at_action(
+            best_next_q_values = self._evaluate_quantile_at_action(
                 next_quantile_values, next_state_best_actions
             )
 

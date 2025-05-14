@@ -31,7 +31,7 @@ class TD3(VectorAlgorithm):
         config: TD3Config,
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", device=device)
+        super().__init__(policy_type="policy", config=config, device=device)
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -96,6 +96,22 @@ class TD3(VectorAlgorithm):
         self.actor_net.train()
 
         return action
+
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                q_values_one, q_values_two = self.critic_net(
+                    state_tensor, action_tensor
+                )
+                q_value = torch.minimum(q_values_one, q_values_two)
+
+        return q_value[0].item()
 
     def _update_critic(
         self,

@@ -29,6 +29,24 @@ class RDSAC(SAC):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                output_one, output_two = self.critic_net(state_tensor, action_tensor)
+
+                q_value_one, _, _ = self._split_output(output_one)
+                q_value_two, _, _ = self._split_output(output_two)
+
+                q_value = torch.minimum(q_value_one, q_value_two)
+
+        return q_value.item()
+
     def _update_critic(
         self,
         states: torch.Tensor,

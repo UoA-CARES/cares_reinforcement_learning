@@ -648,10 +648,12 @@ class NetworkFactory:
         action_num: int,
         config: acf.AlgorithmConfig,
     ):
+        algorithm = config.algorithm
+
         agent = None
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if inspect.isfunction(obj):
-                if name == f"create_{config.algorithm}":
+                if name == f"create_{algorithm}":
                     agent = obj(observation_size, action_num, config)
 
         if agent is None:

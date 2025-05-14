@@ -4,6 +4,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import RDTD3Config
@@ -26,6 +27,24 @@ class RDTD3(TD3):
         self, target: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
+
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                output_one, output_two = self.critic_net(state_tensor, action_tensor)
+
+                q_value_one, _, _ = self._split_output(output_one)
+                q_value_two, _, _ = self._split_output(output_two)
+
+                q_value = torch.minimum(q_value_one, q_value_two)
+
+        return q_value.item()
 
     def _update_critic(
         self,
@@ -146,3 +165,28 @@ class RDTD3(TD3):
             "critic_loss_total": critic_loss_total.item(),
         }
         return info, priorities
+
+    def _update_actor(
+        self, states: torch.Tensor, weights: torch.Tensor
+    ) -> dict[str, Any]:
+        actions = self.actor_net(states.detach())
+
+        with hlp.evaluating(self.critic_net):
+            output_one, output_two = self.critic_net(states.detach(), actions)
+
+        actor_q_one, _, _ = self._split_output(output_one)
+        actor_q_two, _, _ = self._split_output(output_two)
+
+        actor_val = torch.minimum(actor_q_one, actor_q_two)
+
+        actor_loss = -(actor_val * weights).mean()
+
+        # Optimize the actor
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        self.actor_net_optimiser.step()
+
+        info = {
+            "actor_loss": actor_loss.item(),
+        }
+        return info

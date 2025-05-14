@@ -40,6 +40,24 @@ class MAPERTD3(TD3):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                output_one, output_two = self.critic_net(state_tensor, action_tensor)
+
+                q_value_one, _, _ = self._split_output(output_one)
+                q_value_two, _, _ = self._split_output(output_two)
+
+                q_value = torch.minimum(q_value_one, q_value_two)
+
+        return q_value.item()
+
     def _update_critic(
         self,
         states: torch.Tensor,
@@ -146,23 +164,25 @@ class MAPERTD3(TD3):
         diff_reward_mean = torch.cat([diff_reward_one, diff_reward_two], -1)
         diff_reward_mean = torch.mean(diff_reward_mean, 1)
         diff_reward_mean = diff_reward_mean.view(-1, 1)
-        diff_reward_mean = diff_reward_mean[:, 0].detach().data.cpu().numpy()
+        diff_reward_mean_numpy = diff_reward_mean[:, 0].detach().data.cpu().numpy()
 
         diff_next_state_mean = torch.cat(
             [diff_next_states_one, diff_next_states_two], -1
         )
         diff_next_state_mean = torch.mean(diff_next_state_mean, 1)
         diff_next_state_mean = diff_next_state_mean.view(-1, 1)
-        diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
-
-        # calculate priority
-        priorities_tensor = (
-            numpy_td_mean
-            + self.scale_s * diff_next_state_mean
-            + self.scale_r * diff_reward_mean
+        diff_next_state_mean_numpy = (
+            diff_next_state_mean[:, 0].detach().data.cpu().numpy()
         )
 
-        priorities_tensor = torch.Tensor(priorities_tensor)
+        # calculate priority
+        priorities = (
+            numpy_td_mean
+            + self.scale_s * diff_next_state_mean_numpy
+            + self.scale_r * diff_reward_mean_numpy
+        )
+
+        priorities_tensor = torch.Tensor(priorities)
 
         priorities = (
             priorities_tensor.clamp(min=self.min_priority)
@@ -174,8 +194,12 @@ class MAPERTD3(TD3):
 
         # Update Scales
         if self.learn_counter == 1:
-            self.scale_r = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
-            self.scale_s = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
+            self.scale_r = np.mean(numpy_td_mean) / (
+                np.mean(diff_next_state_mean_numpy)
+            )
+            self.scale_s = np.mean(numpy_td_mean) / (
+                np.mean(diff_next_state_mean_numpy)
+            )
 
         info = {
             "critic_loss_one": critic_loss_one.item(),
@@ -191,10 +215,12 @@ class MAPERTD3(TD3):
         actions = self.actor_net(states.detach())
 
         with hlp.evaluating(self.critic_net):
-            actor_q_one, actor_q_two = self.critic_net(states.detach(), actions)
+            output_one, output_two = self.critic_net(states.detach(), actions)
 
-        actor_q_values = torch.minimum(actor_q_one, actor_q_two)
-        actor_val, _, _ = self._split_output(actor_q_values)
+        actor_q_one, _, _ = self._split_output(output_one)
+        actor_q_two, _, _ = self._split_output(output_two)
+
+        actor_val = torch.minimum(actor_q_one, actor_q_two)
 
         actor_loss = -(actor_val * weights).mean()
 
