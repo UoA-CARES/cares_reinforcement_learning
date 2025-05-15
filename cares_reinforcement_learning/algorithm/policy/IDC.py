@@ -25,6 +25,9 @@ from cares_reinforcement_learning.util.configurations import IDCConfig
 
 
 class IDC(SAC):
+    critic_net: Critic
+    target_critic_net: Critic
+
     def __init__(
         self,
         actor_network: Actor,
@@ -52,6 +55,31 @@ class IDC(SAC):
         ]
 
         self.std_weight = config.std_weight
+
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                q_values = self.critic_net(state_tensor, action_tensor)
+                q_value = q_values.mean()
+
+        return q_value.item()
+
+    def _choose_critic(self, scores: list[float], select_lowest: bool = False) -> int:
+        if select_lowest:
+            return scores.index(min(scores))
+
+        # Bias toward lower scores
+        inverted = [1 / (s + 1e-6) for s in scores]
+        total = sum(inverted)
+        weights = [w / total for w in inverted]
+
+        return random.choices(range(len(scores)), weights=weights, k=1)[0]
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
@@ -130,17 +158,6 @@ class IDC(SAC):
         self.log_alpha_optimizer.step()
 
         return actor_loss.item(), alpha_loss.item()
-
-    def _choose_critic(self, scores: list[float], select_lowest: bool = False) -> int:
-        if select_lowest:
-            return scores.index(min(scores))
-
-        # Bias toward lower scores
-        inverted = [1 / (s + 1e-6) for s in scores]
-        total = sum(inverted)
-        weights = [w / total for w in inverted]
-
-        return random.choices(range(len(scores)), weights=weights, k=1)[0]
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
