@@ -24,6 +24,8 @@ from cares_reinforcement_learning.util.configurations import PEQConfig
 # Avergage td_error and standard deviation of td_error for each critic
 # and use the one with the lowest average td_error and standard deviation of td_error to update the actor - or weighted average
 
+# Use TQC critics
+
 
 class PEQ(SAC):
     critic_net: Critic
