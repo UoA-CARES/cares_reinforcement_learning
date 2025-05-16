@@ -493,7 +493,7 @@ class REDQConfig(SACConfig):
 
     G: int = 20
 
-    policy_update_freq: int = 1
+    policy_update_freq: int = 20
     target_update_freq: int = 1
 
     use_per_buffer: Literal[0] = Field(default=0, frozen=True)
