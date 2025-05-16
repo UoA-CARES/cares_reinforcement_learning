@@ -41,7 +41,7 @@ class REDQ(SAC):
             torch.optim.Adam(
                 critic_net.parameters(),
                 lr=self.lr_ensemble_critic,
-                **config.critic_lr_params
+                **config.critic_lr_params,
             )
             for critic_net in self.critic_net.critics
         ]
@@ -68,8 +68,12 @@ class REDQ(SAC):
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-        idx: np.ndarray,
     ) -> dict[str, Any]:
+        # replace=False so that not picking the same idx twice
+        idx = np.random.choice(
+            self.ensemble_size, self.num_sample_critics, replace=False
+        )
+
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -106,6 +110,7 @@ class REDQ(SAC):
 
         critic_loss_total = np.mean(critic_loss_totals)
         info = {
+            "idx": idx,
             "critic_loss_total": critic_loss_total,
             "critic_loss_totals": critic_loss_totals,
         }
@@ -116,14 +121,12 @@ class REDQ(SAC):
     def _update_actor_alpha(  # type: ignore[override]
         self,
         states: torch.Tensor,
-        idx: np.ndarray,
     ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
-        qf1_pi = self.target_critic_net.critics[idx[0]](states, pi)
-        qf2_pi = self.target_critic_net.critics[idx[1]](states, pi)
-
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        with hlp.evaluating(self.critic_net):
+            q_values = self.critic_net(states, pi)
+            min_qf_pi = q_values.mean(dim=1)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
@@ -165,13 +168,7 @@ class REDQ(SAC):
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
         dones_tensor = dones_tensor.reshape(batch_size, 1)
 
-        # replace=False so that not picking the same idx twice
-        idx = np.random.choice(
-            self.ensemble_size, self.num_sample_critics, replace=False
-        )
-
         info: dict[str, Any] = {}
-        info["critic_ids"] = idx
 
         # Update the Critics
         critic_info = self._update_critic(
@@ -180,13 +177,12 @@ class REDQ(SAC):
             rewards_tensor,
             next_states_tensor,
             dones_tensor,
-            idx,
         )
         info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_info = self._update_actor_alpha(states_tensor, idx)
+            actor_info = self._update_actor_alpha(states_tensor)
             info |= actor_info
             info["alpha"] = self.alpha.item()
 
