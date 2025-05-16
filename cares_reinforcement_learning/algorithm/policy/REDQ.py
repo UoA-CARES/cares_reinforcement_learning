@@ -41,7 +41,7 @@ class REDQ(SAC):
             torch.optim.Adam(
                 critic_net.parameters(),
                 lr=self.lr_ensemble_critic,
-                **config.critic_lr_params
+                **config.critic_lr_params,
             )
             for critic_net in self.critic_net.critics
         ]
@@ -124,8 +124,9 @@ class REDQ(SAC):
     ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
-        q_values = self.critic_net(states, pi)
-        min_qf_pi = q_values.mean()
+        with hlp.evaluating(self.critic_net):
+            q_values = self.critic_net(states, pi)
+            min_qf_pi = q_values.mean(dim=1)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
