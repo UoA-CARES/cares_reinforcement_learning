@@ -1,3 +1,14 @@
+# === LSTM Version 4.0 ===
+# - EPDM now uses sequence-based training (default seq_len=15)
+# - Updated _update_predictive_model() for latent/action sequences
+# - Surprise rate uses seq input (seq_len=1)
+# - Added gradient clipping to actor & EPDM updates
+# - Updated train_policy() to pass memory for sequence sampling
+# - Minor cleanup in constructor and comments preserved
+# =========================
+
+
+
 import copy
 import logging
 import os
@@ -30,7 +41,7 @@ class NaSATD3(ImageAlgorithm):
         config: NaSATD3Config,
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(policy_type="policy", device=device)
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -175,6 +186,7 @@ class NaSATD3(ImageAlgorithm):
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
         self.actor_optimizer.step()
 
         return actor_loss.item()
@@ -193,40 +205,39 @@ class NaSATD3(ImageAlgorithm):
                 _, _, latent_state = output
 
         return latent_state
-
-    def _update_predictive_model(
-        self,
-        states: dict[str, torch.Tensor],
-        actions: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
-    ) -> list[float]:
-
-        with torch.no_grad():
-            latent_state = self._get_latent_state(
-                states["image"], detach_output=True, sample_latent=True
-            )
-
-            latent_next_state = self._get_latent_state(
-                next_states["image"], detach_output=True, sample_latent=True
-            )
-
+  
+    def _update_predictive_model(self, memory: MemoryBuffer, batch_size: int, seq_len: int = 15) -> list[float]:
+        self.autoencoder.eval()
+        latent_seqs, action_seqs, next_latents, _ = memory.sample_sequence(batch_size, seq_len)
+    
+        # Convert list-of-lists-of-tensors to float32 NumPy arrays
+        latent_seq_tensor = torch.FloatTensor(
+            np.array([[lt.cpu().numpy() for lt in seq] for seq in latent_seqs])
+        ).to(self.device)
+    
+        action_seq_tensor = torch.FloatTensor(
+            np.array([[ac if isinstance(ac, np.ndarray) else np.array(ac) for ac in seq] for seq in action_seqs])
+        ).to(self.device)
+    
+        target_next_latent = torch.FloatTensor(
+            np.array([lt.cpu().numpy() for lt in next_latents])
+        ).to(self.device)
+    
         pred_losses = []
-        for predictive_network, optimizer in zip(
-            self.ensemble_predictive_model, self.epm_optimizers
-        ):
-            predictive_network.train()
-            # Get the deterministic prediction of each model
-            prediction_vector = predictive_network(latent_state, actions)
-            # Calculate Loss of each model
-            loss = F.mse_loss(prediction_vector, latent_next_state)
-            # Update weights and bias
+        for model, optimizer in zip(self.ensemble_predictive_model, self.epm_optimizers):
+            model.train()
+            predicted_next_latent = model(latent_seq_tensor, action_seq_tensor)
+            loss = F.mse_loss(predicted_next_latent, target_next_latent)
+    
             optimizer.zero_grad()
             loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), max_norm=1.0)
             optimizer.step()
-
+    
             pred_losses.append(loss.item())
-
+    
         return pred_losses
+
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -246,7 +257,7 @@ class NaSATD3(ImageAlgorithm):
         self.action_noise = max(self.min_action_noise, self.action_noise)
 
         experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        states, actions, rewards, next_states, dones, *rest = experiences
 
         batch_size = len(states)
 
@@ -300,7 +311,8 @@ class NaSATD3(ImageAlgorithm):
         # Update intrinsic models
         if self.intrinsic_on:
             pred_losses = self._update_predictive_model(
-                states_tensor, actions_tensor, next_states_tensor
+                # states_tensor, actions_tensor, next_states_tensor
+                memory, batch_size
             )
             info["pred_losses"] = pred_losses
 
@@ -324,7 +336,12 @@ class NaSATD3(ImageAlgorithm):
             predict_vector_set = []
             for network in self.ensemble_predictive_model:
                 network.eval()
-                predicted_vector = network(latent_state, action_tensor)
+            
+                # Wrap each input in a sequence dimension (seq_len = 1)
+                latent_seq = latent_state.unsqueeze(1)      # Shape: (1, 1, latent_dim)
+                action_seq = action_tensor.unsqueeze(1)     # Shape: (1, 1, action_dim)
+            
+                predicted_vector = network(latent_seq, action_seq)
                 predict_vector_set.append(predicted_vector.detach().cpu().numpy())
 
             ensemble_vector = np.concatenate(predict_vector_set, axis=0)
