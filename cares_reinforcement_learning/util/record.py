@@ -1,3 +1,13 @@
+# === LSTM Version 4.0 ===
+# - Changed agent typing from Algorithm to nn.Module for flexibility
+# - Removed evaluation-time bias calculation via `agent.calculate_bias()`
+# - Enhanced log formatting:
+#     • Replaces 'intrinsic_reward' with human-readable breakdown if available
+#     • Suppresses duplicate logging of 'intrinsic_reward_breakdown'
+# - Added `torch.nn` import to support updated agent typing
+# =========================
+
+
 import json
 import logging
 import os
@@ -7,9 +17,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pandas as pd
+from torch import nn
 
 import cares_reinforcement_learning.util.plotter as plt
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SubscriptableClass
 
@@ -30,7 +40,7 @@ class Record:
         base_directory: str,
         algorithm: str,
         task: str,
-        agent: Algorithm | None = None,
+        agent: nn.Module | None = None,
         record_video: bool = True,
         record_memory: bool = False,
     ) -> None:
@@ -71,7 +81,7 @@ class Record:
 
         self.__initialise_sub_directory()
 
-    def set_agent(self, agent: Algorithm) -> None:
+    def set_agent(self, agent: nn.Module) -> None:
         self.agent = agent
 
     def set_memory_buffer(self, memory_buffer: MemoryBuffer) -> None:
@@ -161,12 +171,26 @@ class Record:
         data_frame.to_csv(f"{self.current_sub_directory}/data/{filename}", index=False)
 
         string_values = []
+        # for key, val in logs.items():
+        #     if isinstance(val, list):
+        #         formatted_list = [f"{str(i)[0:10]:6s}" for i in val]
+        #         string_values.append(f"{key}: {formatted_list}")
+        #     else:
+        #         string_values.append(f"{key}: {str(val)[0:10]:6s}")
+
         for key, val in logs.items():
-            if isinstance(val, list):
+            if key == "intrinsic_reward" and "intrinsic_reward_breakdown" in logs:
+                # Use the breakdown value in place of the raw float
+                string_values.append(f"{key}: {logs['intrinsic_reward_breakdown']}")
+            elif key == "intrinsic_reward_breakdown":
+                # Don't log this separately
+                continue
+            elif isinstance(val, list):
                 formatted_list = [f"{str(i)[0:10]:6s}" for i in val]
                 string_values.append(f"{key}: {formatted_list}")
             else:
                 string_values.append(f"{key}: {str(val)[0:10]:6s}")
+
 
         string_out = " | ".join(string_values)
         string_out = "| " + string_out + " |"
