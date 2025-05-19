@@ -41,7 +41,7 @@ class SAC(VectorAlgorithm):
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(self.device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
-        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
+        # self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
