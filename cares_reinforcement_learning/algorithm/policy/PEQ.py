@@ -16,13 +16,7 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.PEQ import Actor, Critic
 from cares_reinforcement_learning.util.configurations import PEQConfig
 
-# Train all critics on the same batch and use the critic with the lowest overall td_error on the batch for the actor
-# REDQ just randomly samples and uses the same critics for updating the critic and actor
-# we would train all critics and use the one with the lowest td_error to update the actor.
-
-# Track the average td_error for each critic and use the one with the lowest average td_error to update the actor
-# Avergage td_error and standard deviation of td_error for each critic
-# and use the one with the lowest average td_error and standard deviation of td_error to update the actor - or weighted average
+# Track the total average td_error and deviation from mean of the ensemble for each critic and use the one with the lowest average td_error to update the critics and actor
 
 # Use TQC critics
 
