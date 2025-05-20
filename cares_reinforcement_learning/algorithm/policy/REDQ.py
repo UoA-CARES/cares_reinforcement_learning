@@ -16,6 +16,9 @@ from cares_reinforcement_learning.util.configurations import REDQConfig
 
 
 class REDQ(SAC):
+    critic_net: Critic
+    target_critic_net: Critic
+
     def __init__(
         self,
         actor_network: Actor,
@@ -38,10 +41,24 @@ class REDQ(SAC):
             torch.optim.Adam(
                 critic_net.parameters(),
                 lr=self.lr_ensemble_critic,
-                **config.critic_lr_params
+                **config.critic_lr_params,
             )
             for critic_net in self.critic_net.critics
         ]
+
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                q_values = self.critic_net(state_tensor, action_tensor)
+                q_value = q_values.mean()
+
+        return q_value.item()
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
@@ -51,8 +68,12 @@ class REDQ(SAC):
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-        idx: np.ndarray,
-    ) -> list[float]:
+    ) -> dict[str, Any]:
+        # replace=False so that not picking the same idx twice
+        idx = np.random.choice(
+            self.ensemble_size, self.num_sample_critics, replace=False
+        )
+
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -79,28 +100,33 @@ class REDQ(SAC):
         ):
             q_values = critic_net(states, actions)
 
-            critic_loss_total = 0.5 * F.mse_loss(q_values, q_target)
+            critic_loss = 0.5 * F.mse_loss(q_values, q_target)
 
             critic_net_optimiser.zero_grad()
-            critic_loss_total.backward()
+            critic_loss.backward()
             critic_net_optimiser.step()
 
-            critic_loss_totals.append(critic_loss_total.item())
+            critic_loss_totals.append(critic_loss.item())
 
-        return critic_loss_totals
+        critic_loss_total = np.mean(critic_loss_totals)
+        info = {
+            "idx": idx,
+            "critic_loss_total": critic_loss_total,
+            "critic_loss_totals": critic_loss_totals,
+        }
+
+        return info
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_actor_alpha(  # type: ignore[override]
         self,
         states: torch.Tensor,
-        idx: np.ndarray,
-    ) -> tuple[float, float]:
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
-        qf1_pi = self.target_critic_net.critics[idx[0]](states, pi)
-        qf2_pi = self.target_critic_net.critics[idx[1]](states, pi)
-
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        with hlp.evaluating(self.critic_net):
+            q_values = self.critic_net(states, pi)
+            min_qf_pi = q_values.mean(dim=1)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
@@ -114,7 +140,12 @@ class REDQ(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
+
+        return info
 
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -137,29 +168,22 @@ class REDQ(SAC):
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
         dones_tensor = dones_tensor.reshape(batch_size, 1)
 
-        # replace=False so that not picking the same idx twice
-        idx = np.random.choice(
-            self.ensemble_size, self.num_sample_critics, replace=False
-        )
-
         info: dict[str, Any] = {}
 
         # Update the Critics
-        critic_loss_totals = self._update_critic(
+        critic_info = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
             next_states_tensor,
             dones_tensor,
-            idx,
         )
-        info["critic_loss_totals"] = critic_loss_totals
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor, idx)
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
+            actor_info = self._update_actor_alpha(states_tensor)
+            info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:

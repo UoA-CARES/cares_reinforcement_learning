@@ -14,12 +14,14 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import CTD4Config
 
 
 class CTD4(TD3):
+    critic_net: Critic
+    target_critic_net: Critic
+
     def __init__(
         self,
         actor_network: Actor,
@@ -48,6 +50,29 @@ class CTD4(TD3):
 
         print(actor_network)
         print(ensemble_critic)
+
+        
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        q_u_set = []
+        q_std_set = []
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                for critic_net in self.critic_net.critics:
+                    actor_q_u, actor_q_std = critic_net(state_tensor, action_tensor)
+
+                    q_u_set.append(actor_q_u)
+                    q_std_set.append(actor_q_std)
+
+        fusion_u_a, _ = self._fuse_critic_outputs(1, q_u_set, q_std_set)
+
+        return fusion_u_a.item()
 
     def _fusion_kalman(
         self,
@@ -112,6 +137,22 @@ class CTD4(TD3):
         )
         return fusion_u, fusion_std
 
+    def _fuse_critic_outputs(
+        self, batch_size: int, u_set: list[torch.Tensor], std_set: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        if self.fusion_method == "kalman":
+            fusion_u, fusion_std = self._kalman(u_set, std_set)
+        elif self.fusion_method == "average":
+            fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
+        elif self.fusion_method == "minimum":
+            fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
+        else:
+            raise ValueError(
+                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
+            )
+
+        return fusion_u, fusion_std
+
     def _update_critic(
         self,
         states: torch.Tensor,
@@ -143,16 +184,7 @@ class CTD4(TD3):
                 u_set.append(u)
                 std_set.append(std)
 
-            if self.fusion_method == "kalman":
-                fusion_u, fusion_std = self._kalman(u_set, std_set)
-            elif self.fusion_method == "average":
-                fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
-            elif self.fusion_method == "minimum":
-                fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
-            else:
-                raise ValueError(
-                    f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
-                )
+            fusion_u, fusion_std = self._fuse_critic_outputs(batch_size, u_set, std_set)
 
             # Create the target distribution = aX+b
             u_target = rewards + self.gamma * fusion_u * (1 - dones)
@@ -198,7 +230,10 @@ class CTD4(TD3):
             .flatten()
         )
 
+        critic_loss_total = np.mean(critic_loss_totals)
+
         info = {
+            "critic_loss_total": critic_loss_total,
             "critic_loss_totals": critic_loss_totals,
         }
 
@@ -222,22 +257,9 @@ class CTD4(TD3):
                 actor_q_u_set.append(actor_q_u)
                 actor_q_std_set.append(actor_q_std)
 
-        if self.fusion_method == "kalman":
-            # Kalman filter combination of all critics and then a single mean for the actor loss
-            fusion_u_a, _ = self._kalman(actor_q_u_set, actor_q_std_set)
-
-        elif self.fusion_method == "average":
-            # Average combination of all critics and then a single mean for the actor loss
-            fusion_u_a, _ = self._average(actor_q_u_set, actor_q_std_set, batch_size)
-
-        elif self.fusion_method == "minimum":
-            # Minimum all critics and then a single mean for the actor loss
-            fusion_u_a, _ = self._minimum(actor_q_u_set, actor_q_std_set, batch_size)
-
-        else:
-            raise ValueError(
-                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
-            )
+        fusion_u_a, _ = self._fuse_critic_outputs(
+            batch_size, actor_q_u_set, actor_q_std_set
+        )
 
         actor_loss = -fusion_u_a.mean()
 
@@ -250,58 +272,3 @@ class CTD4(TD3):
         }
 
         return info
-
-    # def train_policy(
-    #     self, memory: MemoryBuffer, batch_size: int, training_step: int
-    # ) -> dict[str, Any]:
-    #     self.learn_counter += 1
-
-    #     self.policy_noise *= self.policy_noise_decay
-    #     self.policy_noise = max(self.min_policy_noise, self.policy_noise)
-
-    #     self.action_noise *= self.action_noise_decay
-    #     self.action_noise = max(self.min_action_noise, self.action_noise)
-
-    #     experiences = memory.sample_uniform(batch_size)
-    #     states, actions, rewards, next_states, dones, _ = experiences
-
-    #     batch_size = len(states)
-
-    #     # Convert into tensor
-    #     states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-    #     actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-    #     rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-    #     next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-    #     dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-    #     # Reshape to batch_size x whatever
-    #     rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-    #     dones_tensor = dones_tensor.reshape(batch_size, 1)
-
-    #     info: dict[str, Any] = {}
-
-    #     # Update Critics
-    #     critic_loss_totals = self._update_critic(
-    #         states_tensor,
-    #         actions_tensor,
-    #         rewards_tensor,
-    #         next_states_tensor,
-    #         dones_tensor,
-    #     )
-    #     info["critic_loss_totals"] = critic_loss_totals
-
-    #     if self.learn_counter % self.policy_update_freq == 0:
-    #         # Update Actor
-    #         actor_loss = self._update_actor(states_tensor)
-    #         info["actor_loss"] = actor_loss
-
-    #         # Update ensemble of target critics
-    #         for critic_net, target_critic_net in zip(
-    #             self.critic_net.critics, self.target_critic_net.critics
-    #         ):
-    #             hlp.soft_update_params(critic_net, target_critic_net, self.tau)
-
-    #         # Update target actor
-    #         hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
-
-    #     return info

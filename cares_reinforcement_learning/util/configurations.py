@@ -84,6 +84,8 @@ class AlgorithmConfig(SubscriptableClass):
 
     algorithm: str = Field(description="Name of the algorithm to be used")
 
+    gamma: float
+
     G: int = 1
     G_model: int = 1
     number_steps_per_train_policy: int = 1
@@ -104,7 +106,6 @@ class AlgorithmConfig(SubscriptableClass):
 ###################################
 
 
-# def __init__(self, start_epsilon: float, end_epsilon: float, decay_steps: int):
 class DQNConfig(AlgorithmConfig):
     algorithm: str = Field("DQN", Literal=True)
     lr: float = 1e-3
@@ -409,7 +410,7 @@ class SACConfig(AlgorithmConfig):
 class SACAEConfig(SACConfig):
     algorithm: str = Field("SACAE", Literal=True)
 
-    image_observation: int = 1
+    image_observation: Literal[1] = Field(default=1, frozen=True)
     batch_size: int = 128
 
     actor_lr: float = 1e-3
@@ -492,7 +493,7 @@ class REDQConfig(SACConfig):
 
     G: int = 20
 
-    policy_update_freq: int = 1
+    policy_update_freq: int = 20
     target_update_freq: int = 1
 
     use_per_buffer: Literal[0] = Field(default=0, frozen=True)
@@ -884,7 +885,7 @@ class TD3Config(AlgorithmConfig):
 class TD3AEConfig(TD3Config):
     algorithm: str = Field("TD3AE", Literal=True)
 
-    image_observation: int = 1
+    image_observation: Literal[1] = Field(default=1, frozen=True)
     batch_size: int = 128
 
     actor_lr: float = 1e-3
@@ -936,7 +937,7 @@ class TD3AEConfig(TD3Config):
 class NaSATD3Config(TD3Config):
     algorithm: str = Field("NaSATD3", Literal=True)
 
-    image_observation: int = 1
+    image_observation: Literal[1] = Field(default=1, frozen=True)
 
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3

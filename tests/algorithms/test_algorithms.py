@@ -5,8 +5,9 @@ import numpy as np
 import pytest
 
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
-from cares_reinforcement_learning.util import NetworkFactory, configurations
+from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.util.network_factory import NetworkFactory
 
 
 def _policy_buffer(
@@ -133,6 +134,14 @@ def test_algorithms(tmp_path):
             )
         else:
             continue
+
+        experiences = memory_buffer.sample_uniform(1)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        value = agent._calculate_value(states[0], actions[0])
+        assert isinstance(
+            value, float
+        ), f"{algorithm} did not return a float value for the calculated value"
 
         info = agent.train_policy(memory_buffer, batch_size, training_step=0)
         assert isinstance(

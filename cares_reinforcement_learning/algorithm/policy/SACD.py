@@ -29,7 +29,7 @@ class SACD(VectorAlgorithm):
         config: SACDConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="discrete_policy", device=device)
+        super().__init__(policy_type="discrete_policy", config=config, device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)

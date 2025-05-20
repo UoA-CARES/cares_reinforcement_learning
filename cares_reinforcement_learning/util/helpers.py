@@ -112,7 +112,7 @@ def soft_update_params(net, target_net, tau):
     for param, target_param in zip(net.parameters(), target_net.parameters()):
         target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
-    # Hard update the statistics of the target network
+    # Hard update the statistics of the target network - specifically for BacthNorm layers
     for param, target_param in zip(net.buffers(), target_net.buffers()):
         target_param.data.copy_(param.data)
 
@@ -128,12 +128,7 @@ def hard_update_params(net, target_net):
     Returns:
         None
     """
-    for param, target_param in zip(net.parameters(), target_net.parameters()):
-        target_param.data.copy_(param.data)
-
-    # Hard update the statistics of the target network
-    for param, target_param in zip(net.buffers(), target_net.buffers()):
-        target_param.data.copy_(param.data)
+    soft_update_params(net, target_net, 1.0)
 
 
 def weight_init(module: torch.nn.Module) -> None:
@@ -422,3 +417,20 @@ def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     self.fc1 = nn.Linear(r*r*128, 1024)
     """
     return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
+
+
+def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float]:
+    """
+    Compute discounted returns G_t from a list of rewards.
+    Args:
+        rewards (list or np.ndarray): Rewards [r_0, r_1, ..., r_T]
+        gamma (float): Discount factor (0 <= gamma <= 1)
+    Returns:
+        list: Discounted returns [G_0, G_1, ..., G_T]
+    """
+    returns: list[float] = [0.0] * len(rewards)
+    G = 0.0
+    for t in reversed(range(len(rewards))):
+        G = rewards[t] + gamma * G
+        returns[t] = G
+    return returns

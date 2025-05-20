@@ -32,7 +32,7 @@ class SACAE(ImageAlgorithm):
         config: SACAEConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", device=device)
+        super().__init__(policy_type="policy", config=config, device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -174,7 +174,7 @@ class SACAE(ImageAlgorithm):
         info = {
             "critic_loss_one": critic_loss_one.item(),
             "critic_loss_two": critic_loss_two.item(),
-            "critic_loss": critic_loss_total.item(),
+            "critic_loss_total": critic_loss_total.item(),
         }
 
         return info, priorities

@@ -50,6 +50,24 @@ class TQC(SAC):
         print(actor_network)
         print(critic_network)
 
+        
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                q_value = (
+                    self.critic_net(state_tensor, action_tensor)
+                    .mean(2)
+                    .mean(1, keepdim=True)
+                )
+
+        return q_value.item()
+
     def _update_critic(
         self,
         states: torch.Tensor,
@@ -114,8 +132,7 @@ class TQC(SAC):
         )
 
         info = {
-            "critic_loss": critic_loss_total.item(),
-            "td_error": td_error.mean().item(),
+            "critic_loss_total": critic_loss_total.item(),
         }
 
         return info, priorities

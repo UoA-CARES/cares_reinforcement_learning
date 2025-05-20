@@ -7,9 +7,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 import pandas as pd
-from torch import nn
 
 import cares_reinforcement_learning.util.plotter as plt
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SubscriptableClass
 
@@ -30,7 +30,7 @@ class Record:
         base_directory: str,
         algorithm: str,
         task: str,
-        agent: nn.Module | None = None,
+        agent: Algorithm | None = None,
         record_video: bool = True,
         record_memory: bool = False,
     ) -> None:
@@ -71,7 +71,7 @@ class Record:
 
         self.__initialise_sub_directory()
 
-    def set_agent(self, agent: nn.Module) -> None:
+    def set_agent(self, agent: Algorithm) -> None:
         self.agent = agent
 
     def set_memory_buffer(self, memory_buffer: MemoryBuffer) -> None:

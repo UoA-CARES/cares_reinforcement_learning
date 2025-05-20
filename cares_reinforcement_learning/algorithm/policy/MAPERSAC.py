@@ -35,6 +35,24 @@ class MAPERSAC(SAC):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
+
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                output_one, output_two = self.critic_net(state_tensor, action_tensor)
+
+                q_value_one, _, _ = self._split_output(output_one)
+                q_value_two, _, _ = self._split_output(output_two)
+
+                q_value = torch.minimum(q_value_one, q_value_two)
+
+        return q_value.item()
+
     def _update_critic(
         self,
         states: torch.Tensor,
@@ -134,22 +152,24 @@ class MAPERSAC(SAC):
         diff_reward_mean = torch.cat([diff_reward_one, diff_reward_two], -1)
         diff_reward_mean = torch.mean(diff_reward_mean, 1)
         diff_reward_mean = diff_reward_mean.reshape(-1, 1)
-        diff_reward_mean = diff_reward_mean[:, 0].detach().data.cpu().numpy()
+        diff_reward_mean_numpy = diff_reward_mean[:, 0].detach().data.cpu().numpy()
 
         diff_next_state_mean = torch.cat(
             [diff_next_states_one, diff_next_states_two], -1
         )
         diff_next_state_mean = torch.mean(diff_next_state_mean, 1)
         diff_next_state_mean = diff_next_state_mean.reshape(-1, 1)
-        diff_next_state_mean = diff_next_state_mean[:, 0].detach().data.cpu().numpy()
+        diff_next_state_mean_numpy = (
+            diff_next_state_mean[:, 0].detach().data.cpu().numpy()
+        )
 
         # calculate priority
-        priorities_tensor = (
+        priorities = (
             numpy_td_mean
-            + self.scale_s * diff_next_state_mean
-            + self.scale_r * diff_reward_mean
+            + self.scale_s * diff_next_state_mean_numpy
+            + self.scale_r * diff_reward_mean_numpy
         )
-        priorities_tensor = torch.Tensor(priorities_tensor)
+        priorities_tensor = torch.Tensor(priorities)
 
         priorities = (
             priorities_tensor.clamp(min=self.min_priority)
@@ -161,8 +181,12 @@ class MAPERSAC(SAC):
 
         # Update Scales
         if self.learn_counter == 1:
-            self.scale_r = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
-            self.scale_s = np.mean(numpy_td_mean) / (np.mean(diff_next_state_mean))
+            self.scale_r = np.mean(numpy_td_mean) / (
+                np.mean(diff_next_state_mean_numpy)
+            )
+            self.scale_s = np.mean(numpy_td_mean) / (
+                np.mean(diff_next_state_mean_numpy)
+            )
 
         info = {
             "critic_loss_one": critic_loss_one.item(),
@@ -178,10 +202,10 @@ class MAPERSAC(SAC):
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
-            qf1_pi, qf2_pi = self.critic_net(states, pi)
+            output_one, output_two = self.critic_net(states, pi)
 
-        qf_pi_one, _, _ = self._split_output(qf1_pi)
-        qf_pi_two, _, _ = self._split_output(qf2_pi)
+        qf_pi_one, _, _ = self._split_output(output_one)
+        qf_pi_two, _, _ = self._split_output(output_two)
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
         actor_loss = torch.mean(
