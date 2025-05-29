@@ -354,6 +354,23 @@ def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
     return agent
 
 
+def create_SDAR(observation_size, action_num, config: acf.SDARConfig):
+    from cares_reinforcement_learning.algorithm.policy import SDAR
+    from cares_reinforcement_learning.networks.SDAR import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SDAR(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
@@ -629,7 +646,9 @@ class NetworkFactory:
                 logging.info(f"Loading model weights from {config.model_path}")
                 agent.load_models(filepath=config.model_path, filename=config.algorithm)
 
-            if not _compare_mlp_parts(type(config)(algorithm=config.algorithm), config):
+            if not _compare_mlp_parts(
+                type(config)(algorithm=config.algorithm, gamma=config.gamma), config
+            ):
                 logging.warning(
                     "The network architecture has changed from the default configuration."
                 )

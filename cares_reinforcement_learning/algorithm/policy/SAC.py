@@ -18,6 +18,8 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
+    BaseCritic,
+    BasePolicy,
     EnsembleCritic,
     TanhGaussianPolicy,
     TwinQNetwork,
@@ -25,23 +27,15 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class SAC(VectorAlgorithm):
+class BaseSAC(VectorAlgorithm):
     def __init__(
         self,
-        actor_network: TanhGaussianPolicy,
-        critic_network: TwinQNetwork | EnsembleCritic,
+        actor_network: BasePolicy,
+        critic_network: BaseCritic,
         config: SACConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
-
-        # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(self.device)
-
-        # this may be called soft_q_net in other implementations
-        self.critic_net = critic_network.to(self.device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
-        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -57,6 +51,14 @@ class SAC(VectorAlgorithm):
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
         self.target_update_freq = config.target_update_freq
+
+        # this may be called policy_net in other implementations
+        self.actor_net = actor_network.to(self.device)
+
+        # this may be called soft_q_net in other implementations
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
+        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
         self.target_entropy = -self.actor_net.num_actions
 
@@ -74,6 +76,44 @@ class SAC(VectorAlgorithm):
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
+
+    @property
+    def alpha(self) -> torch.Tensor:
+        return self.log_alpha.exp()
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
+        logging.info("models has been saved...")
+
+    def load_models(self, filepath: str, filename: str) -> None:
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+        logging.info("models has been loaded...")
+
+
+class SAC(BaseSAC):
+    actor_net: TanhGaussianPolicy
+    critc_net: TwinQNetwork | EnsembleCritic
+
+    def __init__(
+        self,
+        actor_network: TanhGaussianPolicy,
+        critic_network: TwinQNetwork | EnsembleCritic,
+        config: SACConfig,
+        device: torch.device,
+    ):
+        super().__init__(
+            actor_network=actor_network,
+            critic_network=critic_network,
+            config=config,
+            device=device,
+        )
+
+        self.target_entropy = -self.actor_net.num_actions
 
     def select_action_from_policy(
         self,
@@ -108,10 +148,6 @@ class SAC(VectorAlgorithm):
                 q_value = torch.minimum(q_values_one, q_values_two)
 
         return q_value[0].item()
-
-    @property
-    def alpha(self) -> torch.Tensor:
-        return self.log_alpha.exp()
 
     def _update_critic(
         self,
@@ -266,16 +302,3 @@ class SAC(VectorAlgorithm):
             memory.update_priorities(indices, priorities)
 
         return info
-
-    def save_models(self, filepath: str, filename: str) -> None:
-        if not os.path.exists(filepath):
-            os.makedirs(filepath)
-
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
-        logging.info("models has been saved...")
-
-    def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        logging.info("models has been loaded...")

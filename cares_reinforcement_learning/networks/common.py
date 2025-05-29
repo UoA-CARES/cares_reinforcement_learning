@@ -1,5 +1,5 @@
 import math
-from typing import Callable
+from typing import Any, Callable
 
 import torch
 import torch.nn.functional as F
@@ -18,10 +18,10 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.util.configurations import (
-    MLPConfig,
-    TrainableLayer,
-    NormLayer,
     FunctionLayer,
+    MLPConfig,
+    NormLayer,
+    TrainableLayer,
 )
 
 
@@ -98,9 +98,7 @@ class BasePolicy(nn.Module):
         self.input_size = input_size
         self.num_actions = num_actions
 
-    def forward(
-        self, state: torch.Tensor
-    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, state: torch.Tensor) -> Any:
         raise NotImplementedError("Subclasses should implement this method.")
 
 
