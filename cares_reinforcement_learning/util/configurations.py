@@ -402,6 +402,8 @@ class SACConfig(AlgorithmConfig):
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )

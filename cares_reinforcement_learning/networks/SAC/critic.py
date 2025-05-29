@@ -73,24 +73,26 @@ class Critic(TwinQNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: SACConfig):
         input_size = observation_size + num_actions
 
-        hidden_size = 1024
+        hidden_size = 256
 
         super().__init__(input_size=input_size, output_size=1, config=config.critic_config)
 
-        # Q1 architecture
-        # pylint: disable-next=invalid-name
-        self.Q1 = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            ResidualMLPBlock(hidden_size),
-            nn.Linear(hidden_size, 1),
-        )
+        if(True):
+            # Q1 architecture
+            # pylint: disable-next=invalid-name
+            self.Q1 = nn.Sequential(
+                nn.Linear(input_size, hidden_size),
+                nn.ReLU(),
+                ResidualMLPBlock(hidden_size),
+                nn.Linear(hidden_size, 1),
+            )
 
-        # Q2 architecture
-        # pylint: disable-next=invalid-name
-        self.Q2 = nn.Sequential(
-            nn.Linear(input_size, hidden_size),
-            nn.ReLU(),
-            ResidualMLPBlock(hidden_size),
-            nn.Linear(hidden_size, 1),
+            # Q2 architecture
+            # pylint: disable-next=invalid-name
+            self.Q2 = nn.Sequential(
+                nn.Linear(input_size, hidden_size),
+                nn.ReLU(),
+                ResidualMLPBlock(hidden_size),
+                nn.Linear(hidden_size, 1),
+
         )
