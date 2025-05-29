@@ -111,8 +111,8 @@ class DefaultActor(BaseActor):
         )
 
         actor_net = TanhGaussianPolicy(
-            input_size=self.input_size,
-            num_actions=self.num_actions,
+            input_size=input_size,
+            num_actions=num_actions,
             log_std_bounds=log_std_bounds,
             config=actor_config,
         )
@@ -135,15 +135,15 @@ class Actor(BaseActor):
 
         # Selection Network: β(b | s, a_prev)
         selector_net = MLP(
-            input_size=self.input_size,
-            output_size=self.num_actions,
+            input_size=input_size,
+            output_size=num_actions,
             config=config.selector_config,
         )
 
         # Action Network: π(â | s, a_mix)
         actor_net = TanhGaussianPolicy(
-            input_size=self.input_size,
-            num_actions=self.num_actions,
+            input_size=input_size,
+            num_actions=num_actions,
             log_std_bounds=config.log_std_bounds,
             config=config.actor_config,
         )
