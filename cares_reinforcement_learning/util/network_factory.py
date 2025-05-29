@@ -663,7 +663,9 @@ class NetworkFactory:
                 logging.info(f"Loading model weights from {config.model_path}")
                 agent.load_models(filepath=config.model_path, filename=config.algorithm)
 
-            if not _compare_mlp_parts(type(config)(algorithm=config.algorithm), config):
+            if not _compare_mlp_parts(
+                type(config)(algorithm=config.algorithm, gamma=config.gamma), config
+            ):
                 logging.warning(
                     "The network architecture has changed from the default configuration."
                 )
