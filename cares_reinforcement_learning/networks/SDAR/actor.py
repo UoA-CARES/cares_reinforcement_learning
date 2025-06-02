@@ -15,7 +15,6 @@ from cares_reinforcement_learning.util.configurations import (
 
 
 class BaseActor(BasePolicy):
-    """Base Actor class for SDAR, using a simple MLP policy."""
 
     def __init__(
         self,
@@ -57,6 +56,7 @@ class BaseActor(BasePolicy):
 
         # Compute log_prob of b under Bernoulli distribution
         bernoulli = torch.distributions.Bernoulli(probs=act_probs)
+
         log_beta = bernoulli.log_prob(binary_mask).sum(dim=-1, keepdim=True)
 
         # Stage 2: Action Policy π

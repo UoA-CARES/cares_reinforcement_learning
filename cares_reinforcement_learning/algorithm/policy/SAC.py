@@ -239,6 +239,7 @@ class SAC(BaseSAC):
         info = {
             "actor_loss": actor_loss.item(),
             "alpha_loss": alpha_loss.item(),
+            "log_pi": log_pi.mean().item(),
         }
 
         return info

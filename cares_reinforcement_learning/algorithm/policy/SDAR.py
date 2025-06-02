@@ -1,4 +1,6 @@
-""" """
+"""
+https://openreview.net/pdf?id=PDgZ3rvqHn
+"""
 
 from typing import Any
 
@@ -159,8 +161,8 @@ class SDAR(BaseSAC):
             sample_action,
             log_pi,
             _,
-            _,
-            _,
+            act_probs,
+            binary_mask,
             log_beta,
         ) = self.actor_net(states, prev_actions, force_act=False)
 
@@ -193,6 +195,10 @@ class SDAR(BaseSAC):
             "actor_loss": actor_loss.item(),
             "alpha_loss": alpha_loss.item(),
             "beta_loss": beta_loss.item(),
+            "log_pi": log_pi.mean().item(),
+            "log_beta": log_beta.mean().item(),
+            "act_prob_mean": act_probs.mean().item(),
+            "b_mean": binary_mask.mean().item(),
         }
 
         return info
@@ -258,6 +264,7 @@ class SDAR(BaseSAC):
             )
             info |= actor_info
             info["alpha"] = self.alpha.item()
+            info["beta"] = self.beta.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
