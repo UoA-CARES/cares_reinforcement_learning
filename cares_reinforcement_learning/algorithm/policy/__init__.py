@@ -1,7 +1,7 @@
 from .DDPG import DDPG
 from .TD3 import TD3
 from .TD3AE import TD3AE
-from .SAC import SAC
+from .SAC import SAC, BaseSAC
 from .SACAE import SACAE
 from .SACD import SACD
 from .PPO import PPO
@@ -24,3 +24,4 @@ from .CrossQ import CrossQ
 from .DroQ import DroQ
 from .IDC import IDC
 from .PEQ import PEQ
+from .SDAR import SDAR
