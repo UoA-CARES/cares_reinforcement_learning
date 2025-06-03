@@ -625,13 +625,11 @@ def plot_evaluations():
                 )
                 continue
 
-            eval_data = _read_data(
-                result_directory, "eval", window_size, x_eval, y_eval
-            )
+            eval_data = _read_data(result_directory, "eval", 1, x_eval, y_eval)
 
             if y_eval_two is not None:
                 eval_data_two = _read_data(
-                    result_directory, "eval", window_size, x_eval, y_eval_two
+                    result_directory, "eval", 1, x_eval, y_eval_two
                 )
                 average_eval_data_two = pd.concat(
                     [average_eval_data_two, eval_data_two], ignore_index=True
