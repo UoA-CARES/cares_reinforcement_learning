@@ -77,7 +77,7 @@ class Critic(TwinQNetwork):
 
         super().__init__(input_size=input_size, output_size=1, config=config.critic_config)
 
-        if(True):
+        if(False):
             # Q1 architecture
             # pylint: disable-next=invalid-name
             self.Q1 = nn.Sequential(
