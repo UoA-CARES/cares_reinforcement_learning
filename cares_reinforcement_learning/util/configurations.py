@@ -400,8 +400,8 @@ class SACConfig(AlgorithmConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=1024),
             FunctionLayer(layer_type="ReLU"),
-            # TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
-            # FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
