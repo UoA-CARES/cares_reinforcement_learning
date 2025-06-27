@@ -5,6 +5,20 @@ https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
 
 """
 
+
+
+# === LSTM Version 4.0 ===
+# - Extended experiences to include latent and next_latent vectors
+# - Modified `add()` to explicitly accept latent states
+# - Added `sample_sequence()` method:
+#     • Returns latent/action sequences and target next_latents
+#     • Ensures sampled sequences do not cross episode boundaries
+# - Supports sequence-based EPDM (e.g., LSTM predictor)
+# - Retains all base buffer functionalities: PER, inverse sampling, etc.
+# =========================
+
+
+
 import pickle
 import random
 from collections import deque
@@ -131,7 +145,7 @@ class MemoryBuffer:
         state, action, _, _, _, *extra = n_step_buffer[0]
         return [state, action, reward, next_state, done, *extra]
 
-    def add(self, state, action, reward, next_state, done, *extra) -> None:
+    def add(self, state, action, reward, next_state, done, latent, next_latent) -> None:
         """
         Adds a single experience to the prioritized replay buffer.
 
@@ -149,7 +163,7 @@ class MemoryBuffer:
             None
         """
 
-        experience = [state, action, reward, next_state, done, *extra]
+        experience = [state, action, reward, next_state, done, latent, next_latent]
 
         # n-step learning - default is 1-step which means regular buffer behaviour
         self.n_step_buffer.append(experience)
@@ -200,6 +214,27 @@ class MemoryBuffer:
             experiences.append(buffer[indices].tolist())
 
         return (*experiences, indices.tolist())
+    
+    def sample_sequence(self, batch_size: int, seq_len: int):
+        sequences = []
+        start_indices = []
+        max_start = self.current_size - seq_len
+        
+        while len(sequences) < batch_size:
+            start = random.randint(0, max_start)
+            done_flags = self.memory_buffers[4][start:start+seq_len]
+            if any(done_flags):
+                continue  # Skip sequences that span episode boundaries
+
+            latent_seq = self.memory_buffers[5][start:start+seq_len]
+            action_seq = self.memory_buffers[1][start:start+seq_len]
+            next_latent = self.memory_buffers[6][start+seq_len-1]  # target for surprise
+
+            sequences.append((latent_seq, action_seq, next_latent))
+            start_indices.append(start)
+
+        latent_seqs, action_seqs, next_latents = zip(*sequences)
+        return list(latent_seqs), list(action_seqs), list(next_latents), start_indices
 
     def _importance_sampling_prioritised_weights(
         self, indices: np.ndarray, weight_normalisation="batch"
