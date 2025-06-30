@@ -22,6 +22,7 @@ from cares_reinforcement_learning.util.configurations import (
     TrainableLayer,
     NormLayer,
     FunctionLayer,
+    ResidualLayer
 )
 
 
@@ -76,6 +77,8 @@ class MLP(nn.Module):
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
                     current_input_size, **layer_spec.params
                 )
+            elif isinstance(layer_spec, ResidualLayer):
+                layer = ResidualBlock(current_input_size, layer_spec).model
             else:
                 raise ValueError(f"Unknown layer type {layer_spec}")
 
@@ -89,6 +92,22 @@ class MLP(nn.Module):
 
     def forward(self, state):
         return self.model(state)
+
+
+class ResidualBlock(MLP):
+    def __init__(
+            self,
+            input_size: int,
+            config: ResidualLayer
+        ):
+        super().__init__(input_size, input_size, MLPConfig(layers=config.layers))
+
+
+    def forward(self, input):
+        residual = input
+        for module in self:
+            residual = module(residual)
+        return input + residual
 
 
 class BasePolicy(nn.Module):

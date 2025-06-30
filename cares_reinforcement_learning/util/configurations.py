@@ -1,4 +1,4 @@
-from typing import Literal, Any
+from typing import Literal, Any, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -59,8 +59,13 @@ class FunctionLayer(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class ResidualLayer(BaseModel):
+    layer_category: Literal["residual"] = "residual"  # Discriminator field
+    layers: list[Union[TrainableLayer, NormLayer, FunctionLayer, 'Optional[ResidualLayer]']]
+
+
 class MLPConfig(BaseModel):
-    layers: list[TrainableLayer | NormLayer | FunctionLayer]
+    layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
 
 
 class AlgorithmConfig(SubscriptableClass):
@@ -400,9 +405,13 @@ class SACConfig(AlgorithmConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=1024),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            ResidualLayer(layers=
+                [
+                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024)
+                ]
+            ),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
         ]
@@ -450,7 +459,13 @@ class SACAEConfig(SACConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=1024),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            ResidualLayer(layers=
+                [
+                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024)
+                ]
+            ),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
         ]
