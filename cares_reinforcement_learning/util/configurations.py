@@ -745,6 +745,33 @@ class DroQConfig(SACConfig):
     )
 
 
+class SDARConfig(SACConfig):
+    algorithm: str = Field("SDAR", Literal=True)
+
+    beta_lr: float = 3e-4
+    beta_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    selector_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+            FunctionLayer(layer_type="Sigmoid"),
+        ]
+    )
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+
 class DynaSACConfig(SACConfig):
     algorithm: str = Field("DynaSAC", Literal=True)
     actor_lr: float = 3e-4

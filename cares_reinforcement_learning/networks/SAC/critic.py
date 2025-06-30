@@ -4,7 +4,6 @@ from cares_reinforcement_learning.networks.common import TwinQNetwork, BaseCriti
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-# This is the default base network for TD3 for reference and testing of default network configurations
 class DefaultCritic(TwinQNetwork):
     # pylint: disable=super-init-not-called
     def __init__(
