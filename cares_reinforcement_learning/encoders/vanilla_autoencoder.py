@@ -282,3 +282,153 @@ class Decoder(nn.Module):
         observation = torch.sigmoid(self.deconvs[-1](deconv))
 
         return observation
+
+class Encoder1D(nn.Module):
+    def __init__(
+        self,
+        observation_size: int,
+        latent_dim: int,
+        num_layers: int = 4,
+        num_filters: int = 32,
+        kernel_size: int = 3,
+    ):
+        super().__init__()
+
+        self.latent_dim = latent_dim
+        self.num_layers = num_layers
+        self.num_filters = num_filters
+        self.kernel_size = kernel_size
+
+        # We assume input has 1 channel
+        input_channels = 1
+        
+        self.convs = nn.ModuleList(
+            [
+                nn.Conv1d(
+                    input_channels,
+                    self.num_filters,
+                    kernel_size=self.kernel_size,
+                    stride=2,
+                )
+            ]
+        )
+
+        self.out_dim = hlp.flatten(observation_size, k=self.kernel_size, s=2)
+
+        for _ in range(self.num_layers - 1):
+            self.convs.append(
+                nn.Conv1d(
+                    self.num_filters,
+                    self.num_filters,
+                    kernel_size=self.kernel_size,
+                    stride=1,
+                )
+            )
+            self.out_dim = hlp.flatten(self.out_dim, k=self.kernel_size, s=1)
+
+        self.n_flatten = self.out_dim * self.num_filters
+
+        self.fc = nn.Linear(self.n_flatten, self.latent_dim)
+        self.ln = nn.LayerNorm(self.latent_dim)
+
+    def copy_conv_weights_from(self, source):
+        # Only tie conv layers
+        for i in range(self.num_layers):
+            tie_weights(src=source.convs[i], trg=self.convs[i])
+
+    def _forward_conv(self, x: torch.Tensor) -> torch.Tensor:
+        # x should be of shape (batch_size, channels, sequence_length)
+        conv = torch.relu(self.convs[0](x))
+        for i in range(1, self.num_layers):
+            conv = torch.relu(self.convs[i](conv))
+        h = torch.flatten(conv, start_dim=1)
+        return h
+
+    def forward(
+        self, obs: torch.Tensor, detach_cnn: bool = False, detach_output: bool = False
+    ) -> torch.Tensor:
+        # Ensure input has correct shape for 1D conv: (batch_size, channels, sequence_length)
+        if obs.dim() == 2:  # If input is (batch_size, sequence_length)
+            obs = obs.unsqueeze(1)  # Add channel dimension: (batch_size, 1, sequence_length)
+        
+        h = self._forward_conv(obs)
+
+        # SAC AE detaches at the CNN layer
+        if detach_cnn:
+            h = h.detach()
+
+        h_fc = self.fc(h)
+        h_norm = self.ln(h_fc)
+        latent_observation = torch.tanh(h_norm)
+
+        # NaSATD3 detatches the encoder output
+        if detach_output:
+            latent_observation = latent_observation.detach()
+
+        return latent_observation
+
+
+class Decoder1D(nn.Module):
+    def __init__(
+        self,
+        observation_size: int,
+        latent_dim: int,
+        out_dim: int,
+        num_layers: int = 4,
+        num_filters: int = 32,
+        kernel_size: int = 3,
+    ):
+        super().__init__()
+
+        self.latent_dim = latent_dim
+        self.out_dim = out_dim
+        self.observation_size = observation_size
+
+        self.num_layers = num_layers
+        self.num_filters = num_filters
+        self.kernel_size = kernel_size
+
+        self.n_flatten = self.out_dim * self.num_filters
+
+        self.fc = nn.Linear(self.latent_dim, self.n_flatten)
+
+        self.deconvs = nn.ModuleList()
+
+        for _ in range(self.num_layers - 1):
+            self.deconvs.append(
+                nn.ConvTranspose1d(
+                    in_channels=self.num_filters,
+                    out_channels=self.num_filters,
+                    kernel_size=self.kernel_size,
+                    stride=1,
+                )
+            )
+
+        output_channels = 1  # Assuming single channel output
+        self.deconvs.append(
+            nn.ConvTranspose1d(
+                in_channels=self.num_filters,
+                out_channels=output_channels,
+                kernel_size=self.kernel_size,
+                stride=2,
+                output_padding=1,
+            )
+        )
+
+    def forward(self, latent_observation: torch.Tensor) -> torch.Tensor:
+        h_fc = self.fc(latent_observation)
+        h_fc = torch.relu(h_fc)
+
+        # Reshape for 1D convolutions: (batch_size, channels, sequence_length)
+        deconv = h_fc.view(-1, self.num_filters, self.out_dim)
+
+        for i in range(0, self.num_layers - 1):
+            deconv = torch.relu(self.deconvs[i](deconv))
+
+        observation = torch.sigmoid(self.deconvs[-1](deconv))
+        
+        # Remove channel dimension if output should be (batch_size, sequence_length)
+        if observation.size(1) == 1:
+            observation = observation.squeeze(1)
+
+        return observation
