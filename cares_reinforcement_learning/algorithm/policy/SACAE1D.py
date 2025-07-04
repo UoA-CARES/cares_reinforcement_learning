@@ -296,7 +296,7 @@ class SACAE(VectorAlgorithm):
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_info = self._update_autoencoder(states_tensor["image"])
+            ae_info = self._update_autoencoder(states_tensor)
             info |= ae_info
 
         # Update the Priorities
