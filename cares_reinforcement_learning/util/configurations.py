@@ -403,17 +403,30 @@ class SACConfig(AlgorithmConfig):
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=1024),
+            TrainableLayer(layer_type="Linear", out_features=256),
+            NormLayer(layer_type="LayerNorm"),
             FunctionLayer(layer_type="ReLU"),
             ResidualLayer(layers=
                 [
-                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+                    NormLayer(layer_type="LayerNorm"),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024)
+                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+                    NormLayer(layer_type="LayerNorm"),
                 ]
             ),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+            ResidualLayer(layers=
+                [
+                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+                    NormLayer(layer_type="LayerNorm"),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+                    NormLayer(layer_type="LayerNorm"),
+                ]
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
 

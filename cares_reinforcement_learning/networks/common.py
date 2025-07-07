@@ -8,6 +8,9 @@ from torch import nn
 from torch.distributions import Normal
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
+from torch._jit_internal import _copy_to_script_wrapper
+
+from collections.abc import Iterator
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
@@ -78,7 +81,7 @@ class MLP(nn.Module):
                     current_input_size, **layer_spec.params
                 )
             elif isinstance(layer_spec, ResidualLayer):
-                layer = ResidualBlock(current_input_size, layer_spec).model
+                layer = ResidualBlock(current_input_size, layer_spec)
             else:
                 raise ValueError(f"Unknown layer type {layer_spec}")
 
@@ -101,6 +104,11 @@ class ResidualBlock(MLP):
             config: ResidualLayer
         ):
         super().__init__(input_size, input_size, MLPConfig(layers=config.layers))
+
+
+    @_copy_to_script_wrapper
+    def __iter__(self) -> Iterator[nn.Module]:
+        return iter(self._modules.values())
 
 
     def forward(self, input):
