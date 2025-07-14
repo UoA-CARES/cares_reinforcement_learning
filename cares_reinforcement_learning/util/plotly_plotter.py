@@ -1,52 +1,32 @@
 import argparse
 import json
-import logging
+import plotly.colors as pc
 import os
+import logging
 from pathlib import Path
-
-import matplotlib
-import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 logging.basicConfig(level=logging.INFO)
 
-
-def _create_plot(
+def _create_plotly_figure(
     title: str,
     x_label: str,
     y_label: str,
     x_label_two: str = "",
-    y_label_two: str = "",
-    label_fontsize: int = 15,
-    title_fontsize: int = 20,
-    ticks_fontsize: int = 10,
-) -> tuple[plt.Axes, plt.Axes | None]:
-    matplotlib.use("agg")
-
-    # Plot Styles
-    plt.style.use("seaborn-v0_8")
-    sns.set_palette(sns.color_palette("tab10"))
-
-    _, axis_one = plt.subplots()
-
-    axis_one.set_xlabel(x_label, fontsize=label_fontsize)
-    axis_one.set_ylabel(y_label, fontsize=label_fontsize)
-    axis_one.tick_params(axis="y")
-    axis_one.tick_params(axis="x", labelsize=ticks_fontsize)
-    axis_one.tick_params(axis="y", labelsize=ticks_fontsize)
-    axis_one.set_title(title, fontsize=title_fontsize)
-
-    axis_two = None
-    if x_label_two != "" and y_label_two != "":
-        axis_two = axis_one.twinx()
-        axis_two.set_xlabel(x_label_two, fontsize=label_fontsize)
-        axis_two.set_ylabel(y_label_two, fontsize=label_fontsize)
-        axis_two.tick_params(axis="y", labelsize=ticks_fontsize)
-        axis_two.tick_params(axis="x", labelsize=ticks_fontsize)
-
-    return axis_one, axis_two
-
+    y_label_two: str = ""
+):
+    specs = [[{"secondary_y": y_label_two != ""}]]
+    fig = make_subplots(specs=specs)
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_label,
+        yaxis_title=y_label,
+    )
+    if y_label_two:
+        fig.update_layout(yaxis2=dict(title=y_label_two, overlaying='y', side='right'))
+    return fig
 
 def plot_data(
     plot_frame: pd.DataFrame,
@@ -56,48 +36,52 @@ def plot_data(
     y_label: str,
     directory: str,
     filename: str,
-    label_fontsize: int = 15,
-    title_fontsize: int = 20,
-    ticks_fontsize: int = 10,
-    close_figure: bool = True,
-) -> None:
-    matplotlib.use("agg")
+):
+    # Define main color and corresponding fill color
+    color_main = "rgb(0,100,80)"
+    color_fill = "rgba(0,100,80,0.2)"
+    legend_group = "main_trace"
 
-    # Plot Styles
-    plt.style.use("seaborn-v0_8")
+    fig = go.Figure()
 
-    plt.xlabel(x_label, fontsize=label_fontsize)
-    plt.ylabel(y_label, fontsize=label_fontsize)
-    plt.title(title, fontsize=title_fontsize)
+    # Main line trace
+    fig.add_trace(go.Scatter(
+        x=plot_frame["x_data"],
+        y=plot_frame["y_data"],
+        mode="lines",
+        name=label,
+        line=dict(color=color_main),
+        legendgroup=legend_group,
+        showlegend=True,
+    ))
 
-    plt.xticks(fontsize=ticks_fontsize)
-    plt.yticks(fontsize=ticks_fontsize)
+    # Shaded error band
+    fig.add_trace(go.Scatter(
+        x=pd.concat([plot_frame["x_data"], plot_frame["x_data"][::-1]]),
+        y=pd.concat([
+            plot_frame["y_data"] - plot_frame["std_dev"],
+            (plot_frame["y_data"] + plot_frame["std_dev"])[::-1],
+        ]),
+        fill='toself',
+        fillcolor=color_fill,
+        line=dict(color='rgba(255,255,255,0)'),
+        hoverinfo="skip",
+        legendgroup=legend_group,
+        showlegend=False,
+    ))
 
-    sns.lineplot(
-        data=plot_frame,
-        x="x_data",
-        y="y_data",
-        label=label,
+    fig.update_layout(
+        title=title,
+        xaxis_title=x_label,
+        yaxis_title=y_label,
     )
 
-    plt.fill_between(
-        plot_frame["x_data"],
-        plot_frame["y_data"] - plot_frame["std_dev"],
-        plot_frame["y_data"] + plot_frame["std_dev"],
-        alpha=0.3,
-    )
+    # Ensure output directory exists
+    os.makedirs(f"{directory}/figures", exist_ok=True)
 
-    plt.legend(loc="upper left", bbox_to_anchor=(1, 1)).set_draggable(True)
-
-    plt.tight_layout(pad=0.5)
-
-    if not os.path.exists(f"{directory}/figures"):
-        os.makedirs(f"{directory}/figures")
-
-    plt.savefig(f"{directory}/figures/{filename}.png")
-
-    if close_figure:
-        plt.close()
+    # Save outputs
+    fig.write_image(f"{directory}/figures/{filename}.png")
+    fig.write_html(f"{directory}/figures/{filename}.html")
 
 
 def plot_comparisons(
@@ -108,82 +92,82 @@ def plot_comparisons(
     y_label: str,
     directory: str,
     filename: str,
-    label_fontsize: int = 15,
-    title_fontsize: int = 20,
-    ticks_fontsize: int = 10,
     x_label_two: str = "",
     y_label_two: str = "",
-) -> None:
+):
+    fig = _create_plotly_figure(title, x_label, y_label, x_label_two, y_label_two)
 
-    axis_one, axis_two = _create_plot(
-        title,
-        x_label,
-        y_label,
-        x_label_two=x_label_two,
-        y_label_two=y_label_two,
-        label_fontsize=label_fontsize,
-        title_fontsize=title_fontsize,
-        ticks_fontsize=ticks_fontsize,
-    )
+    color_palette = [
+        "rgb(0,100,200)", "rgb(200,100,0)", "rgb(100,200,0)", "rgb(200,0,100)",
+        "rgb(0,200,200)", "rgb(150,100,200)", "rgb(200,200,0)"
+    ]
 
-    for (plot_frame_one, plot_frame_two), label in zip(plot_frames, labels):
-        sns.lineplot(
-            data=plot_frame_one,
-            x="x_data",
-            y="y_data",
-            ax=axis_one,
-            label=label,
-            legend=False,
-        )
+    for idx, ((plot_frame_one, plot_frame_two), label) in enumerate(zip(plot_frames, labels)):
+        color_main = color_palette[idx % len(color_palette)]
+        color_fill_one = color_main.replace("rgb", "rgba").replace(")", ",0.2)")
 
-        axis_one.fill_between(
-            plot_frame_one["x_data"],
-            plot_frame_one["y_data"] - plot_frame_one["std_dev"],
-            plot_frame_one["y_data"] + plot_frame_one["std_dev"],
-            alpha=0.3,
-        )
+        group_name_one = f"{label}-primary"
 
-        if plot_frame_two is not None and axis_two is not None:
-            sns.lineplot(
-                data=plot_frame_two,
-                x="x_data",
-                y="y_data",
-                ax=axis_two,
-                label=label,
-                linestyle="--",
-                legend=False,
-            )
+        # Trace for primary y-axis
+        fig.add_trace(go.Scatter(
+            x=plot_frame_one["x_data"],
+            y=plot_frame_one["y_data"],
+            mode="lines",
+            name=f"{label} ({y_label})",
+            line=dict(color=color_main),
+            legendgroup=group_name_one,
+            showlegend=True
+        ), secondary_y=False)
 
-            axis_two.fill_between(
-                plot_frame_two["x_data"],
-                plot_frame_two["y_data"] - plot_frame_two["std_dev"],
-                plot_frame_two["y_data"] + plot_frame_two["std_dev"],
-                alpha=0.3,
-            )
+        fig.add_trace(go.Scatter(
+            x=pd.concat([plot_frame_one["x_data"], plot_frame_one["x_data"][::-1]]),
+            y=pd.concat([
+                plot_frame_one["y_data"] - plot_frame_one["std_dev"],
+                (plot_frame_one["y_data"] + plot_frame_one["std_dev"])[::-1],
+            ]),
+            fill='toself',
+            fillcolor=color_fill_one,
+            line=dict(color='rgba(255,255,255,0)'),
+            hoverinfo="skip",
+            legendgroup=group_name_one,
+            showlegend=False
+        ), secondary_y=False)
 
-    lines, labels = axis_one.get_legend_handles_labels()
+        # Trace for secondary y-axis (if provided)
+        if plot_frame_two is not None:
+            color_secondary = color_palette[(idx + 3) % len(color_palette)]
+            color_fill_two = color_secondary.replace("rgb", "rgba").replace(")", ",0.2)")
+            group_name_two = f"{label}-secondary"
 
-    if axis_two is not None:
-        lines_two, labels_two = (
-            axis_two.get_legend_handles_labels() if axis_two else ([], [])
-        )
+            fig.add_trace(go.Scatter(
+                x=plot_frame_two["x_data"],
+                y=plot_frame_two["y_data"],
+                mode="lines",
+                line=dict(color=color_secondary, dash="dash"),
+                name=f"{label} ({y_label_two})",
+                legendgroup=group_name_two,
+                showlegend=True
+            ), secondary_y=True)
 
-        labels = [f"{label} ({y_label})" for label in labels]
-        labels_two = [f"{label} ({y_label_two})" for label in labels_two]
+            fig.add_trace(go.Scatter(
+                x=pd.concat([plot_frame_two["x_data"], plot_frame_two["x_data"][::-1]]),
+                y=pd.concat([
+                    plot_frame_two["y_data"] - plot_frame_two["std_dev"],
+                    (plot_frame_two["y_data"] + plot_frame_two["std_dev"])[::-1],
+                ]),
+                fill='toself',
+                fillcolor=color_fill_two,
+                line=dict(color='rgba(255,255,255,0)'),
+                hoverinfo="skip",
+                legendgroup=group_name_two,
+                showlegend=False
+            ), secondary_y=True)
 
-        lines += lines_two
-        labels += labels_two
+    # Ensure output directory exists
+    os.makedirs(f"{directory}/figures", exist_ok=True)
 
-    axis_one.legend(lines, labels, loc="best", bbox_to_anchor=(1.05, 1))
-
-    plt.tight_layout(pad=0.5)
-
-    if not os.path.exists(f"{directory}/figures"):
-        os.makedirs(f"{directory}/figures")
-
-    plt.savefig(f"{directory}/figures/{filename}.png")
-
-    plt.close()
+    fig.write_image(f"{directory}/figures/{filename}.png")
+    fig.write_html(f"{directory}/figures/{filename}.html")
 
 
 def _perpare_average_plot_frame(
@@ -223,7 +207,6 @@ def _prepare_plot_frame(
     )
 
     return plot_frame
-
 
 def plot_eval(
     eval_data: pd.DataFrame,
@@ -525,6 +508,7 @@ def _read_data(
     return plot_frame
 
 
+
 def plot_evaluations():
     args = parse_args()
 
@@ -706,9 +690,6 @@ def plot_evaluations():
         y_label_train,
         save_directory,
         f"{title}-compare-train",
-        label_fontsize=args["label_fontsize"],
-        title_fontsize=args["title_fontsize"],
-        ticks_fontsize=args["ticks_fontsize"],
         x_label_two=x_label_train,
         y_label_two=y_label_train_two,
     )
@@ -722,9 +703,6 @@ def plot_evaluations():
         y_label_eval,
         save_directory,
         f"{title}-compare-eval",
-        label_fontsize=args["label_fontsize"],
-        title_fontsize=args["title_fontsize"],
-        ticks_fontsize=args["ticks_fontsize"],
         x_label_two=x_label_eval,
         y_label_two=y_label_eval_two,
     )
