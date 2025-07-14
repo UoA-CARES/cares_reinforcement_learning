@@ -473,7 +473,7 @@ class SACAEConfig(SACConfig):
 class SACAE1DConfig(SACConfig):
     algorithm: str = Field("SACAE1D", Literal=True)
 
-    image_observation: Literal[1] = Field(default=1, frozen=True)
+    vector_observation: Literal[1] = Field(default=1, frozen=True)
     batch_size: int = 128
 
     actor_lr: float = 1e-3

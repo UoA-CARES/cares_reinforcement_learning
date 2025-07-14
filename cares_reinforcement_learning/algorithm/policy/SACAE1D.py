@@ -20,16 +20,16 @@ from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
-from cares_reinforcement_learning.util.configurations import SACAEConfig
+from cares_reinforcement_learning.util.configurations import SACAE1DConfig
 
 
-class SACAE(VectorAlgorithm):
+class SACAE1D(VectorAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
         critic_network: Critic,
         decoder_network: Decoder,
-        config: SACAEConfig,
+        config: SACAE1DConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
