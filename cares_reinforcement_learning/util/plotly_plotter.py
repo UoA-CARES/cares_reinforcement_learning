@@ -97,10 +97,11 @@ def plot_comparisons(
 ):
     fig = _create_plotly_figure(title, x_label, y_label, x_label_two, y_label_two)
 
-    color_palette = [
-        "rgb(0,100,200)", "rgb(200,100,0)", "rgb(100,200,0)", "rgb(200,0,100)",
-        "rgb(0,200,200)", "rgb(150,100,200)", "rgb(200,200,0)"
-    ]
+    palette = pc.qualitative.Bold
+    if (palette[0].__contains__("#")):
+        color_palette = [f'rgb{pc.hex_to_rgb(c)}' for c in palette]
+    else:
+        color_palette = palette
 
     for idx, ((plot_frame_one, plot_frame_two), label) in enumerate(zip(plot_frames, labels)):
         color_main = color_palette[idx % len(color_palette)]
@@ -166,6 +167,7 @@ def plot_comparisons(
     # Ensure output directory exists
     os.makedirs(f"{directory}/figures", exist_ok=True)
 
+    fig.show()
     fig.write_image(f"{directory}/figures/{filename}.png")
     fig.write_html(f"{directory}/figures/{filename}.html")
 
