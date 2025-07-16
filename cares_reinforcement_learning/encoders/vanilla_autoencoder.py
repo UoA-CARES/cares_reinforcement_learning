@@ -411,7 +411,7 @@ class Decoder1D(nn.Module):
                 out_channels=output_channels,
                 kernel_size=self.kernel_size,
                 stride=2,
-                output_padding=1,
+                # output_padding=1,
             )
         )
 

@@ -352,6 +352,33 @@ class EncoderPolicy(nn.Module):
 
         return self.actor(actor_input)
 
+class EncoderPolicy1D(nn.Module):
+    def __init__(
+        self,
+        encoder: Encoder,
+        actor: BasePolicy,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.num_actions = actor.num_actions
+        self.encoder = encoder
+        self.actor = actor
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(  # type: ignore
+        self, state: torch.Tensor, detach_encoder: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # Detach at the CNN layer to prevent backpropagation through the encoder
+        state_latent = self.encoder(state, detach_cnn=detach_encoder)
+
+        actor_input = state_latent
+
+        return self.actor(actor_input)
+
 
 class EncoderCritic(nn.Module):
     def __init__(
@@ -381,6 +408,35 @@ class EncoderCritic(nn.Module):
         critic_input = state_latent
         if self.add_vector_observation:
             critic_input = torch.cat([state["vector"], critic_input], dim=1)
+
+        return self.critic(critic_input, action)
+
+class EncoderCritic1D(nn.Module):
+    def __init__(
+        self,
+        encoder: Encoder,
+        critic: BaseCritic,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.encoder = encoder
+        self.critic = critic
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(
+        self,
+        state: torch.Tensor,
+        action: torch.Tensor,
+        detach_encoder: bool = False,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        # Detach at the CNN layer to prevent backpropagation through the encoder
+        state_latent = self.encoder(state, detach_cnn=detach_encoder)
+
+        critic_input = state_latent
 
         return self.critic(critic_input, action)
 

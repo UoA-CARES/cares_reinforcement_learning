@@ -1,11 +1,11 @@
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder1D
 from cares_reinforcement_learning.networks.SAC import Critic as SACCritic
 from cares_reinforcement_learning.networks.SAC import DefaultCritic as DefaultSACCritic
-from cares_reinforcement_learning.networks.common import EncoderCritic
+from cares_reinforcement_learning.networks.common import EncoderCritic1D
 from cares_reinforcement_learning.util.configurations import SACAE1DConfig
 
 
-class DefaultCritic(EncoderCritic):
+class DefaultCritic(EncoderCritic1D):
     def __init__(self, observation_size: int, num_actions: int):
 
         encoder = Encoder1D(
@@ -23,7 +23,7 @@ class DefaultCritic(EncoderCritic):
         super().__init__(encoder, critic)
 
 
-class Critic(EncoderCritic):
+class Critic(EncoderCritic1D):
     def __init__(self, observation_size: int, num_actions: int, config: SACAE1DConfig):
 
         ae_config = config.autoencoder_config

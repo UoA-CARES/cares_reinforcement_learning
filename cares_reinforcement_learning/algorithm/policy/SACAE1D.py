@@ -106,7 +106,7 @@ class SACAE1D(VectorAlgorithm):
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
-
+            
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
             else:
@@ -210,7 +210,7 @@ class SACAE1D(VectorAlgorithm):
     def _update_autoencoder(self, states: torch.Tensor) -> dict[str, Any]:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
-
+        
         ae_loss = self.ae_loss_function.calculate_loss(
             data=states,
             reconstructed_data=reconstructed_data,
@@ -247,12 +247,12 @@ class SACAE1D(VectorAlgorithm):
 
         batch_size = len(states)
 
-        states_tensor = hlp.image_states_dict_to_tensor(states, self.device)
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
 
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
 
-        next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
 
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)

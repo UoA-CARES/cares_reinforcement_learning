@@ -1,11 +1,11 @@
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder1D
 from cares_reinforcement_learning.networks.SAC import Actor as SACActor
 from cares_reinforcement_learning.networks.SAC import DefaultActor as DefaultSACActor
-from cares_reinforcement_learning.networks.common import EncoderPolicy
+from cares_reinforcement_learning.networks.common import EncoderPolicy1D
 from cares_reinforcement_learning.util.configurations import SACAE1DConfig
 
 
-class DefaultActor(EncoderPolicy):
+class DefaultActor(EncoderPolicy1D):
     def __init__(self, observation_size: int, num_actions: int):
 
         encoder = Encoder1D(
@@ -26,7 +26,7 @@ class DefaultActor(EncoderPolicy):
         )
 
 
-class Actor(EncoderPolicy):
+class Actor(EncoderPolicy1D):
     def __init__(self, observation_size: int, num_actions: int, config: SACAE1DConfig):
 
         ae_config = config.autoencoder_config
