@@ -34,6 +34,8 @@ class SACAE1D(VectorAlgorithm):
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
+        self.vector_observation = config.vector_observation
+        
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
 
@@ -98,14 +100,27 @@ class SACAE1D(VectorAlgorithm):
 
     def select_action_from_policy(
         self,
-        state: np.ndarray,
+        state: np.ndarray | dict[str, np.ndarray],
         evaluation: bool = False,
     ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
+            if self.vector_observation:
+                # In this case, the state dict is {"lidar": np.ndarray (1D), "vector": np.ndarray (1D)}
+                if isinstance(state, dict):
+                    state_tensor = hlp.lidar_state_dict_to_tensor(state, self.device)
+                else:
+                    raise Exception(
+                        "Vector observation is set to True, but state is not a dict.")
+            else:
+                if isinstance(state, np.ndarray):
+                    state_tensor = torch.FloatTensor(state).to(self.device)
+                    state_tensor = state_tensor.unsqueeze(0)
+                else:
+                    raise Exception(
+                        "Vector observation is set to False, but state is not a numpy array."
+                    )
             
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
@@ -247,12 +262,15 @@ class SACAE1D(VectorAlgorithm):
 
         batch_size = len(states)
 
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        
+        if self.vector_observation:
+            states_tensor = hlp.lidar_states_dict_to_tensor(states, self.device)
+            next_states_tensor = hlp.lidar_states_dict_to_tensor(next_states, self.device)
+        else:
+            states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+            next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
 
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
@@ -296,7 +314,10 @@ class SACAE1D(VectorAlgorithm):
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_info = self._update_autoencoder(states_tensor)
+            if self.vector_observation:
+                ae_info = self._update_autoencoder(states_tensor["lidar"])
+            else:
+                ae_info = self._update_autoencoder(states_tensor)
             info |= ae_info
 
         # Update the Priorities

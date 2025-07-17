@@ -370,10 +370,23 @@ class EncoderPolicy1D(nn.Module):
         self.apply(hlp.weight_init)
 
     def forward(  # type: ignore
-        self, state: torch.Tensor, detach_encoder: bool = False
+        self, state: torch.Tensor | dict[str, torch.Tensor], detach_encoder: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state, detach_cnn=detach_encoder)
+        if self.add_vector_observation:
+            if isinstance(state, dict):
+                state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
+            else:
+                raise Exception(
+                    "Vector observation is set to True, but state is not a dict."
+                )
+        else:
+            if isinstance(state, torch.Tensor):
+                state_latent = self.encoder(state, detach_cnn=detach_encoder)
+            else:
+                raise Exception(
+                    "Vector observation is set to False, but state is not a tensor."
+                )
 
         actor_input = state_latent
 
@@ -429,14 +442,29 @@ class EncoderCritic1D(nn.Module):
 
     def forward(
         self,
-        state: torch.Tensor,
+        state: torch.Tensor | dict[str, torch.Tensor],
         action: torch.Tensor,
         detach_encoder: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state, detach_cnn=detach_encoder)
+        if self.add_vector_observation:
+            if isinstance(state, dict):
+                state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
+            else:
+                raise Exception(
+                    "Vector observation is set to True, but state is not a dict."
+                )
+        else:
+            if isinstance(state, torch.Tensor):
+                state_latent = self.encoder(state, detach_cnn=detach_encoder)
+            else:
+                raise Exception(
+                    "Vector observation is set to False, but state is not a tensor."
+                )
 
         critic_input = state_latent
+        if self.add_vector_observation:
+            critic_input = torch.cat([state["vector"], critic_input], dim=1)
 
         return self.critic(critic_input, action)
 

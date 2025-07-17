@@ -200,7 +200,7 @@ def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
     )
     return agent
 
-def create_SACAE1D(observation_size, action_num, config: acf.SACAE1DConfig):
+def create_SACAE1D(observation_size: int|dict, action_num, config: acf.SACAE1DConfig):
     from cares_reinforcement_learning.algorithm.policy.SACAE1D import SACAE1D
     from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder1D
     from cares_reinforcement_learning.networks.SACAE1D import Actor, Critic
@@ -209,14 +209,24 @@ def create_SACAE1D(observation_size, action_num, config: acf.SACAE1DConfig):
     critic = Critic(observation_size, action_num, config=config)
 
     ae_config = config.autoencoder_config
-    decoder = Decoder1D(
-        observation_size,
-        out_dim=actor.encoder.out_dim,
-        latent_dim=ae_config.latent_dim,
-        num_layers=ae_config.num_layers,
-        num_filters=ae_config.num_filters,
-        kernel_size=ae_config.kernel_size,
-    )
+    if isinstance(observation_size, dict):
+        decoder = Decoder1D(
+            observation_size["lidar"],
+            out_dim=actor.encoder.out_dim,
+            latent_dim=ae_config.latent_dim,
+            num_layers=ae_config.num_layers,
+            num_filters=ae_config.num_filters,
+            kernel_size=ae_config.kernel_size,
+        )
+    else:
+        decoder = Decoder1D(
+            observation_size,
+            out_dim=actor.encoder.out_dim,
+            latent_dim=ae_config.latent_dim,
+            num_layers=ae_config.num_layers,
+            num_filters=ae_config.num_filters,
+            kernel_size=ae_config.kernel_size,
+        )
 
     device = hlp.get_device()
     agent = SACAE1D(

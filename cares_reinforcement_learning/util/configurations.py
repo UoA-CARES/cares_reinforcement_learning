@@ -473,8 +473,8 @@ class SACAEConfig(SACConfig):
 class SACAE1DConfig(SACConfig):
     algorithm: str = Field("SACAE1D", Literal=True)
 
-    # Vector observation not used
-    vector_observation: Literal[1] = Field(default=0, frozen=True)
+    # Vector observation for linear and angular
+    vector_observation: Literal[1] = Field(default=1, frozen=True)
     batch_size: int = 128
 
     actor_lr: float = 1e-3
