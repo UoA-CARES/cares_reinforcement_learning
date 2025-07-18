@@ -17,9 +17,9 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
-from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder1D
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.networks.SACAE import Actor, Critic
+from cares_reinforcement_learning.networks.SACAE1D import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAE1DConfig
 
 
@@ -28,7 +28,7 @@ class SACAE1D(VectorAlgorithm):
         self,
         actor_network: Actor,
         critic_network: Critic,
-        decoder_network: Decoder,
+        decoder_network: Decoder1D,
         config: SACAE1DConfig,
         device: torch.device,
     ):
@@ -106,22 +106,13 @@ class SACAE1D(VectorAlgorithm):
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            if self.vector_observation:
-                # In this case, the state dict is {"lidar": np.ndarray (1D), "vector": np.ndarray (1D)}
-                if isinstance(state, dict):
-                    state_tensor = hlp.lidar_state_dict_to_tensor(state, self.device)
-                else:
-                    raise Exception(
-                        "Vector observation is set to True, but state is not a dict.")
+            if isinstance(state, dict):
+                state_tensor = hlp.lidar_state_dict_to_tensor(state, self.device)
+                # In this case the state_tensor is a dict
             else:
-                if isinstance(state, np.ndarray):
-                    state_tensor = torch.FloatTensor(state).to(self.device)
-                    state_tensor = state_tensor.unsqueeze(0)
-                else:
-                    raise Exception(
-                        "Vector observation is set to False, but state is not a numpy array."
-                    )
-            
+                state_tensor = torch.FloatTensor(state).to(self.device)
+                state_tensor = state_tensor.unsqueeze(0)
+                # In this case the state_tensor is a tensor
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
             else:

@@ -211,13 +211,13 @@ def create_SACAE1D(observation_size: int|dict, action_num, config: acf.SACAE1DCo
     ae_config = config.autoencoder_config
     if isinstance(observation_size, dict):
         decoder = Decoder1D(
-            observation_size["lidar"],
-            out_dim=actor.encoder.out_dim,
-            latent_dim=ae_config.latent_dim,
-            num_layers=ae_config.num_layers,
-            num_filters=ae_config.num_filters,
-            kernel_size=ae_config.kernel_size,
-        )
+        observation_size["lidar"],
+        out_dim=actor.encoder.out_dim,
+        latent_dim=ae_config.latent_dim,
+        num_layers=ae_config.num_layers,
+        num_filters=ae_config.num_filters,
+        kernel_size=ae_config.kernel_size,
+    )
     else:
         decoder = Decoder1D(
             observation_size,

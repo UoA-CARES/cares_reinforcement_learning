@@ -15,6 +15,7 @@ from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     Encoder,
     VanillaAutoencoder,
+    Encoder1D,
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.util.configurations import (
@@ -355,7 +356,7 @@ class EncoderPolicy(nn.Module):
 class EncoderPolicy1D(nn.Module):
     def __init__(
         self,
-        encoder: Encoder,
+        encoder: Encoder1D,
         actor: BasePolicy,
         add_vector_observation: bool = False,
     ):
@@ -373,22 +374,15 @@ class EncoderPolicy1D(nn.Module):
         self, state: torch.Tensor | dict[str, torch.Tensor], detach_encoder: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        if self.add_vector_observation:
-            if isinstance(state, dict):
-                state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
-            else:
-                raise Exception(
-                    "Vector observation is set to True, but state is not a dict."
-                )
+        if isinstance(state, dict):
+            print(f"\n\nState latent shape in Policy: {state['lidar'].shape}, {state['vector'].shape}\n\n")
+            state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
         else:
-            if isinstance(state, torch.Tensor):
-                state_latent = self.encoder(state, detach_cnn=detach_encoder)
-            else:
-                raise Exception(
-                    "Vector observation is set to False, but state is not a tensor."
-                )
+            state_latent = self.encoder(state, detach_cnn=detach_encoder)
 
         actor_input = state_latent
+        if isinstance(state, dict):
+            actor_input = torch.cat([state["vector"], actor_input], dim=1)
 
         return self.actor(actor_input)
 
@@ -427,7 +421,7 @@ class EncoderCritic(nn.Module):
 class EncoderCritic1D(nn.Module):
     def __init__(
         self,
-        encoder: Encoder,
+        encoder: Encoder1D,
         critic: BaseCritic,
         add_vector_observation: bool = False,
     ):
@@ -447,23 +441,15 @@ class EncoderCritic1D(nn.Module):
         detach_encoder: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        if self.add_vector_observation:
-            if isinstance(state, dict):
-                state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
-            else:
-                raise Exception(
-                    "Vector observation is set to True, but state is not a dict."
-                )
+        if isinstance(state, dict):
+            print(f"\n\nState latent shape in Critic: {state['lidar'].shape}, {state['vector'].shape}\n\n")
+            state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
         else:
-            if isinstance(state, torch.Tensor):
-                state_latent = self.encoder(state, detach_cnn=detach_encoder)
-            else:
-                raise Exception(
-                    "Vector observation is set to False, but state is not a tensor."
-                )
+            state_latent = self.encoder(state, detach_cnn=detach_encoder)
 
         critic_input = state_latent
         if self.add_vector_observation:
+            print()
             critic_input = torch.cat([state["vector"], critic_input], dim=1)
 
         return self.critic(critic_input, action)

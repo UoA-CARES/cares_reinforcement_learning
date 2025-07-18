@@ -24,16 +24,28 @@ class DefaultCritic(EncoderCritic1D):
 
 
 class Critic(EncoderCritic1D):
-    def __init__(self, observation_size: int, num_actions: int, config: SACAE1DConfig):
+    def __init__(self, observation_size: int | dict, num_actions: int, config: SACAE1DConfig):
 
         ae_config = config.autoencoder_config
-        encoder = Encoder1D(
-            observation_size,
-            latent_dim=ae_config.latent_dim,
-            num_layers=ae_config.num_layers,
-            num_filters=ae_config.num_filters,
-            kernel_size=ae_config.kernel_size,
-        )
+        
+        
+        if isinstance(observation_size, dict):
+            print(f"\n\nObservation size in critic: {observation_size['lidar']} {observation_size['vector']}\n\n")  # 683
+            encoder = Encoder1D(
+                observation_size["lidar"],
+                latent_dim=ae_config.latent_dim,
+                num_layers=ae_config.num_layers,
+                num_filters=ae_config.num_filters,
+                kernel_size=ae_config.kernel_size,
+            )
+        else:
+            encoder = Encoder1D(
+                observation_size,
+                latent_dim=ae_config.latent_dim,
+                num_layers=ae_config.num_layers,
+                num_filters=ae_config.num_filters,
+                kernel_size=ae_config.kernel_size,
+            )
 
         critic_observation_size = encoder.latent_dim
 

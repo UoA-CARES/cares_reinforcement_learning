@@ -313,6 +313,8 @@ class Encoder1D(nn.Module):
             ]
         )
 
+        print(f"Input observation size: {observation_size}")
+        
         self.out_dim = hlp.flatten(observation_size, k=self.kernel_size, s=2)
 
         for _ in range(self.num_layers - 1):
@@ -327,6 +329,7 @@ class Encoder1D(nn.Module):
             self.out_dim = hlp.flatten(self.out_dim, k=self.kernel_size, s=1)
 
         self.n_flatten = self.out_dim * self.num_filters
+        print(f"Flattened output dimension: {self.out_dim} {self.num_filters} {self.n_flatten}")
 
         self.fc = nn.Linear(self.n_flatten, self.latent_dim)
         self.ln = nn.LayerNorm(self.latent_dim)
@@ -339,11 +342,14 @@ class Encoder1D(nn.Module):
     def _forward_conv(self, x: torch.Tensor) -> torch.Tensor:
         # x should be of shape (batch_size, channels, sequence_length)
         conv = torch.relu(self.convs[0](x))
+        print(f"Shape after conv[0]: {conv.shape}")
         for i in range(1, self.num_layers):
             conv = torch.relu(self.convs[i](conv))
+            print(f"Shape after conv[{i}]: {conv.shape}")
         h = torch.flatten(conv, start_dim=1)
+        print(f"Flattened shape: {h.shape}")
         return h
-
+    
     def forward(
         self, obs: torch.Tensor, detach_cnn: bool = False, detach_output: bool = False
     ) -> torch.Tensor:
@@ -351,6 +357,7 @@ class Encoder1D(nn.Module):
         if obs.dim() == 2:  # If input is (batch_size, sequence_length)
             obs = obs.unsqueeze(1)  # Add channel dimension: (batch_size, 1, sequence_length)
         
+        print(f"Input observation shape in forward: {obs.shape}")
         h = self._forward_conv(obs)
 
         # SAC AE detaches at the CNN layer
