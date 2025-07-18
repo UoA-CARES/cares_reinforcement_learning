@@ -10,12 +10,9 @@ from plotly.subplots import make_subplots
 
 logging.basicConfig(level=logging.INFO)
 
+
 def _create_plotly_figure(
-    title: str,
-    x_label: str,
-    y_label: str,
-    x_label_two: str = "",
-    y_label_two: str = ""
+    title: str, x_label: str, y_label: str, x_label_two: str = "", y_label_two: str = ""
 ):
     specs = [[{"secondary_y": y_label_two != ""}]]
     fig = make_subplots(specs=specs)
@@ -25,8 +22,9 @@ def _create_plotly_figure(
         yaxis_title=y_label,
     )
     if y_label_two:
-        fig.update_layout(yaxis2=dict(title=y_label_two, overlaying='y', side='right'))
+        fig.update_layout(yaxis2=dict(title=y_label_two, overlaying="y", side="right"))
     return fig
+
 
 def plot_data(
     plot_frame: pd.DataFrame,
@@ -45,30 +43,36 @@ def plot_data(
     fig = go.Figure()
 
     # Main line trace
-    fig.add_trace(go.Scatter(
-        x=plot_frame["x_data"],
-        y=plot_frame["y_data"],
-        mode="lines",
-        name=label,
-        line=dict(color=color_main),
-        legendgroup=legend_group,
-        showlegend=True,
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=plot_frame["x_data"],
+            y=plot_frame["y_data"],
+            mode="lines",
+            name=label,
+            line=dict(color=color_main),
+            legendgroup=legend_group,
+            showlegend=True,
+        )
+    )
 
     # Shaded error band
-    fig.add_trace(go.Scatter(
-        x=pd.concat([plot_frame["x_data"], plot_frame["x_data"][::-1]]),
-        y=pd.concat([
-            plot_frame["y_data"] - plot_frame["std_dev"],
-            (plot_frame["y_data"] + plot_frame["std_dev"])[::-1],
-        ]),
-        fill='toself',
-        fillcolor=color_fill,
-        line=dict(color='rgba(255,255,255,0)'),
-        hoverinfo="skip",
-        legendgroup=legend_group,
-        showlegend=False,
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=pd.concat([plot_frame["x_data"], plot_frame["x_data"][::-1]]),
+            y=pd.concat(
+                [
+                    plot_frame["y_data"] - plot_frame["std_dev"],
+                    (plot_frame["y_data"] + plot_frame["std_dev"])[::-1],
+                ]
+            ),
+            fill="toself",
+            fillcolor=color_fill,
+            line=dict(color="rgba(255,255,255,0)"),
+            hoverinfo="skip",
+            legendgroup=legend_group,
+            showlegend=False,
+        )
+    )
 
     fig.update_layout(
         title=title,
@@ -98,71 +102,95 @@ def plot_comparisons(
     fig = _create_plotly_figure(title, x_label, y_label, x_label_two, y_label_two)
 
     palette = pc.qualitative.Bold
-    if (palette[0].__contains__("#")):
-        color_palette = [f'rgb{pc.hex_to_rgb(c)}' for c in palette]
+    if palette[0].__contains__("#"):
+        color_palette = [f"rgb{pc.hex_to_rgb(c)}" for c in palette]
     else:
         color_palette = palette
 
-    for idx, ((plot_frame_one, plot_frame_two), label) in enumerate(zip(plot_frames, labels)):
+    for idx, ((plot_frame_one, plot_frame_two), label) in enumerate(
+        zip(plot_frames, labels)
+    ):
         color_main = color_palette[idx % len(color_palette)]
         color_fill_one = color_main.replace("rgb", "rgba").replace(")", ",0.2)")
 
         group_name_one = f"{label}-primary"
 
         # Trace for primary y-axis
-        fig.add_trace(go.Scatter(
-            x=plot_frame_one["x_data"],
-            y=plot_frame_one["y_data"],
-            mode="lines",
-            name=f"{label} ({y_label})",
-            line=dict(color=color_main),
-            legendgroup=group_name_one,
-            showlegend=True
-        ), secondary_y=False)
+        fig.add_trace(
+            go.Scatter(
+                x=plot_frame_one["x_data"],
+                y=plot_frame_one["y_data"],
+                mode="lines",
+                name=f"{label} ({y_label})",
+                line=dict(color=color_main),
+                legendgroup=group_name_one,
+                showlegend=True,
+            ),
+            secondary_y=False,
+        )
 
-        fig.add_trace(go.Scatter(
-            x=pd.concat([plot_frame_one["x_data"], plot_frame_one["x_data"][::-1]]),
-            y=pd.concat([
-                plot_frame_one["y_data"] - plot_frame_one["std_dev"],
-                (plot_frame_one["y_data"] + plot_frame_one["std_dev"])[::-1],
-            ]),
-            fill='toself',
-            fillcolor=color_fill_one,
-            line=dict(color='rgba(255,255,255,0)'),
-            hoverinfo="skip",
-            legendgroup=group_name_one,
-            showlegend=False
-        ), secondary_y=False)
+        fig.add_trace(
+            go.Scatter(
+                x=pd.concat([plot_frame_one["x_data"], plot_frame_one["x_data"][::-1]]),
+                y=pd.concat(
+                    [
+                        plot_frame_one["y_data"] - plot_frame_one["std_dev"],
+                        (plot_frame_one["y_data"] + plot_frame_one["std_dev"])[::-1],
+                    ]
+                ),
+                fill="toself",
+                fillcolor=color_fill_one,
+                line=dict(color="rgba(255,255,255,0)"),
+                hoverinfo="skip",
+                legendgroup=group_name_one,
+                showlegend=False,
+            ),
+            secondary_y=False,
+        )
 
         # Trace for secondary y-axis (if provided)
         if plot_frame_two is not None:
             color_secondary = color_palette[(idx + 3) % len(color_palette)]
-            color_fill_two = color_secondary.replace("rgb", "rgba").replace(")", ",0.2)")
+            color_fill_two = color_secondary.replace("rgb", "rgba").replace(
+                ")", ",0.2)"
+            )
             group_name_two = f"{label}-secondary"
 
-            fig.add_trace(go.Scatter(
-                x=plot_frame_two["x_data"],
-                y=plot_frame_two["y_data"],
-                mode="lines",
-                line=dict(color=color_secondary, dash="dash"),
-                name=f"{label} ({y_label_two})",
-                legendgroup=group_name_two,
-                showlegend=True
-            ), secondary_y=True)
+            fig.add_trace(
+                go.Scatter(
+                    x=plot_frame_two["x_data"],
+                    y=plot_frame_two["y_data"],
+                    mode="lines",
+                    line=dict(color=color_secondary, dash="dash"),
+                    name=f"{label} ({y_label_two})",
+                    legendgroup=group_name_two,
+                    showlegend=True,
+                ),
+                secondary_y=True,
+            )
 
-            fig.add_trace(go.Scatter(
-                x=pd.concat([plot_frame_two["x_data"], plot_frame_two["x_data"][::-1]]),
-                y=pd.concat([
-                    plot_frame_two["y_data"] - plot_frame_two["std_dev"],
-                    (plot_frame_two["y_data"] + plot_frame_two["std_dev"])[::-1],
-                ]),
-                fill='toself',
-                fillcolor=color_fill_two,
-                line=dict(color='rgba(255,255,255,0)'),
-                hoverinfo="skip",
-                legendgroup=group_name_two,
-                showlegend=False
-            ), secondary_y=True)
+            fig.add_trace(
+                go.Scatter(
+                    x=pd.concat(
+                        [plot_frame_two["x_data"], plot_frame_two["x_data"][::-1]]
+                    ),
+                    y=pd.concat(
+                        [
+                            plot_frame_two["y_data"] - plot_frame_two["std_dev"],
+                            (plot_frame_two["y_data"] + plot_frame_two["std_dev"])[
+                                ::-1
+                            ],
+                        ]
+                    ),
+                    fill="toself",
+                    fillcolor=color_fill_two,
+                    line=dict(color="rgba(255,255,255,0)"),
+                    hoverinfo="skip",
+                    legendgroup=group_name_two,
+                    showlegend=False,
+                ),
+                secondary_y=True,
+            )
 
     # Ensure output directory exists
     os.makedirs(f"{directory}/figures", exist_ok=True)
@@ -209,6 +237,7 @@ def _prepare_plot_frame(
     )
 
     return plot_frame
+
 
 def plot_eval(
     eval_data: pd.DataFrame,
@@ -318,9 +347,9 @@ def generate_labels(
 
     param_tag = get_param_label(args["param_tag"], alg_config, train_config)
 
-    custom_name = result_directory.name[:-18].replace(algorithm, '').replace(task, '')
-    if (custom_name != ""):
-        label = custom_name[2:] # Remove leading "--"
+    custom_name = result_directory.name[:-18].replace(algorithm, "").replace(task, "")
+    if custom_name != "":
+        label = custom_name[2:]  # Remove leading "--"
     else:
         label = algorithm + param_tag
 
@@ -508,7 +537,6 @@ def _read_data(
     )
 
     return plot_frame
-
 
 
 def plot_evaluations():

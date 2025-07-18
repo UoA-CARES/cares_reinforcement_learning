@@ -333,9 +333,9 @@ def generate_labels(
 
     param_tag = get_param_label(args["param_tag"], alg_config, train_config)
 
-    custom_name = result_directory.name[:-18].replace(algorithm, '').replace(task, '')
-    if (custom_name != ""):
-        label = custom_name[2:] # Remove leading "--"
+    custom_name = result_directory.name[:-18].replace(algorithm, "").replace(task, "")
+    if custom_name != "":
+        label = custom_name[2:]  # Remove leading "--"
     else:
         label = algorithm + param_tag
 
