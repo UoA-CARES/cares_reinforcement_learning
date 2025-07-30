@@ -116,7 +116,7 @@ def test_algorithms(tmp_path):
         agent.save_models(tmp_path, f"{algorithm}")
         agent.load_models(tmp_path, f"{algorithm}")
 
-        if agent.policy_type == "policy":
+        if agent.policy_type == "policy" or agent.policy_type == "usd":
             memory_buffer = _policy_buffer(
                 memory_buffer,
                 capacity,
