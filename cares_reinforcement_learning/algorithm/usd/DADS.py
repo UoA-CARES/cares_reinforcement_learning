@@ -1,5 +1,7 @@
 """
 DADS DYNAMICS-AWARE DISCOVERY OF SKILLS https://arxiv.org/pdf/1907.01657
+
+Code: https://github.com/google-research/dads
 """
 
 import logging

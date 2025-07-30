@@ -819,41 +819,6 @@ class SACDConfig(AlgorithmConfig):
     )
 
 
-class DIAYNConfig(SACConfig):
-    algorithm: str = Field("DIAYN", Literal=True)
-    num_skills: int = 20
-
-    max_steps_exploration: int = 0
-
-    discriminator_lr: float = 1e-3
-    discriminator_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=256),
-        ]
-    )
-
-
-class DADSConfig(SACConfig):
-    algorithm: str = Field("DADS", Literal=True)
-    num_skills: int = 10
-
-    max_steps_exploration: int = 0
-
-    discriminator_lr: float = 1e-3
-    discriminator_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-        ]
-    )
-
-
 ###################################
 #         TD3 Algorithms          #
 ###################################
@@ -1198,3 +1163,45 @@ class CTD4Config(TD3Config):
     policy_update_freq: int = 2
 
     fusion_method: str = "kalman"  # kalman, minimum, average
+
+
+###################################
+#         USD Algorithms          #
+###################################
+
+# TODO modify to be a base with SAC or TD3 as configs for the agent
+
+
+class DIAYNConfig(SACConfig):
+    algorithm: str = Field("DIAYN", Literal=True)
+    num_skills: int = 20
+
+    max_steps_exploration: int = 0
+
+    discriminator_lr: float = 1e-3
+    discriminator_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
+class DADSConfig(SACConfig):
+    algorithm: str = Field("DADS", Literal=True)
+    num_skills: int = 10
+
+    max_steps_exploration: int = 0
+
+    discriminator_lr: float = 1e-3
+    discriminator_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )

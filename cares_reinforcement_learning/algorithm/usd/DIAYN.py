@@ -1,5 +1,7 @@
 """
 DIAYN (Diversity Is All You Need) implementation: https://arxiv.org/pdf/1802.06070
+
+Code: https://github.com/alirezakazemipour/DIAYN-PyTorch/tree/main
 """
 
 import logging
