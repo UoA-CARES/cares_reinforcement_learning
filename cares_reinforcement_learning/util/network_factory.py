@@ -427,7 +427,9 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
     from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 
     agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
-    discriminator = SkillDynamicsModel(observation_size=observation_size, config=config)
+    discriminator = SkillDynamicsModel(
+        observation_size=observation_size, num_skills=config.num_skills, config=config
+    )
 
     device = hlp.get_device()
     agent = DADS(
