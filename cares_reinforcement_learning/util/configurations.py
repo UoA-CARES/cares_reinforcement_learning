@@ -1176,7 +1176,7 @@ class DIAYNConfig(SACConfig):
     algorithm: str = Field("DIAYN", Literal=True)
     num_skills: int = 20
 
-    max_steps_exploration: int = 0
+    max_steps_exploration: Literal[0] = Field(default=0, frozen=True)
 
     discriminator_lr: float = 1e-3
     discriminator_config: MLPConfig = MLPConfig(
@@ -1194,7 +1194,7 @@ class DADSConfig(SACConfig):
     algorithm: str = Field("DADS", Literal=True)
     num_skills: int = 10
 
-    max_steps_exploration: int = 0
+    max_steps_exploration: Literal[0] = Field(default=0, frozen=True)
 
     discriminator_lr: float = 1e-3
     discriminator_config: MLPConfig = MLPConfig(

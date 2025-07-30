@@ -408,6 +408,7 @@ def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
     from cares_reinforcement_learning.networks.DIAYN import Discriminator
 
     agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
     discriminator = Discriminator(
         observation_size, num_skills=config.num_skills, config=config
     )
@@ -427,6 +428,7 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
     from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 
     agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
     discriminator = SkillDynamicsModel(
         observation_size=observation_size, num_skills=config.num_skills, config=config
     )

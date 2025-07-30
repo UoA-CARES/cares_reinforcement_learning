@@ -27,7 +27,7 @@ class DADS(VectorAlgorithm):
         config: DADSConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="hrl", config=config, device=device)
+        super().__init__(policy_type="usd", config=config, device=device)
 
         self.skills_agent = skills_agent
         self.discriminator_net = discriminator_network.to(device)
