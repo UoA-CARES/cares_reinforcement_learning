@@ -17,11 +17,13 @@ from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 class Algorithm(ABC):
     def __init__(
         self,
-        policy_type: Literal["value", "policy", "discrete_policy", "mbrl"],
+        policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "hrl"],
         config: AlgorithmConfig,
         device: torch.device,
     ):
-        self.policy_type = policy_type
+        self.policy_type: Literal[
+            "value", "policy", "discrete_policy", "mbrl", "hrl"
+        ] = policy_type
 
         self.gamma = config.gamma
 

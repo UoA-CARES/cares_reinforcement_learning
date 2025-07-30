@@ -138,23 +138,6 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
 ###################################
 
 
-def create_SACD(observation_size, action_num, config: acf.SACDConfig):
-    from cares_reinforcement_learning.algorithm.policy import SACD
-    from cares_reinforcement_learning.networks.SACD import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = SACD(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
 def create_SAC(observation_size, action_num, config: acf.SACConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
@@ -397,6 +380,59 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_SACD(observation_size, action_num, config: acf.SACDConfig):
+    from cares_reinforcement_learning.algorithm.policy import SACD
+    from cares_reinforcement_learning.networks.SACD import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SACD(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
+    from cares_reinforcement_learning.algorithm.usd import DIAYN
+    from cares_reinforcement_learning.networks.DIAYN import Discriminator
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+    discriminator = Discriminator(
+        observation_size, num_skills=config.num_skills, config=config
+    )
+
+    device = hlp.get_device()
+    agent = DIAYN(
+        skills_agent=agent,
+        discriminator_network=discriminator,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DADS(observation_size, action_num, config: acf.DADSConfig):
+    from cares_reinforcement_learning.algorithm.usd import DADS
+    from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+    discriminator = SkillDynamicsModel(observation_size=observation_size, config=config)
+
+    device = hlp.get_device()
+    agent = DADS(
+        skills_agent=agent,
+        discriminator_network=discriminator,
         config=config,
         device=device,
     )
