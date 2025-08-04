@@ -17,10 +17,6 @@ class SubscriptableClass(BaseModel):
         return getattr(self, item)
 
 
-class EnvironmentConfig(SubscriptableClass):
-    task: str
-
-
 class TrainingConfig(SubscriptableClass):
     """
     Configuration class for training.
