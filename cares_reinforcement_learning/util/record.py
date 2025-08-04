@@ -105,7 +105,7 @@ class Record:
     def disable_record_memory(self) -> None:
         self.record_memory = False
 
-    def start_video(self, file_name: str, frame, fps=30):
+    def start_video(self, file_name: str, frame: np.ndarray, fps: int = 30) -> None:
         if not self.record_video:
             logging.warning("Video recording is disabled")
             return
