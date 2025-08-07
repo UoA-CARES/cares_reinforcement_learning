@@ -5,110 +5,78 @@ Code based on: https://github.com/SamsungLabs/tqc_pytorch
 This code runs automatic entropy tuning
 """
 
-import copy
-import logging
-import os
 from typing import Any
 
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.networks.TQC import Actor, Critic
 from cares_reinforcement_learning.util import helpers as hlp
+from cares_reinforcement_learning.util.configurations import TQCConfig
 
 
-class TQC:
+class TQC(SAC):
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        top_quantiles_to_drop: int,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        device: str,
+        actor_network: Actor,
+        critic_network: Critic,
+        config: TQCConfig,
+        device: torch.device,
     ):
-        self.type = "policy"
-
-        # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(device)
-
-        # this may be called soft_q_net in other implementations
-        self.critic_net = critic_network.to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
-
-        self.gamma = gamma
-        self.tau = tau
-        self.top_quantiles_to_drop = top_quantiles_to_drop
-
-        self.quantiles_total = (
-            self.critic_net.num_quantiles * self.critic_net.num_critics
+        super().__init__(
+            actor_network=actor_network,
+            critic_network=critic_network,
+            config=config,
+            device=device,
         )
 
-        self.learn_counter = 0
-        self.policy_update_freq = 1
+        # TQC specific parameters
+        self.num_quantiles = config.num_quantiles
+        self.num_critics = config.num_critics
+        self.kappa = config.kappa
 
-        self.device = device
+        self.quantiles_total = self.num_quantiles * self.num_critics
 
-        self.target_entropy = -action_num
+        self.top_quantiles_to_drop = config.top_quantiles_to_drop
 
-        self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr
-        )
-        self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr
-        )
+        self.quantile_taus = torch.FloatTensor(
+            [
+                i / self.num_quantiles + 0.5 / self.num_quantiles
+                for i in range(0, self.num_quantiles)
+            ]
+        ).to(device)
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
-        self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=alpha_lr)
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
 
-    # pylint: disable-next=unused-argument
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
-    ) -> np.ndarray:
-        # note that when evaluating this algorithm we need to select tanh(mean) as action
-        # so _, _, action = self.actor_net(state_tensor)
-        self.actor_net.eval()
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
+
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            if evaluation is False:
-                (
-                    action,
-                    _,
-                    _,
-                ) = self.actor_net(state_tensor)
-            else:
-                (
-                    _,
-                    _,
-                    action,
-                ) = self.actor_net(state_tensor)
-            action = action.cpu().data.numpy().flatten()
-        self.actor_net.train()
-        return action
+            with hlp.evaluating(self.critic_net):
+                q_value = (
+                    self.critic_net(state_tensor, action_tensor)
+                    .mean(2)
+                    .mean(1, keepdim=True)
+                )
 
-    @property
-    def alpha(self) -> torch.Tensor:
-        return self.log_alpha.exp()
+        return q_value.item()
 
-    def _update_critics(
+    def _update_critic(
         self,
         states: torch.Tensor,
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> float:
+        weights: torch.Tensor,  # pylint: disable=unused-argument
+    ) -> tuple[dict[str, Any], np.ndarray]:
         batch_size = len(states)
         with torch.no_grad():
-            next_actions, next_log_pi, _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             # compute and cut quantiles at the next state
             # batch x nets x quantiles
@@ -126,18 +94,55 @@ class TQC:
             )
 
         q_values = self.critic_net(states, actions)
-        critic_loss_total = hlp.quantile_huber_loss_f(q_values, q_target)
+
+        # Compute td_error for PER
+        sorted_q_values, _ = torch.sort(q_values.reshape(batch_size, -1))
+        top_quantile_q_values = sorted_q_values[
+            :, : self.quantiles_total - self.top_quantiles_to_drop
+        ]
+
+        td_errors = top_quantile_q_values - q_target
+        td_error = td_errors.abs().mean(dim=1)  # mean over quantiles
+
+        critic_loss_total = hlp.calculate_quantile_huber_loss(
+            q_values,
+            q_target,
+            self.quantile_taus,
+            kappa=self.kappa,
+            use_pairwise_loss=True,
+            use_mean_reduction=True,
+            use_quadratic_smoothing=True,
+        )
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        return critic_loss_total.item()
+        # Update the Priorities - PER only
+        priorities = (
+            td_error.clamp(self.min_priority)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
 
-    def _update_actor(self, states: torch.Tensor) -> tuple[float, float]:
-        new_action, log_pi, _ = self.actor_net(states)
+        info = {
+            "critic_loss_total": critic_loss_total.item(),
+        }
 
-        mean_qf_pi = self.critic_net(states, new_action).mean(2).mean(1, keepdim=True)
+        return info, priorities
+
+    def _update_actor_alpha(
+        self,
+        states: torch.Tensor,
+        weights: torch.Tensor,  # pylint: disable=unused-argument
+    ) -> dict[str, Any]:
+        pi, log_pi, _ = self.actor_net(states)
+
+        with hlp.evaluating(self.critic_net):
+            mean_qf_pi = self.critic_net(states, pi).mean(2).mean(1, keepdim=True)
+
         actor_loss = (self.alpha * log_pi - mean_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -151,60 +156,8 @@ class TQC:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
-
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
-        self.learn_counter += 1
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
-
-        info = {}
-
-        # Update the Critics
-        critic_loss_total = self._update_critics(
-            states, actions, rewards, next_states, dones
-        )
-        info["critic_loss"] = critic_loss_total
-
-        # Update the Actor
-        actor_loss, alpha_loss = self._update_actor(states)
-        info["actor_loss"] = actor_loss
-        info["alpha_loss"] = alpha_loss
-        info["alpha"] = self.alpha.item()
-
-        if self.learn_counter % self.policy_update_freq == 0:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
         return info
-
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
-        logging.info("models has been saved...")
-
-    def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
-        logging.info("models has been loaded...")

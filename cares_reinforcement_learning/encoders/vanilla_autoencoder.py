@@ -1,8 +1,9 @@
+from typing import Any
+
 import torch
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.encoders.autoencoder import Autoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.losses import AELoss
 
@@ -12,7 +13,7 @@ def tie_weights(src, trg):
     trg.bias = src.bias
 
 
-class VanillaAutoencoder(Autoencoder):
+class VanillaAutoencoder(nn.Module):
     """
     An image-based autoencoder model consisting of an encoder and a decoder pair.
 
@@ -51,20 +52,22 @@ class VanillaAutoencoder(Autoencoder):
         num_filters: int = 32,
         kernel_size: int = 3,
         latent_lambda: float = 1e-6,
-        encoder_optimiser_params: dict[str, any] = None,
-        decoder_optimiser_params: dict[str, any] = None,
+        encoder_optimiser_params: dict[str, Any] | None = None,
+        decoder_optimiser_params: dict[str, Any] | None = None,
     ):
+        super().__init__()
+
         if encoder_optimiser_params is None:
             encoder_optimiser_params = {"lr": 1e-4}
         if decoder_optimiser_params is None:
             decoder_optimiser_params = {"lr": 1e-4}
 
-        super().__init__(
-            ae_type=Autoencoders.AE,
-            loss_function=AELoss(latent_lambda=latent_lambda),
-            observation_size=observation_size,
-            latent_dim=latent_dim,
-        )
+        self.ae_type = Autoencoders.AE
+
+        self.loss_function = AELoss(latent_lambda=latent_lambda)
+
+        self.observation_size = observation_size
+        self.latent_dim = latent_dim
 
         self.encoder = Encoder(
             self.observation_size,
@@ -94,7 +97,7 @@ class VanillaAutoencoder(Autoencoder):
             **decoder_optimiser_params,
         )
 
-    def update_autoencoder(self, data: torch.Tensor) -> float:
+    def update_autoencoder(self, data: torch.Tensor) -> torch.Tensor:
         """
         Update the autoencoder parameters based on the given data.
 
@@ -113,7 +116,7 @@ class VanillaAutoencoder(Autoencoder):
         observation: torch.Tensor,
         detach_cnn: bool = False,
         detach_output: bool = False,
-    ) -> torch.Tensor:
+    ) -> dict[str, torch.Tensor]:
         """
         Perform a forward pass through the autoencoder model.
 
@@ -172,7 +175,7 @@ class Encoder(nn.Module):
             ]
         )
 
-        self.out_dim = hlp.flatten(observation_size[1], k=self.kernel_size, s=2)
+        self.out_dim = hlp.flatten(observation_size[1], k=self.kernel_size, s=2)  # type: ignore
 
         for _ in range(self.num_layers - 1):
             self.convs.append(
@@ -276,6 +279,6 @@ class Decoder(nn.Module):
         for i in range(0, self.num_layers - 1):
             deconv = torch.relu(self.deconvs[i](deconv))
 
-        observation = self.deconvs[-1](deconv)
+        observation = torch.sigmoid(self.deconvs[-1](deconv))
 
         return observation

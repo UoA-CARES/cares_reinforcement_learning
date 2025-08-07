@@ -5,7 +5,9 @@ https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
 
 """
 
+import pickle
 import random
+from collections import deque
 
 import numpy as np
 
@@ -24,7 +26,8 @@ class MemoryBuffer:
         min_priority (float): The minimum priority value. Default is 1e-4 - just above 0.
         beta (float): The initial value of the beta parameter for importance weight calculation. Default is 0.4.
         d_beta (float): The rate of change for the beta parameter. Default is 6e-7 - presumned over 1,000,000 steps.
-        **priority_params: Additional parameters for priority calculation.
+        n_step (int): The number of steps to use for n-step learning. Default is 1.
+        gamma (float): The discount factor for n-step learning. Default is 0.99.
 
     Attributes:
         priority_params (dict): Additional parameters for priority calculation.
@@ -60,15 +63,18 @@ class MemoryBuffer:
         min_priority: float = 1e-4,
         beta: float = 0.4,
         d_beta: float = 6e-7,
-        **priority_params,
+        n_step: int = 1,
+        gamma: float = 0.99,
     ):
+        # pylint: disable-next=unused-argument
+
         self.max_capacity = max_capacity
 
         # size is the current size of the buffer
         self.current_size = 0
 
         # Functionally is an array of buffers for each experience type
-        self.memory_buffers = []
+        self.memory_buffers = []  # type: ignore
         # 0 state = []
         # 1 action = []
         # 2 reward = []
@@ -76,6 +82,11 @@ class MemoryBuffer:
         # 4 done = []
         # 5 ... = [] e.g. log_prob = []
         # n ... = []
+
+        # n-step learning
+        self.n_step = n_step
+        self.n_step_buffer: deque[list] = deque(maxlen=self.n_step)
+        self.gamma = gamma
 
         # The SumTree is an efficient data structure for sampling based on priorities
         self.sum_tree = SumTree(self.max_capacity)
@@ -104,6 +115,22 @@ class MemoryBuffer:
         """
         return self.current_size
 
+    def _apply_n_step(self, n_step_buffer: deque) -> list:
+        """Return n step rew, next_obs, and done."""
+        # info of the last transition
+        state, action, reward, next_state, done, *_ = n_step_buffer[-1]
+
+        for transition in reversed(list(n_step_buffer)[:-1]):
+            _, _, step_reward, step_next_state, step_done, *_ = transition
+
+            reward = step_reward + self.gamma * reward * (1 - step_done)
+            next_state, done = (
+                (step_next_state, step_done) if step_done else (next_state, done)
+            )
+
+        state, action, _, _, _, *extra = n_step_buffer[0]
+        return [state, action, reward, next_state, done, *extra]
+
     def add(self, state, action, reward, next_state, done, *extra) -> None:
         """
         Adds a single experience to the prioritized replay buffer.
@@ -121,7 +148,16 @@ class MemoryBuffer:
         Returns:
             None
         """
+
         experience = [state, action, reward, next_state, done, *extra]
+
+        # n-step learning - default is 1-step which means regular buffer behaviour
+        self.n_step_buffer.append(experience)
+        if len(self.n_step_buffer) < self.n_step:
+            return
+
+        # Calculate the n-step return - default is 1-step which means regular buffer behaviour
+        experience = self._apply_n_step(self.n_step_buffer)
 
         # Iterate over the list of experiences (state, action, reward, next_state, done, ...) and add them to the buffer
         for index, exp in enumerate(experience):
@@ -134,6 +170,7 @@ class MemoryBuffer:
             # This adds to the latest position in the buffer
             self.memory_buffers[index][self.tree_pointer] = exp
 
+        # Add the priority to the SumTree - Prioritised Experience Replay
         new_priority = self.max_priority
         self.sum_tree.set(self.tree_pointer, new_priority)
 
@@ -165,7 +202,7 @@ class MemoryBuffer:
         return (*experiences, indices.tolist())
 
     def _importance_sampling_prioritised_weights(
-        self, indices: list[int], weight_normalisation="batch"
+        self, indices: np.ndarray, weight_normalisation="batch"
     ) -> np.ndarray:
         """
         Calculates the importance-sampling weights for prioritized replay and prioritises based on population max.
@@ -173,7 +210,7 @@ class MemoryBuffer:
         PER Paper: https://arxiv.org/pdf/1511.05952.pdf
 
         Args:
-            indices (list[int]): A list of indices representing the transitions to calculate weights for.
+            indices (np.ndarray): A list of indices representing the transitions to calculate weights for.
             weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
@@ -193,6 +230,7 @@ class MemoryBuffer:
 
         weights = (probabilities * self.current_size) ** (-self.beta)
 
+        max_weight = 1.0
         # Batch normalisation is the default and normalises the weights by the maximum weight in the batch
         if weight_normalisation == "batch":
             max_weight = weights.max()
@@ -211,7 +249,7 @@ class MemoryBuffer:
     def sample_priority(
         self,
         batch_size: int,
-        sampling: str = "stratified",
+        sampling_stratagy: str = "stratified",
         weight_normalisation: str = "batch",
     ) -> tuple:
         """
@@ -221,7 +259,7 @@ class MemoryBuffer:
 
         Args:
             batch_size (int): The number of experiences to sample.
-            stratified (bool): Whether to use stratified priority sampling.
+            sampling_stratagy (str): The sampling strategy to use. Options are "simple" or "stratified".
             weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
@@ -233,12 +271,12 @@ class MemoryBuffer:
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
-        if sampling == "simple":
+        if sampling_stratagy == "simple":
             indices = self.sum_tree.sample_simple(batch_size)
-        elif sampling == "stratified":
+        elif sampling_stratagy == "stratified":
             indices = self.sum_tree.sample_stratified(batch_size)
         else:
-            raise ValueError(f"Unkown sampling scheme: {sampling}")
+            raise ValueError(f"Unkown sampling scheme: {sampling_stratagy}")
 
         weights = self._importance_sampling_prioritised_weights(
             indices, weight_normalisation=weight_normalisation
@@ -304,7 +342,7 @@ class MemoryBuffer:
             reversed_priorities[indices].tolist(),
         )
 
-    def update_priorities(self, indices: list[int], priorities: np.ndarray) -> None:
+    def update_priorities(self, indices: np.ndarray, priorities: np.ndarray) -> None:
         """
         Update the priorities of the replay buffer at the given indices.
 
@@ -351,7 +389,7 @@ class MemoryBuffer:
         candididate_indices = list(range(self.current_size - 1))
 
         # A list of candidate indices includes all indices.
-        sampled_indices = []  # randomly sampled indices that is okay.
+        sampled_indices: list[int] = []  # randomly sampled indices that is okay.
         # In this way, the sampling time depends on the batch size rather than buffer size.
 
         # Add in only experiences that are not done and not already sampled.
@@ -364,20 +402,18 @@ class MemoryBuffer:
                 if (not done) and (i not in sampled_indices):
                     sampled_indices.append(i)
 
-        sampled_indices = np.array(sampled_indices)
-
         experiences = []
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[sampled_indices].tolist())
+            experiences.append(buffer[np.array(sampled_indices)].tolist())
 
-        next_sampled_indices = sampled_indices + 1
+        next_sampled_indices = (np.array(sampled_indices) + 1).tolist()
 
         for buffer in self.memory_buffers:
             # NOTE: we convert back to a standard list here
-            experiences.append(buffer[next_sampled_indices].tolist())
+            experiences.append(buffer[np.array(next_sampled_indices)].tolist())
 
-        return (*experiences, sampled_indices.tolist())
+        return (*experiences, sampled_indices)
 
     def get_statistics(self) -> dict[str, np.ndarray]:
         """
@@ -421,3 +457,16 @@ class MemoryBuffer:
         self.sum_tree = SumTree(self.max_capacity)
         self.max_priority = self.min_priority
         self.beta = self.init_beta
+
+    def save(self, filepath: str, file_name: str) -> None:
+        with open(f"{filepath}/{file_name}.pkl", "wb") as f:
+            pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, file_path: str, file_name: str):
+        """
+        Simple object deserialization given a filename
+        """
+        with open(f"{file_path}/{file_name}.pkl", "rb") as f:
+            obj = pickle.load(f)
+            return obj

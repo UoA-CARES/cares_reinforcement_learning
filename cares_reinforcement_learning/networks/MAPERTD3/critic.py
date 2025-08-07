@@ -1,44 +1,49 @@
-import torch
-import torch.nn as nn
+from torch import nn
+
+from cares_reinforcement_learning.networks.common import BaseCritic, TwinQNetwork
+from cares_reinforcement_learning.util.configurations import MAPERTD3Config
 
 
-class Critic(nn.Module):
-    def __init__(
-        self,
-        observation_size: int,
-        num_actions: int,
-        hidden_size: list[int] = None,
-    ):
-        super().__init__()
-        if hidden_size is None:
-            hidden_size = [256, 256]
+class DefaultCritic(TwinQNetwork):
+    # pylint: disable=super-init-not-called
+    def __init__(self, observation_size: int, num_actions: int):
+        input_size = observation_size + num_actions
+        hidden_sizes = [256, 256]
+        output_size = 1 + 1 + observation_size
 
-        self.hidden_size = hidden_size
+        # pylint: disable-next=non-parent-init-called
+        BaseCritic.__init__(
+            self,
+            input_size=input_size,
+            output_size=output_size,
+        )
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
+            nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1 + 1 + observation_size),
+            nn.Linear(hidden_sizes[1], output_size),
         )
 
-        # Q2 architecture
+        # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
-            nn.Linear(observation_size + num_actions, self.hidden_size[0]),
+            nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1 + 1 + observation_size),
+            nn.Linear(hidden_sizes[1], output_size),
         )
 
-    def forward(
-        self, state: torch.Tensor, action: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        obs_action = torch.cat([state, action], dim=1)
-        q1 = self.Q1(obs_action)
-        q2 = self.Q2(obs_action)
-        return q1, q2
+
+class Critic(TwinQNetwork):
+    def __init__(self, observation_size: int, num_actions: int, config: MAPERTD3Config):
+        input_size = observation_size + num_actions
+        output_size = 1 + 1 + observation_size
+
+        super().__init__(
+            input_size=input_size, output_size=output_size, config=config.critic_config
+        )

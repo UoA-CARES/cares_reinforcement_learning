@@ -1,60 +1,45 @@
-import torch
-from torch import nn
-
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.encoders.constants import Autoencoders
-from cares_reinforcement_learning.encoders.autoencoder import (
-    Autoencoder,
-)
+from cares_reinforcement_learning.encoders.autoencoder_factory import AEFactory
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+from cares_reinforcement_learning.networks.TD3 import Critic as TD3Critic
+from cares_reinforcement_learning.networks.TD3 import DefaultCritic as DefaultTD3Critic
+from cares_reinforcement_learning.networks.common import AECritc
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
-class Critic(nn.Module):
-    def __init__(
-        self,
-        num_actions: int,
-        autoencoder: Autoencoder,
-        hidden_size: list[int] = None,
-    ):
-        super().__init__()
-        if hidden_size is None:
-            hidden_size = [1024, 1024]
+class DefaultCritic(AECritc):
+    def __init__(self, observation_size: dict, num_actions: int):
 
-        self.autoencoder = autoencoder
-        self.hidden_size = hidden_size
-
-        # pylint: disable-next=invalid-name
-        self.Q1 = nn.Sequential(
-            nn.Linear(self.autoencoder.latent_dim + num_actions, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1),
+        autoencoder = VanillaAutoencoder(
+            observation_size["image"],
+            latent_dim=200,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
         )
 
-        # pylint: disable-next=invalid-name
-        self.Q2 = nn.Sequential(
-            nn.Linear(self.autoencoder.latent_dim + num_actions, self.hidden_size[0]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
-            nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1),
+        critic = DefaultTD3Critic(
+            autoencoder.latent_dim, num_actions, hidden_sizes=[1024, 1024]
         )
 
-        self.apply(hlp.weight_init)
+        super().__init__(autoencoder, critic)
 
-    def forward(
-        self, state: torch.Tensor, action: torch.Tensor, detach_encoder: bool = False
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        # NaSATD3 detatches the encoder at the output
-        if self.autoencoder.ae_type == Autoencoders.BURGESS:
-            # take the mean value for stability
-            z_vector, _, _ = self.autoencoder.encoder(
-                state, detach_output=detach_encoder
-            )
-        else:
-            z_vector = self.autoencoder.encoder(state, detach_output=detach_encoder)
 
-        obs_action = torch.cat([z_vector, action], dim=1)
-        q1 = self.Q1(obs_action)
-        q2 = self.Q2(obs_action)
-        return q1, q2
+class Critic(AECritc):
+    def __init__(self, observation_size: dict, num_actions: int, config: NaSATD3Config):
+
+        ae_factory = AEFactory()
+        autoencoder = ae_factory.create_autoencoder(
+            observation_size=observation_size["image"], config=config.autoencoder_config
+        )
+
+        critic_observation_size = autoencoder.latent_dim
+        if config.vector_observation:
+            critic_observation_size += observation_size["vector"]
+
+        critic = TD3Critic(critic_observation_size, num_actions, config)
+
+        super().__init__(
+            autoencoder,
+            critic,
+            add_vector_observation=bool(config.vector_observation),
+        )

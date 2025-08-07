@@ -1,4 +1,6 @@
-<img src="./media/logo.png" alt="CARES reinforcement learning package logo" />
+<p align="center">
+<img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
+</p>
 
 The CARES reinforcement learning bed used as the foundation for RL related projects.
 
@@ -7,14 +9,10 @@ The CARES reinforcement learning bed used as the foundation for RL related proje
 **Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
 
 # Usage
-
 Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki) for a guide on how to use the package
 
 # Installation Instructions
-
-If you want to utilise the GPU with Pytorch install CUDA first - https://developer.nvidia.com/cuda-toolkit
-
-Install Pytorch following the instructions here - https://pytorch.org/get-started/locally/
+![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 
 `git clone` the repository into your desired directory on your local machine
 
@@ -129,45 +127,45 @@ The Record class allows data to be saved into a consistent format during trainin
 
 All data from a training run is saved into the directory specified in the `CARES_LOG_BASE_DIR` environment variable. If not specified, this will default to `'~/cares_rl_logs'`.
 
-You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}/{seed}"` so that each run is saved as a new seed under the algorithm and domain-task pair for that algorithm.
-
-The following variables are supported for log path template variable interpolation:
-
-- `algorithm`
-- `domain`
-- `task`
-- `domain_task`: The domain and task or just task if domain does not exist
-- `gym`
-- `seed`
-- `date`: The current date in the `YY_MM_DD-HH-MM-SS` format
-- `run_name`: The run name if it is provided, otherwise "unnamed"
-- `run_name_else_date`: The run name if it is provided, otherwise the date
+You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}"`.
 
 This folder will contain the following directories and information saved during the training session:
 
 ```text
 ├─ <log_path>
-|  ├─ env_config.py
-|  ├─ alg_config.py
-|  ├─ train_config.py
-|  ├─ data
-|  |  ├─ train.csv
-|  |  ├─ eval.csv
-|  ├─ figures
-|  |  ├─ eval.png
-|  |  ├─ train.png
-|  ├─ models
-|  |  ├─ model.pht
-|  |  ├─ CHECKPOINT_N.pht
+|  ├─ env_config.json
+|  ├─ alg_config.json
+|  ├─ train_config.json
+|  ├─ *_config.json
+|  ├─ ...
+|  ├─ SEED_N
+|  |  ├─ data
+|  |  |  ├─ train.csv
+|  |  |  ├─ eval.csv
+|  |  ├─ figures
+|  |  |  ├─ eval.png
+|  |  |  ├─ train.png
+|  |  ├─ models
+|  |  |  ├─ model.pht
+|  |  |  ├─ CHECKPOINT_N.pht
+|  |  |  ├─ ...
+|  |  ├─ videos
+|  |  |  ├─ STEP.mp4
+|  |  |  ├─ ...
+|  ├─ SEED_N
 |  |  ├─ ...
-|  ├─ videos
-|  |  ├─ STEP.mp4
-├─ ...
+|  ├─ ...
 ```
 
 ## plotting.py
 
 The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
+
+Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
+
+```sh
+python3 plotter.py -h
+```
 
 Plot the results of a single training instance
 
@@ -179,12 +177,6 @@ Plot and compare the results of two or more training instances
 
 ```sh
 python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
-```
-
-Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments.
-
-```sh
-python3 plotter.py -h
 ```
 
 ## configurations.py
@@ -203,13 +195,18 @@ A factory class for creating a baseline RL algorithm that has been implemented i
 
 A factory class for creating a memory buffer that has been implemented into the CARES RL package.
 
-# Supported Algorithms
+# Supported Algorithms 
 
 | Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
 | ----------- | -------------------------- | ------------ | ----------------------------------------------------------- |
 | DQN         | Vector                     | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602)                |
+| PERDQN      | Vector                     | Discrete     | [PERDQN Paper](https://arxiv.org/abs/1511.05952)            |
 | DoubleDQN   | Vector                     | Discrete     | [DoubleDQN Paper](https://arxiv.org/abs/1509.06461)         |
 | DuelingDQN  | Vector                     | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581)        |
+| NoisyNet    | Vector                     | Discrete     | [NoisyNet Paper](https://arxiv.org/abs/1706.10295)          |
+| C51         | Vector                     | Discrete     | [C51 Paper](https://arxiv.org/pdf/1707.06887)               |
+| QRDQN       | Vector                     | Discrete     | [QR-DQN Paper](https://arxiv.org/pdf/1710.10044)            |
+| Rainbow     | Vector                     | Discrete     | [Rainbow](https://arxiv.org/pdf/1710.02298)                 |
 | SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | PPO         | Vector                     | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347)               |
@@ -228,9 +225,23 @@ A factory class for creating a memory buffer that has been implemented into the 
 | RDTD3       | Vector                     | Continuous   | WIP                                                         |
 | RDSAC       | Vector                     | Continuous   | WIP                                                         |
 | REDQ        | Vector                     | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf)          |
-| TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/abs/1812.05905)               |
+| TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/pdf/2005.04269)               |
 | CTD4        | Vector                     | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576)              |
+| CrossQ      | Vector                     | Continuous   | [CrossQ Paper](https://arxiv.org/pdf/1902.05605)            |
+| Droq        | Vector                     | Continuous   | [DroQ Paper](https://arxiv.org/abs/2110.02034)              |
+| SDAR        | Vector                     | Continuous   | [SDAR Paper](https://openreview.net/pdf?id=PDgZ3rvqHn)      |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
-| NaSATD3     | Image                      | Continuous   | In Submission                                               |
+| NaSATD3     | Image                      | Continuous   | [NaSATD3 Paper](https://ieeexplore.ieee.org/abstract/document/10801857) |
 | TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |
 | SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741)             |
+
+# Citation
+```
+@misc{cares_reinforcement_learning,
+  title = {CARES Reinforcement Learning},
+  author = {CARES},
+  year = {2025},
+  publisher = {GitHub},
+  url = {https://https://github.com/UoA-CARES/cares_reinforcement_learning.}
+}
+```

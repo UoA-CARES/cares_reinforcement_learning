@@ -14,7 +14,7 @@ def test_ae():
 
     observation_size = (3, 32, 32)
 
-    test_image = torch.randn(2, *observation_size)
+    test_image = torch.rand(2, *observation_size)
     test_image = test_image.to(device)
 
     factory = AEFactory()
@@ -29,10 +29,12 @@ def test_ae():
 
         config = config(latent_dim=100)
 
-        autoencoder = factory.create_autoencoder(
-            observation_size=observation_size, config=config
-        )
-        assert autoencoder is not None, f"{ae} was not created successfully"
+        try:
+            autoencoder = factory.create_autoencoder(
+                observation_size=observation_size, config=config
+            )
+        except Exception as e:
+            pytest.fail(f"Exception making autoencoder: {ae} {e}")
 
         autoencoder = autoencoder.to(device)
 

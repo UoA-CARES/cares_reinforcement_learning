@@ -1,29 +1,45 @@
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.util.configurations import PPOConfig
 
-class Critic(nn.Module):
-    def __init__(
-        self,
-        observation_size: int,
-        hidden_size: list[int] = None,
-    ):
+
+class BaseCritic(nn.Module):
+    def __init__(self, Q: nn.Module):
         super().__init__()
-        if hidden_size is None:
-            hidden_size = [1024, 1024]
 
-        self.hidden_size = hidden_size
+        self.Q = Q
+
+    def forward(self, state: torch.Tensor) -> torch.Tensor:
+        q = self.Q(state)
+        return q
+
+
+class DefaultCritic(BaseCritic):
+    def __init__(self, observation_size: int):
+        hidden_sizes = [1024, 1024]
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
-        self.Q1 = nn.Sequential(
-            nn.Linear(observation_size, self.hidden_size[0]),
+        Q = nn.Sequential(
+            nn.Linear(observation_size, hidden_sizes[0]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[0], self.hidden_size[1]),
+            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
-            nn.Linear(self.hidden_size[1], 1),
+            nn.Linear(hidden_sizes[1], 1),
         )
 
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
-        q1 = self.Q1(state)
-        return q1
+        super().__init__(Q=Q)
+
+
+class Critic(BaseCritic):
+    def __init__(self, observation_size: int, config: PPOConfig):
+        # Q architecture
+        # pylint: disable-next=invalid-name
+        Q = MLP(
+            input_size=observation_size,
+            output_size=1,
+            config=config.critic_config,
+        )
+        super().__init__(Q=Q)

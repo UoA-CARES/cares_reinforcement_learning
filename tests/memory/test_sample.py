@@ -1,5 +1,5 @@
 import numpy as np
-from memory import memory_buffer, memory_buffer_1e6
+from memory import memory_buffer, memory_buffer_1e6, memory_buffer_n_step
 
 
 def test_sample(memory_buffer_1e6):
@@ -54,6 +54,34 @@ def test_sample(memory_buffer_1e6):
         == len(weights)
         == batch_size
     )
+
+
+def test_n_step_values(memory_buffer_n_step):
+    memory_buffer_n_step.n_step = 3  # Get n-step value
+    memory_buffer_n_step.gamma = 0.99  # Discount factor
+
+    # Add transitions: [state, action, reward, next_state, done]
+    memory_buffer_n_step.add(1, 1, 1, 1, 0)
+    memory_buffer_n_step.add(2, 2, 2, 2, 0)
+    memory_buffer_n_step.add(3, 3, 3, 3, 0)
+
+    # Sample a batch of size 1
+    states, actions, rewards, next_states, dones, ind = (
+        memory_buffer_n_step.sample_uniform(1)
+    )
+
+    value = ind[0]  # Get sampled index
+
+    # Compute expected n-step return
+    expected_reward = 5.9203
+
+    # Assertions to validate n-step transitions
+    assert states == [value + 1]
+    assert actions == [value + 1]
+    assert np.isclose(rewards[0], expected_reward)  # Check discounted sum
+    assert next_states == [3]  # Expected next state
+    assert dones == [0]  # Done flag based on sequence
+    assert ind == [value]
 
 
 def test_sample_values(memory_buffer_1e6):
@@ -121,7 +149,7 @@ def test_sample_inverse_sample_values(memory_buffer_1e6):
 
 
 def test_sample_consecutive_values(memory_buffer_1e6):
-    for i in range(10):
+    for i in range(20):
         memory_buffer_1e6.add(i, i, i, i, i % 2)
 
     (

@@ -1,29 +1,51 @@
-import torch
-
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
+from cares_reinforcement_learning.networks.TD3 import DefaultActor as DefaultTD3Actor
+from cares_reinforcement_learning.networks.common import EncoderPolicy
+from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
-class Actor(TD3Actor):
-    def __init__(
-        self,
-        encoder: Encoder,
-        num_actions: int,
-        hidden_size: list[int] = None,
-    ):
-        if hidden_size is None:
-            hidden_size = [1024, 1024]
+class DefaultActor(EncoderPolicy):
+    def __init__(self, observation_size: dict, num_actions: int):
 
-        super().__init__(encoder.latent_dim, num_actions, hidden_size)
+        encoder = Encoder(
+            observation_size["image"],
+            latent_dim=50,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
 
-        self.encoder = encoder
+        actor = DefaultTD3Actor(
+            encoder.latent_dim, num_actions, hidden_sizes=[1024, 1024]
+        )
 
-        self.apply(hlp.weight_init)
+        super().__init__(
+            encoder,
+            actor,
+        )
 
-    def forward(
-        self, state: torch.Tensor, detach_encoder: bool = False
-    ) -> torch.Tensor:
-        # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state, detach_cnn=detach_encoder)
-        return super().forward(state_latent)
+
+class Actor(EncoderPolicy):
+    def __init__(self, observation_size: dict, num_actions: int, config: TD3AEConfig):
+
+        ae_config = config.autoencoder_config
+        encoder = Encoder(
+            observation_size["image"],
+            latent_dim=ae_config.latent_dim,
+            num_layers=ae_config.num_layers,
+            num_filters=ae_config.num_filters,
+            kernel_size=ae_config.kernel_size,
+        )
+
+        actor_observation_size = encoder.latent_dim
+        if config.vector_observation:
+            actor_observation_size += observation_size["vector"]
+
+        actor = TD3Actor(actor_observation_size, num_actions, config)
+
+        super().__init__(
+            encoder=encoder,
+            actor=actor,
+            add_vector_observation=bool(config.vector_observation),
+        )
