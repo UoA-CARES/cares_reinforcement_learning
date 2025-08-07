@@ -5,7 +5,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import Normal
 
-from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
+from cares_reinforcement_learning.memory import MemoryFactory
 
 
 # class PPO:
@@ -150,7 +150,7 @@ from cares_reinforcement_learning.memory import PrioritizedReplayBuffer
 #         self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
 #         logging.info("models have been loaded...")
 
-class PPO:
+class RePPO:
     
     def __init__(
         self,
@@ -189,18 +189,38 @@ class PPO:
         with torch.no_grad():
             # Convert to tensor and add batch dimension
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
-            action, log_prob = self.actor.sample(state_tensor)
+            action, _= self.actor.sample(state_tensor)
             action = action.cpu().numpy().flatten()
         self.actor.train()
-        return action, log_prob
+        return action
+    
+    
+    def _calculate_log_prob(self, states: torch.Tensor, actions: torch.Tensor) -> torch.Tensor:
+        
+        # Use torch.no_grad() to prevent gradient calculation during inference
+        with torch.no_grad():
+            # Forward pass through the actor network
+            mean, std = self.actor(states)  # Assuming the actor outputs mean and std for continuous actions
+            
+            # Create the action distribution (assuming a normal distribution for continuous actions)
+            dist = torch.distributions.Normal(mean, std)
+            
+            # Calculate the log probability for the actions
+            log_probs = dist.log_prob(actions)  # Log probability for each action
+            
+            # If multi-dimensional actions, sum log probabilities across the dimensions
+            log_probs = log_probs.sum(dim=-1)  # Sum across action dimensions if needed
+
+        return log_probs
+
 
 
     def _evaluate_policy(self, state: torch.Tensor, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-   
-        # Get the value from the critic
+        # with torch.no_grad():
+            # Get the value from the critic
         values = self.critic(state).squeeze()
 
-        # Get the action distribution from the actor
+            # Get the action distribution from the actor
         mean, std = self.actor(state)
         dist = torch.distributions.Normal(mean, std)
 
@@ -218,18 +238,17 @@ class PPO:
         return advantages
 
 
-    def train_policy(self, memory: PrioritizedReplayBuffer, batch_size: int = 0) -> None:
+    def train_policy(self, memory:MemoryFactory, batch_size: int = 0) -> None:
         # Sample from memory
-        experiences = memory.flush()
-        states, actions, rewards, next_states, dones, old_log_probs = experiences
-
+        experiences = memory.short_term_memory.flush()
+        states, actions, rewards, next_states, dones, episode_nums, episode_steps = experiences
         # Convert to tensors and move to device
         states = torch.FloatTensor(states).to(self.device)
         actions = torch.FloatTensor(actions).to(self.device)
         rewards = torch.FloatTensor(rewards).to(self.device)
         next_states = torch.FloatTensor(next_states).to(self.device)
         dones = torch.LongTensor(dones).to(self.device)
-        old_log_probs = torch.FloatTensor(old_log_probs).to(self.device)
+        old_log_probs = self._calculate_log_prob(states, actions)
 
         # Compute values and advantages
         with torch.no_grad():

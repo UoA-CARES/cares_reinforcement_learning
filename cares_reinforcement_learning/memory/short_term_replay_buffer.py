@@ -66,8 +66,16 @@ class ShortTermReplayBuffer:
         # print(f"start_idx:{start_idx}, end_idx:{end_idx}")
         # input()
     
+        # if start_idx is None or end_idx is None:
+        #     raise ValueError("No matching experience found")
         if start_idx is None or end_idx is None:
-            raise ValueError("No matching experience found")
+            print("No matching experience found.")
+            print(f"Target: episode_num={target_episode_num}, episode_step={target_episode_step}")
+            print("Current memory contents:")
+            for i, experience in enumerate(self.memory_buffers):
+                print(f"Index {i}: episode_num={experience[-2]}, episode_step={experience[-1]}, full={experience}")
+            raise ValueError("No matching experience found.")
+
 
         # Extract the batch of experiences
         experience_batch = list(self.memory_buffers)[start_idx:end_idx]
@@ -134,3 +142,20 @@ class ShortTermReplayBuffer:
             int: The current size of the buffer.
         """
         return len(self.memory_buffers)
+    
+    def flush(self) -> tuple:
+        """
+        Flushes the memory buffers and returns the experiences in zipped format.
+
+        Returns:
+            tuple: Tuple of (states, actions, rewards, next_states, dones, episode_nums, episode_steps)
+        """
+        experience_batch = list(self.memory_buffers)
+        self.clear()
+        return tuple(zip(*experience_batch))
+
+    def clear(self) -> None:
+        """
+        Clears the short-term replay buffer.
+        """
+        self.memory_buffers = deque([], maxlen=self.max_capacity)

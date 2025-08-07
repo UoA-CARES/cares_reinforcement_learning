@@ -13,7 +13,6 @@ class MemoryFactory:
         d_beta = 0.0
         min_priority = 1.0
         buffer_size = alg_config.buffer_size
-        
 
         if hasattr(alg_config, "beta"):
             beta = alg_config.beta
@@ -23,7 +22,8 @@ class MemoryFactory:
             min_priority = alg_config.min_priority
         # print(alg_config)
         # input()
-        if alg_config.algorithm in ["EpisodicTD3", "ReTD3" ,"RESAC","ReSurpriseTD3"]:     
+        if alg_config.algorithm in ["EpisodicTD3", "ReTD3SIL", "ReTD3SIL", "RESAC", "ReSurpriseTD3", "RePPO"]:
+         
             return ManageBuffers(
                 max_capacity=alg_config.buffer_size,
                 priority_params={},

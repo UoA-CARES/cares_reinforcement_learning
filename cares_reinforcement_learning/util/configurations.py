@@ -108,6 +108,17 @@ class PPOConfig(AlgorithmConfig):
 
     max_steps_per_batch: Optional[int] = 5000
 
+class RePPOConfig(AlgorithmConfig):
+    algorithm: str = Field("RePPO", Literal=True)
+    actor_lr: Optional[float] = 1e-4
+    critic_lr: Optional[float] = 1e-3
+
+    gamma: Optional[float] = 0.99
+    eps_clip: Optional[float] = 0.2
+    updates_per_iteration: Optional[int] = 10
+
+    max_steps_per_batch: Optional[int] = 5000
+
 
 class DDPGConfig(AlgorithmConfig):
     algorithm: str = Field("DDPG", Literal=True)
@@ -126,9 +137,27 @@ class TD3Config(AlgorithmConfig):
     gamma: Optional[float] = 0.99
     tau: Optional[float] = 0.005
 
+class TD3SILConfig(AlgorithmConfig):
+    algorithm: str = Field("TD3SIL", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+
 
 class SACConfig(AlgorithmConfig):
     algorithm: str = Field("SAC", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+    alpha_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    reward_scale: Optional[float] = 1.0
+
+class SACSILConfig(AlgorithmConfig):
+    algorithm: str = Field("SACSIL", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
     alpha_lr: Optional[float] = 3e-4
@@ -392,6 +421,14 @@ class EpisodicTD3Config(AlgorithmConfig):
 
 class ReTD3Config(AlgorithmConfig):
     algorithm: str = Field("ReTD3", Literal=True)
+    actor_lr: Optional[float] = 3e-4
+    critic_lr: Optional[float] = 3e-4
+
+    gamma: Optional[float] = 0.99
+    tau: Optional[float] = 0.005
+    
+class ReTD3SILConfig(AlgorithmConfig):
+    algorithm: str = Field("ReTD3SIL", Literal=True)
     actor_lr: Optional[float] = 3e-4
     critic_lr: Optional[float] = 3e-4
 

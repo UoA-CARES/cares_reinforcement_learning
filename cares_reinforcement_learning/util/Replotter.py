@@ -13,6 +13,17 @@ import seaborn as sns
 logging.basicConfig(level=logging.INFO)
 
 
+# Extend Seaborn palette with custom colors
+custom_colors = [
+    (0.12, 0.47, 0.71),  # Seaborn Blue
+    (0.17, 0.63, 0.17),  # Seaborn Green
+    (0.84, 0.15, 0.16),  # Seaborn Red
+    (0.58, 0.40, 0.74),  # Seaborn Purple
+    (0.98, 0.94, 0.50),  # Seaborn Yellow
+    (0.53, 0.81, 0.98),  # Seaborn Cyan
+    (0.00, 0.50, 0.50),  # Teal (New)
+    (1.00, 0.50, 0.31),  # Coral (Replaces Seaborn Orange)
+]
 def plot_data(
     plot_frame: pd.DataFrame,
     title: str,
@@ -31,7 +42,7 @@ def plot_data(
 
     # Plot Styles
     plt.style.use("seaborn-v0_8")
-
+    sns.set_palette(custom_colors)
     plt.xlabel(x_label, fontsize=label_fontsize)
     plt.ylabel(y_label, fontsize=label_fontsize)
     plt.title(title, fontsize=title_fontsize)
@@ -44,7 +55,8 @@ def plot_data(
         x=plot_frame["steps"],
         y="avg",
         label=label,
-        errorbar="sd",
+        errorbar=("ci", 97), 
+        alpha=0.8 
     )
 
     plt.legend(loc="best").set_draggable(True)
@@ -103,7 +115,7 @@ def prepare_eval_plot_frame(eval_data: pd.DataFrame) -> pd.DataFrame:
     y_data: str = "episode_reward"
 
     plot_frame: pd.DataFrame = pd.DataFrame()
-    plot_frame["steps"] = eval_data[x_data].round(-4)
+    plot_frame["steps"] = eval_data[x_data].round(-5)
     plot_frame["avg"] = eval_data[y_data]
 
     return plot_frame

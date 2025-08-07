@@ -5,3 +5,4 @@ from .episodic_replay_buffer import ManageBuffers
 from .episodic_buffer import EpisodicBuffer
 from .long_memory_buffer import LongMemoryBuffer
 from .short_term_replay_buffer import ShortTermReplayBuffer
+from .sil import  SelfImitation

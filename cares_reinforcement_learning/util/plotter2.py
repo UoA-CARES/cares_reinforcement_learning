@@ -31,6 +31,13 @@ def plot_data(
 
     # Plot Styles
     plt.style.use("seaborn-v0_8")
+    # Get the current Seaborn default color palette
+    current_palette = sns.color_palette()
+
+    # Add yellow to the palette
+    new_palette = current_palette + ['Teal'] #'Teal'
+    # Set the updated palette
+    sns.set_palette(new_palette)
 
     plt.xlabel(x_label, fontsize=label_fontsize)
     plt.ylabel(y_label, fontsize=label_fontsize)
@@ -44,10 +51,9 @@ def plot_data(
         x=plot_frame["steps"],
         y="avg",
         label=label,
-        errorbar="sd",
+        # errorbar="sd",
+        legend=False  # Disable the legend
     )
-
-    plt.legend(loc="best").set_draggable(True)
 
     plt.tight_layout(pad=0.5)
 
@@ -57,7 +63,7 @@ def plot_data(
     if not os.path.exists(f"{directory}/figures"):
         os.makedirs(f"{directory}/figures")
 
-    plt.savefig(f"{directory}/figures/{filename}.png")
+    plt.savefig(f"{directory}/figures/{filename}-no-leg.png")
 
     if close_figure:
         plt.close()
@@ -103,7 +109,7 @@ def prepare_eval_plot_frame(eval_data: pd.DataFrame) -> pd.DataFrame:
     y_data: str = "episode_reward"
 
     plot_frame: pd.DataFrame = pd.DataFrame()
-    plot_frame["steps"] = eval_data[x_data].round(-4)
+    plot_frame["steps"] = eval_data[x_data].round(-5)
     plot_frame["avg"] = eval_data[y_data]
 
     return plot_frame

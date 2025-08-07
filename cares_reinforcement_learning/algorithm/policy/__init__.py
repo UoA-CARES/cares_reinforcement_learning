@@ -21,5 +21,9 @@ from .EpisodicTD3 import EpisodicTD3
 from .ReTD3 import ReTD3
 from .RESAC import RESAC
 from .ReSurpriseTD3 import ReSurpriseTD3
+from .TD3SIL import TD3SIL
+from .SACSIL import SACSIL
+from .ReTD3SIL import ReTD3SIL
+from .RePPO import RePPO
 
 

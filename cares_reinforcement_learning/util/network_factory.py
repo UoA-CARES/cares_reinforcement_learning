@@ -61,9 +61,32 @@ def create_PPO(observation_size, action_num, config: AlgorithmConfig):
 
     actor = Actor(observation_size, action_num)
     critic = Critic(observation_size)
+    
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = PPO(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        updates_per_iteration=config.updates_per_iteration,
+        eps_clip=config.eps_clip,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
+def create_RePPO(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import RePPO
+    from cares_reinforcement_learning.networks.PPO import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size)
+    
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = RePPO(
         actor_network=actor,
         critic_network=critic,
         actor_lr=config.actor_lr,
@@ -140,6 +163,28 @@ def create_SAC(observation_size, action_num, config: AlgorithmConfig):
     return agent
 
 
+def create_SACSIL(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import SACSIL
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = SACSIL(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        alpha_lr=config.alpha_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        reward_scale=config.reward_scale,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
 def create_DDPG(observation_size, action_num, config: AlgorithmConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor, Critic
@@ -169,6 +214,26 @@ def create_TD3(observation_size, action_num, config: AlgorithmConfig):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = TD3(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
+def create_TD3SIL(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import TD3SIL
+    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = TD3SIL(
         actor_network=actor,
         critic_network=critic,
         actor_lr=config.actor_lr,
@@ -583,6 +648,26 @@ def create_ReTD3(observation_size, action_num, config: AlgorithmConfig):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     agent = ReTD3(
+        actor_network=actor,
+        critic_network=critic,
+        actor_lr=config.actor_lr,
+        critic_lr=config.critic_lr,
+        gamma=config.gamma,
+        tau=config.tau,
+        action_num=action_num,
+        device=device,
+    )
+    return agent
+
+def create_ReTD3SIL(observation_size, action_num, config: AlgorithmConfig):
+    from cares_reinforcement_learning.algorithm.policy import ReTD3SIL
+    from cares_reinforcement_learning.networks.TD3 import Actor, Critic
+
+    actor = Actor(observation_size, action_num)
+    critic = Critic(observation_size, action_num)
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    agent = ReTD3SIL(
         actor_network=actor,
         critic_network=critic,
         actor_lr=config.actor_lr,

@@ -9,6 +9,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
+import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,7 +24,7 @@ def plot_data(
     filename: str,
     label_fontsize: int = 15,
     title_fontsize: int = 20,
-    ticks_fontsize: int = 10,
+    ticks_fontsize: int = 20,
     display: bool = True,
     close_figure: bool = True,
 ) -> None:
@@ -39,13 +40,31 @@ def plot_data(
     plt.xticks(fontsize=ticks_fontsize)
     plt.yticks(fontsize=ticks_fontsize)
 
+    # sns.lineplot(
+    #     data=plot_frame,
+    #     x=plot_frame["steps"],
+    #     y="avg",
+    #     label=label,
+    #     #errorbar="sd", 
+    #     errorbar="sd",
+    # )
     sns.lineplot(
         data=plot_frame,
-        x=plot_frame["steps"],
+        x="steps",
         y="avg",
         label=label,
         errorbar="sd",
     )
+
+    # Plot 95% Confidence Interval
+    if "ci_margin" in plot_frame.columns:
+        plt.fill_between(
+            plot_frame["steps"],
+            plot_frame["avg"] - plot_frame["ci_margin"],
+            plot_frame["avg"] + plot_frame["ci_margin"],
+            alpha=0.1,
+            # color="blue"
+        )
 
     plt.legend(loc="best").set_draggable(True)
 
@@ -105,7 +124,17 @@ def prepare_eval_plot_frame(eval_data: pd.DataFrame) -> pd.DataFrame:
     plot_frame: pd.DataFrame = pd.DataFrame()
     plot_frame["steps"] = eval_data[x_data].round(-4)
     plot_frame["avg"] = eval_data[y_data]
-
+    plot_frame["std_dev"] = (
+        eval_data[y_data].rolling(100, min_periods=1).std()
+    )
+    plot_frame["sample_size"] = (
+        eval_data[y_data].rolling(100, min_periods=1).count()
+    )
+    
+    # Compute 95% Confidence Interval margin
+    z = 3 # For 95% confidence %2.81 ,2.58, 1.96
+    plot_frame["ci_margin"] = z * plot_frame["std_dev"] / np.sqrt(plot_frame["sample_size"])
+    
     return plot_frame
 
 
