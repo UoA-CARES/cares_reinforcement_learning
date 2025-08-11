@@ -153,7 +153,7 @@ class Algorithm(ABC):
         """
         return 0.0
 
-    def epsiode_done(self):
+    def episode_done(self):
         """
         This method is called when an episode is done.
         It can be overridden in subclasses to perform any necessary cleanup or logging.

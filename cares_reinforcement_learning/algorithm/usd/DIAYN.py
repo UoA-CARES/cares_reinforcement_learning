@@ -153,11 +153,11 @@ class DIAYN(VectorAlgorithm):
 
         return info
 
-    def epsiode_done(self):
+    def episode_done(self):
         p_z = np.full(self.num_skills, 1 / self.num_skills)
         self.z = np.random.choice(self.num_skills, p=p_z)
 
-        return super().epsiode_done()
+        return super().episode_done()
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
