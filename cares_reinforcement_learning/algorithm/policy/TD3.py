@@ -198,6 +198,46 @@ class TD3(VectorAlgorithm):
 
         return actor_info
 
+    def update_networks(
+        self,
+        memory: MemoryBuffer,
+        indices: np.ndarray,
+        states_tensor: torch.Tensor,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_states_tensor: torch.Tensor,
+        dones_tensor: torch.Tensor,
+        weights_tensor: torch.Tensor,
+    ) -> dict[str, Any]:
+
+        info: dict[str, Any] = {}
+
+        # Update the Critic
+        critic_info, priorities = self._update_critic(
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+        )
+        info |= critic_info
+
+        if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor and Alpha
+            actor_info = self._update_actor(states_tensor, weights_tensor)
+            info |= actor_info
+
+            # Update target network params
+            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+
+        # Update the Priorities
+        if self.use_per_buffer:
+            memory.update_priorities(indices, priorities)
+
+        return info
+
     # TODO use training_step with decay rates
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
@@ -219,7 +259,7 @@ class TD3(VectorAlgorithm):
             states, actions, rewards, next_states, dones, indices, weights = experiences
         else:
             experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, _ = experiences
+            states, actions, rewards, next_states, dones, indices = experiences
             weights = [1.0] * batch_size
 
         batch_size = len(states)
@@ -237,10 +277,9 @@ class TD3(VectorAlgorithm):
         dones_tensor = dones_tensor.reshape(batch_size, 1)
         weights_tensor = weights_tensor.reshape(batch_size, 1)
 
-        info: dict[str, Any] = {}
-
-        # Update the Critic
-        critic_info, priorities = self._update_critic(
+        info = self.update_networks(
+            memory,
+            indices,
             states_tensor,
             actions_tensor,
             rewards_tensor,
@@ -248,20 +287,6 @@ class TD3(VectorAlgorithm):
             dones_tensor,
             weights_tensor,
         )
-        info |= critic_info
-
-        if self.learn_counter % self.policy_update_freq == 0:
-            # Update Actor
-            actor_info = self._update_actor(states_tensor, weights_tensor)
-            info |= actor_info
-
-            # Update target network params
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
-
-        # Update the Priorities
-        if self.use_per_buffer:
-            memory.update_priorities(indices, priorities)
 
         return info
 

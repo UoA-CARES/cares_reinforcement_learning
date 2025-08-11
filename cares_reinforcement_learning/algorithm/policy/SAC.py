@@ -113,8 +113,6 @@ class SAC(BaseSAC):
             device=device,
         )
 
-        self.target_entropy = -self.actor_net.num_actions
-
     def select_action_from_policy(
         self,
         state: np.ndarray,
@@ -244,37 +242,17 @@ class SAC(BaseSAC):
 
         return info
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    def update_networks(
+        self,
+        memory: MemoryBuffer,
+        indices: np.ndarray,
+        states_tensor: torch.Tensor,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_states_tensor: torch.Tensor,
+        dones_tensor: torch.Tensor,
+        weights_tensor: torch.Tensor,
     ) -> dict[str, Any]:
-        self.learn_counter += 1
-
-        if self.use_per_buffer:
-            experiences = memory.sample_priority(
-                batch_size,
-                sampling_stratagy=self.per_sampling_strategy,
-                weight_normalisation=self.per_weight_normalisation,
-            )
-            states, actions, rewards, next_states, dones, indices, weights = experiences
-        else:
-            experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, _ = experiences
-            weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
 
         info: dict[str, Any] = {}
 
@@ -301,5 +279,50 @@ class SAC(BaseSAC):
         # Update the Priorities
         if self.use_per_buffer:
             memory.update_priorities(indices, priorities)
+
+        return info
+
+    def train_policy(
+        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    ) -> dict[str, Any]:
+        self.learn_counter += 1
+
+        if self.use_per_buffer:
+            experiences = memory.sample_priority(
+                batch_size,
+                sampling_stratagy=self.per_sampling_strategy,
+                weight_normalisation=self.per_weight_normalisation,
+            )
+            states, actions, rewards, next_states, dones, indices, weights = experiences
+        else:
+            experiences = memory.sample_uniform(batch_size)
+            states, actions, rewards, next_states, dones, indices = experiences
+            weights = [1.0] * batch_size
+
+        batch_size = len(states)
+
+        # Convert into tensor
+        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
+
+        # Reshape to batch_size x whatever
+        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
+        dones_tensor = dones_tensor.reshape(batch_size, 1)
+        weights_tensor = weights_tensor.reshape(batch_size, 1)
+
+        info = self.update_networks(
+            memory,
+            indices,
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+        )
 
         return info
