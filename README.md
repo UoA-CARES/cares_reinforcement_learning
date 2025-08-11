@@ -197,7 +197,7 @@ A factory class for creating a memory buffer that has been implemented into the 
 
 # Supported Algorithms 
 
-We support a wide range of algorithms in the Rienforcement Learning space all under the same abastraction. 
+We support a wide range of algorithms in the Reinforcement Learning space all under the same abstraction. 
 
 ## Q-Learning
 Implementations of Q-Learning based methods
