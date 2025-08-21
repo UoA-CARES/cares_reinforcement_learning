@@ -17,11 +17,13 @@ from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 class Algorithm(ABC):
     def __init__(
         self,
-        policy_type: Literal["value", "policy", "discrete_policy", "mbrl"],
+        policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
         config: AlgorithmConfig,
         device: torch.device,
     ):
-        self.policy_type = policy_type
+        self.policy_type: Literal[
+            "value", "policy", "discrete_policy", "mbrl", "usd"
+        ] = policy_type
 
         self.gamma = config.gamma
 
@@ -151,7 +153,7 @@ class Algorithm(ABC):
         """
         return 0.0
 
-    def epsiode_done(self):
+    def episode_done(self):
         """
         This method is called when an episode is done.
         It can be overridden in subclasses to perform any necessary cleanup or logging.
