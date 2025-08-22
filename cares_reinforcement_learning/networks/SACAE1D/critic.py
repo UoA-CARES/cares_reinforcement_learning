@@ -30,7 +30,6 @@ class Critic(EncoderCritic1D):
         
         
         if isinstance(observation_size, dict):
-            print(f"\n\nObservation size in critic: {observation_size['lidar']} {observation_size['vector']}\n\n")  # 683
             encoder = Encoder1D(
                 observation_size["lidar"],
                 latent_dim=ae_config.latent_dim,
@@ -48,6 +47,8 @@ class Critic(EncoderCritic1D):
             )
 
         critic_observation_size = encoder.latent_dim
+        if config.vector_observation:
+            critic_observation_size += observation_size["vector"]
 
         critic = SACCritic(critic_observation_size, num_actions, config)
 

@@ -41,7 +41,6 @@ class Actor(EncoderPolicy1D):
 
         ae_config = config.autoencoder_config
         if isinstance(observation_size, dict):
-            print(f"\n\nObservation size in actor: {observation_size['lidar']} {observation_size['vector']}\n\n")   # 683
             encoder = Encoder1D(
                 observation_size["lidar"],
                 latent_dim=ae_config.latent_dim,
@@ -62,7 +61,6 @@ class Actor(EncoderPolicy1D):
         if config.vector_observation:
             actor_observation_size += observation_size["vector"]    # 52: 2 vector + reduced lidar
         actor = SACActor(actor_observation_size, num_actions, config)
-
         super().__init__(
             encoder=encoder,
             actor=actor,

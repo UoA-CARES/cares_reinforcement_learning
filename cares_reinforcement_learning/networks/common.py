@@ -371,11 +371,10 @@ class EncoderPolicy1D(nn.Module):
         self.apply(hlp.weight_init)
 
     def forward(  # type: ignore
-        self, state: torch.Tensor | dict[str, torch.Tensor], detach_encoder: bool = False
+        self, state: torch.Tensor | dict[str, torch.Tensor], detach_encoder: bool = True
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
         if isinstance(state, dict):
-            print(f"\n\nState latent shape in Policy: {state['lidar'].shape}, {state['vector'].shape}\n\n")
             state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
         else:
             state_latent = self.encoder(state, detach_cnn=detach_encoder)
@@ -438,11 +437,10 @@ class EncoderCritic1D(nn.Module):
         self,
         state: torch.Tensor | dict[str, torch.Tensor],
         action: torch.Tensor,
-        detach_encoder: bool = False,
+        detach_encoder: bool = True,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
         if isinstance(state, dict):
-            print(f"\n\nState latent shape in Critic: {state['lidar'].shape}, {state['vector'].shape}\n\n")
             state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
         else:
             state_latent = self.encoder(state, detach_cnn=detach_encoder)

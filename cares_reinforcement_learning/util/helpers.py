@@ -82,10 +82,12 @@ def image_states_dict_to_tensor(
 def lidar_state_dict_to_tensor(
     state: dict[str, np.ndarray], device: torch.device
 ) -> dict[str, torch.Tensor]:
-    vector_tensor = torch.FloatTensor(state["vector"]+state["lidar"]).to(device)
+    lidar_tensor = torch.FloatTensor(state["lidar"]).to(device)
+    lidar_tensor = lidar_tensor.unsqueeze(0)
+    vector_tensor = torch.FloatTensor(state["vector"]).to(device)
     vector_tensor = vector_tensor.unsqueeze(0)
 
-    return {"lidar": vector_tensor, "vector": vector_tensor}
+    return {"lidar": lidar_tensor, "vector": vector_tensor}
 
 
 def lidar_states_dict_to_tensor(
