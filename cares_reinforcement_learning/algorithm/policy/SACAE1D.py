@@ -222,6 +222,9 @@ class SACAE1D(VectorAlgorithm):
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,
         )
+        
+        with open("ae_loss.txt", "a") as f:
+            f.write(f"{ae_loss.item()}\n")
 
         self.encoder_net_optimiser.zero_grad()
         self.decoder_net_optimiser.zero_grad()
