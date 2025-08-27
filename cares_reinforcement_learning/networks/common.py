@@ -353,6 +353,7 @@ class EncoderPolicy(nn.Module):
 
         return self.actor(actor_input)
 
+
 class EncoderPolicy1D(nn.Module):
     def __init__(
         self,
@@ -416,6 +417,7 @@ class EncoderCritic(nn.Module):
             critic_input = torch.cat([state["vector"], critic_input], dim=1)
 
         return self.critic(critic_input, action)
+
 
 class EncoderCritic1D(nn.Module):
     def __init__(

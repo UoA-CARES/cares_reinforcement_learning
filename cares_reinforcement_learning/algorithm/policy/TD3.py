@@ -300,9 +300,22 @@ class TD3(VectorAlgorithm):
 
     def load_models(self, filepath: str, filename: str) -> None:
         if torch.cuda.is_available():
-            self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-            self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+            self.actor_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_actor.pht")
+            )
+            self.critic_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_critic.pht")
+            )
         else:
-            self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht", map_location=torch.device('cpu')))
-            self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht", map_location=torch.device('cpu')))
+            self.actor_net.load_state_dict(
+                torch.load(
+                    f"{filepath}/{filename}_actor.pht", map_location=torch.device("cpu")
+                )
+            )
+            self.critic_net.load_state_dict(
+                torch.load(
+                    f"{filepath}/{filename}_critic.pht",
+                    map_location=torch.device("cpu"),
+                )
+            )
         logging.info("models has been loaded...")

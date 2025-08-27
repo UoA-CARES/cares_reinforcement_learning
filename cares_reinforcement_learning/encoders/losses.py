@@ -611,7 +611,7 @@ def _reconstruction_loss(
         Per image cross entropy (i.e. normalized per batch but not pixel and
         channel)
     """
-    
+
     # Check reconstructed_data dimensions
     if len(reconstructed_data.shape) == 4:
         # This is an image

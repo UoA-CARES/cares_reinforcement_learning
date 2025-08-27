@@ -531,6 +531,7 @@ class SACAE1DConfig(SACConfig):
         decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
     )
 
+
 class PERSACConfig(SACConfig):
     algorithm: str = Field("PERSAC", Literal=True)
 

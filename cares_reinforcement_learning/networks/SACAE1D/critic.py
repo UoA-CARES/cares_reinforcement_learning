@@ -24,11 +24,12 @@ class DefaultCritic(EncoderCritic1D):
 
 
 class Critic(EncoderCritic1D):
-    def __init__(self, observation_size: int | dict, num_actions: int, config: SACAE1DConfig):
+    def __init__(
+        self, observation_size: int | dict, num_actions: int, config: SACAE1DConfig
+    ):
 
         ae_config = config.autoencoder_config
-        
-        
+
         if isinstance(observation_size, dict):
             encoder = Encoder1D(
                 observation_size["lidar"],

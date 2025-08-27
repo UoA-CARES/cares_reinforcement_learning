@@ -35,7 +35,7 @@ class SACAE1D(VectorAlgorithm):
         super().__init__(policy_type="policy", config=config, device=device)
 
         self.vector_observation = config.vector_observation
-        
+
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
 
@@ -186,7 +186,7 @@ class SACAE1D(VectorAlgorithm):
 
         return info, priorities
 
-    def _update_actor_alpha(self, states:torch.Tensor) -> dict[str, Any]:
+    def _update_actor_alpha(self, states: torch.Tensor) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
 
         with hlp.evaluating(self.critic_net):
@@ -216,13 +216,13 @@ class SACAE1D(VectorAlgorithm):
     def _update_autoencoder(self, states: torch.Tensor) -> dict[str, Any]:
         latent_samples = self.critic_net.encoder(states)
         reconstructed_data = self.decoder_net(latent_samples)
-        
+
         ae_loss = self.ae_loss_function.calculate_loss(
             data=states,
             reconstructed_data=reconstructed_data,
             latent_sample=latent_samples,
         )
-        
+
         with open("ae_loss.txt", "a") as f:
             f.write(f"{ae_loss.item()}\n")
 
@@ -258,13 +258,17 @@ class SACAE1D(VectorAlgorithm):
 
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        
+
         if self.vector_observation:
             states_tensor = hlp.lidar_states_dict_to_tensor(states, self.device)
-            next_states_tensor = hlp.lidar_states_dict_to_tensor(next_states, self.device)
+            next_states_tensor = hlp.lidar_states_dict_to_tensor(
+                next_states, self.device
+            )
         else:
             states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-            next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
+            next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(
+                self.device
+            )
 
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
         weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
@@ -330,13 +334,26 @@ class SACAE1D(VectorAlgorithm):
 
     def load_models(self, filepath: str, filename: str) -> None:
         if torch.cuda.is_available():
-            self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-            self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+            self.actor_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_actor.pht")
+            )
+            self.critic_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_critic.pht")
+            )
             self.decoder_net.load_state_dict(
                 torch.load(f"{filepath}/{filename}_decoder.pht")
             )
         else:
-            self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"), map_location=torch.device('cpu'))
-            self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"), map_location=torch.device('cpu'))
-            self.decoder_net.load_state_dict(torch.load(f"{filepath}/{filename}_decoder.pht"), map_location=torch.device('cpu'))
+            self.actor_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_actor.pht"),
+                map_location=torch.device("cpu"),
+            )
+            self.critic_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_critic.pht"),
+                map_location=torch.device("cpu"),
+            )
+            self.decoder_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_decoder.pht"),
+                map_location=torch.device("cpu"),
+            )
         logging.info("models has been loaded...")
