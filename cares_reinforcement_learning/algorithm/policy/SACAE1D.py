@@ -329,9 +329,14 @@ class SACAE1D(VectorAlgorithm):
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        self.decoder_net.load_state_dict(
-            torch.load(f"{filepath}/{filename}_decoder.pht")
-        )
+        if torch.cuda.is_available():
+            self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+            self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+            self.decoder_net.load_state_dict(
+                torch.load(f"{filepath}/{filename}_decoder.pht")
+            )
+        else:
+            self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"), map_location=torch.device('cpu'))
+            self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"), map_location=torch.device('cpu'))
+            self.decoder_net.load_state_dict(torch.load(f"{filepath}/{filename}_decoder.pht"), map_location=torch.device('cpu'))
         logging.info("models has been loaded...")
