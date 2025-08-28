@@ -41,6 +41,46 @@ class FractionaLLeakyReLU(nn.Module):
         negative_side = (0.1 / np.math.gamma(2 - self.a)) * torch.where(x_clamped <= 0, torch.abs(x_clamped) ** (1 - self.a), torch.tensor(self.epsilon, device=x.device))
     
         return positive_side + negative_side
+class FractionaLLeakyReLU2(nn.Module):
+    def __init__(self, a=0.5, epsilon=1e-6, clip_value=1.0):
+        super().__init__()
+        self.a = a
+        self.epsilon = epsilon  # small value to replace zero input
+        self.clip_value = clip_value
+        self.k = 0.1
+        self.g = np.math.gamma(2 - a)
+
+    def forward(self, x):
+        # Positive side: x > 0
+        positive_side = torch.where(x > 0, (1.0 / self.g) * x ** (1 - self.a),
+                                    (1.0 / self.g) * torch.full_like(x, self.epsilon) * (x == 0))
+
+        # Negative side: x < 0
+        negative_side = torch.where(x < 0, - (self.k / self.g) * (-x) ** (1 - self.a),
+                                    - (self.k / self.g) * torch.full_like(x, self.epsilon) * (x == 0))
+
+        return positive_side + negative_side
+
+class FractionalPReLU(nn.Module):
+    def __init__(self, alpha=0.5, epsilon=1e-6):
+        super().__init__()
+        self.alpha = alpha
+        self.epsilon = epsilon  # small value for x=0
+        self.a = 1.5  # negative slope
+        self.g = np.math.gamma(2 - alpha)
+
+    def forward(self, x):
+        # Positive side: x > 0
+        positive_side = torch.where(x > 0,
+                                    (1.0 / self.g) * x ** (1 - self.alpha),
+                                    (1.0 / self.g) * torch.full_like(x, self.epsilon) * (x == 0))
+        # Negative side: x < 0
+        negative_side = torch.where(x < 0,
+                                    - (self.a / self.g) * (-x) ** (1 - self.alpha),
+                                    - (self.a / self.g) * torch.full_like(x, self.epsilon) * (x == 0))
+
+        return positive_side + negative_side
+
         
         
 class ReLU(nn.Module):
