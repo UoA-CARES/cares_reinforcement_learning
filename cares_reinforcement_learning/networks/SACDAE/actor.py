@@ -1,33 +1,51 @@
-import torch
-from torch import nn
-
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.SACD import Actor as SACDActor
+from cares_reinforcement_learning.networks.SACD import DefaultActor as DefaultSACDActor
+from cares_reinforcement_learning.networks.common import EncoderPolicy
+from cares_reinforcement_learning.util.configurations import SACDAEConfig
 
 
-class Actor(SACDActor):
-    # DiagGaussianActor
-    """torch.distributions implementation of an diagonal Gaussian policy."""
+class DefaultActor(EncoderPolicy):
+    def __init__(self, observation_size: dict, num_actions: int):
 
-    def __init__(
-        self,
-        encoder: Encoder,
-        num_actions: int,
-        hidden_size: list[int] = None,
-    ):
-        if hidden_size is None:
-            hidden_size = [1024, 1024]
+        encoder = Encoder(
+            observation_size["image"],
+            latent_dim=50,
+            num_layers=4,
+            num_filters=32,
+            kernel_size=3,
+        )
 
-        super().__init__(encoder.latent_dim, num_actions, hidden_size)
+        actor = DefaultSACDActor(
+            encoder.latent_dim, num_actions, hidden_sizes=[1024, 1024]
+        )
 
-        self.encoder = encoder
+        super().__init__(
+            encoder,
+            actor,
+        )
 
-        self.apply(hlp.weight_init)
 
-    def forward(
-        self, state: torch.Tensor, detach_encoder: bool = False
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state, detach_cnn=detach_encoder)
-        return super().forward(state_latent)
+class Actor(EncoderPolicy):
+    def __init__(self, observation_size: dict, num_actions: int, config: SACDAEConfig):
+
+        ae_config = config.autoencoder_config
+        encoder = Encoder(
+            observation_size["image"],
+            latent_dim=ae_config.latent_dim,
+            num_layers=ae_config.num_layers,
+            num_filters=ae_config.num_filters,
+            kernel_size=ae_config.kernel_size,
+        )
+
+        actor_observation_size = encoder.latent_dim
+        if config.vector_observation:
+            actor_observation_size += observation_size["vector"]
+
+        actor = SACDActor(actor_observation_size, num_actions, config=config)
+
+        super().__init__(
+            encoder=encoder,
+            actor=actor,
+            add_vector_observation=bool(config.vector_observation),
+        )

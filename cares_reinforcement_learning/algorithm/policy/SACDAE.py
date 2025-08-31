@@ -16,32 +16,25 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.encoders.configurations import VanillaAEConfig
+from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
+from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks.SACDAE import Actor, Critic
+from cares_reinforcement_learning.util.configurations import SACDAEConfig
 
 
-class SACDAE:
+
+class SACDAE(ImageAlgorithm):
     def __init__(
         self,
-        actor_network: torch.nn.Module,
-        critic_network: torch.nn.Module,
-        decoder_network: torch.nn.Module,
-        gamma: float,
-        tau: float,
-        reward_scale: float,
-        action_num: int,
-        actor_lr: float,
-        critic_lr: float,
-        alpha_lr: float,
-        target_entropy_multiplier: float,
-        encoder_tau: float,
-        decoder_update_freq: int,
-        ae_config: VanillaAEConfig,
+        actor_network: Actor,
+        critic_network: Critic,
+        decoder_network: Decoder,
+        config: SACDAEConfig,
         device: torch.device,
     ):
-        self.type = "discrete_policy"
-        self.device = device
+        super().__init__(policy_type="discrete_policy", config=config, device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -49,48 +42,52 @@ class SACDAE:
         # this may be called soft_q_net in other implementations
         self.critic_net = critic_network.to(device)
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+        self.target_critic_net.eval()
 
         # tie the encoder weights
         self.actor_net.encoder.copy_conv_weights_from(self.critic_net.encoder)
 
-        self.encoder_tau = encoder_tau
+        self.encoder_tau = config.encoder_tau
 
         self.decoder_net = decoder_network.to(device)
-        self.decoder_update_freq = decoder_update_freq
-        self.decoder_latent_lambda = ae_config.latent_lambda
+        self.decoder_update_freq = config.decoder_update_freq
+        self.decoder_latent_lambda = config.autoencoder_config.latent_lambda
 
-        self.gamma = gamma
-        self.tau = tau
-        self.reward_scale = reward_scale
+        self.gamma = config.gamma
+        self.tau = config.tau
+        self.reward_scale = config.reward_scale
+
+        # PER
+        self.use_per_buffer = config.use_per_buffer
+        self.per_sampling_strategy = config.per_sampling_strategy
+        self.per_weight_normalisation = config.per_weight_normalisation
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
 
         self.learn_counter = 0
-        self.policy_update_freq = 2
-        self.target_update_freq = 2
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
 
-        actor_beta = 0.9
-        critic_beta = 0.9
-        alpha_beta = 0.5
-
-        # set target entropy to -|A|
-        self.target_entropy = -np.prod(
-            np.log(1.0 / action_num) * target_entropy_multiplier
-        )
+        # self.target_entropy = -np.prod(
+        #     np.log(self.actor_net.num_actions) * config.target_entropy_multiplier
+        # ) - 1
+        self.target_entropy = -self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=actor_lr, betas=(actor_beta, 0.999)
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=critic_lr, betas=(critic_beta, 0.999)
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-        self.loss_function = AELoss(latent_lambda=ae_config.latent_lambda)
+        self.loss_function = AELoss(latent_lambda=config.autoencoder_config.latent_lambda)
 
         self.encoder_net_optimiser = torch.optim.Adam(
-            self.critic_net.encoder.parameters(), **ae_config.encoder_optim_kwargs
+            self.critic_net.encoder.parameters(), **config.autoencoder_config.encoder_optim_kwargs
         )
         self.decoder_net_optimiser = torch.optim.Adam(
             self.decoder_net.parameters(),
-            **ae_config.decoder_optim_kwargs,
+            **config.autoencoder_config.decoder_optim_kwargs,
         )
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 0.1 according to other baselines.
@@ -98,7 +95,7 @@ class SACDAE:
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=alpha_lr, betas=(alpha_beta, 0.999)
+            [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
     # pylint: disable-next=unused-argument
@@ -107,15 +104,15 @@ class SACDAE:
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state)
-            state_tensor = state_tensor.unsqueeze(0).to(self.device)
-            state_tensor = state_tensor / 255
+            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
+
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
             else:
                 (action, _, _) = self.actor_net(state_tensor)
+            action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
-        return action.item()
+        return action
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -128,45 +125,67 @@ class SACDAE:
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> tuple[float, float, float]:
+        weights: torch.Tensor,
+    ) -> tuple[dict[str, Any], np.ndarray]:
         with torch.no_grad():
-            _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                _, (action_probs, log_actions_probs), next_actions = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states
+                next_states, []
             )
 
             temp_min_qf_next_target = action_probs * (
                 torch.minimum(target_q_values_one, target_q_values_two)
                 - self.alpha * log_actions_probs
             )
-            target_q_values = temp_min_qf_next_target.sum(dim=1).unsqueeze(-1)
+            target_q_values = temp_min_qf_next_target
 
             q_target = (
                 rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
             )
 
-        q_values_one, q_values_two = self.critic_net(states)
+        q_values_one, q_values_two = self.critic_net(states, [])
 
-        gathered_q_values_one = q_values_one.gather(1, actions.long().unsqueeze(-1))
-        gathered_q_values_two = q_values_two.gather(1, actions.long().unsqueeze(-1))
+        td_error_one = (q_values_one - q_target).abs()
+        td_error_two = (q_values_two - q_target).abs()
 
-        critic_loss_one = F.mse_loss(gathered_q_values_one, q_target)
-        critic_loss_two = F.mse_loss(gathered_q_values_two, q_target)
+        critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
+        critic_loss_one = (critic_loss_one * weights).mean()
+
+        critic_loss_two = F.mse_loss(q_values_two, q_target, reduction="none")
+        critic_loss_two = (critic_loss_two * weights).mean()
+        
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
-        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+        # Update the Priorities - PER only
+        priorities = (
+            torch.max(td_error_one, td_error_two)
+            .clamp(self.min_priority)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
+
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
+
+        return info, priorities
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(
             states, detach_encoder=True
         )
 
-        qf1_pi, qf2_pi = self.critic_net(states, detach_encoder=True)
+        qf1_pi, qf2_pi = self.critic_net(states, [], detach_encoder=True)
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
         inside_term = self.alpha * log_action_probs - min_qf_pi
@@ -187,7 +206,12 @@ class SACDAE:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
+
+        return info
 
     def _update_autoencoder(self, states: torch.Tensor) -> float:
         latent_samples = self.critic_net.encoder(states)
@@ -205,56 +229,71 @@ class SACDAE:
         self.encoder_net_optimiser.step()
         self.decoder_net_optimiser.step()
 
-        return ae_loss.item()
+        info = {
+            "ae_loss": ae_loss.item(),
+        }
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        return info
+
+    def train_policy(self, memory: MemoryBuffer, batch_size: int, training_step: int) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        if self.use_per_buffer:
+            experiences = memory.sample_priority(
+                batch_size,
+                sampling_strategy=self.per_sampling_strategy,
+                weight_normalisation=self.per_weight_normalisation,
+            )
+            states, actions, rewards, next_states, dones, indices, priorities = experiences
+        else:
+            experiences = memory.sample_uniform(batch_size)
+            states, actions, rewards, next_states, dones, _ = experiences
+            weights = [1.0] * batch_size
 
         batch_size = len(states)
 
-        # Convert into tensor
-        states = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions = torch.LongTensor(np.asarray(actions)).to(self.device)
-        rewards = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones = torch.LongTensor(np.asarray(dones)).to(self.device)
+        states_tensor = hlp.image_states_dict_to_tensor(states, self.device)
+
+        actions_tensor = torch.LongTensor(np.asarray(actions)).to(self.device)
+        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
+
+        next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
+
+        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
 
         # Reshape to batch_size x whatever
-        rewards = rewards.unsqueeze(0).reshape(batch_size, 1)
-        dones = dones.unsqueeze(0).reshape(batch_size, 1)
+        # actions_tensor = actions_tensor.reshape(batch_size, 1)
+        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
+        dones_tensor = dones_tensor.reshape(batch_size, 1)
+        weights_tensor = weights_tensor.reshape(batch_size, 1)
 
-        # Normalise states and next_states
-        # This because the states are [0-255] and the predictions are [0-1]
-        states_normalised = states / 255
-        next_states_normalised = next_states / 255
-
-        info = {}
+        info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states_normalised, actions, rewards, next_states_normalised, dones
+        critic_info, priorities = self._update_critic(
+            states_tensor, 
+            actions_tensor, 
+            rewards_tensor, 
+            next_states_tensor, 
+            dones_tensor,
+            weights_tensor,
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["critic_loss"] = critic_loss_total
+        info |= critic_info
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            actor_loss, alpha_loss = self._update_actor_alpha(states_normalised)
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
+            actor_info = self._update_actor_alpha(states_tensor)
+            info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update the target networks - Soft Update
             hlp.soft_update_params(
-                self.critic_net.Q1, self.target_critic_net.Q1, self.tau
+                self.critic_net.critic.Q1, self.target_critic_net.critic.Q1, self.tau
             )
             hlp.soft_update_params(
-                self.critic_net.Q2, self.target_critic_net.Q2, self.tau
+                self.critic_net.critic.Q2, self.target_critic_net.critic.Q2, self.tau
             )
             hlp.soft_update_params(
                 self.critic_net.encoder,
@@ -263,27 +302,27 @@ class SACDAE:
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_loss = self._update_autoencoder(states_normalised)
-            info["ae_loss"] = ae_loss
+            ae_info = self._update_autoencoder(states_tensor["image"])
+            info |= ae_info
+
+        # Update the Priorities
+        if self.use_per_buffer:
+            memory.update_priorities(indices, priorities)
 
         return info
 
-    def save_models(self, filename: str, filepath: str = "models") -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-        dir_exists = os.path.exists(path)
-
-        if not dir_exists:
-            os.makedirs(path)
-
-        torch.save(self.actor_net.state_dict(), f"{path}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{path}/{filename}_critic.pht")
-        torch.save(self.decoder_net.state_dict(), f"{path}/{filename}_decoder.pht")
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
+        torch.save(self.decoder_net.state_dict(), f"{filepath}/{filename}_decoder.pht")
         logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        path = f"{filepath}/models" if filepath != "models" else filepath
-
-        self.actor_net.load_state_dict(torch.load(f"{path}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{path}/{filename}_critic.pht"))
-        self.decoder_net.load_state_dict(torch.load(f"{path}/{filename}_decoder.pht"))
+        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
+        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
+        self.decoder_net.load_state_dict(
+            torch.load(f"{filepath}/{filename}_decoder.pht")
+        )
         logging.info("models has been loaded...")
