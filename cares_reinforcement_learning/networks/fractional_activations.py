@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import torch
 import numpy as np
-
+import torch.nn.functional as F
 
 class FractionalReLUPositive(nn.Module):
-    def __init__(self, a=0.5, epsilon=1e-6, clip_value=1.0):
+    def __init__(self, a=0.1, epsilon=1e-6, clip_value=1.0):
         super().__init__()
         self.a = a
         self.epsilon = epsilon
@@ -23,6 +23,65 @@ class FractionalReLUPositive(nn.Module):
         # Apply scaled positive and negative parts
         output = torch.where(x > 0, positive_part,  negative_part)
         return output
+class FPReLU2(nn.Module):
+    def __init__(self, a=0.2, parameter_init=1.5):
+        super().__init__()
+        self.a = nn.Parameter(torch.tensor(a), requires_grad=False)  # fix a
+        self.p_raw = nn.Parameter(torch.tensor(parameter_init))  # learnable
+        self.g = float(np.math.gamma(2 - float(a)))
+
+    def p(self):
+        # positive, smooth, and not huge; adjust shift if needed
+        return F.softplus(self.p_raw)
+
+    def forward(self, x):
+        # Safe masks + exact f(0)=0; stable backprop near zero
+        pos = (x > 0).float() * (x.clamp_min(1e-8) ** (1 - self.a)) / self.g
+        neg = (x < 0).float() * (-(self.p()) / self.g) * ((-x).clamp_min(1e-8) ** (1 - self.a))
+        return pos + neg
+
+class FParReLU(nn.Module):
+    def __init__(self, a=0.1, k_init=1.5):
+        super().__init__()
+        self.a = nn.Parameter(torch.tensor(a), requires_grad=False)   # fixed exponent
+        self.k = nn.Parameter(torch.tensor(k_init), requires_grad=True)  # learnable slope
+        self.g = np.math.gamma(2 - float(a))  # normalization factor
+
+    def forward(self, x):
+        eps = 1e-8  # small value for numerical stability
+        pos_mask = (x > 0).float()
+        neg_mask = (x < 0).float()
+
+        # Positive side (x > 0)
+        positive_side = pos_mask * (1.0 / self.g) * (torch.clamp(x, min=eps) ** (1 - self.a))
+
+        # Negative side (x < 0) -> k >= 1 makes it parametric
+        negative_side = neg_mask * (-(torch.clamp(self.k, 0.5, 3.0) / self.g) *
+                                    (torch.clamp(-x, min=eps) ** (1 - self.a)))
+
+        # Zero stays zero
+        return positive_side + negative_side
+
+class FLReLU2(nn.Module):
+    def __init__(self, a=0.1, k_init=0.1):
+        super().__init__()
+        self.a = nn.Parameter(torch.tensor(a), requires_grad=False)  # fixed exponent
+        self.k = nn.Parameter(torch.tensor(k_init), requires_grad=True)  # learnable slope
+        self.g = np.math.gamma(2 - float(a))
+
+    def forward(self, x):
+        pos_mask = (x > 0).float()
+        neg_mask = (x < 0).float()
+
+        # Positive side (x > 0)
+        positive_side = pos_mask * (1.0 / self.g) * (torch.clamp(x, min=1e-8) ** (1 - self.a))
+
+        # Negative side (x < 0)
+        negative_side = neg_mask * (-(torch.clamp(self.k, 0.01, 0.3) / self.g) *
+                                    (torch.clamp(-x, min=1e-8) ** (1 - self.a)))
+
+        # For x == 0 → output = 0
+        return positive_side + negative_side
 
 class FractionaLLeakyReLU(nn.Module):
     def __init__(self, a=0.5, epsilon=1e-6, clip_value=1.0):
@@ -41,13 +100,14 @@ class FractionaLLeakyReLU(nn.Module):
         negative_side = (0.1 / np.math.gamma(2 - self.a)) * torch.where(x_clamped <= 0, torch.abs(x_clamped) ** (1 - self.a), torch.tensor(self.epsilon, device=x.device))
     
         return positive_side + negative_side
-class FractionaLLeakyReLU2(nn.Module):
-    def __init__(self, a=0.5, epsilon=1e-6, clip_value=1.0):
+
+class FLReLU(nn.Module):
+    def __init__(self, a=0.1, epsilon=1e-6, clip_value=1.0):
         super().__init__()
         self.a = a
         self.epsilon = epsilon  # small value to replace zero input
         self.clip_value = clip_value
-        self.k = 0.1
+        self.k = 1.5
         self.g = np.math.gamma(2 - a)
 
     def forward(self, x):
