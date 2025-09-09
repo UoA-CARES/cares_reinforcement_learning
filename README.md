@@ -183,10 +183,6 @@ python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A
 
 Provides baseline data classes for environment, training, and algorithm configurations to allow for consistent recording of training parameters.
 
-## RLParser.py
-
-Provides a means of loading environment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
-
 ## NetworkFactory.py
 
 A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package.
