@@ -53,7 +53,7 @@ class SDAR(BaseSAC):
     def beta(self) -> torch.Tensor:
         return self.log_beta.exp()
 
-    def epsiode_done(self):
+    def episode_done(self):
         # Reset the previous action to the dummy action
         self.prev_action_tensor = torch.zeros(
             (1, self.actor_net.num_actions), device=self.device
