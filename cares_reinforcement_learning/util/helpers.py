@@ -80,6 +80,31 @@ def image_states_dict_to_tensor(
     return {"image": states_images_tensor, "vector": states_vector_tensor}
 
 
+def lidar_state_dict_to_tensor(
+    state: dict[str, np.ndarray], device: torch.device
+) -> dict[str, torch.Tensor]:
+    lidar_tensor = torch.FloatTensor(state["lidar"]).to(device)
+    lidar_tensor = lidar_tensor.unsqueeze(0)
+    vector_tensor = torch.FloatTensor(state["vector"]).to(device)
+    vector_tensor = vector_tensor.unsqueeze(0)
+
+    return {"lidar": lidar_tensor, "vector": vector_tensor}
+
+
+def lidar_states_dict_to_tensor(
+    states: list[dict[str, np.ndarray]], device: torch.device
+) -> dict[str, torch.Tensor]:
+    states_lidar = [state["lidar"] for state in states]
+    states_vector = [state["vector"] for state in states]
+
+    states_lidar_tensor = torch.from_numpy(np.asarray(states_lidar)).float().to(device)
+    states_vector_tensor = (
+        torch.from_numpy(np.asarray(states_vector)).float().to(device)
+    )
+
+    return {"lidar": states_lidar_tensor, "vector": states_vector_tensor}
+
+
 def set_seed(seed: int) -> None:
     """
     Set the random seed for reproducibility.

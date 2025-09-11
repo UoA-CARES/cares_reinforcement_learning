@@ -466,6 +466,68 @@ class SACAEConfig(SACConfig):
     )
 
 
+class SACAE1DConfig(SACConfig):
+    algorithm: str = Field("SACAE1D", Literal=True)
+
+    # Vector observation for linear and angular
+    vector_observation: Literal[1] = Field(default=1, frozen=True)
+    batch_size: int = 128
+
+    actor_lr: float = 1e-3
+    actor_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.9, 0.999)}
+    )
+    critic_lr: float = 1e-3
+    critic_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.9, 0.999)}
+    )
+    alpha_lr: float = 1e-4
+    alpha_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"betas": (0.5, 0.999)}
+    )
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    reward_scale: float = 1.0
+
+    log_std_bounds: list[float] = [-20, 2]
+
+    policy_update_freq: int = 2
+    target_update_freq: int = 2
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )
+
+    encoder_tau: float = 0.05
+    decoder_update_freq: int = 1
+
+    autoencoder_config: VanillaAEConfig = VanillaAEConfig(
+        latent_dim=50,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
+
+
 class PERSACConfig(SACConfig):
     algorithm: str = Field("PERSAC", Literal=True)
 

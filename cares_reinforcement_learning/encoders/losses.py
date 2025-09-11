@@ -45,6 +45,7 @@ class AELoss:
             The calculated loss.
 
         """
+
         rec_loss = _reconstruction_loss(
             data, reconstructed_data, distribution=ReconDist.GAUSSIAN
         )
@@ -610,7 +611,19 @@ def _reconstruction_loss(
         Per image cross entropy (i.e. normalized per batch but not pixel and
         channel)
     """
-    batch_size, _, _, _ = reconstructed_data.size()
+
+    # Check reconstructed_data dimensions
+    if len(reconstructed_data.shape) == 4:
+        # This is an image
+        batch_size, _, _, _ = reconstructed_data.size()
+    elif len(reconstructed_data.shape) == 2:
+        # This is a vector
+        batch_size, _ = reconstructed_data.size()
+    else:
+        raise ValueError(
+            f"Invalid shape for reconstructed_data: {reconstructed_data.shape}. "
+            "Expected 2D or 4D tensor."
+        )
 
     if distribution == ReconDist.BERNOULLI:
         loss = (

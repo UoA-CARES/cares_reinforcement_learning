@@ -15,6 +15,7 @@ from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     Encoder,
     VanillaAutoencoder,
+    Encoder1D,
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.util.configurations import (
@@ -353,6 +354,39 @@ class EncoderPolicy(nn.Module):
         return self.actor(actor_input)
 
 
+class EncoderPolicy1D(nn.Module):
+    def __init__(
+        self,
+        encoder: Encoder1D,
+        actor: BasePolicy,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.num_actions = actor.num_actions
+        self.encoder = encoder
+        self.actor = actor
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(  # type: ignore
+        self, state: torch.Tensor | dict[str, torch.Tensor], detach_encoder: bool = True
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        # Detach at the CNN layer to prevent backpropagation through the encoder
+        if isinstance(state, dict):
+            state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
+        else:
+            state_latent = self.encoder(state, detach_cnn=detach_encoder)
+
+        actor_input = state_latent
+        if isinstance(state, dict):
+            actor_input = torch.cat([state["vector"], actor_input], dim=1)
+
+        return self.actor(actor_input)
+
+
 class EncoderCritic(nn.Module):
     def __init__(
         self,
@@ -380,6 +414,42 @@ class EncoderCritic(nn.Module):
 
         critic_input = state_latent
         if self.add_vector_observation:
+            critic_input = torch.cat([state["vector"], critic_input], dim=1)
+
+        return self.critic(critic_input, action)
+
+
+class EncoderCritic1D(nn.Module):
+    def __init__(
+        self,
+        encoder: Encoder1D,
+        critic: BaseCritic,
+        add_vector_observation: bool = False,
+    ):
+        super().__init__()
+
+        self.encoder = encoder
+        self.critic = critic
+
+        self.add_vector_observation = add_vector_observation
+
+        self.apply(hlp.weight_init)
+
+    def forward(
+        self,
+        state: torch.Tensor | dict[str, torch.Tensor],
+        action: torch.Tensor,
+        detach_encoder: bool = True,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        # Detach at the CNN layer to prevent backpropagation through the encoder
+        if isinstance(state, dict):
+            state_latent = self.encoder(state["lidar"], detach_cnn=detach_encoder)
+        else:
+            state_latent = self.encoder(state, detach_cnn=detach_encoder)
+
+        critic_input = state_latent
+        if self.add_vector_observation:
+            print()
             critic_input = torch.cat([state["vector"], critic_input], dim=1)
 
         return self.critic(critic_input, action)

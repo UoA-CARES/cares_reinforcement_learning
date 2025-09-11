@@ -184,6 +184,45 @@ def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
     return agent
 
 
+def create_SACAE1D(observation_size: int | dict, action_num, config: acf.SACAE1DConfig):
+    from cares_reinforcement_learning.algorithm.policy.SACAE1D import SACAE1D
+    from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder1D
+    from cares_reinforcement_learning.networks.SACAE1D import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    ae_config = config.autoencoder_config
+    if isinstance(observation_size, dict):
+        decoder = Decoder1D(
+            observation_size["lidar"],
+            out_dim=actor.encoder.out_dim,
+            latent_dim=ae_config.latent_dim,
+            num_layers=ae_config.num_layers,
+            num_filters=ae_config.num_filters,
+            kernel_size=ae_config.kernel_size,
+        )
+    else:
+        decoder = Decoder1D(
+            observation_size,
+            out_dim=actor.encoder.out_dim,
+            latent_dim=ae_config.latent_dim,
+            num_layers=ae_config.num_layers,
+            num_filters=ae_config.num_filters,
+            kernel_size=ae_config.kernel_size,
+        )
+
+    device = hlp.get_device()
+    agent = SACAE1D(
+        actor_network=actor,
+        critic_network=critic,
+        decoder_network=decoder,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
     from cares_reinforcement_learning.algorithm.policy import PERSAC
     from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
