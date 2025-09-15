@@ -293,7 +293,8 @@ class SACConfig(AlgorithmConfig):
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),
-            FunctionLayer(layer_type="FractionalReLUPositive"),
+            #FunctionLayer(layer_type="FractionalReLUPositive"),
+            FunctionLayer(layer_type="FLReLU2"),
             # TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             # FunctionLayer(layer_type="ReLU"),
         ]
@@ -302,7 +303,8 @@ class SACConfig(AlgorithmConfig):
     critic_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),
-            FunctionLayer(layer_type="FractionalReLUPositive"),
+            #FunctionLayer(layer_type="FractionalReLUPositive"),
+            FunctionLayer(layer_type="FLReLU2"),
             #FunctionLayer(layer_type="FractionalReLU"),
             # TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             # FunctionLayer(layer_type="ReLU"),
