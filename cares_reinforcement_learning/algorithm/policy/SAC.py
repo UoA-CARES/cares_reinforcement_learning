@@ -18,8 +18,6 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
-    BaseCritic,
-    BasePolicy,
     EnsembleCritic,
     TanhGaussianPolicy,
     TwinQNetwork,
@@ -27,11 +25,14 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class BaseSAC(VectorAlgorithm):
+class SAC(VectorAlgorithm):
+    actor_net: TanhGaussianPolicy
+    critic_net: TwinQNetwork | EnsembleCritic
+
     def __init__(
         self,
-        actor_network: BasePolicy,
-        critic_network: BaseCritic,
+        actor_network: TanhGaussianPolicy,
+        critic_network: TwinQNetwork | EnsembleCritic,
         config: SACConfig,
         device: torch.device,
     ):
@@ -115,25 +116,6 @@ class BaseSAC(VectorAlgorithm):
         self.learn_counter = checkpoint.get("learn_counter", 0)
 
         logging.info("models, optimisers, and training state have been loaded...")
-
-
-class SAC(BaseSAC):
-    actor_net: TanhGaussianPolicy
-    critc_net: TwinQNetwork | EnsembleCritic
-
-    def __init__(
-        self,
-        actor_network: TanhGaussianPolicy,
-        critic_network: TwinQNetwork | EnsembleCritic,
-        config: SACConfig,
-        device: torch.device,
-    ):
-        super().__init__(
-            actor_network=actor_network,
-            critic_network=critic_network,
-            config=config,
-            device=device,
-        )
 
     def select_action_from_policy(
         self,

@@ -2,6 +2,9 @@
 https://openreview.net/pdf?id=PDgZ3rvqHn
 """
 
+import copy
+import logging
+import os
 from typing import Any
 
 import numpy as np
@@ -9,13 +12,13 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.policy import BaseSAC
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SDARConfig
 
 
-class SDAR(BaseSAC):
+class SDAR(VectorAlgorithm):
     actor_network: Actor
     critic_network: Critic
 
@@ -26,13 +29,49 @@ class SDAR(BaseSAC):
         config: SDARConfig,
         device: torch.device,
     ):
-        super().__init__(
-            actor_network=actor_network,
-            critic_network=critic_network,
-            config=config,
-            device=device,
+        super().__init__(policy_type="policy", config=config, device=device)
+
+        # SAC-style initialization
+        self.gamma = config.gamma
+        self.tau = config.tau
+        self.reward_scale = config.reward_scale
+
+        # PER
+        self.use_per_buffer = config.use_per_buffer
+        self.per_sampling_strategy = config.per_sampling_strategy
+        self.per_weight_normalisation = config.per_weight_normalisation
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
+
+        self.learn_counter = 0
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
+
+        # Networks
+        self.actor_net = actor_network.to(self.device)
+        self.critic_net = critic_network.to(self.device)
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
+        self.target_critic_net.eval()
+
+        self.target_entropy = -self.actor_net.num_actions
+
+        # Optimizers
+        self.actor_net_optimiser = torch.optim.Adam(
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
+        )
+        self.critic_net_optimiser = torch.optim.Adam(
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
+        # Alpha (entropy regularization)
+        alpha_init_temperature = 1.0
+        self.log_alpha = torch.tensor(np.log(alpha_init_temperature)).to(device)
+        self.log_alpha.requires_grad = True
+        self.log_alpha_optimizer = torch.optim.Adam(
+            [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
+        )
+
+        # SDAR-specific initialization
         self.prev_action_tensor = torch.zeros(
             (1, self.actor_net.num_actions), device=self.device
         )
@@ -41,13 +80,17 @@ class SDAR(BaseSAC):
 
         self.target_beta = -0.5 * self.actor_net.num_actions
 
-        # Set to initial beta to 1.0 according to other baselines.
-        init_temperature = 1.0
-        self.log_beta = torch.tensor(np.log(init_temperature)).to(device)
+        # Beta (action regularization specific to SDAR)
+        beta_init_temperature = 1.0
+        self.log_beta = torch.tensor(np.log(beta_init_temperature)).to(device)
         self.log_beta.requires_grad = True
         self.log_beta_optimizer = torch.optim.Adam(
             [self.log_beta], lr=config.beta_lr, **config.beta_lr_params
         )
+
+    @property
+    def alpha(self) -> torch.Tensor:
+        return self.log_alpha.exp()
 
     @property
     def beta(self) -> torch.Tensor:
@@ -272,21 +315,42 @@ class SDAR(BaseSAC):
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:
-        super().save_models(filepath, filename)
-        # Save SDAR-specific beta parameters and optimizer
-        beta_state = {
-            # Save log_beta as a float, not a numpy array
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
+            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
             "log_beta": float(self.log_beta.detach().cpu().item()),
             "log_beta_optimizer": self.log_beta_optimizer.state_dict(),
             "target_beta": self.target_beta,
+            "learn_counter": int(self.learn_counter),
         }
-        torch.save(beta_state, f"{filepath}/{filename}_sdar_beta.pth")
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        super().load_models(filepath, filename)
-        # Load SDAR-specific beta parameters and optimizer
-        beta_state = torch.load(f"{filepath}/{filename}_sdar_beta.pth")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
 
-        self.log_beta.data = torch.tensor(beta_state["log_beta"]).to(self.device)
-        self.log_beta_optimizer.load_state_dict(beta_state["log_beta_optimizer"])
-        self.target_beta = beta_state.get("target_beta", self.target_beta)
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.critic_net.load_state_dict(checkpoint["critic"])
+
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+
+        self.log_beta.data = torch.tensor(checkpoint["log_beta"]).to(self.device)
+        self.log_beta_optimizer.load_state_dict(checkpoint["log_beta_optimizer"])
+        self.target_beta = checkpoint.get("target_beta", self.target_beta)
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        logging.info("models, optimisers, and training state have been loaded...")
