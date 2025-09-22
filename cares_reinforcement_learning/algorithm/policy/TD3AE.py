@@ -330,9 +330,6 @@ class TD3AE(ImageAlgorithm):
             "learn_counter": self.learn_counter,
             "policy_noise": self.policy_noise,
             "action_noise": self.action_noise,
-            # Save log_alpha as a float, not a numpy array
-            "log_alpha": float(self.log_alpha.detach().cpu().item()),
-            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
         }
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models, optimisers, and training state have been saved...")
@@ -357,9 +354,4 @@ class TD3AE(ImageAlgorithm):
 
         self.policy_noise = checkpoint.get("policy_noise", self.policy_noise)
         self.action_noise = checkpoint.get("action_noise", self.action_noise)
-
-        # Restore log_alpha as tensor from float
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
-        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
-
         logging.info("models, optimisers, and training state have been loaded...")
