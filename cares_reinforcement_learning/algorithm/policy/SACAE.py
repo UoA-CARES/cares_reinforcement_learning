@@ -307,15 +307,39 @@ class SACAE(ImageAlgorithm):
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
-        torch.save(self.decoder_net.state_dict(), f"{filepath}/{filename}_decoder.pht")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "decoder": self.decoder_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            "encoder_optimizer": self.encoder_net_optimiser.state_dict(),
+            "decoder_optimizer": self.decoder_net_optimiser.state_dict(),
+            "log_alpha": self.log_alpha.detach().cpu().item(),
+            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
+            "learn_counter": self.learn_counter,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        self.decoder_net.load_state_dict(
-            torch.load(f"{filepath}/{filename}_decoder.pht")
-        )
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.critic_net.load_state_dict(checkpoint["critic"])
+
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+
+        self.decoder_net.load_state_dict(checkpoint["decoder"])
+
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+        self.encoder_net_optimiser.load_state_dict(checkpoint["encoder_optimizer"])
+        self.decoder_net_optimiser.load_state_dict(checkpoint["decoder_optimizer"])
+
+        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+        logging.info("models, optimisers, and training state have been loaded...")

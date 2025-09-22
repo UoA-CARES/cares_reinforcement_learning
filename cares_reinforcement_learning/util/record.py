@@ -32,7 +32,7 @@ class Record:
         task: str,
         agent: Algorithm | None = None,
         record_video: bool = True,
-        record_memory: bool = False,
+        record_checkpoints: bool = False,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -50,7 +50,7 @@ class Record:
 
         self.agent = agent
 
-        self.record_memory = record_memory
+        self.record_checkpoints = record_checkpoints
         self.memory_buffer: MemoryBuffer | None = None
 
         self.record_video = record_video
@@ -100,10 +100,10 @@ class Record:
         self.record_video = False
 
     def enable_record_memory(self) -> None:
-        self.record_memory = True
+        self.record_checkpoints = True
 
     def disable_record_memory(self) -> None:
-        self.record_memory = False
+        self.record_checkpoints = False
 
     def start_video(self, file_name: str, frame: np.ndarray, fps: int = 30) -> None:
         if not self.record_video:
@@ -132,8 +132,9 @@ class Record:
             return
         self.video.release()
 
-    def save_memory(self):
-        if not self.record_memory:
+    def _save_checkpoint(self, total_steps: int) -> None:
+        if not self.record_checkpoints:
+            logging.warning("Checkpoint saving is disabled")
             return
 
         if self.memory_buffer is None:
@@ -142,9 +143,15 @@ class Record:
             )
             return
 
+        if self.agent is None:
+            logging.warning("Agent is not set - use set_agent method first")
+            return
+
         self.memory_buffer.save(
             filepath=f"{self.current_sub_directory}/memory", file_name="memory"
         )
+
+        self.save_agent(f"{self.algorithm}", "checkpoint")
 
     def save_agent(self, file_name: str, folder_name: str) -> None:
         if self.agent is not None:
@@ -182,7 +189,8 @@ class Record:
         )
         self._save_data(self.train_data, "train.csv", logs, display=display)
 
-        self.save_memory()
+        if self.record_checkpoints:
+            self._save_checkpoint(logs["total_steps"])
 
         plt.plot_train(
             self.train_data,
@@ -202,6 +210,11 @@ class Record:
             self.best_reward = reward
 
             self.save_agent(f"{self.algorithm}", "highest_reward")
+
+    def get_last_logged_step(self) -> int:
+        if self.train_data.empty:
+            return 0
+        return int(self.train_data["total_steps"].iloc[-1])
 
     def log_eval(self, display: bool = False, **logs) -> None:
         self.eval_data = pd.concat(
@@ -243,6 +256,18 @@ class Record:
             )
 
         self.save_agent(f"{self.algorithm}", "final")
+
+    def load(self, base_directory: str) -> None:
+        """
+        Loads training and evaluation data from the given base directory into the Record instance.
+        """
+        train_path = os.path.join(base_directory, "data", "train.csv")
+        eval_path = os.path.join(base_directory, "data", "eval.csv")
+
+        if os.path.exists(train_path):
+            self.train_data = pd.read_csv(train_path)
+        if os.path.exists(eval_path):
+            self.eval_data = pd.read_csv(eval_path)
 
     def __initialise_base_directory(self) -> None:
         if not os.path.exists(self.base_directory):

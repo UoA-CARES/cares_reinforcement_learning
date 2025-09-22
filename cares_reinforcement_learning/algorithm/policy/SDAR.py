@@ -41,7 +41,7 @@ class SDAR(BaseSAC):
 
         self.target_beta = -0.5 * self.actor_net.num_actions
 
-        # Set to initial alpha to 1.0 according to other baselines.
+        # Set to initial beta to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_beta = torch.tensor(np.log(init_temperature)).to(device)
         self.log_beta.requires_grad = True
@@ -270,3 +270,23 @@ class SDAR(BaseSAC):
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        super().save_models(filepath, filename)
+        # Save SDAR-specific beta parameters and optimizer
+        beta_state = {
+            # Save log_beta as a float, not a numpy array
+            "log_beta": float(self.log_beta.detach().cpu().item()),
+            "log_beta_optimizer": self.log_beta_optimizer.state_dict(),
+            "target_beta": self.target_beta,
+        }
+        torch.save(beta_state, f"{filepath}/{filename}_sdar_beta.pth")
+
+    def load_models(self, filepath: str, filename: str) -> None:
+        super().load_models(filepath, filename)
+        # Load SDAR-specific beta parameters and optimizer
+        beta_state = torch.load(f"{filepath}/{filename}_sdar_beta.pth")
+
+        self.log_beta.data = torch.tensor(beta_state["log_beta"]).to(self.device)
+        self.log_beta_optimizer.load_state_dict(beta_state["log_beta_optimizer"])
+        self.target_beta = beta_state.get("target_beta", self.target_beta)
