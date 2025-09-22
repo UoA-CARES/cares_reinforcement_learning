@@ -9,6 +9,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
@@ -152,21 +153,21 @@ class REDQ(SAC):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
+        # Use the helper to sample and prepare tensors in one step
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            _,
+            _,
+        ) = tu.sample_and_prepare_batch(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
+            use_per_buffer=0,  # REDQ uses uniform sampling
+        )
 
         info: dict[str, Any] = {}
 
