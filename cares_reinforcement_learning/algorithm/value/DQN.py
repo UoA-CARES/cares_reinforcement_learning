@@ -223,9 +223,23 @@ class DQN(VectorAlgorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        torch.save(self.network.state_dict(), f"{filepath}/{filename}_network.pht")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "network": self.network.state_dict(),
+            "target_network": self.target_network.state_dict(),
+            "optimizer": self.network_optimiser.state_dict(),
+            "learn_counter": self.learn_counter,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models and optimiser have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.network.load_state_dict(torch.load(f"{filepath}/{filename}_network.pht"))
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.network.load_state_dict(checkpoint["network"])
+        self.target_network.load_state_dict(checkpoint["target_network"])
+
+        self.network_optimiser.load_state_dict(checkpoint["optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        logging.info("models, optimiser, and learn_counter have been loaded...")

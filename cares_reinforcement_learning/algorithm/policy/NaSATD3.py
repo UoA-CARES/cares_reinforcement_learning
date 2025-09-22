@@ -430,28 +430,45 @@ class NaSATD3(ImageAlgorithm):
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
-
-        torch.save(self.actor.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic.state_dict(), f"{filepath}/{filename}_critic.pht")
-        torch.save(
-            self.autoencoder.encoder.state_dict(), f"{filepath}/{filename}_encoder.pht"
-        )
-        torch.save(
-            self.autoencoder.decoder.state_dict(), f"{filepath}/{filename}_decoder.pht"
-        )
-        torch.save(
-            self.ensemble_predictive_model.state_dict(),
-            f"{filepath}/{filename}_ensemble.pht",
-        )
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor.state_dict(),
+            "critic": self.critic.state_dict(),
+            "actor_target": self.actor_target.state_dict(),
+            "critic_target": self.critic_target.state_dict(),
+            "encoder": self.autoencoder.encoder.state_dict(),
+            "decoder": self.autoencoder.decoder.state_dict(),
+            "ensemble": self.ensemble_predictive_model.state_dict(),
+            "actor_optimizer": self.actor_optimizer.state_dict(),
+            "critic_optimizer": self.critic_optimizer.state_dict(),
+            "epm_optimizers": [opt.state_dict() for opt in self.epm_optimizers],
+            "learn_counter": self.learn_counter,
+            "policy_noise": self.policy_noise,
+            "action_noise": self.action_noise,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        self.autoencoder.encoder.load_state_dict(
-            torch.load(f"{filepath}/{filename}_encoder.pht")
-        )
-        self.autoencoder.decoder.load_state_dict(
-            torch.load(f"{filepath}/{filename}_decoder.pht")
-        )
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor.load_state_dict(checkpoint["actor"])
+        self.critic.load_state_dict(checkpoint["critic"])
+
+        self.actor_target.load_state_dict(checkpoint["actor_target"])
+        self.critic_target.load_state_dict(checkpoint["critic_target"])
+
+        self.autoencoder.encoder.load_state_dict(checkpoint["encoder"])
+        self.autoencoder.decoder.load_state_dict(checkpoint["decoder"])
+
+        self.ensemble_predictive_model.load_state_dict(checkpoint["ensemble"])
+
+        self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer"])
+        for opt, state in zip(self.epm_optimizers, checkpoint["epm_optimizers"]):
+            opt.load_state_dict(state)
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        self.policy_noise = checkpoint.get("policy_noise", self.policy_noise)
+        self.action_noise = checkpoint.get("action_noise", self.action_noise)
+        logging.info("models, optimisers, and training state have been loaded...")

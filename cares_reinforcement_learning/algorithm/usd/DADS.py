@@ -163,17 +163,28 @@ class DADS(VectorAlgorithm):
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
+        # Save skills agent and discriminator
+        self.skills_agent.save_models(filepath, f"{filename}_skill_agent")
 
-        self.skills_agent.save_models(filepath, filename)
-        torch.save(
-            self.discriminator_net.state_dict(),
-            f"{filepath}/{filename}_discriminator.pht",
-        )
-        logging.info("models has been saved...")
+        checkpoint = {
+            "discriminator": self.discriminator_net.state_dict(),
+            "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
+            "z_experience_index": self.z_experience_index,
+            "z": self.z,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_dads.pth")
+        logging.info("models, optimisers, and DADS state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.skills_agent.load_models(filepath, filename)
-        self.discriminator_net.load_state_dict(
-            torch.load(f"{filepath}/{filename}_discriminator.pht")
+        self.skills_agent.load_models(filepath, f"{filename}_skill_agent")
+
+        checkpoint = torch.load(f"{filepath}/{filename}_dads.pth")
+        self.discriminator_net.load_state_dict(checkpoint["discriminator"])
+        self.discriminator_optimizer.load_state_dict(
+            checkpoint["discriminator_optimizer"]
         )
-        logging.info("models has been loaded...")
+        self.z_experience_index = checkpoint.get(
+            "z_experience_index", self.z_experience_index
+        )
+        self.z = checkpoint.get("z", self.z)
+        logging.info("models, optimisers, and DADS state have been loaded...")

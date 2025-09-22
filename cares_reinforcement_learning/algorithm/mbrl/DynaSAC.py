@@ -248,11 +248,39 @@ class DynaSAC(VectorAlgorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pth")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pth")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            # Save log_alpha as a float, not a numpy array
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
+            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
+            "learn_counter": self.learn_counter,
+        }
+
+        # add world model state if it supports it
+
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pth"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pth"))
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+
+        self.critic_net.load_state_dict(checkpoint["critic"])
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        # TODO add world model loading if needed
+
+        logging.info("models, optimisers, and training state have been loaded...")

@@ -244,9 +244,11 @@ class TD3(VectorAlgorithm):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
+        # TODO replace with training_step based approach to avoid having to save this value
         self.policy_noise *= self.policy_noise_decay
         self.policy_noise = max(self.min_policy_noise, self.policy_noise)
 
+        # TODO replace with training_step based approach to avoid having to save this value
         self.action_noise *= self.action_noise_decay
         self.action_noise = max(self.min_action_noise, self.action_noise)
 
@@ -294,11 +296,35 @@ class TD3(VectorAlgorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_actor": self.target_actor_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            "learn_counter": self.learn_counter,
+            "policy_noise": self.policy_noise,
+            "action_noise": self.action_noise,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.target_actor_net.load_state_dict(checkpoint["target_actor"])
+
+        self.critic_net.load_state_dict(checkpoint["critic"])
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        self.policy_noise = checkpoint.get("policy_noise", self.policy_noise)
+        self.action_noise = checkpoint.get("action_noise", self.action_noise)
+
+        logging.info("models, optimisers, and training state have been loaded...")

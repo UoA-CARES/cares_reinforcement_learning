@@ -163,16 +163,31 @@ class DIAYN(VectorAlgorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        self.skills_agent.save_models(filepath, filename)
-        torch.save(
-            self.discriminator_net.state_dict(),
-            f"{filepath}/{filename}_discriminator.pht",
-        )
-        logging.info("models has been saved...")
+        # Save skills agent
+        self.skills_agent.save_models(filepath, f"{filename}_skill_agent")
+
+        # Save DIAYN-specific state in a single checkpoint
+        checkpoint = {
+            "discriminator_state_dict": self.discriminator_net.state_dict(),
+            "discriminator_optimizer_state_dict": self.discriminator_optimizer.state_dict(),
+            "z": self.z,
+            "z_experience_index": self.z_experience_index,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_diayn.pth")
+        logging.info("DIAYN models and state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.skills_agent.load_models(filepath, filename)
-        self.discriminator_net.load_state_dict(
-            torch.load(f"{filepath}/{filename}_discriminator.pht")
+        self.skills_agent.load_models(filepath, f"{filename}_skill_agent")
+
+        checkpoint = torch.load(f"{filepath}/{filename}_diayn.pth")
+
+        self.discriminator_net.load_state_dict(checkpoint["discriminator_state_dict"])
+        self.discriminator_optimizer.load_state_dict(
+            checkpoint["discriminator_optimizer_state_dict"]
         )
-        logging.info("models has been loaded...")
+
+        self.z = checkpoint.get("z", self.z)
+        self.z_experience_index = checkpoint.get(
+            "z_experience_index", self.z_experience_index
+        )
+        logging.info("DIAYN models and state have been loaded...")
