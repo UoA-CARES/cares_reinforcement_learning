@@ -13,6 +13,59 @@ import torch
 from cares_reinforcement_learning.memory import MemoryBuffer
 
 
+def convert_to_tensors(
+    states: np.ndarray,
+    actions: np.ndarray,
+    rewards: np.ndarray,
+    next_states: np.ndarray,
+    dones: np.ndarray,
+    device: torch.device,
+    weights: np.ndarray | None = None,
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    """Convert numpy arrays to tensors with consistent dtypes."""
+    states_tensor = torch.tensor(states, dtype=states_dtype, device=device)
+    actions_tensor = torch.tensor(actions, dtype=action_dtype, device=device)
+    rewards_tensor = torch.tensor(rewards, dtype=rewards_dtype, device=device)
+    next_states_tensor = torch.tensor(
+        next_states, dtype=next_states_dtype, device=device
+    )
+    dones_tensor = torch.tensor(dones, dtype=dones_dtype, device=device)
+
+    if weights is None:
+        weights = np.array([1.0] * len(states))
+
+    weights_tensor = torch.tensor(weights, dtype=weights_dtype, device=device)
+
+    # Reshape to batch_size
+    batch_size = len(rewards_tensor)
+    rewards_tensor = rewards_tensor.reshape(batch_size, 1)
+    dones_tensor = dones_tensor.reshape(batch_size, 1)
+    if weights_tensor is not None:
+        weights_tensor = weights_tensor.reshape(batch_size, 1)
+
+    return (
+        states_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_states_tensor,
+        dones_tensor,
+        weights_tensor,
+    )
+
+
 def sample_and_prepare_batch(
     memory: MemoryBuffer,
     batch_size: int,
@@ -61,6 +114,7 @@ def sample_and_prepare_batch(
     """
 
     # Sample from memory buffer
+    weights = None
     if use_per_buffer:
         experiences = memory.sample_priority(
             batch_size,
@@ -71,30 +125,32 @@ def sample_and_prepare_batch(
     else:
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, indices = experiences
-        weights = [1.0] * batch_size
 
     batch_size = len(states)
 
     # Convert to PyTorch tensors with specified dtypes
-    states_tensor = torch.tensor(np.asarray(states), dtype=states_dtype, device=device)
-    actions_tensor = torch.tensor(
-        np.asarray(actions), dtype=action_dtype, device=device
+    (
+        states_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_states_tensor,
+        dones_tensor,
+        weights_tensor,
+    ) = convert_to_tensors(
+        states,
+        actions,
+        rewards,
+        next_states,
+        dones,
+        device,
+        weights=weights,
+        states_dtype=states_dtype,
+        action_dtype=action_dtype,
+        rewards_dtype=rewards_dtype,
+        next_states_dtype=next_states_dtype,
+        dones_dtype=dones_dtype,
+        weights_dtype=weights_dtype,
     )
-    rewards_tensor = torch.tensor(
-        np.asarray(rewards), dtype=rewards_dtype, device=device
-    )
-    next_states_tensor = torch.tensor(
-        np.asarray(next_states), dtype=next_states_dtype, device=device
-    )
-    dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
-    weights_tensor = torch.tensor(
-        np.asarray(weights), dtype=weights_dtype, device=device
-    )
-
-    # Reshape tensors to proper dimensions
-    rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-    dones_tensor = dones_tensor.reshape(batch_size, 1)
-    weights_tensor = weights_tensor.reshape(batch_size, 1)
 
     return (
         states_tensor,
