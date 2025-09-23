@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
@@ -142,6 +143,8 @@ class DQN(VectorAlgorithm):
     def train_policy(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         self.learn_counter += 1
 
         self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
@@ -149,28 +152,29 @@ class DQN(VectorAlgorithm):
         if len(memory) < batch_size:
             return {}
 
-        if self.use_per_buffer:
-            experiences = memory.sample_priority(
-                batch_size,
-                sampling_stratagy=self.per_sampling_strategy,
-                weight_normalisation=self.per_weight_normalisation,
-            )
-            states, actions, rewards, next_states, dones, indices, weights = experiences
-        else:
-            experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, _ = experiences
+        # Use training_utils to sample and prepare batch
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+            indices,
+        ) = tu.sample_and_prepare_batch(
+            memory,
+            batch_size,
+            self.device,
+            use_per_buffer=self.use_per_buffer,
+            per_sampling_strategy=self.per_sampling_strategy,
+            per_weight_normalisation=self.per_weight_normalisation,
+            action_dtype=torch.long,  # DQN uses discrete actions
+        )
 
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.LongTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        if self.use_per_buffer:
-            weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        info = {}
+        # Reshape tensors to match DQN's expected dimensions
+        rewards_tensor = rewards_tensor.view(-1)
+        dones_tensor = dones_tensor.view(-1)
+        weights_tensor = weights_tensor.view(-1)
 
         # Calculate loss - overriden by C51
         elementwise_loss = self._compute_loss(
