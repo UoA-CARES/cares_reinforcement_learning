@@ -17,6 +17,7 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
@@ -73,7 +74,7 @@ class PPO(VectorAlgorithm):
     ) -> np.ndarray:
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
 
             mean = self.actor_net(state_tensor)
@@ -89,7 +90,7 @@ class PPO(VectorAlgorithm):
         return action
 
     def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():
@@ -114,7 +115,9 @@ class PPO(VectorAlgorithm):
         for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
             discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
             rtgs.insert(0, discounted_reward)
-        batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
+        batch_rtgs = torch.tensor(
+            rtgs, dtype=torch.float32, device=self.device
+        )  # shape 5000
         return batch_rtgs
 
     def train_policy(
@@ -123,12 +126,24 @@ class PPO(VectorAlgorithm):
         # pylint: disable-next=unused-argument
 
         experiences = memory.flush()
-        states, actions, rewards, _, dones = experiences
+        states, actions, rewards, next_states, dones = experiences
 
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
+        # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            _,  # next_states not used in PPO
+            dones_tensor,
+            _,  # weights not needed
+        ) = tu.convert_to_tensors(
+            np.asarray(states),
+            np.asarray(actions),
+            np.asarray(rewards),
+            np.asarray(next_states),
+            np.asarray(dones),
+            self.device,
+        )
 
         log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
