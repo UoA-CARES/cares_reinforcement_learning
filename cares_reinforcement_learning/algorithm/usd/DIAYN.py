@@ -93,7 +93,7 @@ class DIAYN(VectorAlgorithm):
 
         zs = np.array(self.z_experience_index)[indices]
 
-        zs_tensor = torch.LongTensor(zs).unsqueeze(-1).to(self.device)
+        zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
 
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
@@ -127,7 +127,7 @@ class DIAYN(VectorAlgorithm):
         )
 
         # Dervive rewards from the discriminator
-        p_z = torch.FloatTensor(self.p_z).to(self.device)
+        p_z = torch.tensor(self.p_z, dtype=torch.float32, device=self.device)
 
         logits = self.discriminator_net(next_states_tensor)
         p_z = p_z.gather(-1, zs_tensor)

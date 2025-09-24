@@ -73,7 +73,7 @@ class DQN(VectorAlgorithm):
     def _exploit(self, state: np.ndarray) -> int:
         self.network.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
             action = int(torch.argmax(q_values, dim=1).item())
@@ -97,7 +97,7 @@ class DQN(VectorAlgorithm):
         return self._exploit(state)
 
     def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():
