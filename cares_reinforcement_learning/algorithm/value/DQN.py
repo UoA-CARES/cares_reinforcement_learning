@@ -161,7 +161,7 @@ class DQN(VectorAlgorithm):
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_and_prepare_batch(
+        ) = tu.sample_batch_to_tensors(
             memory,
             batch_size,
             self.device,

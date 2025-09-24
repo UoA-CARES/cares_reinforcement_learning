@@ -48,7 +48,7 @@ class LA3PSAC(SAC):
             next_states_tensor,
             dones_tensor,
             _,
-        ) = tu.convert_to_tensors(
+        ) = tu.batch_to_tensors(
             states,
             actions,
             rewards,

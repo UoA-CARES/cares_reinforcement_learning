@@ -136,7 +136,7 @@ class PPO(VectorAlgorithm):
             _,  # next_states not used in PPO
             dones_tensor,
             _,  # weights not needed
-        ) = tu.convert_to_tensors(
+        ) = tu.batch_to_tensors(
             np.asarray(states),
             np.asarray(actions),
             np.asarray(rewards),

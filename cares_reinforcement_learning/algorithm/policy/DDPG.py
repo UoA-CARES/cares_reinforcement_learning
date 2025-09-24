@@ -116,7 +116,7 @@ class DDPG(Algorithm):
             dones_tensor,
             _,
             _,
-        ) = tu.sample_and_prepare_batch(
+        ) = tu.sample_batch_to_tensors(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
