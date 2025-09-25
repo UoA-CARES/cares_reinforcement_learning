@@ -12,6 +12,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
@@ -65,7 +66,9 @@ class SDAR(VectorAlgorithm):
 
         # Alpha (entropy regularization)
         alpha_init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(alpha_init_temperature)).to(device)
+        self.log_alpha = torch.tensor(
+            np.log(alpha_init_temperature), dtype=torch.float32, device=device
+        )
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
@@ -82,7 +85,9 @@ class SDAR(VectorAlgorithm):
 
         # Beta (action regularization specific to SDAR)
         beta_init_temperature = 1.0
-        self.log_beta = torch.tensor(np.log(beta_init_temperature)).to(device)
+        self.log_beta = torch.tensor(
+            np.log(beta_init_temperature), dtype=torch.float32, device=device
+        )
         self.log_beta.requires_grad = True
         self.log_beta_optimizer = torch.optim.Adam(
             [self.log_beta], lr=config.beta_lr, **config.beta_lr_params
@@ -111,7 +116,7 @@ class SDAR(VectorAlgorithm):
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action, *_) = self.actor_net(
@@ -251,46 +256,31 @@ class SDAR(VectorAlgorithm):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        # state_i, action_i, reward_i, next_state_i, done_i, ..._i, state_i+1, action_i+1, reward_i+1, next_state_i+1, done_i+1, ..._+i
-        experiences = memory.sample_consecutive(batch_size)
-
+        # Use training utilities for consecutive sampling and tensor conversion
         (
-            _,
-            prev_actions,
-            _,
-            _,
-            _,
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-            _,
-        ) = experiences
+            _,  # states_t1_tensor (not used by SDAR)
+            prev_actions_tensor,  # actions_t1_tensor (SDAR's prev_actions)
+            _,  # rewards_t1_tensor (not used)
+            _,  # next_states_t1_tensor (not used)
+            _,  # dones_t1_tensor (not used)
+            states_tensor,  # states_t2_tensor (SDAR's current states)
+            actions_tensor,  # actions_t2_tensor (SDAR's current actions)
+            rewards_tensor,  # rewards_t2_tensor (SDAR's current rewards)
+            next_states_tensor,  # next_states_t2_tensor (SDAR's next states)
+            dones_tensor,  # dones_t2_tensor (SDAR's current dones)
+            _,  # indices (not used by SDAR)
+        ) = tu.consecutive_sample_batch_to_tensors(memory, batch_size, self.device)
 
-        weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        prev_actions = torch.FloatTensor(np.asarray(prev_actions)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
+        # Create weights tensor (SDAR doesn't use PER with consecutive sampling)
+        batch_size = len(states_tensor)
+        weights_tensor = torch.ones(
+            batch_size, 1, dtype=torch.float32, device=self.device
+        )
 
         info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_info, priorities = self._update_critic(
+        critic_info, _ = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
@@ -303,7 +293,7 @@ class SDAR(VectorAlgorithm):
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor_alpha(
-                states_tensor, prev_actions, weights_tensor
+                states_tensor, prev_actions_tensor, weights_tensor
             )
             info |= actor_info
             info["alpha"] = self.alpha.item()
@@ -344,10 +334,14 @@ class SDAR(VectorAlgorithm):
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
 
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha.data = torch.tensor(
+            checkpoint["log_alpha"], dtype=torch.float32, device=self.device
+        )
         self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
 
-        self.log_beta.data = torch.tensor(checkpoint["log_beta"]).to(self.device)
+        self.log_beta.data = torch.tensor(
+            checkpoint["log_beta"], dtype=torch.float32, device=self.device
+        )
         self.log_beta_optimizer.load_state_dict(checkpoint["log_beta_optimizer"])
         self.target_beta = checkpoint.get("target_beta", self.target_beta)
 
