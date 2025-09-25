@@ -27,9 +27,11 @@ class QRDQN(DQN):
         self.kappa = config.kappa
 
         self.quantiles = config.quantiles
-        self.quantile_taus = torch.FloatTensor(
-            [i / (self.quantiles + 1) for i in range(1, self.quantiles + 1)]
-        ).to(device)
+        self.quantile_taus = torch.tensor(
+            [i / (self.quantiles + 1) for i in range(1, self.quantiles + 1)],
+            dtype=torch.float32,
+            device=device,
+        )
 
     def _evaluate_quantile_at_action(self, s_quantiles, actions):
         batch_size = s_quantiles.shape[0]

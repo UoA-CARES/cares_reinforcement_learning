@@ -15,6 +15,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
@@ -104,7 +105,7 @@ class SACAE(ImageAlgorithm):
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
+            state_tensor = tu.image_state_to_tensors(state, self.device)
 
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
@@ -232,34 +233,23 @@ class SACAE(ImageAlgorithm):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        if self.use_per_buffer:
-            experiences = memory.sample_priority(
-                batch_size,
-                sampling_stratagy=self.per_sampling_strategy,
-                weight_normalisation=self.per_weight_normalisation,
-            )
-            states, actions, rewards, next_states, dones, indices, weights = experiences
-        else:
-            experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, _ = experiences
-            weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        states_tensor = hlp.image_states_dict_to_tensor(states, self.device)
-
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-
-        next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
-
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
+        # Sample and convert to tensors using multimodal sampling
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+            indices,
+        ) = tu.sample_image_batch_to_tensors(
+            memory,
+            batch_size,
+            self.device,
+            use_per_buffer=self.use_per_buffer,
+            per_sampling_strategy=self.per_sampling_strategy,
+            per_weight_normalisation=self.per_weight_normalisation,
+        )
 
         info: dict[str, Any] = {}
 

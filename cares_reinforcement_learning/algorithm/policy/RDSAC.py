@@ -30,10 +30,10 @@ class RDSAC(SAC):
         return target[:, 0], target[:, 1], target[:, 2:]
 
     def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
-        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
