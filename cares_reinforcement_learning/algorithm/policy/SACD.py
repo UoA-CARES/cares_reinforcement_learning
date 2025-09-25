@@ -72,13 +72,12 @@ class SACD(VectorAlgorithm):
         )
 
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
+        self, state: np.ndarray, evaluation: bool = False
     ) -> np.ndarray:
-        # pylint: disable-next=unused-argument
 
         self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
