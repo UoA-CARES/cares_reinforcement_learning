@@ -5,8 +5,10 @@ https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
 
 """
 
+import os
 import pickle
 import random
+import tempfile
 from collections import deque
 
 import numpy as np
@@ -459,8 +461,20 @@ class MemoryBuffer:
         self.beta = self.init_beta
 
     def save(self, filepath: str, file_name: str) -> None:
-        with open(f"{filepath}/{file_name}.pkl", "wb") as f:
-            pickle.dump(self, f)
+        final_path = os.path.join(filepath, f"{file_name}.pkl")
+
+        # create temp file in the same directory (so os.replace is atomic)
+        with tempfile.NamedTemporaryFile("wb", dir=filepath, delete=False) as tmp:
+            try:
+                pickle.dump(self, tmp)
+                tmp.flush()
+                os.fsync(tmp.fileno())  # ensure data is written to disk
+            except Exception:
+                os.remove(tmp.name)  # cleanup on failure
+                raise
+
+        # atomically replace old file with new one
+        os.replace(tmp.name, final_path)
 
     @classmethod
     def load(cls, file_path: str, file_name: str):
