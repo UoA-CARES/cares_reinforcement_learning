@@ -251,7 +251,7 @@ class MemoryBuffer:
     def sample_priority(
         self,
         batch_size: int,
-        sampling_stratagy: str = "stratified",
+        sampling_strategy: str = "stratified",
         weight_normalisation: str = "batch",
     ) -> tuple:
         """
@@ -273,12 +273,12 @@ class MemoryBuffer:
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
-        if sampling_stratagy == "simple":
+        if sampling_strategy == "simple":
             indices = self.sum_tree.sample_simple(batch_size)
-        elif sampling_stratagy == "stratified":
+        elif sampling_strategy == "stratified":
             indices = self.sum_tree.sample_stratified(batch_size)
         else:
-            raise ValueError(f"Unkown sampling scheme: {sampling_stratagy}")
+            raise ValueError(f"Unknown sampling scheme: {sampling_strategy}")
 
         weights = self._importance_sampling_prioritised_weights(
             indices, weight_normalisation=weight_normalisation

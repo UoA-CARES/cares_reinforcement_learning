@@ -15,11 +15,10 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
-    BaseCritic,
-    BasePolicy,
     EnsembleCritic,
     TanhGaussianPolicy,
     TwinQNetwork,
@@ -27,11 +26,11 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class BaseSAC(VectorAlgorithm):
+class SAC(VectorAlgorithm):
     def __init__(
         self,
-        actor_network: BasePolicy,
-        critic_network: BaseCritic,
+        actor_network: TanhGaussianPolicy,
+        critic_network: TwinQNetwork | EnsembleCritic,
         config: SACConfig,
         device: torch.device,
     ):
@@ -115,25 +114,6 @@ class BaseSAC(VectorAlgorithm):
         self.learn_counter = checkpoint.get("learn_counter", 0)
 
         logging.info("models, optimisers, and training state have been loaded...")
-
-
-class SAC(BaseSAC):
-    actor_net: TanhGaussianPolicy
-    critc_net: TwinQNetwork | EnsembleCritic
-
-    def __init__(
-        self,
-        actor_network: TanhGaussianPolicy,
-        critic_network: TwinQNetwork | EnsembleCritic,
-        config: SACConfig,
-        device: torch.device,
-    ):
-        super().__init__(
-            actor_network=actor_network,
-            critic_network=critic_network,
-            config=config,
-            device=device,
-        )
 
     def select_action_from_policy(
         self,
@@ -309,32 +289,22 @@ class SAC(BaseSAC):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        if self.use_per_buffer:
-            experiences = memory.sample_priority(
-                batch_size,
-                sampling_stratagy=self.per_sampling_strategy,
-                weight_normalisation=self.per_weight_normalisation,
-            )
-            states, actions, rewards, next_states, dones, indices, weights = experiences
-        else:
-            experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, indices = experiences
-            weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+            indices,
+        ) = tu.sample_batch_to_tensors(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
+            use_per_buffer=self.use_per_buffer,
+            per_sampling_strategy=self.per_sampling_strategy,
+            per_weight_normalisation=self.per_weight_normalisation,
+        )
 
         info = self.update_networks(
             memory,

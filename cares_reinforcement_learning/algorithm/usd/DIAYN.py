@@ -93,29 +93,41 @@ class DIAYN(VectorAlgorithm):
 
         zs = np.array(self.z_experience_index)[indices]
 
-        zs_tensor = torch.LongTensor(zs).unsqueeze(-1).to(self.device)
+        zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
 
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
         states_zs = np.concatenate([states, zs_one_hot], axis=1)
         next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
 
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        states_zs_tensor = torch.FloatTensor(np.asarray(states_zs)).to(self.device)
-
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        next_states_zs_tensor = torch.FloatTensor(np.asarray(next_states_zs)).to(
-            self.device
+        # Convert into tensor using training utilities
+        states_tensor = torch.tensor(
+            np.asarray(states), dtype=torch.float32, device=self.device
+        )
+        states_zs_tensor = torch.tensor(
+            np.asarray(states_zs), dtype=torch.float32, device=self.device
         )
 
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        actions_tensor = torch.tensor(
+            np.asarray(actions), dtype=torch.float32, device=self.device
+        )
+
+        next_states_tensor = torch.tensor(
+            np.asarray(next_states), dtype=torch.float32, device=self.device
+        )
+        next_states_zs_tensor = torch.tensor(
+            np.asarray(next_states_zs), dtype=torch.float32, device=self.device
+        )
+
+        dones_tensor = torch.tensor(
+            np.asarray(dones), dtype=torch.long, device=self.device
+        )
+        weights_tensor = torch.tensor(
+            np.asarray(weights), dtype=torch.float32, device=self.device
+        )
 
         # Dervive rewards from the discriminator
-        p_z = torch.FloatTensor(self.p_z).to(self.device)
+        p_z = torch.tensor(self.p_z, dtype=torch.float32, device=self.device)
 
         logits = self.discriminator_net(next_states_tensor)
         p_z = p_z.gather(-1, zs_tensor)
