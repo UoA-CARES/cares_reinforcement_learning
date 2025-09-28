@@ -59,8 +59,7 @@ def batch_to_tensors(
     batch_size = len(rewards_tensor)
     rewards_tensor = rewards_tensor.reshape(batch_size, 1)
     dones_tensor = dones_tensor.reshape(batch_size, 1)
-    if weights_tensor is not None:
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
+    weights_tensor = weights_tensor.reshape(batch_size, 1)
 
     return (
         states_tensor,
@@ -227,7 +226,7 @@ def sample_batch_to_tensors(
     if use_per_buffer:
         experiences = memory.sample_priority(
             batch_size,
-            sampling_stratagy=per_sampling_strategy,
+            sampling_strategy=per_sampling_strategy,
             weight_normalisation=per_weight_normalisation,
         )
         states, actions, rewards, next_states, dones, indices, weights = experiences
@@ -323,7 +322,7 @@ def sample_image_batch_to_tensors(
     if use_per_buffer:
         experiences = memory.sample_priority(
             batch_size,
-            sampling_stratagy=per_sampling_strategy,
+            sampling_strategy=per_sampling_strategy,
             weight_normalisation=per_weight_normalisation,
         )
         states, actions, rewards, next_states, dones, indices, weights = experiences
