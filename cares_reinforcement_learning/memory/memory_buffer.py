@@ -278,7 +278,7 @@ class MemoryBuffer:
         elif sampling_strategy == "stratified":
             indices = self.sum_tree.sample_stratified(batch_size)
         else:
-            raise ValueError(f"Unkown sampling scheme: {sampling_strategy}")
+            raise ValueError(f"Unknown sampling scheme: {sampling_strategy}")
 
         weights = self._importance_sampling_prioritised_weights(
             indices, weight_normalisation=weight_normalisation

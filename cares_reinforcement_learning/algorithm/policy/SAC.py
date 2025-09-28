@@ -27,9 +27,6 @@ from cares_reinforcement_learning.util.configurations import SACConfig
 
 
 class SAC(VectorAlgorithm):
-    actor_net: TanhGaussianPolicy
-    critic_net: TwinQNetwork | EnsembleCritic
-
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
