@@ -45,6 +45,9 @@ class Record:
         self.algorithm = algorithm
         self.task = task
 
+        # saves the 10k train data before appending
+        # done to reduce overhead of appending to a big array consistently
+        self.temp_train = pd.DataFrame()
         self.train_data = pd.DataFrame()
         self.eval_data = pd.DataFrame()
 
@@ -66,6 +69,7 @@ class Record:
 
         self.log_count = 0
 
+        self.temp_train = pd.DataFrame()
         self.train_data = pd.DataFrame()
         self.eval_data = pd.DataFrame()
 
@@ -158,7 +162,11 @@ class Record:
         if data_frame.empty:
             logging.warning("Trying to save an Empty Dataframe")
 
-        data_frame.to_csv(f"{self.current_sub_directory}/data/{filename}", index=False)
+        file_path = f"{self.current_sub_directory}/data/{filename}"
+        if(os.path.exists(file_path)):
+            data_frame.to_csv(file_path, index=False, mode="a", header=False)
+        else: 
+            data_frame.to_csv(file_path, index=False, mode="a", header=True)
 
         string_values = []
         for key, val in logs.items():
@@ -177,21 +185,25 @@ class Record:
     def log_train(self, display: bool = False, **logs) -> None:
         self.log_count += 1
 
-        self.train_data = pd.concat(
-            [self.train_data, pd.DataFrame([logs])], ignore_index=True
-        )
-        self._save_data(self.train_data, "train.csv", logs, display=display)
-
+        new_df = pd.DataFrame([logs])
+        self.temp_train = pd.concat([self.temp_train, new_df], ignore_index= True)
         self.save_memory()
+        
+        if(self.log_count % 10000 == 0):
+            self.train_data = pd.concat(
+                [self.train_data, self.temp_train], ignore_index=True
+            )
+            self._save_data(self.temp_train, "train.csv", logs, display=display)
+            self.temp_train = pd.DataFrame() # clear content
 
-        plt.plot_train(
-            self.train_data,
-            f"Training-{self.algorithm}-{self.task}",
-            f"{self.algorithm}",
-            self.current_sub_directory,
-            "train",
-            20,
-        )
+            plt.plot_train(
+                self.train_data,
+                f"Training-{self.algorithm}-{self.task}",
+                f"{self.algorithm}",
+                self.current_sub_directory,
+                "train",
+                20,
+            )
 
         reward = logs["episode_reward"]
 
@@ -204,10 +216,11 @@ class Record:
             self.save_agent(f"{self.algorithm}", "highest_reward")
 
     def log_eval(self, display: bool = False, **logs) -> None:
+        new_df = pd.DataFrame([logs])
         self.eval_data = pd.concat(
-            [self.eval_data, pd.DataFrame([logs])], ignore_index=True
+            [self.eval_data, new_df], ignore_index=True
         )
-        self._save_data(self.eval_data, "eval.csv", logs, display=display)
+        self._save_data(new_df, "eval.csv", logs, display=display)
 
         plt.plot_eval(
             self.eval_data,
@@ -220,9 +233,10 @@ class Record:
         self.save_agent(f"{self.algorithm}", f"{logs['total_steps']}")
 
     def save(self) -> None:
+        #  this causes the repeat
         logging.info("Saving final outputs")
-        self._save_data(self.train_data, "train.csv", {}, display=False)
-        self._save_data(self.eval_data, "eval.csv", {}, display=False)
+        # self._save_data(self.train_data, "train.csv", {}, display=False)
+        # self._save_data(self.eval_data, "eval.csv", {}, display=False)
 
         if not self.eval_data.empty:
             plt.plot_eval(
