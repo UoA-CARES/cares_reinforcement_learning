@@ -86,7 +86,7 @@ class SACD(VectorAlgorithm):
                 (action, _, _) = self.actor_net(state_tensor)
                 # action = np.random.choice(a=self.action_num, p=action_probs)
         self.actor_net.train()
-        return action
+        return action.item()
 
     @property
     def alpha(self) -> torch.Tensor:
