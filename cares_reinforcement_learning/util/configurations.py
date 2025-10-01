@@ -1161,6 +1161,35 @@ class CTD4Config(TD3Config):
     fusion_method: str = "kalman"  # kalman, minimum, average
 
 
+class TD7Config(TD3Config):
+    algorithm: str = Field("TD7", Literal=True)
+
+    tau: float = 1.0
+
+    target_update_rate: int = 250
+
+    max_eps_checkpointing: int = 20
+    steps_before_checkpointing: int = 74000
+    reset_weight: float = 0.9
+
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.0  # full waiting of priorities
+    per_alpha: float = 0.4
+    min_priority: float = 1.0
+
+    # Encoder for state representation learning
+    zs_dim: int = 256
+    encoder_lr: float = 3e-4
+    encoder_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    encoder_config: MLPConfig = MLPConfig(
+        layers=[TrainableLayer(layer_type="Linear", out_features=256)]
+    )
+
+
 ###################################
 #         USD Algorithms          #
 ###################################

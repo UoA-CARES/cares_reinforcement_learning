@@ -344,6 +344,33 @@ class MemoryBuffer:
             reversed_priorities[indices].tolist(),
         )
 
+    def reset_priorities(self) -> None:
+        """
+        Resets all priorities in the replay buffer to the maximum priority.
+
+        This is useful in scenarios where the priorities need to be re-evaluated or when initializing the buffer.
+        """
+        self.sum_tree = SumTree(self.max_capacity)
+        self.max_priority = 1.0
+        for i in range(self.current_size):
+            self.sum_tree.set(i, self.max_priority)
+
+    def reset_max_priority(self) -> None:
+        """
+        Recalculates max_priority to the actual maximum priority currently in the buffer.
+
+        This prevents priority inflation over time by setting max_priority to the current
+        maximum value in the buffer rather than an accumulated historical maximum.
+
+        This is useful when the priority distribution has changed significantly and
+        the historical max_priority no longer reflects the current state of the buffer.
+        """
+        if self.current_size > 0:
+            current_priorities = self.sum_tree.levels[-1][: self.current_size]
+            self.max_priority = float(current_priorities.max())
+        else:
+            self.max_priority = 1.0
+
     def update_priorities(self, indices: np.ndarray, priorities: np.ndarray) -> None:
         """
         Update the priorities of the replay buffer at the given indices.
@@ -457,7 +484,7 @@ class MemoryBuffer:
         self.memory_buffers = []
 
         self.sum_tree = SumTree(self.max_capacity)
-        self.max_priority = self.min_priority
+        self.max_priority = 1.0
         self.beta = self.init_beta
 
     def save(self, filepath: str, file_name: str) -> None:
