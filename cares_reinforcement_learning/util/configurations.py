@@ -1174,7 +1174,7 @@ class TD7Config(TD3Config):
     steps_before_checkpointing: int = 75000
     reset_weight: float = 0.9
 
-    G: Literal[0] = Field(default=0, frozen=True)
+    G: Literal[1] = Field(default=1, frozen=True)
 
     # PER
     use_per_buffer: Literal[1] = Field(default=1, frozen=True)

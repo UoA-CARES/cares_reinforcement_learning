@@ -18,6 +18,7 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.util.configurations import TD7Config
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class TD7(VectorAlgorithm):
@@ -353,10 +354,11 @@ class TD7(VectorAlgorithm):
         return info
 
     # TODO use training_step with decay rates
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def _train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         # TODO replace with training_step based approach to avoid having to save this value
         self.policy_noise *= self.policy_noise_decay
@@ -397,9 +399,7 @@ class TD7(VectorAlgorithm):
 
         return info
 
-    def train_and_reset(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def _train_and_reset(self, training_context: TrainingContext) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         for _ in range(self.timesteps_since_update):
@@ -407,7 +407,7 @@ class TD7(VectorAlgorithm):
                 self.best_min_return *= self.reset_weight
                 self.max_eps_before_update = self.max_eps_checkpointing
 
-            info = self.train_policy(memory, batch_size, training_step)
+            info = self._train_policy(training_context)
 
         self.eps_since_update = 0
         self.timesteps_since_update = 0
@@ -415,15 +415,15 @@ class TD7(VectorAlgorithm):
 
         return info
 
-    def train_and_checkpoint(
-        self,
-        memory: MemoryBuffer,
-        batch_size: int,
-        training_step: int,
-        episode_steps: int,
-        episode_return: float,
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         info: dict[str, Any] = {}
+
+        episode_steps = training_context.episode_steps
+        episode_return = training_context.episode_reward
+        episode_done = training_context.episode_done
+
+        if not episode_done:
+            return info
 
         self.eps_since_update += 1
         self.timesteps_since_update += episode_steps
@@ -431,14 +431,14 @@ class TD7(VectorAlgorithm):
         self.min_return = min(self.min_return, episode_return)
 
         if self.min_return < self.best_min_return:
-            info = self.train_and_reset(memory, batch_size, training_step)
+            info = self._train_and_reset(training_context)
 
         elif self.eps_since_update == self.max_eps_before_update:
             self.best_min_return = self.min_return
             self.checkpoint_actor.load_state_dict(self.actor_net.state_dict())
             self.checkpoint_encoder.load_state_dict(self.encoder_net.state_dict())
 
-            info = self.train_and_reset(memory, batch_size, training_step)
+            info = self._train_and_reset(training_context)
 
         return info
 
