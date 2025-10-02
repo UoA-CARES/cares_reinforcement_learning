@@ -397,13 +397,6 @@ class TD7(VectorAlgorithm):
 
         return info
 
-    def episode_done(self):
-        """
-        This method is called when an episode is done.
-        It can be overridden in subclasses to perform any necessary cleanup or logging.
-        """
-        pass
-
     def train_and_reset(
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
