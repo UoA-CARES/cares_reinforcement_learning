@@ -1164,13 +1164,17 @@ class CTD4Config(TD3Config):
 class TD7Config(TD3Config):
     algorithm: str = Field("TD7", Literal=True)
 
+    max_steps_exploration: int = 25000
+
     tau: float = 1.0
 
     target_update_rate: int = 250
 
     max_eps_checkpointing: int = 20
-    steps_before_checkpointing: int = 74000
+    steps_before_checkpointing: int = 75000
     reset_weight: float = 0.9
+
+    G: Literal[0] = Field(default=0, frozen=True)
 
     # PER
     use_per_buffer: Literal[1] = Field(default=1, frozen=True)
@@ -1187,6 +1191,16 @@ class TD7Config(TD3Config):
 
     encoder_config: MLPConfig = MLPConfig(
         layers=[TrainableLayer(layer_type="Linear", out_features=256)]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
     )
 
 

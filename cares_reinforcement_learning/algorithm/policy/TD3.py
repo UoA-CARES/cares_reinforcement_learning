@@ -124,7 +124,8 @@ class TD3(VectorAlgorithm):
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
         with torch.no_grad():
-            next_actions = self.target_actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions = self.target_actor_net(next_states)
 
             target_noise = self.policy_noise * torch.randn_like(next_actions)
             target_noise = torch.clamp(

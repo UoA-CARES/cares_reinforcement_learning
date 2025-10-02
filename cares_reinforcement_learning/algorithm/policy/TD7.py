@@ -117,8 +117,12 @@ class TD7(VectorAlgorithm):
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
 
-            zs = self.checkpoint_encoder.zs(state_tensor)  # Fix: Add .zs() call
-            action = self.checkpoint_actor(state_tensor, zs)  # Fix: Pass (state, zs)
+            if evaluation:
+                zs = self.checkpoint_encoder.zs(state_tensor)
+                action = self.checkpoint_actor(state_tensor, zs)
+            else:
+                zs = self.fixed_encoder_net.zs(state_tensor)
+                action = self.actor_net(state_tensor, zs)
 
             action = action.cpu().data.numpy().flatten()
 
@@ -159,11 +163,12 @@ class TD7(VectorAlgorithm):
         self, states: torch.Tensor, actions: torch.Tensor, next_states: torch.Tensor
     ) -> dict[str, Any]:
 
-        with hlp.evaluating(self.critic_net):
+        with torch.no_grad():
             next_zs = self.encoder_net.zs(next_states)
 
         zs = self.encoder_net.zs(states)
         pred_zs = self.encoder_net.zsa(zs, actions)
+
         encoder_loss = F.mse_loss(pred_zs, next_zs)
 
         self.encoder_net_optimiser.zero_grad()
@@ -182,6 +187,7 @@ class TD7(VectorAlgorithm):
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+
         with torch.no_grad():
             fixed_target_zs = self.target_fixed_encoder_net.zs(next_states)
 
@@ -191,6 +197,7 @@ class TD7(VectorAlgorithm):
             target_noise = torch.clamp(
                 target_noise, -self.policy_noise_clip, self.policy_noise_clip
             )
+
             next_actions = next_actions + target_noise
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
@@ -204,12 +211,12 @@ class TD7(VectorAlgorithm):
 
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
+            target_q_values = target_q_values.clamp(self.min_target, self.max_target)
+
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-            q_target = q_target.clamp(self.min_target, self.max_target)
-
-            self.max = max(self.max, q_target.max().item())
-            self.min = min(self.min, q_target.min().item())
+            self.max = max(self.max, float(q_target.max()))
+            self.min = min(self.min, float(q_target.min()))
 
             fixed_zs = self.fixed_encoder_net.zs(states)
             fixed_zsa = self.fixed_encoder_net.zsa(fixed_zs, actions)
@@ -221,13 +228,20 @@ class TD7(VectorAlgorithm):
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_lose_one = hlp.calculate_huber_loss(
-            td_error_one, self.min_priority, use_quadratic_smoothing=False
+        huber_loss_one = hlp.calculate_huber_loss(
+            td_error_one,
+            self.min_priority,
+            use_quadratic_smoothing=False,
+            use_mean_reduction=False,
         )
-        huber_lose_two = hlp.calculate_huber_loss(
-            td_error_two, self.min_priority, use_quadratic_smoothing=False
+        huber_loss_two = hlp.calculate_huber_loss(
+            td_error_two,
+            self.min_priority,
+            use_quadratic_smoothing=False,
+            use_mean_reduction=False,
         )
-        critic_loss_total = huber_lose_one + huber_lose_two
+
+        critic_loss_total = (huber_loss_one + huber_loss_two).mean()
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
@@ -243,8 +257,8 @@ class TD7(VectorAlgorithm):
         )
 
         info = {
-            "critic_loss_one": huber_lose_one.item(),
-            "critic_loss_two": huber_lose_two.item(),
+            "critic_loss_one": huber_loss_one.mean().item(),
+            "critic_loss_two": huber_loss_two.mean().item(),
             "critic_loss_total": critic_loss_total.item(),
         }
 
