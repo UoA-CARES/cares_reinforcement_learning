@@ -17,6 +17,7 @@ from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class DIAYN(VectorAlgorithm):
@@ -79,9 +80,10 @@ class DIAYN(VectorAlgorithm):
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+
         if len(memory) < batch_size:
             return {}
 

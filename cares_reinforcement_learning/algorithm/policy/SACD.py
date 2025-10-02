@@ -20,6 +20,7 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACDConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class SACD(VectorAlgorithm):
@@ -161,10 +162,11 @@ class SACD(VectorAlgorithm):
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         # Use the helper to sample and prepare tensors in one step
         (

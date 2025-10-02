@@ -22,6 +22,7 @@ from cares_reinforcement_learning.networks.common import (
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import TD3Config
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class TD3(VectorAlgorithm):
@@ -240,10 +241,11 @@ class TD3(VectorAlgorithm):
         return info
 
     # TODO use training_step with decay rates
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         # TODO replace with training_step based approach to avoid having to save this value
         self.policy_noise *= self.policy_noise_decay

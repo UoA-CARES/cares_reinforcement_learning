@@ -24,6 +24,7 @@ from cares_reinforcement_learning.networks.common import (
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import SACConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class SAC(VectorAlgorithm):
@@ -284,10 +285,11 @@ class SAC(VectorAlgorithm):
 
         return info
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         (
             states_tensor,
