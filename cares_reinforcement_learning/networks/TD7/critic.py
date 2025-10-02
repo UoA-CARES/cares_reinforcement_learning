@@ -81,24 +81,35 @@ class DefaultCritic(BaseCritic):
             hidden_sizes = [256, 256]
 
         input_size = observation_size + num_actions
+        zs_dim = 256
 
         # pylint: disable-next=non-parent-init-called
         nn.Module.__init__(self)
 
+        self.feature_layer_one = nn.Sequential(
+            nn.Linear(input_size, hidden_sizes[0]),
+        )
+
+        self.q_input_size = 2 * zs_dim + hidden_sizes[0]
+
         # Q1 architecture
         # pylint: disable-next=invalid-name
         self.Q1 = nn.Sequential(
-            nn.Linear(input_size, hidden_sizes[0]),
+            nn.Linear(self.q_input_size, hidden_sizes[0]),
             nn.ELU(),
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ELU(),
             nn.Linear(hidden_sizes[1], 1),
         )
 
+        self.feature_layer_two = nn.Sequential(
+            nn.Linear(input_size, hidden_sizes[0]),
+        )
+
         # Q2 architecture
         # pylint: disable-next=invalid-name
         self.Q2 = nn.Sequential(
-            nn.Linear(input_size, hidden_sizes[0]),
+            nn.Linear(self.q_input_size, hidden_sizes[0]),
             nn.ELU(),
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ELU(),
