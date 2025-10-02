@@ -1184,12 +1184,8 @@ class TD7Config(TD3Config):
     per_alpha: float = 0.4
     min_priority: float = 1.0
 
-    # Encoder for state representation learning
-    zs_dim: int = 256
-    encoder_lr: float = 3e-4
-    encoder_lr_params: dict[str, Any] = Field(default_factory=dict)
-
-    encoder_config: MLPConfig = MLPConfig(
+    # Equal to TD3 but uses ELU activations
+    feature_layer_config: MLPConfig = MLPConfig(
         layers=[TrainableLayer(layer_type="Linear", out_features=256)]
     )
 
@@ -1200,6 +1196,31 @@ class TD7Config(TD3Config):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ELU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
+
+    # Encoder for state representation learning
+    zs_dim: int = 256
+    encoder_lr: float = 3e-4
+    encoder_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    state_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+    state_action_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
         ]
     )
 

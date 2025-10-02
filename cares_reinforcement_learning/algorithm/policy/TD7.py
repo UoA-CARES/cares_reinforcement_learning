@@ -65,8 +65,8 @@ class TD7(VectorAlgorithm):
         # Value clipping tracked values
         self.max = -1e8
         self.min = 1e8
-        self.max_target = 0
-        self.min_target = 0
+        self.max_target = 0.0
+        self.min_target = 0.0
 
         # PER
         self.use_per_buffer = config.use_per_buffer

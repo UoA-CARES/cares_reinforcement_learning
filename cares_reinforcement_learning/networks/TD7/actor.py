@@ -1,12 +1,9 @@
 import torch
 from torch import nn
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import TD7Config
-
-
-def AvgL1Norm(x, eps=1e-8):
-    return x / x.abs().mean(-1, keepdim=True).clamp(min=eps)
 
 
 class BaseActor(nn.Module):
@@ -19,7 +16,7 @@ class BaseActor(nn.Module):
         self.feature_layer: MLP | nn.Sequential = MLP(
             input_size=observation_size,
             output_size=config.zs_dim,
-            config=config.encoder_config,
+            config=config.feature_layer_config,
         )
 
         self.act_net: MLP | nn.Sequential = MLP(
@@ -30,7 +27,7 @@ class BaseActor(nn.Module):
 
     def forward(self, state: torch.Tensor, zs: torch.Tensor) -> torch.Tensor:
         latent = self.feature_layer(state)
-        latent = AvgL1Norm(latent)
+        latent = hlp.avg_l1_norm(latent)
 
         combined = torch.cat([latent, zs], dim=-1)
 

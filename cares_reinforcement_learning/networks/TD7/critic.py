@@ -1,12 +1,9 @@
 import torch
 from torch import nn
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import TD7Config
-
-
-def AvgL1Norm(x, eps=1e-8):
-    return x / x.abs().mean(-1, keepdim=True).clamp(min=eps)
 
 
 class BaseCritic(nn.Module):
@@ -19,7 +16,7 @@ class BaseCritic(nn.Module):
         self.feature_layer_one: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=None,
-            config=config.encoder_config,
+            config=config.feature_layer_config,
         )
 
         self.q_input_size = 2 * config.zs_dim + self.feature_layer_one.output_size
@@ -35,7 +32,7 @@ class BaseCritic(nn.Module):
         self.feature_layer_two: MLP | nn.Sequential = MLP(
             input_size=self.input_size,
             output_size=None,
-            config=config.encoder_config,
+            config=config.feature_layer_config,
         )
 
         self.q_input_size = 2 * config.zs_dim + self.feature_layer_two.output_size
@@ -59,12 +56,12 @@ class BaseCritic(nn.Module):
         embeddings = torch.cat([zsa, zs], dim=1)
 
         q1 = self.feature_layer_one(obs_action)
-        q1 = AvgL1Norm(q1)
+        q1 = hlp.avg_l1_norm(q1)
         q1 = torch.cat([q1, embeddings], dim=1)
         q1 = self.Q1(q1)
 
         q2 = self.feature_layer_two(obs_action)
-        q2 = AvgL1Norm(q2)
+        q2 = hlp.avg_l1_norm(q2)
         q2 = torch.cat([q2, embeddings], dim=1)
         q2 = self.Q2(q2)
 
