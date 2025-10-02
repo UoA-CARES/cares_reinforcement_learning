@@ -19,6 +19,7 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class DQN(VectorAlgorithm):
@@ -140,12 +141,14 @@ class DQN(VectorAlgorithm):
 
         return elementwise_loss
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+        training_step = training_context.training_step
 
         self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
 

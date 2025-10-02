@@ -17,6 +17,7 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SDARConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class SDAR(VectorAlgorithm):
@@ -251,10 +252,11 @@ class SDAR(VectorAlgorithm):
 
         return info
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         # Use training utilities for consecutive sampling and tensor conversion
         (
