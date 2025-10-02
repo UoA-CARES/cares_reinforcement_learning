@@ -8,6 +8,10 @@ from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 from cares_reinforcement_learning.util.network_factory import NetworkFactory
+from cares_reinforcement_learning.util.training_context import (
+    TrainingContext,
+    TrainingEvent,
+)
 
 
 def _policy_buffer(
@@ -143,7 +147,17 @@ def test_algorithms(tmp_path):
             value, float
         ), f"{algorithm} did not return a float value for the calculated value"
 
-        info = agent.train_policy(memory_buffer, batch_size, training_step=0)
+        training_context = TrainingContext(
+            memory=memory_buffer,
+            batch_size=batch_size,
+            event=TrainingEvent.TRAINING_STEP,
+            training_step=1,
+            episode=1,
+            episode_steps=1,
+            episode_reward=10.0,
+        )
+
+        info = agent.train_policy(training_context)
         assert isinstance(
             info, dict
         ), f"{algorithm} did not return a dictionary of training info"
