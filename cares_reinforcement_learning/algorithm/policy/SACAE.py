@@ -22,6 +22,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class SACAE(ImageAlgorithm):
@@ -228,10 +229,11 @@ class SACAE(ImageAlgorithm):
         }
         return info
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         # Sample and convert to tensors using multimodal sampling
         (

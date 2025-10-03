@@ -17,6 +17,7 @@ from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.util.configurations import DADSConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class DADS(VectorAlgorithm):
@@ -73,9 +74,10 @@ class DADS(VectorAlgorithm):
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+
         if len(memory) < batch_size:
             return {}
 
