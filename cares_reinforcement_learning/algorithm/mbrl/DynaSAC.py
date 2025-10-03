@@ -23,6 +23,7 @@ from cares_reinforcement_learning.networks.world_models.ensemble_integrated impo
     EnsembleWorldReward,
 )
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class DynaSAC(VectorAlgorithm):
@@ -182,10 +183,11 @@ class DynaSAC(VectorAlgorithm):
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences

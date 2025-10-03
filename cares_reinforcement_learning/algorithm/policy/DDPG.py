@@ -17,6 +17,7 @@ from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 from cares_reinforcement_learning.util.configurations import DDPGConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class DDPG(Algorithm):
@@ -104,9 +105,10 @@ class DDPG(Algorithm):
         info = {"actor_loss": actor_loss.item()}
         return info
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+
         # Use the helper to sample and prepare tensors in one step
         (
             states_tensor,

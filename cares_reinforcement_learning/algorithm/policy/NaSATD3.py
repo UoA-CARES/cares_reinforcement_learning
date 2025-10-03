@@ -21,6 +21,7 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class NaSATD3(ImageAlgorithm):
@@ -229,14 +230,15 @@ class NaSATD3(ImageAlgorithm):
 
         return pred_losses
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.actor.train()
         self.critic.train()
         self.autoencoder.train()
         self.autoencoder.encoder.train()
         self.autoencoder.decoder.train()
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         self.learn_counter += 1
 

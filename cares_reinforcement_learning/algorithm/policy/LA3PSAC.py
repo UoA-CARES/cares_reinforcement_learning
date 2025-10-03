@@ -15,6 +15,7 @@ from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 from cares_reinforcement_learning.util.configurations import LA3PSACConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class LA3PSAC(SAC):
@@ -126,10 +127,11 @@ class LA3PSAC(SAC):
 
         return info, priorities
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
         priority_batch_size = int(batch_size * self.prioritized_fraction)

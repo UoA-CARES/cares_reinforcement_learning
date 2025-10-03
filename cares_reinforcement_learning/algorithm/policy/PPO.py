@@ -22,6 +22,7 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.util.configurations import PPOConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class PPO(VectorAlgorithm):
@@ -120,10 +121,11 @@ class PPO(VectorAlgorithm):
         )  # shape 5000
         return batch_rtgs
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         experiences = memory.flush()
         states, actions, rewards, next_states, dones = experiences
