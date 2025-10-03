@@ -434,3 +434,7 @@ def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float
         G = rewards[t] + gamma * G
         returns[t] = G
     return returns
+
+
+def avg_l1_norm(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    return x / x.abs().mean(-1, keepdim=True).clamp(min=eps)
