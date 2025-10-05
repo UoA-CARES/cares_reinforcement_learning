@@ -76,6 +76,10 @@ class AlgorithmConfig(SubscriptableClass):
         number_steps_per_train_policy (int]): Number of steps per updating the training policy.
 
         image_observation (int]): Whether the observation is an image.
+
+        model_path (str | None]): Path to a pre-trained model.
+
+        repetition_num_episodes (int]): Number of episodes to use for episode repetition. 0 to disable.
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")

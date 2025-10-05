@@ -1,4 +1,3 @@
-import logging
 from typing import List
 
 import numpy as np
@@ -65,11 +64,14 @@ class EpisodeReplay:
 
     def replay_best_episode(self, step: int) -> np.ndarray | None:
         """
-        Get the best episode actions for replay.
-
+        Returns the action taken at the specified step of the best episode, if available.
+        Args:
+            step (int): The index of the step within the best episode to retrieve the action for.
         Returns:
-            np.ndarray: The action at the given step from the best episode
+            np.ndarray | None: The action taken at the given step as a NumPy array if the best episode exists and the step is valid;
+            otherwise, returns None.
         """
+
         if self.has_best_episode() and 0 <= step < len(self.best_actions):
             return self.best_actions[step]
         return None
