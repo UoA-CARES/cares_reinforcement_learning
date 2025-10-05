@@ -96,6 +96,8 @@ class AlgorithmConfig(SubscriptableClass):
 
     model_path: str | None = None
 
+    repetition_num_episodes: int = 0
+
 
 ###################################
 #         DQN Algorithms          #
