@@ -10,10 +10,12 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 from cares_reinforcement_learning.util.configurations import LA3PSACConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class LA3PSAC(SAC):
@@ -39,16 +41,22 @@ class LA3PSAC(SAC):
         uniform_sampling: bool,
     ) -> tuple[dict[str, Any], np.ndarray]:
 
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size
-        rewards_tensor = rewards_tensor.reshape(len(rewards_tensor), 1)
-        dones_tensor = dones_tensor.reshape(len(dones_tensor), 1)
+        # Convert into tensors using helper method
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            _,
+        ) = tu.batch_to_tensors(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            self.device,
+        )
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -119,10 +127,11 @@ class LA3PSAC(SAC):
 
         return info, priorities
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         uniform_batch_size = int(batch_size * (1 - self.prioritized_fraction))
         priority_batch_size = int(batch_size * self.prioritized_fraction)
@@ -149,8 +158,8 @@ class LA3PSAC(SAC):
 
         # Train Actor
         weights = np.array([1.0] * len(states))
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
+        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
+        states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
 
         actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
         info_uniform |= actor_info
@@ -162,7 +171,7 @@ class LA3PSAC(SAC):
         ######################### CRITIC PRIORITIZED SAMPLING #########################
         experiences = memory.sample_priority(
             priority_batch_size,
-            sampling_stratagy=self.per_sampling_strategy,
+            sampling_strategy=self.per_sampling_strategy,
             weight_normalisation=self.per_weight_normalisation,
         )
         states, actions, rewards, next_states, dones, indices, _ = experiences
@@ -189,8 +198,8 @@ class LA3PSAC(SAC):
         states, _, _, _, _, _, _ = experiences
         weights = np.array([1.0] * len(states))
 
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+        weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
 
         actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
         info_priority |= actor_info

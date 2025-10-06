@@ -183,10 +183,6 @@ python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A
 
 Provides baseline data classes for environment, training, and algorithm configurations to allow for consistent recording of training parameters.
 
-## RLParser.py
-
-Provides a means of loading environment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
-
 ## NetworkFactory.py
 
 A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package.
@@ -239,6 +235,7 @@ Implementation of various Actor Critic methods.
 | CrossQ      | Vector                     | Continuous   | [CrossQ Paper](https://arxiv.org/pdf/1902.05605)            |
 | Droq        | Vector                     | Continuous   | [DroQ Paper](https://arxiv.org/abs/2110.02034)              |
 | SDAR        | Vector                     | Continuous   | [SDAR Paper](https://openreview.net/pdf?id=PDgZ3rvqHn)      |
+| TD7         | Vector                     | Continuous   | [TD7 Paper](https://arxiv.org/pdf/2306.02451)               |
 | SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | NaSATD3     | Image                      | Continuous   | [NaSATD3 Paper](https://ieeexplore.ieee.org/abstract/document/10801857) |
