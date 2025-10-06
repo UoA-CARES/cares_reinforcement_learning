@@ -240,10 +240,9 @@ class Record:
         self.save_agent(f"{self.algorithm}", f"{logs['total_steps']}")
 
     def save(self) -> None:
-        #  this causes the repeat
         logging.info("Saving final outputs")
-        # self._save_data(self.train_data, "train.csv", {}, display=False)
-        # self._save_data(self.eval_data, "eval.csv", {}, display=False)
+        self._save_data(self.train_data, "train.csv", {}, display=False)
+        self._save_data(self.eval_data, "eval.csv", {}, display=False)
 
         if not self.eval_data.empty:
             plt.plot_eval(
