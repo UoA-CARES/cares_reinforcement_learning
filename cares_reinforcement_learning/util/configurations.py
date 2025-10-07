@@ -60,7 +60,7 @@ class ResidualLayer(BaseModel):
     main_layers: list[
         Union[TrainableLayer, NormLayer, FunctionLayer, "Optional[ResidualLayer]"]
     ]
-    shortcut_layer: TrainableLayer | None = (None,)
+    shortcut_layer: TrainableLayer | None = None
     use_padding: bool = False
 
 
