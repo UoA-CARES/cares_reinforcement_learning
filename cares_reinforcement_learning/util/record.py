@@ -16,13 +16,8 @@ from cares_reinforcement_learning.util.configurations import SubscriptableClass
 
 class Record:
     """
-    A class that represents a record for logging and saving data during training and evaluation.
-
-    Args:
-        log_dir (str): The log directory.
-        algorithm (str): The algorithm name.
-        task (str): The task name.
-        network (nn.Module, optional): The neural network model. Defaults to None.
+    Class for recording training and evaluation data, managing directories, saving configurations,
+    handling video recording, and saving/loading agent models and memory buffers.
     """
 
     def __init__(
@@ -35,6 +30,17 @@ class Record:
         record_checkpoints: bool = False,
         checkpoint_interval: int = 1,
     ) -> None:
+        """
+        Initializes the Record instance with directories, logging settings, and recording options.
+        Args:
+            base_directory (str): The base directory for saving logs and models.
+            algorithm (str): The name of the algorithm being used.
+            task (str): The name of the task being performed.
+            agent (Algorithm, optional): The reinforcement learning agent. Defaults to None.
+            record_video (bool, optional): Whether to record videos during training/evaluation. Defaults to True.
+            record_checkpoints (bool, optional): Whether to save checkpoints of the agent and memory buffer. Defaults to False.
+            checkpoint_interval (int, optional): Interval (in episodes) at which to save checkpoints. Defaults to 1.
+        """
 
         self.best_reward = float("-inf")
 
