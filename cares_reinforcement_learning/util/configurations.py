@@ -61,7 +61,7 @@ class FunctionLayer(BaseModel):
 
 class ResidualLayer(BaseModel):
     layer_category: Literal["residual"] = "residual"  # Discriminator field
-    layers: list[Union[TrainableLayer, NormLayer, FunctionLayer, 'Optional[ResidualLayer]']]
+    layers: list[TrainableLayer | NormLayer | FunctionLayer | "ResidualLayer" | None]
 
 
 class MLPConfig(BaseModel):
@@ -406,22 +406,30 @@ class SACConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", out_features=256),
             NormLayer(layer_type="LayerNorm"),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(layers=
-                [
-                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            ResidualLayer(
+                layers=[
+                    TrainableLayer(
+                        layer_type="Linear", in_features=256, out_features=256
+                    ),
                     NormLayer(layer_type="LayerNorm"),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+                    TrainableLayer(
+                        layer_type="Linear", in_features=256, out_features=256
+                    ),
                     NormLayer(layer_type="LayerNorm"),
                 ]
             ),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(layers=
-                [
-                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            ResidualLayer(
+                layers=[
+                    TrainableLayer(
+                        layer_type="Linear", in_features=256, out_features=256
+                    ),
                     NormLayer(layer_type="LayerNorm"),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+                    TrainableLayer(
+                        layer_type="Linear", in_features=256, out_features=256
+                    ),
                     NormLayer(layer_type="LayerNorm"),
                 ]
             ),
@@ -472,11 +480,15 @@ class SACAEConfig(SACConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=1024),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(layers=
-                [
-                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            ResidualLayer(
+                layers=[
+                    TrainableLayer(
+                        layer_type="Linear", in_features=1024, out_features=1024
+                    ),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024)
+                    TrainableLayer(
+                        layer_type="Linear", in_features=1024, out_features=1024
+                    ),
                 ]
             ),
             FunctionLayer(layer_type="ReLU"),
