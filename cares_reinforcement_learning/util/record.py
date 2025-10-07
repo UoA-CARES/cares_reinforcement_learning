@@ -52,10 +52,7 @@ class Record:
         self.algorithm = algorithm
         self.task = task
 
-        self.train_log: list[dict] = []
         self.train_data = pd.DataFrame()
-
-        self.eval_log: list[dict] = []
         self.eval_data = pd.DataFrame()
 
         self.agent = agent
@@ -196,8 +193,9 @@ class Record:
         if display:
             self._print_log(**logs)
 
-        self.train_log.append(logs)
-        self.train_data = pd.DataFrame(self.train_log)
+        self.train_data = pd.concat(
+            [self.train_data, pd.DataFrame([logs])], ignore_index=True
+        )
 
         if self.log_count % self.checkpoint_interval == 0:
             self._save_data(self.train_data, "train.csv")
@@ -230,11 +228,12 @@ class Record:
         return int(self.train_data["total_steps"].iloc[-1])
 
     def log_eval(self, display: bool = False, **logs) -> None:
-        self.eval_log.append(logs)
-        self.eval_data = pd.DataFrame(self.eval_log)
-
         if display:
             self._print_log(**logs)
+
+        self.eval_data = pd.concat(
+            [self.eval_data, pd.DataFrame([logs])], ignore_index=True
+        )
 
         self._save_data(self.eval_data, "eval.csv")
 
@@ -250,9 +249,6 @@ class Record:
 
     def save(self) -> None:
         logging.info("Saving final outputs")
-
-        self.train_data = pd.DataFrame(self.train_log)
-        self.eval_data = pd.DataFrame(self.eval_log)
 
         self._save_data(self.train_data, "train.csv")
         self._save_data(self.eval_data, "eval.csv")
@@ -291,9 +287,6 @@ class Record:
             self.train_data = pd.read_csv(train_path)
         if os.path.exists(eval_path):
             self.eval_data = pd.read_csv(eval_path)
-
-        self.train_log = self.train_data.to_dict(orient="records")
-        self.eval_log = self.eval_data.to_dict(orient="records")
 
     def __initialise_base_directory(self) -> None:
         if not os.path.exists(self.base_directory):
