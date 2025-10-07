@@ -57,7 +57,9 @@ class FunctionLayer(BaseModel):
 
 class ResidualLayer(BaseModel):
     layer_category: Literal["residual"] = "residual"  # Discriminator field
-    layers: list[Union[TrainableLayer, NormLayer, FunctionLayer, 'Optional[ResidualLayer]']]
+    main_layers: list[Union[TrainableLayer, NormLayer, FunctionLayer, 'Optional[ResidualLayer]']]
+    shortcut_layer: TrainableLayer | None = None,
+    use_padding: bool = False
 
 
 class MLPConfig(BaseModel):
@@ -468,13 +470,7 @@ class SACAEConfig(SACConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=1024),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(layers=
-                [
-                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024)
-                ]
-            ),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
         ]

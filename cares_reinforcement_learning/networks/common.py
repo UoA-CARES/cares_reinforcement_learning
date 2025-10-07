@@ -102,78 +102,39 @@ class ResidualBlock(MLP):
             self,
             input_size: int,
             config: ResidualLayer,
-            projection_method: str = "zero-padding"
         ):
-        super().__init__(input_size, input_size, MLPConfig(layers=config.layers))
-        self.projection_method = projection_method
+        super().__init__(input_size, None, MLPConfig(layers=config.main_layers))
+        self.use_padding = config.use_padding
 
-
-    @_copy_to_script_wrapper
-    def __iter__(self) -> Iterator[nn.Module]:
-        return iter(self._modules.values())
+        if config.shortcut_layer is None:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = MLP(input_size, None, MLPConfig(layers=[config.shortcut_layer]))
 
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        residual = input
-        for module in self:
-            residual = module(residual)
-        
-        if residual.shape == input.shape:    
-            return input + residual
-    
-        if self.projection_method == "zero-padding":
-            input = self.pad_tensor(input, residual)
+        main_output = self.model(input)
+        if self.use_padding:
+            input = self.pad_channels(input, self.output_size)
+        return main_output + self.shortcut(input)
 
-            if (input.shape != residual.shape):
-                input = self.project_down(input, residual)
 
-            return input + residual
+    def pad_channels(self, x: torch.Tensor, target_channels: int):
+        """
+        Pads tensor `x` along channel dimension (dim=1) with zeros
+        until it reaches `target_channels`.
+        Works for shapes [N, C, L], [N, C, H, W], or [N, C, H, W, T].
+        """
+        N, C = x.shape[:2]
+        if C >= target_channels:
+            return x
 
-    def pad_tensor(self, input: torch.Tensor, residual: torch.Tensor):
-        input_shape = input.shape
-        residual_shape = residual.shape
+        pad_channels = target_channels - C
+        # Create a zero tensor of the same type and device
+        pad_shape = (N, pad_channels, *x.shape[2:])
+        zeros = torch.zeros(pad_shape, dtype=x.dtype, device=x.device)
+        return torch.cat([x, zeros], dim=1)
 
-        # If input has fewer dimensions, prepend singleton dimensions
-        if len(input_shape) < len(residual_shape):
-            diff = len(residual_shape) - len(input_shape)
-            input = input.view(input_shape + (1,) * diff)
-            input_shape = input.shape
-
-        # Compute padding for each dimension (end only)
-        pad_amounts = torch.clamp(torch.tensor(residual_shape) - torch.tensor(input_shape), min=0)
-
-        # Build F.pad tuple (reverse order, pad only at end)
-        pad_tuple = torch.zeros(len(pad_amounts) * 2, dtype=torch.long)
-        pad_tuple[1::2] = pad_amounts.flip(0)  # right padding = pad_amounts, reversed
-
-        # Apply padding
-        return F.pad(input, pad_tuple.tolist(), mode="constant", value=0)
-    
-    def project_down(self, input: torch.Tensor, residual: torch.Tensor):
-        # Project input down to match residual shape using convolutional layers
-        in_channels = input.shape[1]
-        out_channels = residual.shape[1]
-        kernel_size = 1
-
-        # If more layers are needed, you can stack multiple conv layers
-        proj = nn.Sequential(
-            nn.Conv1d(in_channels, out_channels, kernel_size),
-            nn.ReLU()
-        ).to(input.device)
-
-        # Reshape input to (batch, channels, length) if needed
-        if input.dim() == 2:
-            input_proj = input.unsqueeze(-1)  # (batch, channels, 1)
-        else:
-            input_proj = input
-
-        input_proj = proj(input_proj)
-
-        # Squeeze back if necessary
-        if input_proj.shape[-1] == 1:
-            input_proj = input_proj.squeeze(-1)
-
-        return input_proj
 
 class BasePolicy(nn.Module):
     def __init__(self, input_size: int, num_actions: int, **kwargs):
