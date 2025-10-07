@@ -33,6 +33,7 @@ class Record:
         agent: Algorithm | None = None,
         record_video: bool = True,
         record_checkpoints: bool = False,
+        checkpoint_interval: int = 1,
     ) -> None:
 
         self.best_reward = float("-inf")
@@ -57,6 +58,7 @@ class Record:
         self.video: cv2.VideoWriter | None = None
 
         self.log_count = 0
+        self.checkpoint_interval = checkpoint_interval
 
         self.__initialise_base_directory()
 
@@ -159,14 +161,13 @@ class Record:
                 f"{self.current_sub_directory}/models/{folder_name}", f"{file_name}"
             )
 
-    def _save_data(
-        self, data_frame: pd.DataFrame, filename: str, logs: dict, display: bool = True
-    ) -> None:
+    def _save_data(self, data_frame: pd.DataFrame, filename: str) -> None:
         if data_frame.empty:
             logging.warning("Trying to save an Empty Dataframe")
 
         data_frame.to_csv(f"{self.current_sub_directory}/data/{filename}", index=False)
 
+    def _print_log(self, **logs) -> None:
         string_values = []
         for key, val in logs.items():
             if isinstance(val, list):
@@ -178,28 +179,32 @@ class Record:
         string_out = " | ".join(string_values)
         string_out = "| " + string_out + " |"
 
-        if display:
-            logging.info(string_out)
+        logging.info(string_out)
 
     def log_train(self, display: bool = False, **logs) -> None:
         self.log_count += 1
 
+        if display:
+            self._print_log(**logs)
+
         self.train_data = pd.concat(
             [self.train_data, pd.DataFrame([logs])], ignore_index=True
         )
-        self._save_data(self.train_data, "train.csv", logs, display=display)
 
-        if self.record_checkpoints:
-            self._save_checkpoint(logs["total_steps"])
+        if self.log_count % self.checkpoint_interval == 0:
+            self._save_data(self.train_data, "train.csv")
 
-        plt.plot_train(
-            self.train_data,
-            f"Training-{self.algorithm}-{self.task}",
-            f"{self.algorithm}",
-            self.current_sub_directory,
-            "train",
-            20,
-        )
+            if self.record_checkpoints:
+                self._save_checkpoint(logs["total_steps"])
+
+            plt.plot_train(
+                self.train_data,
+                f"Training-{self.algorithm}-{self.task}",
+                f"{self.algorithm}",
+                self.current_sub_directory,
+                "train",
+                20,
+            )
 
         reward = logs["episode_reward"]
 
@@ -220,7 +225,11 @@ class Record:
         self.eval_data = pd.concat(
             [self.eval_data, pd.DataFrame([logs])], ignore_index=True
         )
-        self._save_data(self.eval_data, "eval.csv", logs, display=display)
+
+        if display:
+            self._print_log(**logs)
+
+        self._save_data(self.eval_data, "eval.csv")
 
         plt.plot_eval(
             self.eval_data,
@@ -234,8 +243,8 @@ class Record:
 
     def save(self) -> None:
         logging.info("Saving final outputs")
-        self._save_data(self.train_data, "train.csv", {}, display=False)
-        self._save_data(self.eval_data, "eval.csv", {}, display=False)
+        self._save_data(self.train_data, "train.csv")
+        self._save_data(self.eval_data, "eval.csv")
 
         if not self.eval_data.empty:
             plt.plot_eval(
