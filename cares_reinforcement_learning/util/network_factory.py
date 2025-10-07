@@ -649,6 +649,27 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     return agent
 
 
+def create_TD7(observation_size, action_num, config: acf.TD7Config):
+    from cares_reinforcement_learning.algorithm.policy import TD7
+    from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
+
+    device = hlp.get_device()
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+    encoder = Encoder(observation_size, action_num, config=config)
+
+    agent = TD7(
+        actor_network=actor,
+        critic_network=critic,
+        encoder_network=encoder,
+        config=config,
+        device=device,
+    )
+
+    return agent
+
+
 def _compare_mlp_parts(obj1: acf.AlgorithmConfig, obj2: acf.AlgorithmConfig) -> bool:
     # Extract fields where the value is of type mlp_type
     def get_mlp_fields(obj):

@@ -17,6 +17,7 @@ from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.util.configurations import DADSConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class DADS(VectorAlgorithm):
@@ -73,9 +74,10 @@ class DADS(VectorAlgorithm):
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+
         if len(memory) < batch_size:
             return {}
 
@@ -87,26 +89,38 @@ class DADS(VectorAlgorithm):
 
         zs = np.array(self.z_experience_index)[indices]
 
-        zs_tensor = torch.LongTensor(zs).unsqueeze(-1).to(self.device)
+        zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
 
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
         states_zs = np.concatenate([states, zs_one_hot], axis=1)
         next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
 
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        states_zs_tensor = torch.FloatTensor(np.asarray(states_zs)).to(self.device)
-
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        next_states_zs_tensor = torch.FloatTensor(np.asarray(next_states_zs)).to(
-            self.device
+        # Convert into tensor using training utilities
+        states_tensor = torch.tensor(
+            np.asarray(states), dtype=torch.float32, device=self.device
+        )
+        states_zs_tensor = torch.tensor(
+            np.asarray(states_zs), dtype=torch.float32, device=self.device
         )
 
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        actions_tensor = torch.tensor(
+            np.asarray(actions), dtype=torch.float32, device=self.device
+        )
+
+        next_states_tensor = torch.tensor(
+            np.asarray(next_states), dtype=torch.float32, device=self.device
+        )
+        next_states_zs_tensor = torch.tensor(
+            np.asarray(next_states_zs), dtype=torch.float32, device=self.device
+        )
+
+        dones_tensor = torch.tensor(
+            np.asarray(dones), dtype=torch.long, device=self.device
+        )
+        weights_tensor = torch.tensor(
+            np.asarray(weights), dtype=torch.float32, device=self.device
+        )
 
         # One-hot encode skill
         # pylint: disable-next=not-callable
@@ -163,17 +177,28 @@ class DADS(VectorAlgorithm):
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
+        # Save skills agent and discriminator
+        self.skills_agent.save_models(filepath, f"{filename}_skill_agent")
 
-        self.skills_agent.save_models(filepath, filename)
-        torch.save(
-            self.discriminator_net.state_dict(),
-            f"{filepath}/{filename}_discriminator.pht",
-        )
-        logging.info("models has been saved...")
+        checkpoint = {
+            "discriminator": self.discriminator_net.state_dict(),
+            "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
+            "z_experience_index": self.z_experience_index,
+            "z": self.z,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_dads.pth")
+        logging.info("models, optimisers, and DADS state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.skills_agent.load_models(filepath, filename)
-        self.discriminator_net.load_state_dict(
-            torch.load(f"{filepath}/{filename}_discriminator.pht")
+        self.skills_agent.load_models(filepath, f"{filename}_skill_agent")
+
+        checkpoint = torch.load(f"{filepath}/{filename}_dads.pth")
+        self.discriminator_net.load_state_dict(checkpoint["discriminator"])
+        self.discriminator_optimizer.load_state_dict(
+            checkpoint["discriminator_optimizer"]
         )
-        logging.info("models has been loaded...")
+        self.z_experience_index = checkpoint.get(
+            "z_experience_index", self.z_experience_index
+        )
+        self.z = checkpoint.get("z", self.z)
+        logging.info("models, optimisers, and DADS state have been loaded...")

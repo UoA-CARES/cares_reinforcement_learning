@@ -85,6 +85,10 @@ class AlgorithmConfig(SubscriptableClass):
         number_steps_per_train_policy (int]): Number of steps per updating the training policy.
 
         image_observation (int]): Whether the observation is an image.
+
+        model_path (str | None]): Path to a pre-trained model.
+
+        repetition_num_episodes (int]): Number of episodes to use for episode repetition. 0 to disable.
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")
@@ -104,6 +108,8 @@ class AlgorithmConfig(SubscriptableClass):
     image_observation: int = 0
 
     model_path: str | None = None
+
+    repetition_num_episodes: int = 0
 
 
 ###################################
@@ -1168,6 +1174,70 @@ class CTD4Config(TD3Config):
     policy_update_freq: int = 2
 
     fusion_method: str = "kalman"  # kalman, minimum, average
+
+
+class TD7Config(TD3Config):
+    algorithm: str = Field("TD7", Literal=True)
+
+    max_steps_exploration: int = 25000
+
+    tau: float = 1.0
+
+    target_update_rate: int = 250
+
+    max_eps_checkpointing: int = 20
+    steps_before_checkpointing: int = 75000
+    reset_weight: float = 0.9
+
+    G: Literal[1] = Field(default=1, frozen=True)
+
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.0  # full waiting of priorities
+    per_alpha: float = 0.4
+    min_priority: float = 1.0
+
+    # Equal to TD3 but uses ELU activations
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[TrainableLayer(layer_type="Linear", out_features=256)]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
+
+    # Encoder for state representation learning
+    zs_dim: int = 256
+    encoder_lr: float = 3e-4
+    encoder_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    state_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+    state_action_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
 
 
 ###################################

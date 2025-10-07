@@ -12,6 +12,7 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
@@ -20,6 +21,7 @@ from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class NaSATD3(ImageAlgorithm):
@@ -108,7 +110,7 @@ class NaSATD3(ImageAlgorithm):
         self.actor.eval()
         self.autoencoder.eval()
         with torch.no_grad():
-            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
+            state_tensor = tu.image_state_to_tensors(state, self.device)
 
             action = self.actor(state_tensor)
             action = action.cpu().data.numpy().flatten()
@@ -228,14 +230,15 @@ class NaSATD3(ImageAlgorithm):
 
         return pred_losses
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.actor.train()
         self.critic.train()
         self.autoencoder.train()
         self.autoencoder.encoder.train()
         self.autoencoder.decoder.train()
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         self.learn_counter += 1
 
@@ -248,20 +251,22 @@ class NaSATD3(ImageAlgorithm):
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
 
-        batch_size = len(states)
-
-        states_tensor = hlp.image_states_dict_to_tensor(states, self.device)
-
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-
-        next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
-
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
+        # Convert to tensors using multimodal batch conversion
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            _,  # weights not used
+        ) = tu.image_batch_to_tensors(
+            states,
+            actions,
+            rewards,
+            next_states,
+            dones,
+            self.device,
+        )
 
         info: dict[str, Any] = {}
 
@@ -370,28 +375,11 @@ class NaSATD3(ImageAlgorithm):
             return 0.0
 
         with torch.no_grad():
-            vector_tensor = torch.FloatTensor(state["vector"]).to(self.device)
-            vector_tensor = vector_tensor.unsqueeze(0)
-
-            image_tensor = torch.FloatTensor(state["image"]).to(self.device)
-            image_tensor = image_tensor.unsqueeze(0)
-            image_tensor = image_tensor / 255
-
-            state_tensor = {"image": image_tensor, "vector": vector_tensor}
-
-            next_vector_tensor = torch.FloatTensor(next_state["vector"]).to(self.device)
-            next_vector_tensor = vector_tensor.unsqueeze(0)
-
-            next_image_tensor = torch.FloatTensor(next_state["image"]).to(self.device)
-            next_image_tensor = next_image_tensor.unsqueeze(0)
-            next_image_tensor = next_image_tensor / 255
-
-            next_state_tensor = {
-                "image": next_image_tensor,
-                "vector": next_vector_tensor,
-            }
-
-            action_tensor = torch.FloatTensor(action).to(self.device)
+            state_tensor = tu.image_state_to_tensors(state, self.device)
+            next_state_tensor = tu.image_state_to_tensors(next_state, self.device)
+            action_tensor = torch.tensor(
+                action, dtype=torch.float32, device=self.device
+            )
             action_tensor = action_tensor.unsqueeze(0)
 
             surprise_rate = self._get_surprise_rate(
@@ -430,28 +418,45 @@ class NaSATD3(ImageAlgorithm):
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
-
-        torch.save(self.actor.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic.state_dict(), f"{filepath}/{filename}_critic.pht")
-        torch.save(
-            self.autoencoder.encoder.state_dict(), f"{filepath}/{filename}_encoder.pht"
-        )
-        torch.save(
-            self.autoencoder.decoder.state_dict(), f"{filepath}/{filename}_decoder.pht"
-        )
-        torch.save(
-            self.ensemble_predictive_model.state_dict(),
-            f"{filepath}/{filename}_ensemble.pht",
-        )
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor.state_dict(),
+            "critic": self.critic.state_dict(),
+            "actor_target": self.actor_target.state_dict(),
+            "critic_target": self.critic_target.state_dict(),
+            "encoder": self.autoencoder.encoder.state_dict(),
+            "decoder": self.autoencoder.decoder.state_dict(),
+            "ensemble": self.ensemble_predictive_model.state_dict(),
+            "actor_optimizer": self.actor_optimizer.state_dict(),
+            "critic_optimizer": self.critic_optimizer.state_dict(),
+            "epm_optimizers": [opt.state_dict() for opt in self.epm_optimizers],
+            "learn_counter": self.learn_counter,
+            "policy_noise": self.policy_noise,
+            "action_noise": self.action_noise,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        self.autoencoder.encoder.load_state_dict(
-            torch.load(f"{filepath}/{filename}_encoder.pht")
-        )
-        self.autoencoder.decoder.load_state_dict(
-            torch.load(f"{filepath}/{filename}_decoder.pht")
-        )
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor.load_state_dict(checkpoint["actor"])
+        self.critic.load_state_dict(checkpoint["critic"])
+
+        self.actor_target.load_state_dict(checkpoint["actor_target"])
+        self.critic_target.load_state_dict(checkpoint["critic_target"])
+
+        self.autoencoder.encoder.load_state_dict(checkpoint["encoder"])
+        self.autoencoder.decoder.load_state_dict(checkpoint["decoder"])
+
+        self.ensemble_predictive_model.load_state_dict(checkpoint["ensemble"])
+
+        self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer"])
+        for opt, state in zip(self.epm_optimizers, checkpoint["epm_optimizers"]):
+            opt.load_state_dict(state)
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        self.policy_noise = checkpoint.get("policy_noise", self.policy_noise)
+        self.action_noise = checkpoint.get("action_noise", self.action_noise)
+        logging.info("models, optimisers, and training state have been loaded...")

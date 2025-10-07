@@ -17,6 +17,7 @@ from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class DIAYN(VectorAlgorithm):
@@ -79,9 +80,10 @@ class DIAYN(VectorAlgorithm):
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+
         if len(memory) < batch_size:
             return {}
 
@@ -93,29 +95,41 @@ class DIAYN(VectorAlgorithm):
 
         zs = np.array(self.z_experience_index)[indices]
 
-        zs_tensor = torch.LongTensor(zs).unsqueeze(-1).to(self.device)
+        zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
 
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
         states_zs = np.concatenate([states, zs_one_hot], axis=1)
         next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
 
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        states_zs_tensor = torch.FloatTensor(np.asarray(states_zs)).to(self.device)
-
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        next_states_zs_tensor = torch.FloatTensor(np.asarray(next_states_zs)).to(
-            self.device
+        # Convert into tensor using training utilities
+        states_tensor = torch.tensor(
+            np.asarray(states), dtype=torch.float32, device=self.device
+        )
+        states_zs_tensor = torch.tensor(
+            np.asarray(states_zs), dtype=torch.float32, device=self.device
         )
 
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
+        actions_tensor = torch.tensor(
+            np.asarray(actions), dtype=torch.float32, device=self.device
+        )
+
+        next_states_tensor = torch.tensor(
+            np.asarray(next_states), dtype=torch.float32, device=self.device
+        )
+        next_states_zs_tensor = torch.tensor(
+            np.asarray(next_states_zs), dtype=torch.float32, device=self.device
+        )
+
+        dones_tensor = torch.tensor(
+            np.asarray(dones), dtype=torch.long, device=self.device
+        )
+        weights_tensor = torch.tensor(
+            np.asarray(weights), dtype=torch.float32, device=self.device
+        )
 
         # Dervive rewards from the discriminator
-        p_z = torch.FloatTensor(self.p_z).to(self.device)
+        p_z = torch.tensor(self.p_z, dtype=torch.float32, device=self.device)
 
         logits = self.discriminator_net(next_states_tensor)
         p_z = p_z.gather(-1, zs_tensor)
@@ -163,16 +177,31 @@ class DIAYN(VectorAlgorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        self.skills_agent.save_models(filepath, filename)
-        torch.save(
-            self.discriminator_net.state_dict(),
-            f"{filepath}/{filename}_discriminator.pht",
-        )
-        logging.info("models has been saved...")
+        # Save skills agent
+        self.skills_agent.save_models(filepath, f"{filename}_skill_agent")
+
+        # Save DIAYN-specific state in a single checkpoint
+        checkpoint = {
+            "discriminator_state_dict": self.discriminator_net.state_dict(),
+            "discriminator_optimizer_state_dict": self.discriminator_optimizer.state_dict(),
+            "z": self.z,
+            "z_experience_index": self.z_experience_index,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_diayn.pth")
+        logging.info("DIAYN models and state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.skills_agent.load_models(filepath, filename)
-        self.discriminator_net.load_state_dict(
-            torch.load(f"{filepath}/{filename}_discriminator.pht")
+        self.skills_agent.load_models(filepath, f"{filename}_skill_agent")
+
+        checkpoint = torch.load(f"{filepath}/{filename}_diayn.pth")
+
+        self.discriminator_net.load_state_dict(checkpoint["discriminator_state_dict"])
+        self.discriminator_optimizer.load_state_dict(
+            checkpoint["discriminator_optimizer_state_dict"]
         )
-        logging.info("models has been loaded...")
+
+        self.z = checkpoint.get("z", self.z)
+        self.z_experience_index = checkpoint.get(
+            "z_experience_index", self.z_experience_index
+        )
+        logging.info("DIAYN models and state have been loaded...")

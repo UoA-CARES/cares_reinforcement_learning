@@ -10,8 +10,8 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class Algorithm(ABC):
@@ -130,9 +130,7 @@ class Algorithm(ABC):
 
     # TODO push batch_size into the algorithm
     @abstractmethod
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]: ...
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]: ...
 
     @abstractmethod
     def save_models(self, filepath: str, filename: str) -> None: ...
