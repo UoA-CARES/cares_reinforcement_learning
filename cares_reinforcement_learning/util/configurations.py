@@ -1,5 +1,6 @@
 from __future__ import annotations
-from typing import Literal, Any, Optional, Union
+
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -58,12 +59,9 @@ class FunctionLayer(BaseModel):
 
 class ResidualLayer(BaseModel):
     layer_category: Literal["residual"] = "residual"  # Discriminator field
-    main_layers: list[Union[TrainableLayer, NormLayer, FunctionLayer, "ResidualLayer"]]
+    main_layers: list[Union[TrainableLayer, NormLayer, FunctionLayer, ResidualLayer]]
     shortcut_layer: TrainableLayer | None = None
     use_padding: bool = False
-
-
-ResidualLayer.update_forward_refs()
 
 
 class MLPConfig(BaseModel):
