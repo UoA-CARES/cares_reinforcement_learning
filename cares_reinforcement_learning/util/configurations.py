@@ -59,7 +59,7 @@ class FunctionLayer(BaseModel):
 
 class ResidualLayer(BaseModel):
     layer_category: Literal["residual"] = "residual"  # Discriminator field
-    main_layers: list[Union[TrainableLayer, NormLayer, FunctionLayer, ResidualLayer]]
+    main_layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
     shortcut_layer: TrainableLayer | None = None
     use_padding: bool = False
 
