@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import Literal, Any, Optional, Union
 
 from pydantic import BaseModel, Field
@@ -1280,3 +1281,5 @@ class DADSConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
         ]
     )
+
+ResidualLayer.update_forward_refs()
