@@ -16,13 +16,8 @@ from cares_reinforcement_learning.util.configurations import SubscriptableClass
 
 class Record:
     """
-    A class that represents a record for logging and saving data during training and evaluation.
-
-    Args:
-        log_dir (str): The log directory.
-        algorithm (str): The algorithm name.
-        task (str): The task name.
-        network (nn.Module, optional): The neural network model. Defaults to None.
+    Class for recording training and evaluation data, managing directories, saving configurations,
+    handling video recording, and saving/loading agent models and memory buffers.
     """
 
     def __init__(
@@ -33,7 +28,19 @@ class Record:
         agent: Algorithm | None = None,
         record_video: bool = True,
         record_checkpoints: bool = False,
+        checkpoint_interval: int = 1,
     ) -> None:
+        """
+        Initializes the Record instance with directories, logging settings, and recording options.
+        Args:
+            base_directory (str): The base directory for saving logs and models.
+            algorithm (str): The name of the algorithm being used.
+            task (str): The name of the task being performed.
+            agent (Algorithm, optional): The reinforcement learning agent. Defaults to None.
+            record_video (bool, optional): Whether to record videos during training/evaluation. Defaults to True.
+            record_checkpoints (bool, optional): Whether to save checkpoints of the agent and memory buffer. Defaults to False.
+            checkpoint_interval (int, optional): Interval (in episodes) at which to save checkpoints. Defaults to 1.
+        """
 
         self.best_reward = float("-inf")
 
@@ -57,6 +64,7 @@ class Record:
         self.video: cv2.VideoWriter | None = None
 
         self.log_count = 0
+        self.checkpoint_interval = checkpoint_interval
 
         self.__initialise_base_directory()
 
@@ -159,14 +167,13 @@ class Record:
                 f"{self.current_sub_directory}/models/{folder_name}", f"{file_name}"
             )
 
-    def _save_data(
-        self, data_frame: pd.DataFrame, filename: str, logs: dict, display: bool = True
-    ) -> None:
+    def _save_data(self, data_frame: pd.DataFrame, filename: str) -> None:
         if data_frame.empty:
             logging.warning("Trying to save an Empty Dataframe")
 
         data_frame.to_csv(f"{self.current_sub_directory}/data/{filename}", index=False)
 
+    def _print_log(self, **logs) -> None:
         string_values = []
         for key, val in logs.items():
             if isinstance(val, list):
@@ -178,28 +185,32 @@ class Record:
         string_out = " | ".join(string_values)
         string_out = "| " + string_out + " |"
 
-        if display:
-            logging.info(string_out)
+        logging.info(string_out)
 
     def log_train(self, display: bool = False, **logs) -> None:
         self.log_count += 1
 
+        if display:
+            self._print_log(**logs)
+
         self.train_data = pd.concat(
             [self.train_data, pd.DataFrame([logs])], ignore_index=True
         )
-        self._save_data(self.train_data, "train.csv", logs, display=display)
 
-        if self.record_checkpoints:
-            self._save_checkpoint(logs["total_steps"])
+        if self.log_count % self.checkpoint_interval == 0:
+            self._save_data(self.train_data, "train.csv")
 
-        plt.plot_train(
-            self.train_data,
-            f"Training-{self.algorithm}-{self.task}",
-            f"{self.algorithm}",
-            self.current_sub_directory,
-            "train",
-            20,
-        )
+            if self.record_checkpoints:
+                self._save_checkpoint(logs["total_steps"])
+
+            plt.plot_train(
+                self.train_data,
+                f"Training-{self.algorithm}-{self.task}",
+                f"{self.algorithm}",
+                self.current_sub_directory,
+                "train",
+                20,
+            )
 
         reward = logs["episode_reward"]
 
@@ -217,10 +228,14 @@ class Record:
         return int(self.train_data["total_steps"].iloc[-1])
 
     def log_eval(self, display: bool = False, **logs) -> None:
+        if display:
+            self._print_log(**logs)
+
         self.eval_data = pd.concat(
             [self.eval_data, pd.DataFrame([logs])], ignore_index=True
         )
-        self._save_data(self.eval_data, "eval.csv", logs, display=display)
+
+        self._save_data(self.eval_data, "eval.csv")
 
         plt.plot_eval(
             self.eval_data,
@@ -234,8 +249,9 @@ class Record:
 
     def save(self) -> None:
         logging.info("Saving final outputs")
-        self._save_data(self.train_data, "train.csv", {}, display=False)
-        self._save_data(self.eval_data, "eval.csv", {}, display=False)
+
+        self._save_data(self.train_data, "train.csv")
+        self._save_data(self.eval_data, "eval.csv")
 
         if not self.eval_data.empty:
             plt.plot_eval(
@@ -263,6 +279,9 @@ class Record:
         """
         train_path = os.path.join(base_directory, "data", "train.csv")
         eval_path = os.path.join(base_directory, "data", "eval.csv")
+
+        self.train_data = pd.DataFrame()
+        self.eval_data = pd.DataFrame()
 
         if os.path.exists(train_path):
             self.train_data = pd.read_csv(train_path)
