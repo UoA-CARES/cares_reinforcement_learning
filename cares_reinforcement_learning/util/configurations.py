@@ -58,9 +58,14 @@ class FunctionLayer(BaseModel):
 
 class ResidualLayer(BaseModel):
     layer_category: Literal["residual"] = "residual"  # Discriminator field
-    main_layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer | None]
+    main_layers: list[
+        TrainableLayer | NormLayer | FunctionLayer | "ResidualLayer" | None
+    ]
     shortcut_layer: TrainableLayer | None = None
     use_padding: bool = False
+
+
+ResidualLayer.update_forward_refs()
 
 
 class MLPConfig(BaseModel):
@@ -1279,6 +1284,3 @@ class DADSConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
         ]
     )
-
-
-ResidualLayer.update_forward_refs()
