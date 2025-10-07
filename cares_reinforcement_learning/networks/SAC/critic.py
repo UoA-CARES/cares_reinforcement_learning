@@ -49,4 +49,6 @@ class Critic(TwinQNetwork):
     def __init__(self, observation_size: int, num_actions: int, config: SACConfig):
         input_size = observation_size + num_actions
 
-        super().__init__(input_size=input_size, output_size=1, config=config.critic_config)
+        super().__init__(
+            input_size=input_size, output_size=1, config=config.critic_config
+        )

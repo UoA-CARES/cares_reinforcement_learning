@@ -8,9 +8,6 @@ from torch import nn
 from torch.distributions import Normal
 from torch.distributions.transformed_distribution import TransformedDistribution
 from torch.distributions.transforms import TanhTransform
-from torch._jit_internal import _copy_to_script_wrapper
-
-from collections.abc import Iterator
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
