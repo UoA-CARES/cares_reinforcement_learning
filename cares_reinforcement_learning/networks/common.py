@@ -96,25 +96,25 @@ class MLP(nn.Module):
 
 class ResidualBlock(MLP):
     def __init__(
-            self,
-            input_size: int,
-            config: ResidualLayer,
-        ):
+        self,
+        input_size: int,
+        config: ResidualLayer,
+    ):
         super().__init__(input_size, None, MLPConfig(layers=config.main_layers))
         self.use_padding = config.use_padding
 
         if config.shortcut_layer is None:
             self.shortcut = nn.Identity()
         else:
-            self.shortcut = MLP(input_size, None, MLPConfig(layers=[config.shortcut_layer]))
-
+            self.shortcut = MLP(
+                input_size, None, MLPConfig(layers=[config.shortcut_layer])
+            )
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         main_output = self.model(input)
         if self.use_padding:
             input = self.pad_channels(input, self.output_size)
         return main_output + self.shortcut(input)
-
 
     def pad_channels(self, x: torch.Tensor, target_channels: int):
         """
