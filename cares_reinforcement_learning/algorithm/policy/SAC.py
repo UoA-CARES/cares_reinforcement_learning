@@ -169,7 +169,7 @@ class SAC(VectorAlgorithm):
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
-                - self.alpha * next_log_pi
+                - self.alpha.detach() * next_log_pi
             )
 
             q_target = (
@@ -224,7 +224,7 @@ class SAC(VectorAlgorithm):
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        actor_loss = ((self.alpha.detach() * log_pi) - min_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
