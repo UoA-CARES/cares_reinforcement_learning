@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import numpy as np
+
 from cares_reinforcement_learning.memory import MemoryBuffer
 
 
@@ -15,3 +17,10 @@ class TrainingContext:
     episode_steps: int
     episode_reward: float
     episode_done: bool
+
+
+@dataclass
+class ActionContext:
+    state: np.ndarray | dict
+    evaluation: bool
+    available_actions: list[int] | None = None

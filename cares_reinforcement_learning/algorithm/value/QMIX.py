@@ -41,6 +41,9 @@ class QMIX(VectorAlgorithm):
 
         self.max_grad_norm = config.max_grad_norm
 
+        self.num_agents = network.num_agents
+        self.num_actions = network.num_actions
+
         # Epsilon
         self.epsilon_scheduler = EpsilonScheduler(
             start_epsilon=config.start_epsilon,

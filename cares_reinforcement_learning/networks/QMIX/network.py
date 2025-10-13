@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 
 from cares_reinforcement_learning.networks.DQN import Network
-from cares_reinforcement_learning.util.configurations import DQNConfig, QMIXConfig
+from cares_reinforcement_learning.util.configurations import QMIXConfig
 
 
 class MultiAgentNetwork(nn.Module):
@@ -15,17 +15,17 @@ class MultiAgentNetwork(nn.Module):
         observation_size: int,
         num_actions: int,
         num_agents: int,
-        config: DQNConfig,
+        config: QMIXConfig,
     ):
         super().__init__()
         self.observation_size = observation_size
         self.num_actions = num_actions
 
-        self.ensemble_size = num_agents
+        self.num_agents = num_agents
 
         self.agents: list[Network | nn.Sequential] = []
 
-        for i in range(self.ensemble_size):
+        for i in range(self.num_agents):
             agent_net = Network(
                 observation_size=self.observation_size,
                 num_actions=self.num_actions,

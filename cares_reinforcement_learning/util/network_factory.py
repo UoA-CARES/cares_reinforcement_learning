@@ -111,6 +111,29 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
     return agent
 
 
+def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
+    from cares_reinforcement_learning.algorithm.value import QMIX
+    from cares_reinforcement_learning.networks.QMIX import MultiAgentNetwork, QMixer
+
+    obs_shape = observation_size["obs"]
+    num_agents = observation_size["num_agents"]
+
+    network = MultiAgentNetwork(
+        observation_size=obs_shape,
+        num_actions=action_num,
+        num_agents=num_agents,
+        config=config,
+    )
+
+    state_shape = observation_size["state"]
+
+    mixer = QMixer(num_agents=num_agents, state_dim=state_shape)
+
+    device = hlp.get_device()
+    agent = QMIX(network=network, mixer=mixer, config=config, device=device)
+    return agent
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
