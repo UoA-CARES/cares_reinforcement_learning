@@ -318,6 +318,48 @@ class RainbowConfig(C51Config):
     )
 
 
+class QMIXConfig(AlgorithmConfig):
+    algorithm: str = Field("QMIX", Literal=True)
+    lr: float = 1e-3
+    gamma: float = 0.99
+    tau: float = 1.0
+
+    batch_size: int = 32
+
+    target_update_freq: int = 1000
+
+    # Double DQN
+    use_double_dqn: int = 0
+
+    # PER
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
+    use_per_buffer: int = 0
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # n-step
+    n_step: int = 1
+
+    max_grad_norm: float | None = None
+
+    # Exploration via Epsilon Greedy
+    max_steps_exploration: int = 0
+    start_epsilon: float = 1.0
+    end_epsilon: float = 1e-3
+    decay_steps: int = 100000
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+        ]
+    )
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################

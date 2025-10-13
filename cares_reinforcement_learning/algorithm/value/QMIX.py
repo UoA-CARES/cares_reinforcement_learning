@@ -1,5 +1,5 @@
 """
-Original Paper: https://arxiv.org/abs/1312.5602
+Original Paper: https://arxiv.org/pdf/1803.11485
 """
 
 import copy
@@ -15,17 +15,18 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.networks.DQN import BaseNetwork
-from cares_reinforcement_learning.util.configurations import DQNConfig
+from cares_reinforcement_learning.networks.QMIX import MultiAgentNetwork, QMixer
+from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
-class DQN(VectorAlgorithm):
+class QMIX(VectorAlgorithm):
     def __init__(
         self,
-        network: BaseNetwork,
-        config: DQNConfig,
+        network: MultiAgentNetwork,
+        mixer: QMixer,
+        config: QMIXConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="value", config=config, device=device)
