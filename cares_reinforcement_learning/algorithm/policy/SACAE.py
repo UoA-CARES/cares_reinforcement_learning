@@ -19,7 +19,6 @@ import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 from cares_reinforcement_learning.util.training_context import TrainingContext
@@ -220,7 +219,6 @@ class SACAE(ImageAlgorithm):
 
         self.encoder_net_optimiser.zero_grad()
         self.decoder_net_optimiser.zero_grad()
-        self.critic_net_optimiser.zero_grad()  # Clear critic gradients to avoid accumulation
         ae_loss.backward()
         self.encoder_net_optimiser.step()
         self.decoder_net_optimiser.step()
