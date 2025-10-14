@@ -17,10 +17,12 @@ import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class TD3AE(ImageAlgorithm):
@@ -98,12 +100,14 @@ class TD3AE(ImageAlgorithm):
             **config.autoencoder_config.decoder_optim_kwargs,
         )
 
-    def select_action_from_policy(
-        self,
-        state: dict[str, np.ndarray],
-        evaluation: bool = False,
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, dict)
+
         with torch.no_grad():
             state_tensor = tu.image_state_to_tensors(state, self.device)
 

@@ -11,7 +11,10 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    TrainingContext,
+    ActionContext,
+)
 
 
 class Algorithm(ABC):
@@ -42,7 +45,7 @@ class Algorithm(ABC):
 
     @abstractmethod
     def select_action_from_policy(
-        self, state: Any, evaluation: bool = False
+        self, action_context: ActionContext
     ) -> int | np.ndarray: ...
 
     def _fixed_step_bias_segments(
@@ -163,7 +166,7 @@ class VectorAlgorithm(Algorithm):
 
     @abstractmethod
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False
+        self, action_context: ActionContext
     ) -> int | np.ndarray: ...
 
 
@@ -171,5 +174,5 @@ class ImageAlgorithm(Algorithm):
 
     @abstractmethod
     def select_action_from_policy(
-        self, state: dict[str, np.ndarray], evaluation: bool = False
+        self, action_context: ActionContext
     ) -> int | np.ndarray: ...

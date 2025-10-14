@@ -17,11 +17,13 @@ from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    TrainingContext,
+    ActionContext,
+)
 
 
 class NaSATD3(ImageAlgorithm):
@@ -104,11 +106,16 @@ class NaSATD3(ImageAlgorithm):
 
     def select_action_from_policy(
         self,
-        state: dict[str, np.ndarray],
-        evaluation: bool = False,
+        action_context: ActionContext,
     ) -> np.ndarray:
         self.actor.eval()
         self.autoencoder.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, dict)
+
         with torch.no_grad():
             state_tensor = tu.image_state_to_tensors(state, self.device)
 

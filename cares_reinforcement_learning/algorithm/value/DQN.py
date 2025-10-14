@@ -18,7 +18,10 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class DQN(VectorAlgorithm):
@@ -82,12 +85,15 @@ class DQN(VectorAlgorithm):
 
         return action
 
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False
-    ) -> int:
+    def select_action_from_policy(self, action_context: ActionContext) -> int:
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, np.ndarray)
+
         if evaluation:
             return self._exploit(state)
 
