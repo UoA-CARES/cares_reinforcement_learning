@@ -18,7 +18,10 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.util.configurations import TD7Config
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class TD7(VectorAlgorithm):
@@ -107,12 +110,14 @@ class TD7(VectorAlgorithm):
             **config.encoder_lr_params,
         )
 
-    def select_action_from_policy(
-        self,
-        state: np.ndarray,
-        evaluation: bool = False,
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, np.ndarray)
+
         with torch.no_grad():
             # Fix: Use modern tensor creation
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)

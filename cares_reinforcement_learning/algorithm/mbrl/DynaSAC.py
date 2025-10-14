@@ -23,7 +23,10 @@ from cares_reinforcement_learning.networks.world_models.ensemble_integrated impo
     EnsembleWorldReward,
 )
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    TrainingContext,
+    ActionContext,
+)
 
 
 class DynaSAC(VectorAlgorithm):
@@ -77,10 +80,11 @@ class DynaSAC(VectorAlgorithm):
     def _alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         # pylint: disable-next=unused-argument
+
+        state = action_context.state
+        evaluation = action_context.evaluation
 
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()

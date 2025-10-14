@@ -14,10 +14,12 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 from cares_reinforcement_learning.util.configurations import DDPGConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class DDPG(Algorithm):
@@ -48,10 +50,10 @@ class DDPG(Algorithm):
 
     def select_action_from_policy(
         self,
-        state: np.ndarray,
-        evaluation: bool = False,
+        action_context: ActionContext,
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
+        state = action_context.state
 
         self.actor_net.eval()
         with torch.no_grad():
