@@ -17,10 +17,12 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACDConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class SACD(VectorAlgorithm):
@@ -72,11 +74,15 @@ class SACD(VectorAlgorithm):
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
 
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, np.ndarray)
+
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
