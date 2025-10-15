@@ -34,9 +34,7 @@ class MultiAgentNetwork(nn.Module):
             self.add_module(f"agent_net_{i}", agent_net)
             self.agents.append(agent_net)
 
-    def forward(
-        self, observations: torch.Tensor, actions: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, observations: torch.Tensor) -> torch.Tensor:
         """
         observations: [batch_size, num_agents, obs_dim]
         actions: [batch_size, num_agents]
@@ -50,11 +48,7 @@ class MultiAgentNetwork(nn.Module):
             obs_i = observations[:, i, :]  # [batch, obs_dim]
             q_values_i = agent(obs_i)  # [batch, num_actions]
 
-            # Select the Q-value corresponding to the chosen action
-            action_i = actions[:, i].unsqueeze(1)  # [batch, 1]
-            q_i = q_values_i.gather(1, action_i).squeeze(1)  # [batch]
-            agent_qs_list.append(q_i)
+            agent_qs_list.append(q_values_i)
 
-        # Stack each agent’s selected Q-value → [batch, num_agents]
         agent_qs_tensor = torch.stack(agent_qs_list, dim=1)
         return agent_qs_tensor

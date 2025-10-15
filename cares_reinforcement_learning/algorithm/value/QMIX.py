@@ -18,7 +18,10 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.networks.QMIX import MultiAgentNetwork, QMixer
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class QMIX(VectorAlgorithm):
@@ -34,6 +37,10 @@ class QMIX(VectorAlgorithm):
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)
         self.target_network.eval()
+
+        self.mixer = mixer.to(device)
+        self.target_mixer = copy.deepcopy(self.mixer).to(device)
+        self.target_mixer.eval()
 
         self.tau = config.tau
         self.gamma = config.gamma
@@ -71,76 +78,152 @@ class QMIX(VectorAlgorithm):
 
         self.learn_counter = 0
 
-    def _explore(self) -> int:
-        return random.randrange(self.network.num_actions)
+    def _explore(self, available_actions: np.ndarray) -> list[int]:
+        actions = []
+        for available_action in available_actions:
+            avail_actions_ind = np.nonzero(available_action)[0]
+            action = np.random.choice(avail_actions_ind)
+            actions.append(int(action))
+        return actions
 
-    def _exploit(self, state: np.ndarray) -> int:
+    def _exploit(self, state: dict) -> list[int]:
         self.network.eval()
+
+        state_tensor = tu.marl_states_to_tensors([state], self.device)
+
+        obs_tensor = state_tensor["obs"]
+        avail_actions_tensor = state_tensor["avail_actions"]
+
         with torch.no_grad():
-            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            q_values = self.network(state_tensor)
-            action = int(torch.argmax(q_values, dim=1).item())
+            # Forward pass through agent network to get Q-values
+            q_values = self.network(obs_tensor)  # [1, num_agents, num_actions]
+
+            # Mask unavailable actions
+            mask = avail_actions_tensor == 0
+            q_values = q_values.masked_fill(mask, -1e9)
+
+            # Greedy action selection
+            actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
 
         self.network.train()
 
-        return action
+        return actions.cpu().tolist()
 
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False
-    ) -> int:
+    def select_action_from_policy(self, action_context: ActionContext):
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
+        state = action_context.state
+        evaluation = action_context.evaluation
+        available_actions = action_context.available_actions
+
+        assert isinstance(state, dict)
+
         if evaluation:
             return self._exploit(state)
 
         if random.random() < self.epsilon:
-            return self._explore()
+            return self._explore(available_actions)
 
         return self._exploit(state)
 
-    def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-        state_tensor = state_tensor.unsqueeze(0)
+    # def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
+    #     state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    #     state_tensor = state_tensor.unsqueeze(0)
 
-        with torch.no_grad():
-            q_values = self.network(state_tensor)
-            q_value = q_values[0][action].item()
+    #     with torch.no_grad():
+    #         q_values = self.network(state_tensor)
+    #         q_value = q_values[0][action].item()
 
-        return q_value
+    #     return q_value
 
     def _compute_loss(
         self,
-        states_tensor: torch.Tensor,
+        states_tensor: dict[str, torch.Tensor],
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_states_tensor: dict[str, torch.Tensor],
         dones_tensor: torch.Tensor,
         batch_size: int,  # pylint: disable=unused-argument
     ) -> torch.Tensor:
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
-        q_values = self.network(states_tensor)
-        next_q_values_target = self.target_network(next_states_tensor)
+
+        obs_tensor = states_tensor["obs"]
+        next_obs_tensor = next_states_tensor["obs"]
+
+        global_states_tensor = states_tensor["state"]
+        next_global_states_tensor = next_states_tensor["state"]
+
+        avail_actions_tensor = states_tensor["avail_actions"]
+        next_avail_actions_tensor = next_states_tensor["avail_actions"]
+
+        print(f"{obs_tensor.shape=}")
+        print(f"{next_obs_tensor.shape=}")
+
+        print(f"{global_states_tensor.shape=}")
+        print(f"{next_global_states_tensor.shape=}")
+
+        print(f"{avail_actions_tensor.shape=}")
+        print(f"{next_avail_actions_tensor.shape=}")
+
+        print(f"{actions_tensor.shape=}")
+        print(f"{rewards_tensor.shape=}")
+        print(f"{dones_tensor.shape=}")
+
+        q_values = self.network(obs_tensor)
+        next_q_values_target = self.target_network(next_obs_tensor)
+
+        print(f"{q_values.shape=}")
+        print(f"{next_q_values_target.shape=}")
 
         # Get Q-values for chosen actions
-        best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
+        best_q_values = q_values.gather(
+            dim=2, index=actions_tensor.unsqueeze(-1)
+        ).squeeze(-1)
+
+        print(f"{best_q_values.shape=}")
 
         if self.use_double_dqn:
             # Online network selects best actions
-            next_q_values_online = self.network(next_states_tensor)
-            next_actions = next_q_values_online.argmax(dim=1, keepdim=True)
-            # Target network estimates their values
-            best_next_q_values = next_q_values_target.gather(1, next_actions).squeeze(1)
+            next_q_values_online = self.network(next_obs_tensor)
+
+            # Mask unavailable actions in next state
+            mask = (next_avail_actions_tensor == 0).bool()
+            next_q_values_online = next_q_values_online.masked_fill(mask, -1e9)
+
+            # Select argmax among valid next actions
+            next_actions = next_q_values_online.argmax(dim=2, keepdim=True)
+
+            # Target network evaluates those actions
+            best_next_q_values = next_q_values_target.gather(
+                dim=2, index=next_actions
+            ).squeeze(2)
         else:
-            # Standard DQN: Use target network to select best Q-values
-            best_next_q_values = torch.max(next_q_values_target, dim=1).values
+            # Standard DQN: mask next Q-values before taking max
+            mask = (next_avail_actions_tensor == 0).bool()
+            masked_next_q = next_q_values_target.masked_fill(mask, -1e9)
+            best_next_q_values = masked_next_q.max(dim=2)[0]
+
+        print("best_next_q_values", best_next_q_values.shape)
+
+        # Apply mixer network to combine agent Q-values
+        # QMIX mixes: Q_total = mixer(best_q_values, global_state)
+        q_total = self.mixer(best_q_values, global_states_tensor)
+        q_total_target = self.mixer(best_next_q_values, next_global_states_tensor)
 
         q_target = (
             rewards_tensor
-            + (self.gamma**self.n_step) * (1 - dones_tensor) * best_next_q_values
+            + (self.gamma**self.n_step) * (1 - dones_tensor) * q_total_target
         )
-        elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
+
+        print("q_total", q_total.shape)
+        print("q_total_target", q_total_target.shape)
+        print("q_target", q_target.shape)
+
+        elementwise_loss = F.mse_loss(q_total, q_target, reduction="none")
+
+        print("elementwise_loss", elementwise_loss.shape)
+        print("elementwise_loss", elementwise_loss.mean())
 
         return elementwise_loss
 
@@ -167,7 +250,7 @@ class QMIX(VectorAlgorithm):
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_batch_to_tensors(
+        ) = tu.sample_marl_batch_to_tensors(
             memory,
             batch_size,
             self.device,
