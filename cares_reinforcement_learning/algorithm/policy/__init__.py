@@ -23,3 +23,4 @@ from .TQC import TQC
 from .CrossQ import CrossQ
 from .DroQ import DroQ
 from .SDAR import SDAR
+from .PPO_SIL import PPO_SIL ##

@@ -354,40 +354,27 @@ class PPOConfig(AlgorithmConfig):
         ]
     )
 
-
 ##update PPO_SIL Algorithms configurations
 ###################################
 #         PPO_SIL Algorithms          #
 ###################################
 
+#TO DO: update configureations
 
 class PPO_SILConfig(AlgorithmConfig):
     algorithm: str = Field("PPO_SIL", Literal=True)
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
-    gamma: float = 0.99      #discount rate of rtgs
-    eps_clip: float = 0.2    #PPO update clip of policy update ratios
+    gamma: float = 0.99
+    eps_clip: float = 0.2
 
     # TODO is this G?
-    updates_per_iteration: int = 10  ##PPO update times in one rollout
+    updates_per_iteration: int = 10 ##4?
 
-    number_steps_per_train_policy: int = 5000  ##pre rollout
+    number_steps_per_train_policy: int = 5000
 
     max_steps_exploration: int = 0
-
-
-    ##SIL configuration
-    n_update: int = 10  #update times after policy train
-    sil_clip: float = 20  # sil clip value, using in advanagtes
-
-    per_alpha: float = 0.6 # PER buffer
-    per_beta: float = 0.4 # PER buffer
-    #sil_batch_size = 512 # if need to configure?
-    
-
-
-
 
     actor_config: MLPConfig = MLPConfig(
         layers=[

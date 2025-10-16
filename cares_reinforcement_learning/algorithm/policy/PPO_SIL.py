@@ -20,15 +20,20 @@ from torch.distributions import MultivariateNormal
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
-from cares_reinforcement_learning.util.configurations import PPOConfig
+from cares_reinforcement_learning.util.configurations import PPO_SILConfig ##update
+from cares_reinforcement_learning.memory.memory_factory import MemoryFactory #
+#from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.memory.SIL import SelfImitation
 
 
-class PPO(VectorAlgorithm):
+
+
+class PPO_SIL(VectorAlgorithm): ##updated
     def __init__(
         self,
         actor_network: Actor,
         critic_network: Critic,
-        config: PPOConfig,
+        config: PPO_SILConfig,  ##
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
@@ -54,7 +59,28 @@ class PPO(VectorAlgorithm):
         )
         self.cov_mat = torch.diag(self.cov_var)
 
-        print('create a gent from algorithm: PPO.py')
+        self.n_update = config.n_update
+        self.sil_clip = config.sil_clip
+        self.per_alpha = config.per_alpha
+        self.per_beta = config.per_beta
+
+
+        #self.alg_config = config  ## add for memory_SIL
+        self.sil = SelfImitation(self.actor_net, 
+                                 self.critic_net, 
+                                 self.actor_net_optimiser, 
+                                 self.critic_net_optimiser, 
+                                 self.gamma, 
+                                 self.device,
+                                 self.sil_clip, 
+                                 self.per_alpha, 
+                                 self.per_beta, 
+                                 self.n_update)
+        # for debug
+        # self.sil.printing_config()
+
+
+
 
     def _calculate_log_prob(
         self, state: torch.Tensor, action: torch.Tensor
@@ -122,39 +148,72 @@ class PPO(VectorAlgorithm):
         self, memory: MemoryBuffer, batch_size: int, training_step: int
     ) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
+ 
 
-        experiences = memory.flush()
-        states, actions, rewards, _, dones, truncated = experiences # add truncated for PPO_SIL
 
-        print('PPO.py: flush the memory, start PPO training')
+        experiences = memory.flush()    ##copy and clearn the memory
+        states, actions, rewards, _, dones, truncated = experiences   ##_ is next_status
+
+
+        # for debug
+        # print('===data from PPO memory===')
+        # print("TYPES (new):", type(states), type(actions), type(rewards), type(_), type(dones))
+        # print("LENGTHS (new):", len(states), len(actions), len(rewards), len(_), len(dones)) 
+
+        ###filter r>0 trajectory and add to memory_SIL and calculate rtgs 
+        self.sil.setp(states, actions, rewards, _, dones, truncated)  ##add experience to SIL memory
+
+        #print('completed sil.step()')
+
 
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
-        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)  ##从sample中计算的,所有是旧的
+        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
         # compute reward to go:
         rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor) #rtgs是实际计算得到的折扣累计奖励
         # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
+        # print('calcualted PPO rtgs')
+        #print(rtgs)
 
         # calculate advantages
-        v, _ = self._evaluate_policy(states_tensor, actions_tensor) #这是old advantages
+        v, _ = self._evaluate_policy(states_tensor, actions_tensor) #这是old advantages: v, log_prob
 
-        advantages = rtgs.detach() - v.detach()
+        advantages = rtgs.detach() - v.detach() #
+        # print('calcualted old advantages')
+        #print(advantages)
+
 
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
 
         td_errors = torch.abs(advantages).data.cpu().numpy()
 
-        for _ in range(self.updates_per_iteration):
-            print('PPO.py: in updates_per_iteration loop')
-            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor) #更新后actor的新的policy下的计算结果
+        # for debug
+        # print('===PPO input and output ===')
+        # print("states_tensor:", type(states_tensor), states_tensor.shape)
+        # print("actions_tensor:", type(actions_tensor), actions_tensor.shape)
+        # print("rewards_tensor:", type(rewards_tensor), rewards_tensor.shape)
+        # print("dones_tensor:", type(dones_tensor), dones_tensor.shape)
+
+        # print("log_probs_tensor:", type(log_probs_tensor), log_probs_tensor.shape)
+        # print("rtgs:", type(rtgs), rtgs.shape)
+        # print("value v:", type(v), v.shape)
+        # print("advantages:", type(advantages), advantages.shape)
+        # print("normalized advantages:", type(advantages), advantages.shape)
+        # print("td_errors:", type(td_errors), td_errors.shape)
+
+
+
+
+        for _ in range(self.updates_per_iteration):   ## can set up as 4, and G set as 1.
+            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor) #更新后的,用于比较
 
             # Calculate ratios
-            ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())   ##现在的策略下的概率-旧策略下的概率
+            ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())
 
             # Finding Surrogate Loss
             surrogate_lose_one = ratios * advantages
@@ -167,19 +226,28 @@ class PPO(VectorAlgorithm):
             critic_loss = F.mse_loss(v, rtgs) #rtgs折扣累计奖励 #F.mse_loss() 是 PyTorch 内置的 均方误差（Mean Squared Error） 损失
 
             self.actor_net_optimiser.zero_grad() #清除之前计算残留的梯度（每次优化前都要做）,Pytorch默认累加
-            actor_loss.backward(retain_graph=True) ## why???
-            self.actor_net_optimiser.step() #更新actor网络!!!!!!
+            actor_loss.backward(retain_graph=True) #自动执行反向传播，计算 loss 对 actor 参数的梯度,保留计算图(因为还要给critic网络使用)
+            self.actor_net_optimiser.step() #更新actor网络
 
             self.critic_net_optimiser.zero_grad()
             critic_loss.backward()       #计算loss对aritic的梯度
-            self.critic_net_optimiser.step()#更新actor网络!!!!!!
+            self.critic_net_optimiser.step()#更新actor网络
+
+            # print('updated PPO network')
+        
+        
+        ####SIL update loop####
+        #n_update = 4  ### wait add this para to sil configuration
+        self.sil.train()
+
 
         info: dict[str, Any] = {}
         info["td_errors"] = td_errors
         info["critic_loss"] = critic_loss.item()
         info["actor_loss"] = actor_loss.item()
 
-        print('PPO.py: end the updates_per_iteration loop loop')
+        ##here add SIL_train loop
+
 
         return info
 

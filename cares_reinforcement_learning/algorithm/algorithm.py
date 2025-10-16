@@ -129,7 +129,7 @@ class Algorithm(ABC):
     # TODO push batch_size into the algorithm
     @abstractmethod
     def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
+        self, memory: MemoryBuffer, batch_size: int, training_step: int  #输入是 memory, batch_size, training_step，输出是一个 dict[str, Any]
     ) -> dict[str, Any]: ...
 
     @abstractmethod

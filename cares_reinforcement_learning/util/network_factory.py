@@ -134,6 +134,27 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
 
 
 ###################################
+#         PPO_SIL Algorithms          #
+###################################
+
+
+def create_PPO_SIL(observation_size, action_num, config: acf.PPO_SILConfig):  ##
+    from cares_reinforcement_learning.algorithm.policy import PPO_SIL ##?????
+    from cares_reinforcement_learning.networks.PPO import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, config=config)
+
+    device = hlp.get_device()
+    agent = PPO_SIL(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+###################################
 #         SAC Algorithms          #
 ###################################
 
