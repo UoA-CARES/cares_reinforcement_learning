@@ -69,18 +69,14 @@ class QMixer(nn.Module):
 
         # Hypernetwork for the first layer weights
         self.hyper_w1 = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, num_agents * embed_dim),
+            nn.Linear(state_dim, num_agents * embed_dim),
         )
         # Hypernetwork for first layer bias
         self.hyper_b1 = nn.Linear(state_dim, embed_dim)
 
         # Hypernetwork for second layer weights (output layer)
         self.hyper_w2 = nn.Sequential(
-            nn.Linear(state_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, embed_dim),  # maps hidden layer to scalar output
+            nn.Linear(state_dim, embed_dim),
         )
         # Hypernetwork for second layer bias
         self.hyper_b2 = nn.Sequential(

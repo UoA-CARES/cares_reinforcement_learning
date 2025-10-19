@@ -15,7 +15,10 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.networks.QMIX import MultiAgentNetwork, QMixer
+from cares_reinforcement_learning.networks.QMIX import (
+    SharedMultiAgentNetwork,
+    QMixer,
+)
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 from cares_reinforcement_learning.util.training_context import (
@@ -27,7 +30,7 @@ from cares_reinforcement_learning.util.training_context import (
 class QMIX(VectorAlgorithm):
     def __init__(
         self,
-        network: MultiAgentNetwork,
+        network: SharedMultiAgentNetwork,
         mixer: QMixer,
         config: QMIXConfig,
         device: torch.device,
@@ -73,45 +76,65 @@ class QMIX(VectorAlgorithm):
         self.n_step = config.n_step
 
         self.network_optimiser = torch.optim.Adam(
-            self.network.parameters(), lr=config.lr
+            list(self.network.parameters()) + list(self.mixer.parameters()),
+            lr=config.lr,
         )
 
         self.learn_counter = 0
 
-    def _explore(self, available_actions: np.ndarray) -> list[int]:
-        actions = []
-        for available_action in available_actions:
-            avail_actions_ind = np.nonzero(available_action)[0]
-            action = np.random.choice(avail_actions_ind)
-            actions.append(int(action))
-        return actions
+    # def _explore(self, available_actions: np.ndarray) -> list[int]:
+    #     actions = []
+    #     for available_action in available_actions:
+    #         avail_actions_ind = np.nonzero(available_action)[0]
+    #         action = np.random.choice(avail_actions_ind)
+    #         actions.append(int(action))
+    #     return actions
 
-    def _exploit(self, state: dict) -> list[int]:
-        self.network.eval()
+    # def _exploit(self, state: dict) -> list[int]:
+    #     self.network.eval()
 
-        state_tensor = tu.marl_states_to_tensors([state], self.device)
+    #     state_tensor = tu.marl_states_to_tensors([state], self.device)
 
-        obs_tensor = state_tensor["obs"]
-        avail_actions_tensor = state_tensor["avail_actions"]
+    #     obs_tensor = state_tensor["obs"]
+    #     avail_actions_tensor = state_tensor["avail_actions"]
 
-        with torch.no_grad():
-            # Forward pass through agent network to get Q-values
-            q_values = self.network(obs_tensor)  # [1, num_agents, num_actions]
+    #     with torch.no_grad():
+    #         # Forward pass through agent network to get Q-values
+    #         q_values = self.network(obs_tensor)  # [1, num_agents, num_actions]
 
-            # Mask unavailable actions
-            mask = avail_actions_tensor == 0
-            q_values = q_values.masked_fill(mask, -1e9)
+    #         # Mask unavailable actions
+    #         mask = avail_actions_tensor == 0
+    #         q_values = q_values.masked_fill(mask, -1e9)
 
-            # Greedy action selection
-            actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
+    #         # Greedy action selection
+    #         actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
 
-        self.network.train()
+    #     self.network.train()
 
-        return actions.cpu().tolist()
+    #     return actions.cpu().tolist()
+
+    # def select_action_from_policy(self, action_context: ActionContext):
+    #     """
+    #     Select an action from the policy based on epsilon-greedy strategy.
+    #     """
+    #     state = action_context.state
+    #     evaluation = action_context.evaluation
+    #     available_actions = action_context.available_actions
+
+    #     assert isinstance(state, dict)
+
+    #     if evaluation:
+    #         return self._exploit(state)
+
+    #     if random.random() < self.epsilon:
+    #         return self._explore(available_actions)
+
+    #     return self._exploit(state)
 
     def select_action_from_policy(self, action_context: ActionContext):
         """
-        Select an action from the policy based on epsilon-greedy strategy.
+        Epsilon-greedy per-agent action selection.
+        Each agent decides independently whether to explore or exploit.
         """
         state = action_context.state
         evaluation = action_context.evaluation
@@ -119,13 +142,34 @@ class QMIX(VectorAlgorithm):
 
         assert isinstance(state, dict)
 
-        if evaluation:
-            return self._exploit(state)
+        actions = []
 
-        if random.random() < self.epsilon:
-            return self._explore(available_actions)
+        # Get greedy actions for all agents once
+        state_tensor = tu.marl_states_to_tensors([state], self.device)
+        obs_tensor = state_tensor["obs"]
+        avail_actions_tensor = state_tensor["avail_actions"]
 
-        return self._exploit(state)
+        self.network.eval()
+        with torch.no_grad():
+            q_values = self.network(obs_tensor)  # [1, num_agents, num_actions]
+            mask = avail_actions_tensor == 0
+            q_values = q_values.masked_fill(mask, -1e9)
+            greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
+        self.network.train()
+
+        for agent_id in range(self.num_agents):
+            if evaluation:
+                # Always exploit in evaluation mode
+                actions.append(int(greedy_actions[agent_id]))
+            else:
+                # Each agent decides independently
+                if random.random() < self.epsilon:
+                    avail_actions_ind = np.nonzero(available_actions[agent_id])[0]
+                    actions.append(int(np.random.choice(avail_actions_ind)))
+                else:
+                    actions.append(int(greedy_actions[agent_id]))
+
+        return actions
 
     # def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
     #     state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -157,31 +201,45 @@ class QMIX(VectorAlgorithm):
         avail_actions_tensor = states_tensor["avail_actions"]
         next_avail_actions_tensor = next_states_tensor["avail_actions"]
 
-        print(f"{obs_tensor.shape=}")
-        print(f"{next_obs_tensor.shape=}")
+        # print(f"{obs_tensor.shape=}")
+        # print(f"{next_obs_tensor.shape=}")
 
-        print(f"{global_states_tensor.shape=}")
-        print(f"{next_global_states_tensor.shape=}")
+        # print(f"{global_states_tensor.shape=}")
+        # print(f"{next_global_states_tensor.shape=}")
 
-        print(f"{avail_actions_tensor.shape=}")
-        print(f"{next_avail_actions_tensor.shape=}")
+        # print(f"{avail_actions_tensor.shape=}")
+        # print(f"{next_avail_actions_tensor.shape=}")
 
-        print(f"{actions_tensor.shape=}")
-        print(f"{rewards_tensor.shape=}")
-        print(f"{dones_tensor.shape=}")
+        # print(f"{actions_tensor.shape=}")
+        # print(f"{rewards_tensor.shape=}")
+        # print(f"{dones_tensor.shape=}")
 
         q_values = self.network(obs_tensor)
         next_q_values_target = self.target_network(next_obs_tensor)
 
-        print(f"{q_values.shape=}")
-        print(f"{next_q_values_target.shape=}")
+        # print("q_values:", q_values.shape, q_values.min().item(), q_values.max().item())
+        # print(
+        #     "next_q_values_target:",
+        #     next_q_values_target.shape,
+        #     next_q_values_target.min().item(),
+        #     next_q_values_target.max().item(),
+        # )
+
+        # print(f"{q_values.shape=}")
+        # print(f"{next_q_values_target.shape=}")
 
         # Get Q-values for chosen actions
         best_q_values = q_values.gather(
             dim=2, index=actions_tensor.unsqueeze(-1)
         ).squeeze(-1)
 
-        print(f"{best_q_values.shape=}")
+        # print(
+        #     "best_q_values (chosen actions):",
+        #     best_q_values.shape,
+        #     best_q_values.min().item(),
+        #     best_q_values.max().item(),
+        # )
+        # print(f"{best_q_values.shape=}")
 
         if self.use_double_dqn:
             # Online network selects best actions
@@ -201,29 +259,55 @@ class QMIX(VectorAlgorithm):
         else:
             # Standard DQN: mask next Q-values before taking max
             mask = (next_avail_actions_tensor == 0).bool()
-            masked_next_q = next_q_values_target.masked_fill(mask, -1e9)
-            best_next_q_values = masked_next_q.max(dim=2)[0]
+            next_q_values_target = next_q_values_target.masked_fill(mask, -1e9)
+            best_next_q_values = next_q_values_target.max(dim=2)[0]
 
-        print("best_next_q_values", best_next_q_values.shape)
+        # print(
+        #     "best_next_q_values:",
+        #     best_next_q_values.shape,
+        #     best_next_q_values.min().item(),
+        #     best_next_q_values.max().item(),
+        # )
+
+        # print("best_next_q_values", best_next_q_values.shape)
 
         # Apply mixer network to combine agent Q-values
         # QMIX mixes: Q_total = mixer(best_q_values, global_state)
         q_total = self.mixer(best_q_values, global_states_tensor)
-        q_total_target = self.mixer(best_next_q_values, next_global_states_tensor)
+        q_total_target = self.target_mixer(
+            best_next_q_values, next_global_states_tensor
+        )
+
+        # print("q_total:", q_total.shape, q_total.min().item(), q_total.max().item())
+        # print(
+        #     "q_total_target:",
+        #     q_total_target.shape,
+        #     q_total_target.min().item(),
+        #     q_total_target.max().item(),
+        # )
 
         q_target = (
             rewards_tensor
-            + (self.gamma**self.n_step) * (1 - dones_tensor) * q_total_target
+            + (self.gamma**self.n_step) * (1 - dones_tensor) * q_total_target.detach()
         )
 
-        print("q_total", q_total.shape)
-        print("q_total_target", q_total_target.shape)
-        print("q_target", q_target.shape)
+        # print("q_target:", q_target.shape, q_target.min().item(), q_target.max().item())
+
+        # print("q_total", q_total.shape)
+        # print("q_total_target", q_total_target.shape)
+        # print("q_target", q_target.shape)
 
         elementwise_loss = F.mse_loss(q_total, q_target, reduction="none")
 
-        print("elementwise_loss", elementwise_loss.shape)
-        print("elementwise_loss", elementwise_loss.mean())
+        # print(
+        #     "elementwise_loss:",
+        #     elementwise_loss.shape,
+        #     elementwise_loss.min().item(),
+        #     elementwise_loss.max().item(),
+        #     elementwise_loss.mean().item(),
+        # )
+        # print("elementwise_loss", elementwise_loss.shape)
+        # print("elementwise_loss", elementwise_loss.mean())
 
         return elementwise_loss
 
@@ -301,7 +385,8 @@ class QMIX(VectorAlgorithm):
         # Apply gradient clipping if max_grad_norm is set
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
-                self.network.parameters(), max_norm=self.max_grad_norm
+                list(self.network.parameters()) + list(self.mixer.parameters()),
+                max_norm=self.max_grad_norm,
             )
 
         self.network_optimiser.step()
@@ -309,6 +394,7 @@ class QMIX(VectorAlgorithm):
         # Update target network - a tau of 1.0 equates to a hard update.
         if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.network, self.target_network, self.tau)
+            hlp.soft_update_params(self.mixer, self.target_mixer, self.tau)
 
         return info
 
@@ -319,6 +405,8 @@ class QMIX(VectorAlgorithm):
         checkpoint = {
             "network": self.network.state_dict(),
             "target_network": self.target_network.state_dict(),
+            "mixer": self.mixer.state_dict(),
+            "target_mixer": self.target_mixer.state_dict(),
             "optimizer": self.network_optimiser.state_dict(),
             "learn_counter": self.learn_counter,
         }
@@ -330,6 +418,9 @@ class QMIX(VectorAlgorithm):
 
         self.network.load_state_dict(checkpoint["network"])
         self.target_network.load_state_dict(checkpoint["target_network"])
+
+        self.mixer.load_state_dict(checkpoint["mixer"])
+        self.target_mixer.load_state_dict(checkpoint["target_mixer"])
 
         self.network_optimiser.load_state_dict(checkpoint["optimizer"])
 

@@ -113,12 +113,15 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
 
 def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
     from cares_reinforcement_learning.algorithm.value import QMIX
-    from cares_reinforcement_learning.networks.QMIX import MultiAgentNetwork, QMixer
+    from cares_reinforcement_learning.networks.QMIX import (
+        SharedMultiAgentNetwork,
+        QMixer,
+    )
 
     obs_shape = observation_size["obs"]
     num_agents = observation_size["num_agents"]
 
-    network = MultiAgentNetwork(
+    network = SharedMultiAgentNetwork(
         observation_size=obs_shape,
         num_actions=action_num,
         num_agents=num_agents,

@@ -320,13 +320,13 @@ class RainbowConfig(C51Config):
 
 class QMIXConfig(AlgorithmConfig):
     algorithm: str = Field("QMIX", Literal=True)
-    lr: float = 1e-3
+    lr: float = 1e-4
     gamma: float = 0.99
     tau: float = 1.0
 
     batch_size: int = 32
 
-    target_update_freq: int = 1000
+    target_update_freq: int = 200
 
     # Double DQN
     use_double_dqn: int = 0
@@ -346,8 +346,8 @@ class QMIXConfig(AlgorithmConfig):
     # Exploration via Epsilon Greedy
     max_steps_exploration: int = 0
     start_epsilon: float = 1.0
-    end_epsilon: float = 1e-3
-    decay_steps: int = 100000
+    end_epsilon: float = 0.05
+    decay_steps: int = 500000
 
     network_config: MLPConfig = MLPConfig(
         layers=[
