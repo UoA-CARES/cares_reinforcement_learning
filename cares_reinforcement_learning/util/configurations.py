@@ -326,7 +326,7 @@ class QMIXConfig(AlgorithmConfig):
 
     batch_size: int = 32
 
-    target_update_freq: int = 200
+    target_update_freq: int = 10000
 
     # Double DQN
     use_double_dqn: int = 0
@@ -347,7 +347,7 @@ class QMIXConfig(AlgorithmConfig):
     max_steps_exploration: int = 0
     start_epsilon: float = 1.0
     end_epsilon: float = 0.05
-    decay_steps: int = 500000
+    decay_steps: int = 100000
 
     network_config: MLPConfig = MLPConfig(
         layers=[
