@@ -36,6 +36,8 @@ class TrainingConfig(SubscriptableClass):
 
     checkpoint_interval: int = 1
 
+    max_workers: int = 1
+
 
 class TrainableLayer(BaseModel):
     layer_category: Literal["trainable"] = "trainable"  # Discriminator field
