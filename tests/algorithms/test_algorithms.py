@@ -37,7 +37,7 @@ def _policy_buffer(
         )
         next_state = {
             "image": next_state_image,
-            "vector": np.ndarray(next_state_vector),
+            "vector": np.array(next_state_vector),
         }
     else:
         next_state = list(range(observation_size))
