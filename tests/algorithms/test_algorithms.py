@@ -23,7 +23,7 @@ def _policy_buffer(
         state_image = np.random.randint(
             255, size=observation_size["image"], dtype=np.uint8
         )
-        state = {"image": state_image, "vector": np.ndarray(state_vector)}
+        state = {"image": state_image, "vector": np.array(state_vector)}
     else:
         state = list(range(observation_size))
 
