@@ -2,9 +2,6 @@
 Original Paper: https://arxiv.org/pdf/2101.05982.pdf
 """
 
-import copy
-import logging
-import os
 from typing import Any
 
 import numpy as np
@@ -12,12 +9,18 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
+from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 from cares_reinforcement_learning.util.configurations import REDQConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
-class REDQ:
+class REDQ(SAC):
+    critic_net: Critic
+    target_critic_net: Critic
+
     def __init__(
         self,
         actor_network: Actor,
@@ -25,88 +28,63 @@ class REDQ:
         config: REDQConfig,
         device: torch.device,
     ):
-        self.type = "policy"
-        self.gamma = config.gamma
-        self.tau = config.tau
-
-        self.learn_counter = 0
-        self.policy_update_freq = config.policy_update_freq
-        self.target_update_freq = config.target_update_freq
-
-        self.device = device
+        super().__init__(
+            actor_network=actor_network,
+            critic_network=ensemble_critic,
+            config=config,
+            device=device,
+        )
 
         self.num_sample_critics = config.num_sample_critics
-
-        # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(device)
-        self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr
-        )
-
-        self.target_entropy = -self.actor_net.num_actions
-
         self.ensemble_size = config.ensemble_size
-
-        self.ensemble_critic = ensemble_critic.to(self.device)
-        self.target_ensemble_critic = copy.deepcopy(self.ensemble_critic).to(
-            self.device
-        )
-        self.target_ensemble_critic.eval()  # never in training mode - helps with batch/drop out layers
 
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
-            torch.optim.Adam(critic_net.parameters(), lr=self.lr_ensemble_critic)
-            for critic_net in self.ensemble_critic.critics
+            torch.optim.Adam(
+                critic_net.parameters(),
+                lr=self.lr_ensemble_critic,
+                **config.critic_lr_params,
+            )
+            for critic_net in self.critic_net.critics
         ]
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
-        self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha], lr=1e-3)
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = state_tensor.unsqueeze(0)
 
-    # pylint: disable-next=unused-argument
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
-    ) -> np.ndarray:
-        # pylint: disable-next=unused-argument
+        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = action_tensor.unsqueeze(0)
 
-        # note that when evaluating this algorithm we need to select mu as action
-        # so _, _, action = self.actor_net.sample(state_tensor)
-        self.actor_net.eval()
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
-            if evaluation is False:
-                (action, _, _) = self.actor_net(state_tensor)
-            else:
-                (_, _, action) = self.actor_net(state_tensor)
-            action = action.cpu().data.numpy().flatten()
-        self.actor_net.train()
-        return action
+            with hlp.evaluating(self.critic_net):
+                q_values = self.critic_net(state_tensor, action_tensor)
+                q_value = q_values.mean()
 
-    @property
-    def alpha(self) -> torch.Tensor:
-        return self.log_alpha.exp()
+        return q_value.item()
 
-    def _update_critics(
+    # pylint: disable-next=arguments-differ, arguments-renamed
+    def _update_critic(  # type: ignore[override]
         self,
-        idx: np.ndarray,
         states: torch.Tensor,
         actions: torch.Tensor,
         rewards: torch.Tensor,
         next_states: torch.Tensor,
         dones: torch.Tensor,
-    ) -> list[float]:
+    ) -> dict[str, Any]:
+        # replace=False so that not picking the same idx twice
+        idx = np.random.choice(
+            self.ensemble_size, self.num_sample_critics, replace=False
+        )
+
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
-            target_q_values_one = self.target_ensemble_critic.critics[idx[0]](
+            target_q_values_one = self.target_critic_net.critics[idx[0]](
                 next_states, next_actions
             )
 
-            target_q_values_two = self.target_ensemble_critic.critics[idx[1]](
+            target_q_values_two = self.target_critic_net.critics[idx[1]](
                 next_states, next_actions
             )
 
@@ -120,29 +98,37 @@ class REDQ:
         critic_loss_totals = []
 
         for critic_net, critic_net_optimiser in zip(
-            self.ensemble_critic.critics, self.ensemble_critic_optimizers
+            self.critic_net.critics, self.ensemble_critic_optimizers
         ):
             q_values = critic_net(states, actions)
 
-            critic_loss_total = 0.5 * F.mse_loss(q_values, q_target)
+            critic_loss = 0.5 * F.mse_loss(q_values, q_target)
 
             critic_net_optimiser.zero_grad()
-            critic_loss_total.backward()
+            critic_loss.backward()
             critic_net_optimiser.step()
 
-            critic_loss_totals.append(critic_loss_total.item())
+            critic_loss_totals.append(critic_loss.item())
 
-        return critic_loss_totals
+        critic_loss_total = np.mean(critic_loss_totals)
+        info = {
+            "idx": idx,
+            "critic_loss_total": critic_loss_total,
+            "critic_loss_totals": critic_loss_totals,
+        }
 
-    def _update_actor_alpha(
-        self, idx: np.ndarray, states: torch.Tensor
-    ) -> tuple[float, float]:
+        return info
+
+    # pylint: disable-next=arguments-differ, arguments-renamed
+    def _update_actor_alpha(  # type: ignore[override]
+        self,
+        states: torch.Tensor,
+    ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
-        qf1_pi = self.target_ensemble_critic.critics[idx[0]](states, pi)
-        qf2_pi = self.target_ensemble_critic.critics[idx[1]](states, pi)
-
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        with hlp.evaluating(self.critic_net):
+            q_values = self.critic_net(states, pi)
+            min_qf_pi = q_values.mean(dim=1)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
@@ -156,75 +142,79 @@ class REDQ:
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+        }
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+        return info
+
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
-        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
-
-        # replace=False so that not picking the same idx twice
-        idx = np.random.choice(
-            self.ensemble_size, self.num_sample_critics, replace=False
+        # Use the helper to sample and prepare tensors in one step
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            _,
+            _,
+        ) = tu.sample_batch_to_tensors(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
+            use_per_buffer=0,  # REDQ uses uniform sampling
         )
 
         info: dict[str, Any] = {}
 
         # Update the Critics
-        critic_loss_totals = self._update_critics(
-            idx,
+        critic_info = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
             next_states_tensor,
             dones_tensor,
         )
-        info["critic_loss_totals"] = critic_loss_totals
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_loss, alpha_loss = self._update_actor_alpha(idx, states_tensor)
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
+            actor_info = self._update_actor_alpha(states_tensor)
+            info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update ensemble of target critics
             for critic_net, target_critic_net in zip(
-                self.ensemble_critic.critics, self.target_ensemble_critic.critics
+                self.critic_net.critics, self.target_critic_net.critics
             ):
                 hlp.soft_update_params(critic_net, target_critic_net, self.tau)
 
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:
-        if not os.path.exists(filepath):
-            os.makedirs(filepath)
-
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
+        super().save_models(filepath, filename)
+        # Save each ensemble critic optimizer in a single file
+        ensemble_optim_state = {
+            f"optimizer_{idx}": opt.state_dict()
+            for idx, opt in enumerate(self.ensemble_critic_optimizers)
+        }
         torch.save(
-            self.ensemble_critic.state_dict(), f"{filepath}/{filename}_ensemble.pht"
+            ensemble_optim_state,
+            f"{filepath}/{filename}_ensemble_critic_optimizers.pth",
         )
-        logging.info("models has been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        actor_path = f"{filepath}/{filename}_actor.pht"
-        ensemble_path = f"{filepath}/{filename}_ensemble.pht"
-
-        self.actor_net.load_state_dict(torch.load(actor_path))
-        self.ensemble_critic.load_state_dict(torch.load(ensemble_path))
-        logging.info("models has been loaded...")
+        super().load_models(filepath, filename)
+        # Load each ensemble critic optimizer from the single file
+        ensemble_optim_state = torch.load(
+            f"{filepath}/{filename}_ensemble_critic_optimizers.pth"
+        )
+        for idx, opt in enumerate(self.ensemble_critic_optimizers):
+            opt.load_state_dict(ensemble_optim_state[f"optimizer_{idx}"])

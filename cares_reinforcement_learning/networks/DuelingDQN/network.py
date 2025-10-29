@@ -3,16 +3,19 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import DuelingDQNConfig
+from cares_reinforcement_learning.networks.DQN import BaseNetwork
 
 
-class BaseNetwork(nn.Module):
+class BaseDuelingNetwork(BaseNetwork):
     def __init__(
         self,
+        observation_size: int,
+        num_actions: int,
         feature_layer: nn.Module,
         value_stream: nn.Module,
         advantage_stream: nn.Module,
     ):
-        super().__init__()
+        super().__init__(observation_size=observation_size, num_actions=num_actions)
 
         self.feature_layer = feature_layer
         self.value_stream = value_stream
@@ -28,7 +31,7 @@ class BaseNetwork(nn.Module):
 
 
 # This is the default base network for DuelingDQN for reference and testing of default network configurations
-class DefaultNetwork(BaseNetwork):
+class DefaultNetwork(BaseDuelingNetwork):
     def __init__(
         self,
         observation_size: int,
@@ -58,13 +61,15 @@ class DefaultNetwork(BaseNetwork):
         )
 
         super().__init__(
+            observation_size=observation_size,
+            num_actions=num_actions,
             feature_layer=feature_layer,
             value_stream=value_stream,
             advantage_stream=advantage_stream,
         )
 
 
-class Network(BaseNetwork):
+class Network(BaseDuelingNetwork):
     def __init__(
         self,
         observation_size: int,
@@ -90,6 +95,8 @@ class Network(BaseNetwork):
         )
 
         super().__init__(
+            observation_size=observation_size,
+            num_actions=num_actions,
             feature_layer=feature_layer,
             value_stream=value_stream,
             advantage_stream=advantage_stream,

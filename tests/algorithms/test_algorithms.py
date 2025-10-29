@@ -1,15 +1,14 @@
-import importlib.util
 import inspect
-import sys
-from pathlib import Path
 from random import randrange
 
 import numpy as np
 import pytest
 
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
-from cares_reinforcement_learning.util import NetworkFactory, configurations
+from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.util.network_factory import NetworkFactory
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 def _policy_buffer(
@@ -18,14 +17,13 @@ def _policy_buffer(
     observation_size,
     action_num,
     image_state,
-    add_log_prob=False,
 ):
     if image_state:
         state_vector = list(range(observation_size["vector"]))
         state_image = np.random.randint(
             255, size=observation_size["image"], dtype=np.uint8
         )
-        state = {"image": state_image, "vector": state_vector}
+        state = {"image": state_image, "vector": np.array(state_vector)}
     else:
         state = list(range(observation_size))
 
@@ -37,17 +35,17 @@ def _policy_buffer(
         next_state_image = np.random.randint(
             255, size=observation_size["image"], dtype=np.uint8
         )
-        next_state = {"image": next_state_image, "vector": next_state_vector}
+        next_state = {
+            "image": next_state_image,
+            "vector": np.array(next_state_vector),
+        }
     else:
         next_state = list(range(observation_size))
 
     done = False
 
     for _ in range(capacity):
-        if add_log_prob:
-            memory_buffer.add(state, action, reward, next_state, done, 0.0)
-        else:
-            memory_buffer.add(state, action, reward, next_state, done)
+        memory_buffer.add(state, action, reward, next_state, done)
 
     return memory_buffer
 
@@ -122,16 +120,15 @@ def test_algorithms(tmp_path):
         agent.save_models(tmp_path, f"{algorithm}")
         agent.load_models(tmp_path, f"{algorithm}")
 
-        if agent.type == "policy":
+        if agent.policy_type == "policy":
             memory_buffer = _policy_buffer(
                 memory_buffer,
                 capacity,
                 observation_size,
                 action_num,
                 alg_config.image_observation,
-                add_log_prob=(alg_config.algorithm == "PPO"),
             )
-        elif agent.type == "value" or agent.type == "discrete_policy":
+        elif agent.policy_type == "value" or agent.policy_type == "discrete_policy":
             memory_buffer = _value_buffer(
                 memory_buffer,
                 capacity,
@@ -142,7 +139,25 @@ def test_algorithms(tmp_path):
         else:
             continue
 
-        info = agent.train_policy(memory_buffer, batch_size)
+        experiences = memory_buffer.sample_uniform(1)
+        states, actions, rewards, next_states, dones, _ = experiences
+
+        value = agent._calculate_value(states[0], actions[0])
+        assert isinstance(
+            value, float
+        ), f"{algorithm} did not return a float value for the calculated value"
+
+        training_context = TrainingContext(
+            memory=memory_buffer,
+            batch_size=batch_size,
+            training_step=1,
+            episode=1,
+            episode_steps=1,
+            episode_reward=10.0,
+            episode_done=True,
+        )
+
+        info = agent.train_policy(training_context)
         assert isinstance(
             info, dict
         ), f"{algorithm} did not return a dictionary of training info"

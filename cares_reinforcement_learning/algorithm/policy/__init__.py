@@ -22,3 +22,5 @@ from .LA3PSAC import LA3PSAC
 from .TQC import TQC
 from .CrossQ import CrossQ
 from .DroQ import DroQ
+from .SDAR import SDAR
+from .TD7 import TD7

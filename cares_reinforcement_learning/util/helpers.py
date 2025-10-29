@@ -112,7 +112,7 @@ def soft_update_params(net, target_net, tau):
     for param, target_param in zip(net.parameters(), target_net.parameters()):
         target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
 
-    # Hard update the statistics of the target network
+    # Hard update the statistics of the target network - specifically for BacthNorm layers
     for param, target_param in zip(net.buffers(), target_net.buffers()):
         target_param.data.copy_(param.data)
 
@@ -128,12 +128,7 @@ def hard_update_params(net, target_net):
     Returns:
         None
     """
-    for param, target_param in zip(net.parameters(), target_net.parameters()):
-        target_param.data.copy_(param.data)
-
-    # Hard update the statistics of the target network
-    for param, target_param in zip(net.buffers(), target_net.buffers()):
-        target_param.data.copy_(param.data)
+    soft_update_params(net, target_net, 1.0)
 
 
 def weight_init(module: torch.nn.Module) -> None:
@@ -149,7 +144,8 @@ def weight_init(module: torch.nn.Module) -> None:
     elif isinstance(module, (torch.nn.Conv2d, torch.nn.ConvTranspose2d)):
         assert module.weight.size(2) == module.weight.size(3)
         module.weight.data.fill_(0.0)
-        module.bias.data.fill_(0.0)
+        if module.bias is not None:
+            module.bias.data.fill_(0.0)
         mid = module.weight.size(2) // 2
         gain = torch.nn.init.calculate_gain("relu")
         torch.nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
@@ -288,7 +284,7 @@ def compare_models(model_1: torch.nn.Module, model_2: torch.nn.Module) -> bool:
 
 
 def prioritized_approximate_loss(
-    x: torch.Tensor, min_priority: float, alpha: float
+    sample: torch.Tensor, min_priority: float, alpha: float
 ) -> torch.Tensor:
     """
     Calculates the prioritized approximate loss.
@@ -302,59 +298,107 @@ def prioritized_approximate_loss(
         torch.Tensor: The calculated prioritized approximate loss.
     """
     return torch.where(
-        x.abs() < min_priority,
-        (min_priority**alpha) * 0.5 * x.pow(2),
-        min_priority * x.abs().pow(1.0 + alpha) / (1.0 + alpha),
+        sample.abs() < min_priority,
+        (min_priority**alpha) * 0.5 * sample.pow(2),
+        min_priority * sample.abs().pow(1.0 + alpha) / (1.0 + alpha),
     ).mean()
 
 
-def huber(x: torch.Tensor, min_priority: float) -> torch.Tensor:
+def calculate_huber_loss(
+    sample: torch.Tensor,
+    kappa: float,
+    use_mean_reduction: bool = True,
+    use_quadratic_smoothing: bool = True,
+) -> torch.Tensor:
     """
     Computes the Huber loss function.
 
     Args:
         x (torch.Tensor): The input tensor.
-        min_priority (float): The minimum priority value.
+        kappa (float): The threshold value for huber calculation
+        use_mean_reduction (bool): If True, reduces the loss by taking the mean. If False, returns the loss without reduction.
+        use_quadratic_smoothing (bool): If True, applies quadratic smoothing to the Huber loss. If False, applies linear smoothing.
 
     Returns:
         torch.Tensor: The computed Huber loss.
 
     """
-    return torch.where(x < min_priority, 0.5 * x.pow(2), min_priority * x).mean()
+
+    # Smoothing factor for quadratic smoothing
+    smoothing_factor = 0.0  # linear smoothing
+    if use_quadratic_smoothing:
+        smoothing_factor = 0.5  # quadratic smoothing
+
+    element_wise_loss = torch.where(
+        sample.abs() <= kappa,
+        0.5 * sample.pow(2),
+        kappa * (sample.abs() - smoothing_factor * kappa),
+    )
+
+    return element_wise_loss.mean() if use_mean_reduction else element_wise_loss
 
 
-def quantile_huber_loss_f(
-    quantiles: torch.Tensor, samples: torch.Tensor
+def calculate_quantile_huber_loss(
+    quantiles: torch.Tensor,
+    target_values: torch.Tensor,
+    quantile_taus: torch.Tensor,
+    kappa: float = 1.0,
+    use_pairwise_loss: bool = True,
+    use_mean_reduction: bool = True,
+    use_quadratic_smoothing: bool = True,
 ) -> torch.Tensor:
     """
-    Calculates the quantile Huber loss for a given set of quantiles and samples.
+    Calculates the quantile Huber loss for a given set of quantiles and target_values.
 
     Args:
-        quantiles (torch.Tensor): A tensor of shape (batch_size, num_nets, num_quantiles) representing the quantiles.
-        samples (torch.Tensor): A tensor of shape (batch_size, num_samples) representing the samples.
+        quantiles (torch.Tensor): A tensor of shape (batch_size, num_critics, num_quantiles) representing the quantiles.
+        target_values (torch.Tensor): A tensor of shape (batch_size, num_samples) representing the samples.
+        quantile_taus (torch.Tensor): A tensor of shape (num_quantiles) representing the quantile levels.
+        kappa (float): The threshold value for Huber calculation.
+        use_pairwise_loss (bool): If True, uses pairwise delta (TQC). If False, uses direct element-wise loss (QR-DQN).
+        use_mean_reduction (bool): If True, reduces the loss by taking the mean. If False, returns the loss without reduction.
+        use_quadratic_smoothing (bool): If True, applies quadratic smoothing to the Huber loss. If False, applies linear smoothing.
 
     Returns:
         torch.Tensor: The quantile Huber loss.
 
     """
-    pairwise_delta = (
-        samples[:, None, None, :] - quantiles[:, :, :, None]
-    )  # batch x nets x quantiles x samples
-    abs_pairwise_delta = torch.abs(pairwise_delta)
-    huber_loss = torch.where(
-        abs_pairwise_delta > 1, abs_pairwise_delta - 0.5, pairwise_delta**2 * 0.5
-    )
 
-    n_quantiles = quantiles.shape[2]
+    # batch x nets x quantiles x samples
+    if use_pairwise_loss:
+        # TQC-style: Compute pairwise differences (batch x nets x quantiles x samples)
+        pairwise_delta = target_values[:, None, None, :] - quantiles[:, :, :, None]
 
-    tau = (
-        torch.arange(n_quantiles, device=pairwise_delta.device).float() / n_quantiles
-        + 1 / 2 / n_quantiles
-    )
-    loss = (
-        torch.abs(tau[None, None, :, None] - (pairwise_delta < 0).float()) * huber_loss
-    ).mean()
-    return loss
+        element_wise_huber_loss = calculate_huber_loss(
+            pairwise_delta,
+            kappa=kappa,
+            use_mean_reduction=False,
+            use_quadratic_smoothing=use_quadratic_smoothing,
+        )
+
+        element_wise_loss = (
+            torch.abs(quantile_taus[None, None, :, None] - (pairwise_delta < 0).float())
+            * element_wise_huber_loss
+            / kappa
+        )
+    else:
+        # QR-DQN-style: Compute element-wise TD error loss directly
+        td_errors = target_values.unsqueeze(1) - quantiles
+
+        element_wise_huber_loss = calculate_huber_loss(
+            td_errors,
+            kappa=kappa,
+            use_mean_reduction=False,
+            use_quadratic_smoothing=use_quadratic_smoothing,
+        )
+
+        element_wise_loss = (
+            torch.abs(quantile_taus - (td_errors.detach() < 0).float())
+            * element_wise_huber_loss
+            / kappa
+        )
+
+    return element_wise_loss.mean() if use_mean_reduction else element_wise_loss
 
 
 # TODO rename this function to something more descriptive
@@ -373,3 +417,24 @@ def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
     self.fc1 = nn.Linear(r*r*128, 1024)
     """
     return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
+
+
+def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float]:
+    """
+    Compute discounted returns G_t from a list of rewards.
+    Args:
+        rewards (list or np.ndarray): Rewards [r_0, r_1, ..., r_T]
+        gamma (float): Discount factor (0 <= gamma <= 1)
+    Returns:
+        list: Discounted returns [G_0, G_1, ..., G_T]
+    """
+    returns: list[float] = [0.0] * len(rewards)
+    G = 0.0
+    for t in reversed(range(len(rewards))):
+        G = rewards[t] + gamma * G
+        returns[t] = G
+    return returns
+
+
+def avg_l1_norm(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+    return x / x.abs().mean(-1, keepdim=True).clamp(min=eps)

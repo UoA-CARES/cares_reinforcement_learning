@@ -9,14 +9,10 @@ The CARES reinforcement learning bed used as the foundation for RL related proje
 **Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
 
 # Usage
-
 Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki) for a guide on how to use the package
 
 # Installation Instructions
-
-If you want to utilise the GPU with Pytorch install CUDA first - https://developer.nvidia.com/cuda-toolkit
-
-Install Pytorch following the instructions here - https://pytorch.org/get-started/locally/
+![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 
 `git clone` the repository into your desired directory on your local machine
 
@@ -187,10 +183,6 @@ python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A
 
 Provides baseline data classes for environment, training, and algorithm configurations to allow for consistent recording of training parameters.
 
-## RLParser.py
-
-Provides a means of loading environment, training, and algorithm configurations through command line or configuration files. Enables consistent tracking of parameters when running training on various algorithms.
-
 ## NetworkFactory.py
 
 A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package.
@@ -199,7 +191,12 @@ A factory class for creating a baseline RL algorithm that has been implemented i
 
 A factory class for creating a memory buffer that has been implemented into the CARES RL package.
 
-# Supported Algorithms
+# Supported Algorithms 
+
+We support a wide range of algorithms in the Reinforcement Learning space all under the same abstraction. 
+
+## Q-Learning
+Implementations of Q-Learning based methods
 
 | Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
 | ----------- | -------------------------- | ------------ | ----------------------------------------------------------- |
@@ -209,7 +206,13 @@ A factory class for creating a memory buffer that has been implemented into the 
 | DuelingDQN  | Vector                     | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581)        |
 | NoisyNet    | Vector                     | Discrete     | [NoisyNet Paper](https://arxiv.org/abs/1706.10295)          |
 | C51         | Vector                     | Discrete     | [C51 Paper](https://arxiv.org/pdf/1707.06887)               |
-| SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
+| QRDQN       | Vector                     | Discrete     | [QR-DQN Paper](https://arxiv.org/pdf/1710.10044)            |
+| Rainbow     | Vector                     | Discrete     | [Rainbow](https://arxiv.org/pdf/1710.02298)                 |
+
+## Actor Critic
+Implementation of various Actor Critic methods.
+
+| Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | PPO         | Vector                     | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347)               |
 | DDPG        | Vector                     | Continuous   | [DDPG Paper](https://arxiv.org/pdf/1509.02971v5.pdf)        |
@@ -224,14 +227,36 @@ A factory class for creating a memory buffer that has been implemented into the 
 | LA3PSAC     | Vector                     | Continuous   | [LA3PSAC Paper](https://arxiv.org/abs/2209.00532)           |
 | MAPERTD3    | Vector                     | Continuous   | [MAPERTD3 Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
 | MAPERSAC    | Vector                     | Continuous   | [MAPERSAC Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
-| RDTD3       | Vector                     | Continuous   | WIP                                                         |
-| RDSAC       | Vector                     | Continuous   | WIP                                                         |
+| RDTD3       | Vector                     | Continuous   | [RDTD3 Paper](https://arxiv.org/abs/2501.18093)             |
+| RDSAC       | Vector                     | Continuous   | [RDSAC Paper](https://arxiv.org/abs/2501.18093)             |
 | REDQ        | Vector                     | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf)          |
 | TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/pdf/2005.04269)               |
 | CTD4        | Vector                     | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576)              |
 | CrossQ      | Vector                     | Continuous   | [CrossQ Paper](https://arxiv.org/pdf/1902.05605)            |
 | Droq        | Vector                     | Continuous   | [DroQ Paper](https://arxiv.org/abs/2110.02034)              |
+| SDAR        | Vector                     | Continuous   | [SDAR Paper](https://openreview.net/pdf?id=PDgZ3rvqHn)      |
+| TD7         | Vector                     | Continuous   | [TD7 Paper](https://arxiv.org/pdf/2306.02451)               |
+| SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | NaSATD3     | Image                      | Continuous   | [NaSATD3 Paper](https://ieeexplore.ieee.org/abstract/document/10801857) |
 | TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |
 | SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741)             |
+
+## Unsupervised Skill Discovery
+Implementation of Unsupervised Skill discovery methods
+
+| Algorithm                                | Observation Space          | Action Space | Paper Reference                                 |
+| ---------------------------------------- | -------------------------- | ------------ | ---------------                                 |
+| DIAYN (Diversity Is All You Need)        | Vector                     | Continuous   | [DIYAN Paper](https://arxiv.org/pdf/1802.06070) |
+| DADS Dynamics-Aware Discovery OF Skills  | Vector                     | Continuous   | [DADS Paper](https://arxiv.org/pdf/1907.01657)  |
+
+# Citation
+```
+@misc{cares_reinforcement_learning,
+  title = {CARES Reinforcement Learning},
+  author = {CARES},
+  year = {2025},
+  publisher = {GitHub},
+  url = {https://https://github.com/UoA-CARES/cares_reinforcement_learning.}
+}
+```

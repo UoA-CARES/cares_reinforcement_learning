@@ -15,12 +15,17 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import MemoryBuffer
+import cares_reinforcement_learning.util.training_utils as tu
+from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACDConfig
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
-class SACD:
+class SACD(VectorAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -28,8 +33,7 @@ class SACD:
         config: SACDConfig,
         device: torch.device,
     ):
-        self.type = "discrete_policy"
-        self.device = device
+        super().__init__(policy_type="discrete_policy", config=config, device=device)
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -70,14 +74,17 @@ class SACD:
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False, noise_scale: float = 0
-    ) -> np.ndarray:
-        # pylint: disable-next=unused-argument
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
 
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, np.ndarray)
+
         with torch.no_grad():
-            state_tensor = torch.FloatTensor(state).to(self.device)
+            state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
@@ -86,7 +93,7 @@ class SACD:
                 (action, _, _) = self.actor_net(state_tensor)
                 # action = np.random.choice(a=self.action_num, p=action_probs)
         self.actor_net.train()
-        return action
+        return action.item()
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -161,24 +168,27 @@ class SACD:
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, memory: MemoryBuffer, batch_size: int) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.LongTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.unsqueeze(0).reshape(batch_size, 1)
-        dones_tensor = dones_tensor.unsqueeze(0).reshape(batch_size, 1)
+        # Use the helper to sample and prepare tensors in one step
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            _,
+            _,
+        ) = tu.sample_batch_to_tensors(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
+            use_per_buffer=0,  # SACD uses uniform sampling
+        )
 
         info = {}
 
@@ -208,11 +218,33 @@ class SACD:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            # Save log_alpha as a float, not a numpy array
+            "log_alpha": self.log_alpha.detach().cpu().item(),
+            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
+            "learn_counter": self.learn_counter,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+
+        self.critic_net.load_state_dict(checkpoint["critic"])
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+        logging.info("models, optimisers, and training state have been loaded...")

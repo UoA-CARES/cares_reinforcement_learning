@@ -14,7 +14,7 @@ def test_ae():
 
     observation_size = (3, 32, 32)
 
-    test_image = torch.randn(2, *observation_size)
+    test_image = torch.rand(2, *observation_size)
     test_image = test_image.to(device)
 
     factory = AEFactory()

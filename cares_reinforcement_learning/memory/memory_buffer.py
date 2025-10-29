@@ -5,8 +5,10 @@ https://github.com/sfujim/LAP-PAL/blob/master/continuous/utils.py
 
 """
 
+import os
 import pickle
 import random
+import tempfile
 from collections import deque
 
 import numpy as np
@@ -148,6 +150,7 @@ class MemoryBuffer:
         Returns:
             None
         """
+
         experience = [state, action, reward, next_state, done, *extra]
 
         # n-step learning - default is 1-step which means regular buffer behaviour
@@ -248,7 +251,7 @@ class MemoryBuffer:
     def sample_priority(
         self,
         batch_size: int,
-        sampling: str = "stratified",
+        sampling_strategy: str = "stratified",
         weight_normalisation: str = "batch",
     ) -> tuple:
         """
@@ -258,7 +261,7 @@ class MemoryBuffer:
 
         Args:
             batch_size (int): The number of experiences to sample.
-            stratified (bool): Whether to use stratified priority sampling.
+            sampling_stratagy (str): The sampling strategy to use. Options are "simple" or "stratified".
             weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
@@ -270,12 +273,12 @@ class MemoryBuffer:
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
-        if sampling == "simple":
+        if sampling_strategy == "simple":
             indices = self.sum_tree.sample_simple(batch_size)
-        elif sampling == "stratified":
+        elif sampling_strategy == "stratified":
             indices = self.sum_tree.sample_stratified(batch_size)
         else:
-            raise ValueError(f"Unkown sampling scheme: {sampling}")
+            raise ValueError(f"Unknown sampling scheme: {sampling_strategy}")
 
         weights = self._importance_sampling_prioritised_weights(
             indices, weight_normalisation=weight_normalisation
@@ -340,6 +343,33 @@ class MemoryBuffer:
             indices.tolist(),
             reversed_priorities[indices].tolist(),
         )
+
+    def reset_priorities(self) -> None:
+        """
+        Resets all priorities in the replay buffer to the maximum priority.
+
+        This is useful in scenarios where the priorities need to be re-evaluated or when initializing the buffer.
+        """
+        self.sum_tree = SumTree(self.max_capacity)
+        self.max_priority = 1.0
+        for i in range(self.current_size):
+            self.sum_tree.set(i, self.max_priority)
+
+    def reset_max_priority(self) -> None:
+        """
+        Recalculates max_priority to the actual maximum priority currently in the buffer.
+
+        This prevents priority inflation over time by setting max_priority to the current
+        maximum value in the buffer rather than an accumulated historical maximum.
+
+        This is useful when the priority distribution has changed significantly and
+        the historical max_priority no longer reflects the current state of the buffer.
+        """
+        if self.current_size > 0:
+            current_priorities = self.sum_tree.levels[-1][: self.current_size]
+            self.max_priority = float(current_priorities.max())
+        else:
+            self.max_priority = 1.0
 
     def update_priorities(self, indices: np.ndarray, priorities: np.ndarray) -> None:
         """
@@ -454,12 +484,24 @@ class MemoryBuffer:
         self.memory_buffers = []
 
         self.sum_tree = SumTree(self.max_capacity)
-        self.max_priority = self.min_priority
+        self.max_priority = 1.0
         self.beta = self.init_beta
 
     def save(self, filepath: str, file_name: str) -> None:
-        with open(f"{filepath}/{file_name}.pkl", "wb") as f:
-            pickle.dump(self, f)
+        final_path = os.path.join(filepath, f"{file_name}.pkl")
+
+        # create temp file in the same directory (so os.replace is atomic)
+        with tempfile.NamedTemporaryFile("wb", dir=filepath, delete=False) as tmp:
+            try:
+                pickle.dump(self, tmp)
+                tmp.flush()
+                os.fsync(tmp.fileno())  # ensure data is written to disk
+            except Exception:
+                os.remove(tmp.name)  # cleanup on failure
+                raise
+
+        # atomically replace old file with new one
+        os.replace(tmp.name, final_path)
 
     @classmethod
     def load(cls, file_path: str, file_name: str):

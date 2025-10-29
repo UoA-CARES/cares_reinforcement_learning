@@ -89,6 +89,28 @@ def create_C51(observation_size, action_num, config: acf.C51Config):
     return agent
 
 
+def create_QRDQN(observation_size, action_num, config: acf.QRDQNConfig):
+    from cares_reinforcement_learning.algorithm.value import QRDQN
+    from cares_reinforcement_learning.networks.QRDQN import Network
+
+    network = Network(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = QRDQN(network=network, config=config, device=device)
+    return agent
+
+
+def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
+    from cares_reinforcement_learning.algorithm.value import Rainbow
+    from cares_reinforcement_learning.networks.Rainbow import Network
+
+    network = Network(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = Rainbow(network=network, config=config, device=device)
+    return agent
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
@@ -114,23 +136,6 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
 ###################################
 #         SAC Algorithms          #
 ###################################
-
-
-def create_SACD(observation_size, action_num, config: acf.SACDConfig):
-    from cares_reinforcement_learning.algorithm.policy import SACD
-    from cares_reinforcement_learning.networks.SACD import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = SACD(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
 
 
 def create_SAC(observation_size, action_num, config: acf.SACConfig):
@@ -332,6 +337,23 @@ def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
     return agent
 
 
+def create_SDAR(observation_size, action_num, config: acf.SDARConfig):
+    from cares_reinforcement_learning.algorithm.policy import SDAR
+    from cares_reinforcement_learning.networks.SDAR import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SDAR(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     """
     Create networks for model-based SAC agent. The Actor and Critic is same.
@@ -358,6 +380,63 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
         actor_network=actor,
         critic_network=critic,
         world_network=world_model,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_SACD(observation_size, action_num, config: acf.SACDConfig):
+    from cares_reinforcement_learning.algorithm.policy import SACD
+    from cares_reinforcement_learning.networks.SACD import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SACD(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
+    from cares_reinforcement_learning.algorithm.usd import DIAYN
+    from cares_reinforcement_learning.networks.DIAYN import Discriminator
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
+    discriminator = Discriminator(
+        observation_size, num_skills=config.num_skills, config=config
+    )
+
+    device = hlp.get_device()
+    agent = DIAYN(
+        skills_agent=agent,
+        discriminator_network=discriminator,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DADS(observation_size, action_num, config: acf.DADSConfig):
+    from cares_reinforcement_learning.algorithm.usd import DADS
+    from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
+    discriminator = SkillDynamicsModel(
+        observation_size=observation_size, num_skills=config.num_skills, config=config
+    )
+
+    device = hlp.get_device()
+    agent = DADS(
+        skills_agent=agent,
+        discriminator_network=discriminator,
         config=config,
         device=device,
     )
@@ -570,7 +649,42 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     return agent
 
 
-# TODO return type base "Algorithm" class?
+def create_TD7(observation_size, action_num, config: acf.TD7Config):
+    from cares_reinforcement_learning.algorithm.policy import TD7
+    from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
+
+    device = hlp.get_device()
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+    encoder = Encoder(observation_size, action_num, config=config)
+
+    agent = TD7(
+        actor_network=actor,
+        critic_network=critic,
+        encoder_network=encoder,
+        config=config,
+        device=device,
+    )
+
+    return agent
+
+
+def _compare_mlp_parts(obj1: acf.AlgorithmConfig, obj2: acf.AlgorithmConfig) -> bool:
+    # Extract fields where the value is of type mlp_type
+    def get_mlp_fields(obj):
+        return {
+            name: value.dict()
+            for name, value in obj.__dict__.items()
+            if isinstance(value, acf.MLPConfig)
+        }
+
+    mlp_fields1 = get_mlp_fields(obj1)
+    mlp_fields2 = get_mlp_fields(obj2)
+
+    return mlp_fields1 == mlp_fields2
+
+
 class NetworkFactory:
     def create_network(
         self,
@@ -587,6 +701,17 @@ class NetworkFactory:
                     agent = obj(observation_size, action_num, config)
 
         if agent is None:
-            logging.warning(f"Unkown {agent} algorithm.")
+            logging.warning(f"Unknown {agent} algorithm.")
+        else:
+            if config.model_path is not None:
+                logging.info(f"Loading model weights from {config.model_path}")
+                agent.load_models(filepath=config.model_path, filename=config.algorithm)
+
+            if not _compare_mlp_parts(
+                type(config)(algorithm=config.algorithm, gamma=config.gamma), config
+            ):
+                logging.warning(
+                    "The network architecture has changed from the default configuration."
+                )
 
         return agent
