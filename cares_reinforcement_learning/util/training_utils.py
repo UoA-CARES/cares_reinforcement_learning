@@ -93,26 +93,23 @@ def image_state_to_tensors(
 def image_states_to_tensors(
     states: list[dict[str, np.ndarray]],
     device: torch.device,
-    states_dtype: torch.dtype = torch.float32,
+    dtype: torch.dtype = torch.float32,
 ) -> dict[str, torch.Tensor]:
-    states_images = [state["image"] for state in states]
-    states_vector = [state["vector"] for state in states]
+    n = len(states)
+    img_shape = states[0]["image"].shape
+    vec_shape = states[0]["vector"].shape
 
-    # For image data, use from_numpy for memory efficiency (images can be large)
-    # Note: This creates a view sharing memory with original numpy array
-    # This is acceptable for training as the numpy arrays are typically not modified
-    states_images_tensor = torch.from_numpy(np.asarray(states_images)).to(
-        dtype=states_dtype, device=device
-    )
+    images = np.empty((n, *img_shape), dtype=np.float32)
+    vectors = np.empty((n, *vec_shape), dtype=np.float32)
 
-    # For vector data, use safer tensor creation (smaller memory footprint)
-    states_vector_tensor = torch.tensor(
-        np.asarray(states_vector), dtype=states_dtype, device=device
-    )
+    for i in range(n):
+        images[i] = states[i]["image"]
+        vectors[i] = states[i]["vector"]
 
-    # Normalise states and next_states - image portion
-    # This because the states are [0-255] and the predictions are [0-1]
-    states_images_tensor = states_images_tensor / 255
+    states_images_tensor = torch.tensor(images, device=device, dtype=dtype)
+    states_vector_tensor = torch.tensor(vectors, device=device, dtype=dtype)
+
+    states_images_tensor /= 255.0
 
     return {"image": states_images_tensor, "vector": states_vector_tensor}
 

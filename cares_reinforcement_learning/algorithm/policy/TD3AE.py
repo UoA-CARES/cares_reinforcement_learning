@@ -153,8 +153,8 @@ class TD3AE(ImageAlgorithm):
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        td_error_one = (q_values_one - q_target).abs()
-        td_error_two = (q_values_two - q_target).abs()
+        td_error_one = (q_values_one.detach() - q_target).abs()
+        td_error_two = (q_values_two.detach() - q_target).abs()
 
         critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
         critic_loss_one = (critic_loss_one * weights).mean()

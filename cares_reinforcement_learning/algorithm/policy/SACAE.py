@@ -19,7 +19,6 @@ import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 from cares_reinforcement_learning.util.training_context import (
@@ -153,8 +152,8 @@ class SACAE(ImageAlgorithm):
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        td_error_one = (q_values_one - q_target).abs()
-        td_error_two = (q_values_two - q_target).abs()
+        td_error_one = (q_values_one.detach() - q_target).abs()
+        td_error_two = (q_values_two.detach() - q_target).abs()
 
         critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
         critic_loss_one = (critic_loss_one * weights).mean()
