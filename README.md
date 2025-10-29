@@ -208,6 +208,8 @@ Implementations of Q-Learning based methods
 | C51         | Vector                     | Discrete     | [C51 Paper](https://arxiv.org/pdf/1707.06887)               |
 | QRDQN       | Vector                     | Discrete     | [QR-DQN Paper](https://arxiv.org/pdf/1710.10044)            |
 | Rainbow     | Vector                     | Discrete     | [Rainbow](https://arxiv.org/pdf/1710.02298)                 |
+| QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
+
 
 ## Actor Critic
 Implementation of various Actor Critic methods.

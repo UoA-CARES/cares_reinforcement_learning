@@ -6,3 +6,4 @@ from .PERDQN import PERDQN
 from .C51 import C51
 from .QRDQN import QRDQN
 from .Rainbow import Rainbow
+from .QMIX import QMIX
