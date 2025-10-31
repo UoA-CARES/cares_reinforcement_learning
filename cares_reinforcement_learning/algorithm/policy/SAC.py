@@ -24,7 +24,10 @@ from cares_reinforcement_learning.networks.common import (
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import SACConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class SAC(VectorAlgorithm):
@@ -116,13 +119,15 @@ class SAC(VectorAlgorithm):
 
         logging.info("models, optimisers, and training state have been loaded...")
 
-    def select_action_from_policy(
-        self,
-        state: np.ndarray,
-        evaluation: bool = False,
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, np.ndarray)
+
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -169,7 +174,7 @@ class SAC(VectorAlgorithm):
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
-                - self.alpha * next_log_pi
+                - self.alpha.detach() * next_log_pi
             )
 
             q_target = (
@@ -224,7 +229,7 @@ class SAC(VectorAlgorithm):
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        actor_loss = ((self.alpha.detach() * log_pi) - min_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()

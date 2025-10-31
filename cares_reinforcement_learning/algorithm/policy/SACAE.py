@@ -19,10 +19,12 @@ import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class SACAE(ImageAlgorithm):
@@ -98,13 +100,15 @@ class SACAE(ImageAlgorithm):
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
-    def select_action_from_policy(
-        self,
-        state: dict[str, np.ndarray],
-        evaluation: bool = False,
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, dict)
+
         with torch.no_grad():
             state_tensor = tu.image_state_to_tensors(state, self.device)
 
@@ -139,7 +143,7 @@ class SACAE(ImageAlgorithm):
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
-                - self.alpha * next_log_pi
+                - self.alpha.detach() * next_log_pi
             )
 
             q_target = (
@@ -148,8 +152,8 @@ class SACAE(ImageAlgorithm):
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        td_error_one = (q_values_one - q_target).abs()
-        td_error_two = (q_values_two - q_target).abs()
+        td_error_one = (q_values_one.detach() - q_target).abs()
+        td_error_two = (q_values_two.detach() - q_target).abs()
 
         critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
         critic_loss_one = (critic_loss_one * weights).mean()
@@ -188,7 +192,7 @@ class SACAE(ImageAlgorithm):
             qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        actor_loss = ((self.alpha.detach() * log_pi) - min_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()

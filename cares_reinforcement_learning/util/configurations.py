@@ -28,12 +28,17 @@ class TrainingConfig(SubscriptableClass):
         number_steps_per_evaluation (int]): Number of steps per evaluation. Default is 10000.
         number_eval_episodes (int]): Number of episodes to evaluate during training. Default is 10.
         record_eval_video (int]): Whether to record a video of the evaluation. Default is 1.
+        checkpoint_interval (int]): Interval (in number of episodes) to save dataframes and checkpoints. Default is 1.
     """
 
     seeds: list[int] = [10]
     number_steps_per_evaluation: int = 10000
     number_eval_episodes: int = 10
     record_eval_video: int = 1
+
+    checkpoint_interval: int = 1
+
+    max_workers: int = 1
 
 
 class TrainableLayer(BaseModel):
