@@ -1,0 +1,57 @@
+name: Auto Formatter
+
+on:
+  pull_request:
+    branches:
+      - "*"
+
+permissions:
+  contents: read
+
+jobs:
+
+  format:
+      runs-on: ubuntu-latest
+      permissions:
+        contents: write
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v2
+          with:
+            ref: ${{ github.head_ref }}
+            fetch-depth: 0
+            token: ${{ secrets.BOT_ACCESS_TOKEN }}
+
+        - name: Setup git user
+          uses: fregante/setup-git-user@v1
+    
+        - name: Set up Python
+          uses: actions/setup-python@v2
+          with:
+            python-version: "3.11"
+    
+        - name: Install Black
+          run: pip install black
+          
+        - name: Run Black Formatter
+          run: black .
+  
+        - name: Check for changes
+          id: check_changes
+          run: |
+            if [ -n "$(git diff)" ]; then
+              echo "::set-output name=changed::true"
+            else
+              echo "::set-output name=changed::false"
+            fi
+          continue-on-error: true
+  
+        # Optionally, customize the user name and commit message, and can add an email as well such as Github Actions' email
+        - name: Set up Git and Commit Changes
+          run: |
+            if [ "${{ steps.check_changes.outputs.changed }}" == "true" ]; then
+              git config --local user.name "Formatter [BOT]"
+              git add .
+              git commit -m "Auto-format code 🧹🌟🤖"
+              git push
+            fi
