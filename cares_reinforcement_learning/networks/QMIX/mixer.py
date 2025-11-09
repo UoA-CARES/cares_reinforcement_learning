@@ -93,22 +93,28 @@ class QMixer(nn.Module):
         batch_size = agent_qs.size(0)
 
         # First layer
-        w1 = self.hyper_w1(state).view(
-            batch_size, self.num_agents, self.embed_dim
-        )  # [B, n_agents, embed_dim]
-        b1 = self.hyper_b1(state).view(
-            batch_size, 1, self.embed_dim
-        )  # [B, 1, embed_dim]
+        # [B, n_agents, embed_dim]
+        w1 = self.hyper_w1(state).view(batch_size, self.num_agents, self.embed_dim)
+        w1 = torch.abs(w1)  # enforce non-negative weights
+
+        # [B, 1, embed_dim]
+        b1 = self.hyper_b1(state).view(batch_size, 1, self.embed_dim)
 
         # Compute hidden layer
-        hidden = torch.bmm(agent_qs.unsqueeze(1), w1) + b1  # [B, 1, embed_dim]
+        # [B, 1, embed_dim]
+        hidden = torch.bmm(agent_qs.unsqueeze(1), w1) + b1
         hidden = F.relu(hidden)
 
         # Second layer (output)
-        w2 = self.hyper_w2(state).view(
-            batch_size, self.embed_dim, 1
-        )  # [B, embed_dim, 1]
-        b2 = self.hyper_b2(state).view(batch_size, 1, 1)  # [B, 1, 1]
+        # [B, embed_dim, 1]
+        w2 = self.hyper_w2(state).view(batch_size, self.embed_dim, 1)
+        w2 = torch.abs(w2)  # enforce non-negative weights
 
-        q_tot = torch.bmm(hidden, w2) + b2  # [B, 1, 1]
-        return q_tot.view(-1)  # [batch_size]
+        # [B, 1, 1]
+        b2 = self.hyper_b2(state).view(batch_size, 1, 1)
+
+        # [B, 1, 1]
+        q_tot = torch.bmm(hidden, w2) + b2
+
+        # [batch_size]
+        return q_tot.view(-1)
