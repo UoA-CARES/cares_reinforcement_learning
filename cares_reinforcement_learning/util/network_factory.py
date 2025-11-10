@@ -128,9 +128,7 @@ def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
         config=config,
     )
 
-    state_shape = observation_size["state"]
-
-    mixer = QMixer(num_agents=num_agents, state_dim=state_shape)
+    mixer = QMixer(observation_size=observation_size, config=config)
 
     device = hlp.get_device()
     agent = QMIX(network=network, mixer=mixer, config=config, device=device)

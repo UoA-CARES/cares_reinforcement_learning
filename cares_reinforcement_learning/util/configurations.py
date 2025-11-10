@@ -320,7 +320,7 @@ class RainbowConfig(C51Config):
     )
 
 
-class QMIXConfig(AlgorithmConfig):
+class QMIXConfig(DQNConfig):
     algorithm: str = Field("QMIX", Literal=True)
     lr: float = 1e-4
     gamma: float = 0.99
@@ -329,6 +329,9 @@ class QMIXConfig(AlgorithmConfig):
     batch_size: int = 32
 
     target_update_freq: int = 10000
+
+    # network type
+    share_agent_weights: int = 1
 
     # Double DQN
     use_double_dqn: int = 0
@@ -350,6 +353,9 @@ class QMIXConfig(AlgorithmConfig):
     start_epsilon: float = 1.0
     end_epsilon: float = 0.05
     decay_steps: int = 100000
+
+    # Mixer
+    embed_dim: int = 32
 
     network_config: MLPConfig = MLPConfig(
         layers=[

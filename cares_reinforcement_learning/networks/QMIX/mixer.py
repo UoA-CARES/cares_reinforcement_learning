@@ -2,67 +2,18 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 
 
 class BaseQMixer(nn.Module):
     def __init__(
         self,
-        observation_size: int,
-        num_actions: int,
-        network: nn.Module,
+        num_agents: int,
+        state_dim: int,
+        embed_dim: int,
     ):
         super().__init__()
 
-        self.observation_size = observation_size
-        self.num_actions = num_actions
-        self.network = network
-
-    def forward(self, state: torch.Tensor) -> torch.Tensor:
-        output = self.network(state)
-        return output
-
-
-# This is the default base network for DQN for reference and testing of default network configurations
-class DefaultQMixer(BaseQMixer):
-    def __init__(
-        self,
-        observation_size: int,
-        num_actions: int,
-    ):
-        hidden_sizes = [64, 64]
-
-        network = nn.Sequential(
-            nn.Linear(observation_size, hidden_sizes[0]),
-            nn.ReLU(),
-            nn.Linear(hidden_sizes[0], hidden_sizes[1]),
-            nn.ReLU(),
-            nn.Linear(hidden_sizes[1], num_actions),
-        )
-        super().__init__(
-            observation_size=observation_size, num_actions=num_actions, network=network
-        )
-
-
-# class QMixer(BaseQMixer):
-#     def __init__(self, observation_size: int, num_actions: int, config: DQNConfig):
-
-#         network = MLP(
-#             input_size=observation_size,
-#             output_size=num_actions,
-#             config=config.network_config,
-#         )
-#         super().__init__(
-#             observation_size=observation_size, num_actions=num_actions, network=network
-#         )
-
-
-class QMixer(nn.Module):
-    def __init__(
-        self, num_agents: int, state_dim: int, embed_dim: int = 32, hidden_dim: int = 64
-    ):
-        super().__init__()
         self.num_agents = num_agents
         self.state_dim = state_dim
         self.embed_dim = embed_dim  # hypernetwork embedding size
@@ -118,3 +69,20 @@ class QMixer(nn.Module):
 
         # [batch_size]
         return q_tot.view(-1)
+
+
+# This is the default base network for DQN for reference and testing of default network configurations
+class DefaultQMixer(BaseQMixer):
+    def __init__(self, observation_size: dict):
+        num_agents = observation_size["num_agents"]
+        state_dim = observation_size["state"]
+        super().__init__(num_agents=num_agents, state_dim=state_dim, embed_dim=32)
+
+
+class QMixer(BaseQMixer):
+    def __init__(self, observation_size: dict, config: QMIXConfig):
+        num_agents = observation_size["num_agents"]
+        state_dim = observation_size["state"]
+        super().__init__(
+            num_agents=num_agents, state_dim=state_dim, embed_dim=config.embed_dim
+        )
