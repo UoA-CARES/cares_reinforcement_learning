@@ -7,23 +7,23 @@ import torch.nn.functional as F
 
 # A sample of the most common Pytorch activation functions
 # See all: https://docs.pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity
-built_in_activations = {
+built_in_activations = [
     # Sigmoid variants
-    "Sigmoid": nn.Sigmoid(),  # (0, 1)
-    "Tanh": nn.Tanh(),  # (-1, 1)
+    nn.Sigmoid(),  # (0, 1)
+    nn.Tanh(),  # (-1, 1)
     # ReLU variants
-    "ReLU": nn.ReLU(),
-    "Leaky_ReLU": nn.LeakyReLU(),
-    "PReLU": nn.PReLU(),
+    nn.ReLU(),
+    nn.LeakyReLU(),
+    nn.PReLU(),
     # Nonlinear variants
-    "ELU": nn.ELU(),
+    nn.ELU(),
     # Self-Gated variants
-    "GLU": nn.GLU(),
-    "GELU": nn.GELU(),
-    "SiLU": nn.SiLU(),  # SiLU is also known as Swish
+    nn.GLU(),
+    nn.GELU(),
+    nn.SiLU(),  # SiLU is also known as Swish
     # Softmax
-    "Softmax": nn.Softmax(),  # Mostly used in output layers for classification
-}
+    nn.Softmax(),  # Mostly used in output layers for classification
+]
 
 # MARK: ReLU Variants
 
