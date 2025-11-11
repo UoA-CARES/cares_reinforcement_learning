@@ -3,7 +3,7 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 
-# MARK: Built-in Activations
+# MARK: Built-In Activations
 
 # A sample of the most common Pytorch activation functions
 # See all: https://docs.pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity
@@ -20,7 +20,7 @@ built_in_activations = {
     # Self-Gated variants
     "GLU": nn.GLU(),
     "GELU": nn.GELU(),
-    "Swish": nn.SiLU(),  # Swish is also known as SiLU
+    "SiLU": nn.SiLU(),  # SiLU is also known as Swish
     # Softmax
     "Softmax": nn.Softmax(),  # Mostly used in output layers for classification
 }
