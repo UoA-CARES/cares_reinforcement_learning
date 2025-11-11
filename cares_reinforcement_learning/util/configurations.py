@@ -102,6 +102,7 @@ class AlgorithmConfig(SubscriptableClass):
     max_steps_training: int = 1000000
 
     image_observation: int = 0
+    marl_observation: int = 0
 
     model_path: str | None = None
 
@@ -316,6 +317,57 @@ class RainbowConfig(C51Config):
             TrainableLayer(
                 layer_type="NoisyLinear", in_features=128, params={"sigma_init": 0.5}
             ),
+        ]
+    )
+
+
+class QMIXConfig(DQNConfig):
+    algorithm: str = Field("QMIX", Literal=True)
+
+    marl_observation: Literal[1] = Field(default=1, frozen=True)
+
+    lr: float = 1e-4
+    gamma: float = 0.99
+    tau: float = 1.0
+
+    batch_size: int = 32
+
+    target_update_freq: int = 10000
+
+    # network type
+    share_agent_weights: int = 1
+
+    # Double DQN
+    use_double_dqn: int = 0
+
+    # PER
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
+    use_per_buffer: int = 0
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # n-step
+    n_step: int = 1
+
+    max_grad_norm: float | None = None
+
+    # Exploration via Epsilon Greedy
+    max_steps_exploration: int = 0
+    start_epsilon: float = 1.0
+    end_epsilon: float = 0.05
+    decay_steps: int = 100000
+
+    # Mixer
+    embed_dim: int = 32
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
         ]
     )
 
