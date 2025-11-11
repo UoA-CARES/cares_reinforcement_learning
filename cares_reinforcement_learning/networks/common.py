@@ -25,7 +25,7 @@ from cares_reinforcement_learning.util.configurations import (
     TrainableLayer,
 )
 
-import cares_reinforcement_learning.networks.fractional_activations as fa
+import cares_reinforcement_learning.networks.activation_functions as afs
 
 
 def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
@@ -35,8 +35,8 @@ def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
         return BatchRenorm1d
     elif module_name == "NoisyLinear":
         return NoisyLinear
-    elif hasattr(fa, module_name):
-        return getattr(fa, module_name)
+    elif hasattr(afs, module_name):
+        return getattr(afs, module_name)
     raise ValueError(f"Module {module_name} not found in nn or custom modules.")
 
 

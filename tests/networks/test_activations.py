@@ -1,5 +1,5 @@
 import torch
-import cares_reinforcement_learning.networks.fractional_activations as afs
+import cares_reinforcement_learning.networks.activation_functions as afs
 
 def test_golu_activation():
     golu = afs.GoLU()
