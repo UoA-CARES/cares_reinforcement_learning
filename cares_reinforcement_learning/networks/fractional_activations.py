@@ -3,6 +3,28 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 
+# MARK: Built-in Activations
+
+# A sample of the most common Pytorch activation functions
+# See all: https://docs.pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity
+built_in_activations = {
+    # Sigmoid variants
+    "Sigmoid": nn.Sigmoid(),  # (0, 1)
+    "Tanh": nn.Tanh(),  # (-1, 1)
+    # ReLU variants
+    "ReLU": nn.ReLU(),
+    "Leaky_ReLU": nn.LeakyReLU(),
+    "PReLU": nn.PReLU(),
+    # Nonlinear variants
+    "ELU": nn.ELU(),
+    # Self-Gated variants
+    "GLU": nn.GLU(),
+    "GELU": nn.GELU(),
+    "Swish": nn.SiLU(),  # Swish is also known as SiLU
+    # Softmax
+    "Softmax": nn.Softmax(),  # Mostly used in output layers for classification
+}
+
 # MARK: ReLU Variants
 
 class FractionalReLUPositive(nn.Module):
@@ -260,7 +282,7 @@ class FractionalReLUCustom(nn.Module):
             torch.zeros_like(x),
         )
 
-# MARK: Sigmoid Variants
+# MARK: Sigmoidal Variants
 
 # Fractional Tanh activation function
 class FractionalTanh(nn.Module):
