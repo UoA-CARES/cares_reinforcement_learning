@@ -200,8 +200,6 @@ def test_algorithms(tmp_path):
         experiences = memory_buffer.sample_uniform(1)
         states, actions, rewards, next_states, dones, _ = experiences
 
-        print(states)
-
         value = agent._calculate_value(states[0], actions[0])
         assert isinstance(
             value, float
