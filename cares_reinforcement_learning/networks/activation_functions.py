@@ -3,27 +3,31 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 
+
 # MARK: Built-In Activations
 
 # A sample of the most common Pytorch activation functions
 # See all: https://docs.pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity
 built_in_activations = [
     # Sigmoid variants
-    nn.Sigmoid(),  # (0, 1)
-    nn.Tanh(),  # (-1, 1)
+    nn.Sigmoid(),       # 1/(1+e^-x)                (0, 1)
+    nn.Tanh(),          # 2/(1+e^-2x)+1 = tanh(x)   (-1, 1) same shape as sigmoid
     # ReLU variants
-    nn.ReLU(),
-    nn.LeakyReLU(),
-    nn.PReLU(),
-    # Nonlinear variants
-    nn.ELU(),
-    # Self-Gated variants
-    nn.GLU(),
-    nn.GELU(),
-    nn.SiLU(),  # SiLU is also known as Swish
+    nn.ReLU(),          # max(0, x)                 ReLU: Rectified Linear Unit
+    nn.LeakyReLU(),     # ax | x
+    nn.PReLU(),         # ax | x                    PReLU: Parametric ReLU (a is a learned parameter)
+    # Non-linear variants
+    nn.ELU(),           # a(e^x)-1 | x              ELU: Exponential Linear Unit
+    # Self-gated variants
+    nn.GELU(),          # x * Φ(x)                  GELU: Gaussian Error Linear Unit
+    nn.SiLU(),          # x * sigmoid(x)            Aka Swish
+    nn.Mish(),          # x * tanh(softplus(x))
+    # Gated variants
+    nn.GLU(),           # lin(x) * sigmoid(lin(x))  GLU: Gated Linear Unit (lin(x) is gated by learnt sigmoid)
     # Softmax
-    nn.Softmax(),  # Mostly used in output layers for classification
+    nn.Softmax(),       # Mostly used in output layers for classification
 ]
+
 
 # MARK: ReLU Variants
 
@@ -282,6 +286,7 @@ class FractionalReLUCustom(nn.Module):
             torch.zeros_like(x),
         )
 
+
 # MARK: Sigmoidal Variants
 
 # Fractional Tanh activation function
@@ -295,6 +300,7 @@ class FractionalTanh(nn.Module):
     def forward(self, x):
         # Adding small epsilon to avoid zero power issues
         return torch.tanh(x) * torch.pow(torch.abs(x) + 1e-6, 1 - self.a)
+
 
 # MARK: Self-Gated Variants
 
