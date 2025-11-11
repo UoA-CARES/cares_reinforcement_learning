@@ -786,7 +786,7 @@ class DynaSACConfig(SACConfig):
     world_model_lr: float = 0.001
 
 
-class SACDConfig(AlgorithmConfig):
+class SACDConfig(SACConfig):
     algorithm: str = Field("SACD", Literal=True)
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
@@ -825,6 +825,10 @@ class SACDConfig(AlgorithmConfig):
         ]
     )
 
+class SD_SACConfig(SACDConfig):
+    algorithm: str = Field("SD_SAC", Literal=True)
+
+    clip_delta: float = 0.5
 
 ###################################
 #         TD3 Algorithms          #

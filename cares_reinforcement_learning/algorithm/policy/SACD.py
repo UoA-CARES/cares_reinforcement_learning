@@ -35,6 +35,21 @@ class SACD(VectorAlgorithm):
     ):
         super().__init__(policy_type="discrete_policy", config=config, device=device)
 
+        self.gamma = config.gamma
+        self.tau = config.tau
+        self.reward_scale = config.reward_scale
+
+        # PER
+        self.use_per_buffer = config.use_per_buffer
+        self.per_sampling_strategy = config.per_sampling_strategy
+        self.per_weight_normalisation = config.per_weight_normalisation
+        self.per_alpha = config.per_alpha
+        self.min_priority = config.min_priority
+
+        self.learn_counter = 0
+        self.policy_update_freq = config.policy_update_freq
+        self.target_update_freq = config.target_update_freq
+
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
 
@@ -43,20 +58,11 @@ class SACD(VectorAlgorithm):
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
         self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.gamma = config.gamma
-        self.tau = config.tau
-        self.reward_scale = config.reward_scale
-
-        self.learn_counter = 0
-        self.policy_update_freq = config.policy_update_freq
-        self.target_update_freq = config.target_update_freq
-
-        self.action_num = self.actor_net.num_actions
-
-        # For smaller action spaces, set the multiplier to lower values (probs should be a config option)
         self.target_entropy = (
             -np.log(1.0 / self.action_num) * config.target_entropy_multiplier
         )
+
+        self.action_num = self.actor_net.num_actions
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
@@ -65,7 +71,6 @@ class SACD(VectorAlgorithm):
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
-        # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
         self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
@@ -88,12 +93,11 @@ class SACD(VectorAlgorithm):
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 (_, _, action) = self.actor_net(state_tensor)
-                # action = np.argmax(action_probs)
             else:
                 (action, _, _) = self.actor_net(state_tensor)
-                # action = np.random.choice(a=self.action_num, p=action_probs)
+            action = action.cpu().numpy().flatten()
         self.actor_net.train()
-        return action.item()
+        return action
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -119,7 +123,6 @@ class SACD(VectorAlgorithm):
             )
 
             min_qf_next_target = min_qf_next_target.sum(dim=1).unsqueeze(-1)
-            # TODO: Investigate
             next_q_value = (
                 rewards * self.reward_scale
                 + (1.0 - dones) * min_qf_next_target * self.gamma
@@ -127,16 +130,19 @@ class SACD(VectorAlgorithm):
 
         q_values_one, q_values_two = self.critic_net(states)
 
-        gathered_q_values_one = q_values_one.gather(1, actions.long().unsqueeze(-1))
-        gathered_q_values_two = q_values_two.gather(1, actions.long().unsqueeze(-1))
-
-        critic_loss_one = F.mse_loss(gathered_q_values_one, next_q_value)
-        critic_loss_two = F.mse_loss(gathered_q_values_two, next_q_value)
+        critic_loss_one = F.mse_loss(q_values_one, next_q_value)
+        critic_loss_two = F.mse_loss(q_values_two, next_q_value)
         critic_loss_total = critic_loss_one + critic_loss_two
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
+
+        info = {
+            "critic_loss_one": critic_loss_one.item(),
+            "critic_loss_two": critic_loss_two.item(),
+            "critic_loss_total": critic_loss_total.item(),
+        }
 
         return critic_loss_total.item()
 

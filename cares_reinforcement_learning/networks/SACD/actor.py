@@ -23,14 +23,14 @@ class BaseActor(nn.Module):
         action_probs = self.discrete_net(self.act_net(state))
         max_probability_action = torch.argmax(action_probs)
         dist = torch.distributions.Categorical(action_probs)
-        action = dist.sample()
+        sample_action = dist.sample()
 
         # Offset any values which are zero by a small amount so no nan nonsense
         zero_offset = action_probs == 0.0
         zero_offset = zero_offset.float() * 1e-8
         log_action_probs = torch.log(action_probs + zero_offset)
 
-        return action, (action_probs, log_action_probs), max_probability_action
+        return sample_action, (action_probs, log_action_probs), max_probability_action
 
 
 class DefaultActor(BaseActor):
