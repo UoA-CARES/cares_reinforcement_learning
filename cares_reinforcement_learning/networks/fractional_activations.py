@@ -1,9 +1,9 @@
 import torch
 import torch.nn as nn
-import torch
 import numpy as np
 import torch.nn.functional as F
 
+# MARK: ReLU Variants
 
 class FractionalReLUPositive(nn.Module):
     def __init__(self, a=0.1, epsilon=1e-6, clip_value=1.0):
@@ -187,7 +187,6 @@ class FractionalPReLU(nn.Module):
 
         return positive_side + negative_side
 
-
 class ReLU(nn.Module):
     def __init__(self, a: float = 0.5):
         super().__init__()
@@ -228,7 +227,7 @@ class ReLU(nn.Module):
         #         # print(f"input: {x}")
         #         # print(f"output: {output}")
 
-        return output
+        # return output
 
 
 # Fractional ReLU Gamma version activation function
@@ -261,6 +260,7 @@ class FractionalReLUCustom(nn.Module):
             torch.zeros_like(x),
         )
 
+# MARK: Sigmoid Variants
 
 # Fractional Tanh activation function
 class FractionalTanh(nn.Module):
@@ -273,3 +273,15 @@ class FractionalTanh(nn.Module):
     def forward(self, x):
         # Adding small epsilon to avoid zero power issues
         return torch.tanh(x) * torch.pow(torch.abs(x) + 1e-6, 1 - self.a)
+
+# MARK: Self-Gated Variants
+
+class GoLU(nn.Module):
+    """GoLU activation function. From https://arxiv.org/pdf/2502.03654"""
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # GoLU(x) = x*Gompertz(x), where Gompertz(x) = e^(−e^−x)
+        return x * torch.exp(-torch.exp(-x))
