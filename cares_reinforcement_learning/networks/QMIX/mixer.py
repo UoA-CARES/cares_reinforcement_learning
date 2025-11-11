@@ -71,7 +71,7 @@ class BaseQMixer(nn.Module):
         return q_tot.view(-1)
 
 
-# This is the default base network for DQN for reference and testing of default network configurations
+# Default QMIX mixer for reference and testing of default network configurations
 class DefaultQMixer(BaseQMixer):
     def __init__(self, observation_size: dict):
         num_agents = observation_size["num_agents"]
