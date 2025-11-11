@@ -1,5 +1,6 @@
 """
-This is a stub file for the DQN network - reads directly off DQN's Network class.
+Independent multi-agent network for QMIX.
+Each agent has its own network based on DQN's Network class.
 """
 
 import torch
