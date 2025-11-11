@@ -102,6 +102,7 @@ class AlgorithmConfig(SubscriptableClass):
     max_steps_training: int = 1000000
 
     image_observation: int = 0
+    marl_observation: int = 0
 
     model_path: str | None = None
 
@@ -322,6 +323,9 @@ class RainbowConfig(C51Config):
 
 class QMIXConfig(DQNConfig):
     algorithm: str = Field("QMIX", Literal=True)
+
+    marl_observation: Literal[1] = Field(default=1, frozen=True)
+
     lr: float = 1e-4
     gamma: float = 0.99
     tau: float = 1.0

@@ -12,13 +12,13 @@ from cares_reinforcement_learning.util.configurations import QMIXConfig
 class BaseSharedMultiAgentNetwork(nn.Module):
     def __init__(
         self,
-        observation_size: int,
+        obs_shape: int,
         num_actions: int,
         num_agents: int,
         agent: nn.Module,
     ):
         super().__init__()
-        self.observation_size = observation_size
+        self.obs_shape = obs_shape
         self.num_actions = num_actions
         self.num_agents = num_agents
 
@@ -29,7 +29,9 @@ class BaseSharedMultiAgentNetwork(nn.Module):
         observations: [batch_size, num_agents, obs_dim]
         returns: [batch_size, num_agents, num_actions]
         """
+
         batch_size, num_agents, obs_dim = observations.shape
+
         device = observations.device
 
         # Create one-hot agent IDs
@@ -53,15 +55,16 @@ class BaseSharedMultiAgentNetwork(nn.Module):
 class DefaultSharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
     def __init__(
         self,
-        observation_size: int,
+        observation_size: dict,
         num_actions: int,
-        num_agents: int,
     ):
         # Shared network for all agents
         # Note: add agent ID embedding dimension (num_agents)
+        obs_shape = observation_size["obs"]
+        num_agents = observation_size["num_agents"]
         hidden_sizes = [64, 64]
 
-        input_size = observation_size + num_agents
+        input_size = obs_shape + num_agents
         agent = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
@@ -71,7 +74,7 @@ class DefaultSharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
         )
 
         super().__init__(
-            observation_size=observation_size,
+            obs_shape=obs_shape,
             num_actions=num_actions,
             num_agents=num_agents,
             agent=agent,
@@ -81,21 +84,23 @@ class DefaultSharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
 class SharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
     def __init__(
         self,
-        observation_size: int,
+        observation_size: dict,
         num_actions: int,
-        num_agents: int,
         config: QMIXConfig,
     ):
         # Shared network for all agents
         # Note: add agent ID embedding dimension (num_agents)
-        input_size = observation_size + num_agents
+        obs_shape = observation_size["obs"]
+        num_agents = observation_size["num_agents"]
+
+        input_size = obs_shape + num_agents
         agent = Network(
             observation_size=input_size,
             num_actions=num_actions,
             config=config,
         )
         super().__init__(
-            observation_size=observation_size,
+            obs_shape=obs_shape,
             num_actions=num_actions,
             num_agents=num_agents,
             agent=agent,

@@ -189,16 +189,22 @@ def test_actor_critics():
 
     observation_size_image = (9, 32, 32)
 
+    observation_size_marl = {"obs": 10, "state": 30, "num_agents": 3}
+
     action_num = 4
 
     for algorithm, alg_config in algorithm_configurations.items():
         alg_config = alg_config()
 
-        observation_size = (
-            {"image": observation_size_image, "vector": observation_size_vector}
-            if alg_config.image_observation
-            else observation_size_vector
-        )
+        if alg_config.marl_observation:
+            observation_size = observation_size_marl
+        elif alg_config.image_observation:
+            observation_size = {
+                "image": observation_size_image,
+                "vector": observation_size_vector,
+            }
+        else:
+            observation_size = observation_size_vector
 
         configuration_path = Path(configurations.__file__).parent
         network_path = f"{configuration_path.parent}/networks/{algorithm}"

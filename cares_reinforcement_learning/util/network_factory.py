@@ -118,13 +118,9 @@ def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
         QMixer,
     )
 
-    obs_shape = observation_size["obs"]
-    num_agents = observation_size["num_agents"]
-
     network = SharedMultiAgentNetwork(
-        observation_size=obs_shape,
+        observation_size=observation_size,
         num_actions=action_num,
-        num_agents=num_agents,
         config=config,
     )
 

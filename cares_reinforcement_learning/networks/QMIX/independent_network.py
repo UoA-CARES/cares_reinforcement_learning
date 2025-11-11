@@ -12,13 +12,13 @@ from cares_reinforcement_learning.util.configurations import QMIXConfig
 class BaseIndependentMultiAgentNetwork(nn.Module):
     def __init__(
         self,
-        observation_size: int,
+        obs_shape: int,
         num_actions: int,
         num_agents: int,
         agents: list[Network | nn.Sequential],
     ):
         super().__init__()
-        self.observation_size = observation_size
+        self.obs_shape = obs_shape
         self.num_actions = num_actions
         self.num_agents = num_agents
 
@@ -49,15 +49,17 @@ class BaseIndependentMultiAgentNetwork(nn.Module):
 class DefaultIndependentMultiAgentNetwork(BaseIndependentMultiAgentNetwork):
     def __init__(
         self,
-        observation_size: int,
+        observation_size: dict,
         num_actions: int,
-        num_agents: int,
     ):
         agents: list[Network | nn.Sequential] = []
 
+        obs_shape = observation_size["obs"]
+        num_agents = observation_size["num_agents"]
+
         for _ in range(num_agents):
             agent_net = nn.Sequential(
-                nn.Linear(observation_size, 64),
+                nn.Linear(obs_shape, 64),
                 nn.ReLU(),
                 nn.Linear(64, 64),
                 nn.ReLU(),
@@ -66,7 +68,7 @@ class DefaultIndependentMultiAgentNetwork(BaseIndependentMultiAgentNetwork):
             agents.append(agent_net)
 
         super().__init__(
-            observation_size=observation_size,
+            obs_shape=obs_shape,
             num_actions=num_actions,
             num_agents=num_agents,
             agents=agents,
@@ -76,23 +78,25 @@ class DefaultIndependentMultiAgentNetwork(BaseIndependentMultiAgentNetwork):
 class IndependentMultiAgentNetwork(BaseIndependentMultiAgentNetwork):
     def __init__(
         self,
-        observation_size: int,
+        observation_size: dict,
         num_actions: int,
-        num_agents: int,
         config: QMIXConfig,
     ):
         agents: list[Network | nn.Sequential] = []
 
+        obs_shape = observation_size["obs"]
+        num_agents = observation_size["num_agents"]
+
         for _ in range(num_agents):
             agent_net = Network(
-                observation_size=observation_size,
+                observation_size=obs_shape,
                 num_actions=num_actions,
                 config=config,
             )
             agents.append(agent_net)
 
         super().__init__(
-            observation_size=observation_size,
+            obs_shape=obs_shape,
             num_actions=num_actions,
             num_agents=num_agents,
             agents=agents,
