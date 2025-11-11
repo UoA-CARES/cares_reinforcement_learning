@@ -141,7 +141,7 @@ class QMIX(VectorAlgorithm):
         dones_tensor: torch.Tensor,
         batch_size: int,  # pylint: disable=unused-argument
     ) -> torch.Tensor:
-        """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
+        """Computes the elementwise loss for QMIX. If use_double_dqn=True, applies Double DQN logic."""
 
         obs_tensor = states_tensor["obs"]
         next_obs_tensor = next_states_tensor["obs"]
