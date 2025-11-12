@@ -828,7 +828,8 @@ class SACDConfig(SACConfig):
 class SD_SACConfig(SACDConfig):
     algorithm: str = Field("SD_SAC", Literal=True)
 
-    clip_delta: float = 0.5
+    entropy_penalty_beta: float = 0.5
+    q_clip_epsilon: float = 0.5
 
 ###################################
 #         TD3 Algorithms          #
