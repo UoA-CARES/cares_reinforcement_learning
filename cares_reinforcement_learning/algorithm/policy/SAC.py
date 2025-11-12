@@ -82,7 +82,7 @@ class SAC(VectorAlgorithm):
 
     @property
     def alpha(self) -> torch.Tensor:
-        return self.log_alpha.exp()
+        return self.log_alpha.exp().detach()
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
