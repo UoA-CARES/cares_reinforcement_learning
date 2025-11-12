@@ -8,6 +8,7 @@ from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 from cares_reinforcement_learning.util.network_factory import NetworkFactory
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 def _policy_buffer(
@@ -22,7 +23,7 @@ def _policy_buffer(
         state_image = np.random.randint(
             255, size=observation_size["image"], dtype=np.uint8
         )
-        state = {"image": state_image, "vector": state_vector}
+        state = {"image": state_image, "vector": np.array(state_vector)}
     else:
         state = list(range(observation_size))
 
@@ -34,7 +35,10 @@ def _policy_buffer(
         next_state_image = np.random.randint(
             255, size=observation_size["image"], dtype=np.uint8
         )
-        next_state = {"image": next_state_image, "vector": next_state_vector}
+        next_state = {
+            "image": next_state_image,
+            "vector": np.array(next_state_vector),
+        }
     else:
         next_state = list(range(observation_size))
 
@@ -143,7 +147,17 @@ def test_algorithms(tmp_path):
             value, float
         ), f"{algorithm} did not return a float value for the calculated value"
 
-        info = agent.train_policy(memory_buffer, batch_size, training_step=0)
+        training_context = TrainingContext(
+            memory=memory_buffer,
+            batch_size=batch_size,
+            training_step=1,
+            episode=1,
+            episode_steps=1,
+            episode_reward=10.0,
+            episode_done=True,
+        )
+
+        info = agent.train_policy(training_context)
         assert isinstance(
             info, dict
         ), f"{algorithm} did not return a dictionary of training info"

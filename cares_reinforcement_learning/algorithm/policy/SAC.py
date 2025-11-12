@@ -15,23 +15,26 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
-    BaseCritic,
-    BasePolicy,
     EnsembleCritic,
     TanhGaussianPolicy,
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import SACConfig
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
-class BaseSAC(VectorAlgorithm):
+class SAC(VectorAlgorithm):
     def __init__(
         self,
-        actor_network: BasePolicy,
-        critic_network: BaseCritic,
+        actor_network: TanhGaussianPolicy,
+        critic_network: TwinQNetwork | EnsembleCritic,
         config: SACConfig,
         device: torch.device,
     ):
@@ -85,43 +88,46 @@ class BaseSAC(VectorAlgorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            # Save log_alpha as a float, not a numpy array
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
+            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
+            "learn_counter": int(self.learn_counter),
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
 
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.critic_net.load_state_dict(checkpoint["critic"])
 
-class SAC(BaseSAC):
-    actor_net: TanhGaussianPolicy
-    critc_net: TwinQNetwork | EnsembleCritic
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
 
-    def __init__(
-        self,
-        actor_network: TanhGaussianPolicy,
-        critic_network: TwinQNetwork | EnsembleCritic,
-        config: SACConfig,
-        device: torch.device,
-    ):
-        super().__init__(
-            actor_network=actor_network,
-            critic_network=critic_network,
-            config=config,
-            device=device,
-        )
+        # Restore log_alpha from float
+        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+        self.learn_counter = checkpoint.get("learn_counter", 0)
 
-        self.target_entropy = -self.actor_net.num_actions
+        logging.info("models, optimisers, and training state have been loaded...")
 
-    def select_action_from_policy(
-        self,
-        state: np.ndarray,
-        evaluation: bool = False,
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, np.ndarray)
+
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -168,7 +174,7 @@ class SAC(BaseSAC):
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
-                - self.alpha * next_log_pi
+                - self.alpha.detach() * next_log_pi
             )
 
             q_target = (
@@ -223,7 +229,7 @@ class SAC(BaseSAC):
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        actor_loss = ((self.alpha.detach() * log_pi) - min_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
@@ -244,37 +250,17 @@ class SAC(BaseSAC):
 
         return info
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    def update_networks(
+        self,
+        memory: MemoryBuffer,
+        indices: np.ndarray,
+        states_tensor: torch.Tensor,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_states_tensor: torch.Tensor,
+        dones_tensor: torch.Tensor,
+        weights_tensor: torch.Tensor,
     ) -> dict[str, Any]:
-        self.learn_counter += 1
-
-        if self.use_per_buffer:
-            experiences = memory.sample_priority(
-                batch_size,
-                sampling_stratagy=self.per_sampling_strategy,
-                weight_normalisation=self.per_weight_normalisation,
-            )
-            states, actions, rewards, next_states, dones, indices, weights = experiences
-        else:
-            experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, _ = experiences
-            weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size x whatever
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
 
         info: dict[str, Any] = {}
 
@@ -301,5 +287,41 @@ class SAC(BaseSAC):
         # Update the Priorities
         if self.use_per_buffer:
             memory.update_priorities(indices, priorities)
+
+        return info
+
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+            indices,
+        ) = tu.sample_batch_to_tensors(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
+            use_per_buffer=self.use_per_buffer,
+            per_sampling_strategy=self.per_sampling_strategy,
+            per_weight_normalisation=self.per_weight_normalisation,
+        )
+
+        info = self.update_networks(
+            memory,
+            indices,
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+        )
 
         return info

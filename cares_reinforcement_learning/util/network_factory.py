@@ -432,6 +432,63 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     return agent
 
 
+def create_SACD(observation_size, action_num, config: acf.SACDConfig):
+    from cares_reinforcement_learning.algorithm.policy import SACD
+    from cares_reinforcement_learning.networks.SACD import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SACD(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
+    from cares_reinforcement_learning.algorithm.usd import DIAYN
+    from cares_reinforcement_learning.networks.DIAYN import Discriminator
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
+    discriminator = Discriminator(
+        observation_size, num_skills=config.num_skills, config=config
+    )
+
+    device = hlp.get_device()
+    agent = DIAYN(
+        skills_agent=agent,
+        discriminator_network=discriminator,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DADS(observation_size, action_num, config: acf.DADSConfig):
+    from cares_reinforcement_learning.algorithm.usd import DADS
+    from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
+    discriminator = SkillDynamicsModel(
+        observation_size=observation_size, num_skills=config.num_skills, config=config
+    )
+
+    device = hlp.get_device()
+    agent = DADS(
+        skills_agent=agent,
+        discriminator_network=discriminator,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 ###################################
 #         TD3 Algorithms          #
 ###################################
@@ -631,6 +688,27 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     agent = CTD4(
         actor_network=actor,
         ensemble_critic=ensemble_critic,
+        config=config,
+        device=device,
+    )
+
+    return agent
+
+
+def create_TD7(observation_size, action_num, config: acf.TD7Config):
+    from cares_reinforcement_learning.algorithm.policy import TD7
+    from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
+
+    device = hlp.get_device()
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+    encoder = Encoder(observation_size, action_num, config=config)
+
+    agent = TD7(
+        actor_network=actor,
+        critic_network=critic,
+        encoder_network=encoder,
         config=config,
         device=device,
     )

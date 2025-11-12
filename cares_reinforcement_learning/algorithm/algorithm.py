@@ -10,18 +10,23 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.util.training_context import (
+    TrainingContext,
+    ActionContext,
+)
 
 
 class Algorithm(ABC):
     def __init__(
         self,
-        policy_type: Literal["value", "policy", "discrete_policy", "mbrl"],
+        policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
         config: AlgorithmConfig,
         device: torch.device,
     ):
-        self.policy_type = policy_type
+        self.policy_type: Literal[
+            "value", "policy", "discrete_policy", "mbrl", "usd"
+        ] = policy_type
 
         self.gamma = config.gamma
 
@@ -40,7 +45,7 @@ class Algorithm(ABC):
 
     @abstractmethod
     def select_action_from_policy(
-        self, state: Any, evaluation: bool = False
+        self, action_context: ActionContext
     ) -> int | np.ndarray: ...
 
     def _fixed_step_bias_segments(
@@ -128,9 +133,7 @@ class Algorithm(ABC):
 
     # TODO push batch_size into the algorithm
     @abstractmethod
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]: ...
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]: ...
 
     @abstractmethod
     def save_models(self, filepath: str, filename: str) -> None: ...
@@ -151,7 +154,7 @@ class Algorithm(ABC):
         """
         return 0.0
 
-    def epsiode_done(self):
+    def episode_done(self):
         """
         This method is called when an episode is done.
         It can be overridden in subclasses to perform any necessary cleanup or logging.
@@ -163,7 +166,7 @@ class VectorAlgorithm(Algorithm):
 
     @abstractmethod
     def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False
+        self, action_context: ActionContext
     ) -> int | np.ndarray: ...
 
 
@@ -171,5 +174,5 @@ class ImageAlgorithm(Algorithm):
 
     @abstractmethod
     def select_action_from_policy(
-        self, state: dict[str, np.ndarray], evaluation: bool = False
+        self, action_context: ActionContext
     ) -> int | np.ndarray: ...

@@ -13,12 +13,16 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class TD3AE(ImageAlgorithm):
@@ -96,14 +100,16 @@ class TD3AE(ImageAlgorithm):
             **config.autoencoder_config.decoder_optim_kwargs,
         )
 
-    def select_action_from_policy(
-        self,
-        state: dict[str, np.ndarray],
-        evaluation: bool = False,
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, dict)
+
         with torch.no_grad():
-            state_tensor = hlp.image_state_dict_to_tensor(state, self.device)
+            state_tensor = tu.image_state_to_tensors(state, self.device)
 
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
@@ -147,8 +153,8 @@ class TD3AE(ImageAlgorithm):
 
         q_values_one, q_values_two = self.critic_net(states, actions)
 
-        td_error_one = (q_values_one - q_target).abs()
-        td_error_two = (q_values_two - q_target).abs()
+        td_error_one = (q_values_one.detach() - q_target).abs()
+        td_error_two = (q_values_two.detach() - q_target).abs()
 
         critic_loss_one = F.mse_loss(q_values_one, q_target, reduction="none")
         critic_loss_one = (critic_loss_one * weights).mean()
@@ -219,10 +225,11 @@ class TD3AE(ImageAlgorithm):
         }
         return info
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         self.policy_noise *= self.policy_noise_decay
         self.policy_noise = max(self.min_policy_noise, self.policy_noise)
@@ -230,34 +237,23 @@ class TD3AE(ImageAlgorithm):
         self.action_noise *= self.action_noise_decay
         self.action_noise = max(self.min_action_noise, self.action_noise)
 
-        if self.use_per_buffer:
-            experiences = memory.sample_priority(
-                batch_size,
-                sampling_stratagy=self.per_sampling_strategy,
-                weight_normalisation=self.per_weight_normalisation,
-            )
-            states, actions, rewards, next_states, dones, indices, weights = experiences
-        else:
-            experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, _ = experiences
-            weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        states_tensor = hlp.image_states_dict_to_tensor(states, self.device)
-
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-
-        next_states_tensor = hlp.image_states_dict_to_tensor(next_states, self.device)
-
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
+        # Sample and convert to tensors using multimodal sampling
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+            indices,
+        ) = tu.sample_image_batch_to_tensors(
+            memory,
+            batch_size,
+            self.device,
+            use_per_buffer=self.use_per_buffer,
+            per_sampling_strategy=self.per_sampling_strategy,
+            per_weight_normalisation=self.per_weight_normalisation,
+        )
 
         info: dict[str, Any] = {}
 
@@ -317,15 +313,41 @@ class TD3AE(ImageAlgorithm):
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
-        torch.save(self.decoder_net.state_dict(), f"{filepath}/{filename}_decoder.pht")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_actor": self.target_actor_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "decoder": self.decoder_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            "encoder_optimizer": self.encoder_net_optimiser.state_dict(),
+            "decoder_optimizer": self.decoder_net_optimiser.state_dict(),
+            "learn_counter": self.learn_counter,
+            "policy_noise": self.policy_noise,
+            "action_noise": self.action_noise,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        self.decoder_net.load_state_dict(
-            torch.load(f"{filepath}/{filename}_decoder.pht")
-        )
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.critic_net.load_state_dict(checkpoint["critic"])
+
+        self.target_actor_net.load_state_dict(checkpoint["target_actor"])
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+
+        self.decoder_net.load_state_dict(checkpoint["decoder"])
+
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+        self.encoder_net_optimiser.load_state_dict(checkpoint["encoder_optimizer"])
+        self.decoder_net_optimiser.load_state_dict(checkpoint["decoder_optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        self.policy_noise = checkpoint.get("policy_noise", self.policy_noise)
+        self.action_noise = checkpoint.get("action_noise", self.action_noise)
+        logging.info("models, optimisers, and training state have been loaded...")
