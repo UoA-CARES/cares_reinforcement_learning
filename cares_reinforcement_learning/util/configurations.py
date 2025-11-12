@@ -913,6 +913,21 @@ class DDPGConfig(AlgorithmConfig):
     )
 
 
+class MADDPGConfig(DDPGConfig):
+    algorithm: str = Field("MADDPG", Literal=True)
+
+    marl_observation: Literal[1] = Field(default=1, frozen=True)
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.99
+    tau: float = 0.005
+
+    # network type
+    share_agent_weights: int = 1
+
+
 class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
 
