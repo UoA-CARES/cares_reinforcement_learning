@@ -45,9 +45,10 @@ class SD_SAC(SACD):
         info = {}
 
         with torch.no_grad():
+            with hlp.evaluating(self.actor_net):
+                _, (action_probs, _) = self.actor_net(next_states)
             qf1_next_target, qf2_next_target = self.target_critic_net(next_states)
-            _, (action_probs, _) = self.actor_net(next_states)
-            
+
             avg_q_target = torch.mean(torch.stack((qf1_next_target, qf2_next_target), dim=-1), dim=-1)
             q_target = action_probs * (rewards * self.reward_scale + (1.0 - dones) * avg_q_target * self.gamma) + self.alpha * entropies
 
