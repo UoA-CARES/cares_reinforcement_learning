@@ -149,25 +149,22 @@ class SACD(VectorAlgorithm):
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
-            qf1_pi, qf2_pi = self.critic_net(states)
+        with torch.no_grad():
+            with hlp.evaluating(self.critic_net):
+                qf1_pi, qf2_pi = self.critic_net(states)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        inside_term = self.alpha * log_action_probs - min_qf_pi
-        actor_loss = (action_probs * inside_term).sum(dim=1).mean()
-
-        new_log_action_probs = torch.sum(log_action_probs * action_probs, dim=1)
+        entropy = - action_probs * log_action_probs
+        actor_loss = - (self.alpha.detach() * entropy + action_probs * min_qf_pi).sum(dim=1).mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
         # update the temperature (alpha)
-        alpha_loss = -(
-            self.log_alpha * (new_log_action_probs + self.target_entropy).detach()
-        ).mean()
-
+        log_prob = -entropy.detach() + self.target_entropy
+        alpha_loss = -(self._log_alpha * log_prob).mean()
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
