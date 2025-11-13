@@ -3,13 +3,15 @@ import torch.nn as nn
 import numpy as np
 import torch.nn.functional as F
 
+# Desmos: https://www.desmos.com/calculator/lycshormby
+# Activation functions survey: https://www.dl.begellhouse.com/download/article/665860ae3e324171/JMLMC0401(2)-47367.pdf
 
 # MARK: Built-In Activations
 
 # A sample of the most common Pytorch activation functions
 # See all: https://docs.pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity
 built_in_activations = [
-    # Sigmoid variants
+    # Sigmoidal variants
     nn.Sigmoid(),       # 1/(1+e^-x)                (0, 1)
     nn.Tanh(),          # 2/(1+e^-2x)+1 = tanh(x)   (-1, 1) same shape as sigmoid
     # ReLU variants
@@ -17,15 +19,26 @@ built_in_activations = [
     nn.LeakyReLU(),     # ax | x
     nn.PReLU(),         # ax | x                    PReLU: Parametric ReLU (a is a learned parameter)
     # Non-linear variants
+    nn.Softplus(),      # ln(1+e^x)                 Smooth approximation of ReLU - gradient is sigmoid rather than step function
     nn.ELU(),           # a(e^x)-1 | x              ELU: Exponential Linear Unit
     # Self-gated variants
     nn.GELU(),          # x * Φ(x)                  GELU: Gaussian Error Linear Unit
     nn.SiLU(),          # x * sigmoid(x)            Aka Swish
     nn.Mish(),          # x * tanh(softplus(x))
-    # Gated variants
+    # Adaptive variants
     nn.GLU(),           # lin(x) * sigmoid(lin(x))  GLU: Gated Linear Unit (lin(x) is gated by learnt sigmoid)
-    # Softmax
+    # Ensemble variants
+
+    # Stochastic variants
+
+    # Fractional variants
+
+    # Nonstandard variants
+    # Maxout
     nn.Softmax(),       # Mostly used in output layers for classification
+    # Misc (not activations)
+    nn.Dropout(),       # Randomly zeroes some of the elements of the input tensor with probability p
+    nn.BatchNorm1d(10), # Normalizes the input to have mean 0 and variance 1
 ]
 
 
@@ -305,11 +318,32 @@ class FractionalTanh(nn.Module):
 # MARK: Self-Gated Variants
 
 class GoLU(nn.Module):
-    """GoLU activation function. From https://arxiv.org/pdf/2502.03654"""
+    """
+    GoLU activation function. From https://arxiv.org/pdf/2502.03654
 
-    def __init__(self):
+    GoLU(x) = x * Gompertz(x)
+    Gompertz(x) = a * exp(-b * exp(-c * x))
+
+    Args:
+        a (float): Controls the y-scale of the function. Default is 1.0.
+        b (float): Controls the x-displacement of the gate close to the origin. Default is 1.0.
+        c (float): Controls the growth rate of the gate. Default is 1.0.
+
+    Note - Don't set alpha, beta and gamma to negative values, else the Gompertz gate looses its classical S-shape.
+    """
+
+    def __init__(self, a: float = 1.0, b: float = 1.0, c: float = 1.0):
         super().__init__()
+        self.a = a
+        self.b = b
+        self.c = c
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        # GoLU(x) = x*Gompertz(x), where Gompertz(x) = e^(−e^−x)
-        return x * torch.exp(-torch.exp(-x))
+        # Prevent intermediate overflow for large negative inputs
+        # In the original paper, this function is implemented in cuda and is allowed to overflow since it doesn't crash the program.
+        x_safe = torch.clamp(x, min=-60.0)
+        y = x * self.a * torch.exp(-self.b * torch.exp(-self.c * x_safe))
+
+        if torch.any(x < -60.0):
+            print("Warning: GoLU input clamped to prevent overflow.")
+        return y
