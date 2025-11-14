@@ -140,8 +140,10 @@ class QMIX(VectorAlgorithm):
         next_states_tensor: dict[str, torch.Tensor],
         dones_tensor: torch.Tensor,
         batch_size: int,  # pylint: disable=unused-argument
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, dict[str, float]]:
         """Computes the elementwise loss for QMIX. If use_double_dqn=True, applies Double DQN logic."""
+
+        loss_info: dict[str, float] = {}
 
         obs_tensor = states_tensor["obs"]
         next_obs_tensor = next_states_tensor["obs"]
@@ -195,7 +197,13 @@ class QMIX(VectorAlgorithm):
 
         elementwise_loss = F.mse_loss(q_total, q_target, reduction="none")
 
-        return elementwise_loss
+        loss_info["td_error_mean"] = elementwise_loss.mean().item()
+        loss_info["td_error_std"] = elementwise_loss.std().item()
+        loss_info["q_total_mean"] = q_total.mean().item()
+        loss_info["q_target_mean"] = q_target.mean().item()
+        loss_info["q_next_mean"] = best_next_q_values.mean().item()
+
+        return elementwise_loss, loss_info
 
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         info: dict[str, Any] = {}
@@ -230,13 +238,17 @@ class QMIX(VectorAlgorithm):
             action_dtype=torch.long,  # DQN uses discrete actions
         )
 
+        # Compress rewards and dones to 1D tensors for cooperative setting
+        rewards_tensor = rewards_tensor.sum(dim=1, keepdim=True)
+        dones_tensor = dones_tensor.any(dim=1, keepdim=True).float()
+
         # Reshape tensors to match DQN's expected dimensions
         rewards_tensor = rewards_tensor.view(-1)
         dones_tensor = dones_tensor.view(-1)
         weights_tensor = weights_tensor.view(-1)
 
         # Calculate loss - overriden by C51
-        elementwise_loss = self._compute_loss(
+        elementwise_loss, loss_info = self._compute_loss(
             states_tensor,
             actions_tensor,
             rewards_tensor,
@@ -244,6 +256,7 @@ class QMIX(VectorAlgorithm):
             dones_tensor,
             batch_size,
         )
+        info |= loss_info
 
         if self.use_per_buffer:
             # Update the Priorities

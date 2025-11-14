@@ -922,10 +922,11 @@ class MADDPGConfig(DDPGConfig):
     critic_lr: float = 1e-3
 
     gamma: float = 0.99
-    tau: float = 0.005
+    tau: float = 0.01
 
-    # network type
-    share_agent_weights: int = 1
+    batch_size: int = 1024
+
+    max_steps_exploration: int = 10000
 
 
 class TD3Config(AlgorithmConfig):

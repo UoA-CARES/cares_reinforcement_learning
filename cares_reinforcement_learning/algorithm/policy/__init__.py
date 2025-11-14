@@ -24,3 +24,4 @@ from .CrossQ import CrossQ
 from .DroQ import DroQ
 from .SDAR import SDAR
 from .TD7 import TD7
+from .MADDPG import MADDPG

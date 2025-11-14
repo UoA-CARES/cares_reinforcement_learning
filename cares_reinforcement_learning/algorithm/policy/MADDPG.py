@@ -41,7 +41,21 @@ class MADDPG(Algorithm):
         self,
         action_context: ActionContext,
     ):
-        pass
+        state = action_context.state
+
+        assert isinstance(state, dict)
+
+        actions = []
+        for i, agent in enumerate(self.agents):
+            obs_i = state["obs"][i]
+            agent_action_context = ActionContext(
+                state=obs_i,
+                evaluation=action_context.evaluation,
+                available_actions=action_context.available_actions[i],
+            )
+            action = agent.select_action_from_policy(agent_action_context)
+            actions.append(action)
+        return actions
 
     def _update_critic(
         self,
@@ -51,14 +65,16 @@ class MADDPG(Algorithm):
         rewards_i: torch.Tensor,
         next_global_states: torch.Tensor,
         next_joint_actions: torch.Tensor,
-        dones: torch.Tensor,
+        dones_i: torch.Tensor,
     ):
         with torch.no_grad():
             target_q = agent.target_critic_net(next_global_states, next_joint_actions)
-            q_target = rewards_i + self.gamma * (1 - dones) * target_q
+            q_target = rewards_i + self.gamma * (1 - dones_i) * target_q
 
         q_values = agent.critic_net(global_states, joint_actions)
+
         loss = F.mse_loss(q_values, q_target)
+
         agent.critic_net_optimiser.zero_grad()
         loss.backward()
         agent.critic_net_optimiser.step()
@@ -69,32 +85,36 @@ class MADDPG(Algorithm):
         self,
         agent: DDPG,
         agent_index: int,
-        obs_i: torch.Tensor,
-        global_states: torch.Tensor,
-        joint_actions: list[torch.Tensor],
-    ) -> dict[str, Any]:
-        """
-        Updates the actor for one agent, using its local obs and
-        the centralized critic with all agents' actions.
-        """
-        # Recompute this agent's action to get a differentiable path
-        a_i_pred = agent.actor_net(obs_i)
+        obs_i: torch.Tensor,  # (batch, obs_dim)
+        actions_all: torch.Tensor,  # (batch, n_agents, act_dim)
+        global_states: torch.Tensor,  # (batch, obs_dim*n_agents)
+    ):
+        batch_size = obs_i.shape[0]
 
-        # Replace only this agent's action in the joint action list
-        updated_actions = joint_actions.copy()
-        updated_actions[agent_index] = a_i_pred
+        # -------------------------
+        # 1. Predict agent i's action
+        # -------------------------
+        pred_action_i = agent.actor_net(obs_i)  # (batch, act_dim)
 
-        # Concatenate into a single joint tensor for critic input
-        joint_actions_pred = torch.cat(updated_actions, dim=-1)
+        # -------------------------
+        # 2. Build pred joint actions WITHOUT loop
+        # -------------------------
+        pred_actions_tensor = actions_all.clone()  # (batch, n_agents, act_dim)
+        pred_actions_tensor[:, agent_index, :] = pred_action_i
 
-        # Evaluate centralized critic using the predicted joint actions
-        agent.critic_net.eval()
-        q_pred = agent.critic_net(global_states, joint_actions_pred)
-        agent.critic_net.train()
+        # Flatten to joint action vector
+        joint_actions_pred = pred_actions_tensor.reshape(batch_size, -1)
+        # shape: (batch, n_agents * act_dim)
 
-        # Actor loss: maximize Q-value (so minimize -Q)
-        actor_loss = -q_pred.mean()
+        # -------------------------
+        # 3. Actor loss
+        # -------------------------
+        q_val = agent.critic_net(global_states, joint_actions_pred)
+        actor_loss = -q_val.mean()
 
+        # -------------------------
+        # 4. Apply gradients
+        # -------------------------
         agent.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         agent.actor_net_optimiser.step()
@@ -129,41 +149,48 @@ class MADDPG(Algorithm):
 
         info: dict[str, Any] = {}
 
-        # Step 1. Compute next actions from target actors
-        next_actions_n = [
-            agent.target_actor_net(o_next)
-            for agent, o_next in zip(self.agents, next_obs_n)
-        ]
-        next_joint_actions = torch.cat(next_actions_n, dim=-1)
+        next_actions_tensor = torch.stack(
+            [
+                agent.target_actor_net(next_obs_n[:, i, :])
+                for i, agent in enumerate(self.agents)
+            ],
+            dim=1,
+        )
+        next_joint_actions = next_actions_tensor.reshape(batch_size, -1)
 
-        # Step 2. Compute current joint actions (from replay or current actors)
-        current_actions_n = [a.detach() for a in actions_tensor]  # from replay
-        joint_actions = torch.cat(current_actions_n, dim=-1)
+        next_joint_actions = next_actions_tensor.reshape(batch_size, -1)
 
-        # Step 3. Update critics and actors per agent
+        joint_actions = actions_tensor.reshape(batch_size, -1)
+
         for i, agent in enumerate(self.agents):
+            rewards_i = rewards_tensor[:, i].unsqueeze(-1)
+            dones_i = dones_tensor[:, i].unsqueeze(-1)
+
             critic_info = self._update_critic(
                 agent=agent,
                 global_states=global_state,
                 joint_actions=joint_actions,
-                rewards_i=rewards_tensor[i],
+                rewards_i=rewards_i,
                 next_global_states=next_global_state,
                 next_joint_actions=next_joint_actions,
-                dones=dones_tensor,
+                dones_i=dones_i,
             )
+
+            obs_i = obs_n[:, i, :]
 
             actor_info = self._update_actor(
                 agent=agent,
-                agent_index=i,
-                obs_i=obs_n[i],
+                obs_i=obs_i,
+                actions_all=actions_tensor,
                 global_states=global_state,
-                joint_actions=current_actions_n,
+                agent_index=i,
             )
-
-            agent.update_target_networks()
 
             info[f"critic_loss_agent_{i}"] = critic_info["critic_loss"]
             info[f"actor_loss_agent_{i}"] = actor_info["actor_loss"]
+
+        for agent in self.agents:
+            agent.update_target_networks()
 
         return info
 
@@ -171,11 +198,17 @@ class MADDPG(Algorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        checkpoint = {}
-        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        for i, agent in enumerate(self.agents):
+            agent_filepath = os.path.join(filepath, f"agent_{i}")
+            agent_filename = f"{filename}_agent_{i}_checkpoint"
+            agent.save_models(agent_filepath, agent_filename)
+
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+        for i, agent in enumerate(self.agents):
+            agent_filepath = os.path.join(filepath, f"agent_{i}")
+            agent_filename = f"{filename}_agent_{i}_checkpoint"
+            agent.load_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been loaded...")

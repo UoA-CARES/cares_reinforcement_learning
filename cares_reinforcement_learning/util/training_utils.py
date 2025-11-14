@@ -222,10 +222,10 @@ def marl_states_to_tensors(
 
 def marl_batch_to_tensors(
     states: list[dict[str, np.ndarray]],
-    actions: np.ndarray,
-    rewards: np.ndarray,
+    actions: list,
+    rewards: list,
     next_states: list[dict[str, np.ndarray]],
-    dones: np.ndarray,
+    dones: list,
     device: torch.device,
     weights: np.ndarray | None = None,
     states_dtype: torch.dtype = torch.float32,
@@ -264,8 +264,6 @@ def marl_batch_to_tensors(
 
     # Reshape to batch_size
     batch_size = len(states)
-    rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-    dones_tensor = dones_tensor.reshape(batch_size, 1)
     weights_tensor = weights_tensor.reshape(batch_size, 1)
 
     return (
