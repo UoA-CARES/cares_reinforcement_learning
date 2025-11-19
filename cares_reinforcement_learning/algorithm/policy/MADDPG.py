@@ -2,16 +2,13 @@
 Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
 """
 
-import copy
 import logging
 import os
 from typing import Any
 
-import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
@@ -156,8 +153,6 @@ class MADDPG(Algorithm):
             ],
             dim=1,
         )
-        next_joint_actions = next_actions_tensor.reshape(batch_size, -1)
-
         next_joint_actions = next_actions_tensor.reshape(batch_size, -1)
 
         joint_actions = actions_tensor.reshape(batch_size, -1)
