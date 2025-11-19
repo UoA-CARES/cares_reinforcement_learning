@@ -1,6 +1,6 @@
 """
 Original Paper: https://arxiv.org/abs/2209.10081
-Code based on: https://github.com/coldsummerday/SD-SAC
+Code based on: https://github.com/coldsummerday/SD-SAC/blob/main/src/libs/discrete_sac.py
 
 This code runs automatic entropy tuning
 """

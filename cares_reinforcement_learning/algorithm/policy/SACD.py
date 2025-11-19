@@ -58,11 +58,9 @@ class SACD(VectorAlgorithm):
         self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
         self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.target_entropy = (
-            -np.log(1.0 / self.action_num) * config.target_entropy_multiplier
-        )
-
         self.action_num = self.actor_net.num_actions
+
+        self.target_entropy = (np.log(self.action_num) * config.target_entropy_multiplier)
 
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
@@ -111,6 +109,7 @@ class SACD(VectorAlgorithm):
         next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> float:
+        # Make sure we are not training target networks - Would gradients propagate into targets?
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
@@ -126,9 +125,13 @@ class SACD(VectorAlgorithm):
             next_q_value = (
                 rewards * self.reward_scale
                 + (1.0 - dones) * min_qf_next_target * self.gamma
-            )
+            ).flatten()
 
+        # Get the q_value of the action taken
+        act = torch.as_tensor(actions[:, np.newaxis], device="cuda", dtype=torch.long).flatten(1)
         q_values_one, q_values_two = self.critic_net(states)
+        q_values_one = q_values_one.gather(1, act).flatten()
+        q_values_two = q_values_two.gather(1, act).flatten()
 
         critic_loss_one = F.mse_loss(q_values_one, next_q_value)
         critic_loss_two = F.mse_loss(q_values_two, next_q_value)
@@ -138,13 +141,26 @@ class SACD(VectorAlgorithm):
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
 
+        td_error_one = (q_values_one - next_q_value).abs()
+        td_error_two = (q_values_two - next_q_value).abs()
+
+        # Update the Priorities - PER only
+        priorities = (
+            torch.max(td_error_one, td_error_two)
+            .clamp(self.min_priority)
+            .pow(self.per_alpha)
+            .cpu()
+            .data.numpy()
+            .flatten()
+        )
+
         info = {
             "critic_loss_one": critic_loss_one.item(),
             "critic_loss_two": critic_loss_two.item(),
             "critic_loss_total": critic_loss_total.item(),
         }
 
-        return critic_loss_total.item()
+        return info, priorities
 
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
@@ -152,10 +168,10 @@ class SACD(VectorAlgorithm):
         with torch.no_grad():
             with hlp.evaluating(self.critic_net):
                 qf1_pi, qf2_pi = self.critic_net(states)
+            min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
 
-        entropy = - action_probs * log_action_probs
+        entropy = (- action_probs * log_action_probs)
         actor_loss = - (self.alpha.detach() * entropy + action_probs * min_qf_pi).sum(dim=1).mean()
 
         self.actor_net_optimiser.zero_grad()
@@ -163,13 +179,21 @@ class SACD(VectorAlgorithm):
         self.actor_net_optimiser.step()
 
         # update the temperature (alpha)
-        log_prob = -entropy.detach() + self.target_entropy
-        alpha_loss = -(self._log_alpha * log_prob).mean()
+        log_prob = -entropy.detach().sum(dim=1) + self.target_entropy
+        alpha_loss = -(self.log_alpha * log_prob).mean()
+
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        return actor_loss.item(), alpha_loss.item()
+        info = {
+            "actor_loss": actor_loss.item(),
+            "alpha_loss": alpha_loss.item(),
+            "avg_entropy": entropy.sum(dim=1).mean().item(),
+            "alpha": self.alpha.item(),
+        }
+
+        return info
 
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
@@ -196,21 +220,24 @@ class SACD(VectorAlgorithm):
         info = {}
 
         # Update the Critic
-        critic_loss_total = self._update_critic(
+        critic_info, priorities = self._update_critic(
             states_tensor,
             actions_tensor,
             rewards_tensor,
             next_states_tensor,
             dones_tensor,
         )
-        info["critic_loss"] = critic_loss_total
+
+        info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
-            info["actor_loss"] = actor_loss
-            info["alpha_loss"] = alpha_loss
-            info["alpha"] = self.alpha.item()
+            actor_info = self._update_actor_alpha(states_tensor)
+            
+            actor_loss = actor_info["actor_loss"]
+            alpha_loss = actor_info["alpha_loss"]
+
+            info |= actor_info
 
         if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
