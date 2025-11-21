@@ -921,12 +921,34 @@ class MADDPGConfig(DDPGConfig):
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
-    gamma: float = 0.99
+    gamma: float = 0.95
     tau: float = 0.01
+
+    alpha: float = 0.0
 
     batch_size: int = 1024
 
     max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 0.5
+
+
+class M3DDPGConfig(MADDPGConfig):
+    algorithm: str = Field("M3DDPG", Literal=True)
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.95
+    tau: float = 0.01
+
+    alpha: float = 0.05
+
+    batch_size: int = 1024
+
+    max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 0.5
 
 
 class TD3Config(AlgorithmConfig):

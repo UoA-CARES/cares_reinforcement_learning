@@ -515,6 +515,36 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
     return maddpg_agent
 
 
+def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
+    from cares_reinforcement_learning.algorithm.policy import M3DDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+
+    obs_shape = observation_size["obs"]
+    num_agents = observation_size["num_agents"]
+
+    agents = []
+    for _ in range(num_agents):
+        actor = Actor(obs_shape, action_num, config=config)
+        critic = Critic(
+            obs_shape * num_agents,
+            action_num * num_agents,
+            config=config,
+        )
+
+        device = hlp.get_device()
+        agent = DDPG(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    m3ddpg_agent = M3DDPG(agents=agents, config=config, device=device)
+    return m3ddpg_agent
+
+
 def create_TD3(observation_size, action_num, config: acf.TD3Config):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic

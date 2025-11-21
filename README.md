@@ -208,8 +208,6 @@ Implementations of Q-Learning based methods
 | C51         | Vector                     | Discrete     | [C51 Paper](https://arxiv.org/pdf/1707.06887)               |
 | QRDQN       | Vector                     | Discrete     | [QR-DQN Paper](https://arxiv.org/pdf/1710.10044)            |
 | Rainbow     | Vector                     | Discrete     | [Rainbow](https://arxiv.org/pdf/1710.02298)                 |
-| QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
-
 
 ## Actor Critic
 Implementation of various Actor Critic methods.
@@ -243,6 +241,15 @@ Implementation of various Actor Critic methods.
 | NaSATD3     | Image                      | Continuous   | [NaSATD3 Paper](https://ieeexplore.ieee.org/abstract/document/10801857) |
 | TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |
 | SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741)             |
+
+## Multi-Agent 
+Multi-Agent Reinforcement Learning algorithms (MARL).
+
+| Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
+| ----------- | -------------------------- | ------------ | ---------------                                             |
+| QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
+| MADDPG      | Vector (MARL)              | Continuous   | [MADDPG](https://arxiv.org/pdf/1706.02275)                  |
+| M3DDPG      | Vector (MARL)              | Continuous   | [M3DDPG](https://doi.org/10.1609/aaai.v33i01.33014213)      |
 
 ## Unsupervised Skill Discovery
 Implementation of Unsupervised Skill discovery methods
