@@ -52,7 +52,9 @@ class DefaultSharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
     ):
         # Shared network for all agents
         # Note: add agent ID embedding dimension (num_agents)
-        obs_shape = observation_size["obs"]
+        agent_ids = list(observation_size["obs"].keys())
+
+        obs_shape = observation_size["obs"][agent_ids[0]]
         num_agents = observation_size["num_agents"]
         hidden_sizes = [64, 64]
 
@@ -81,8 +83,9 @@ class SharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
         config: QMIXConfig,
     ):
         # Shared network for all agents
-        # Note: add agent ID embedding dimension (num_agents)
-        obs_shape = observation_size["obs"]
+        agent_ids = list(observation_size["obs"].keys())
+
+        obs_shape = observation_size["obs"][agent_ids[0]]
         num_agents = observation_size["num_agents"]
 
         input_size = obs_shape

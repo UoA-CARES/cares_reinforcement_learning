@@ -936,6 +936,8 @@ class MADDPGConfig(DDPGConfig):
 class M3DDPGConfig(MADDPGConfig):
     algorithm: str = Field("M3DDPG", Literal=True)
 
+    marl_observation: Literal[1] = Field(default=1, frozen=True)
+
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
