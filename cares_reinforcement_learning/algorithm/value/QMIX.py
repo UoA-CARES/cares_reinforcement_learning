@@ -82,6 +82,15 @@ class QMIX(VectorAlgorithm):
 
         self.learn_counter = 0
 
+    def _stack_obs(self, obs_dict: dict[str, torch.Tensor]) -> torch.Tensor:
+        """
+        Convert dict[str → (B, obs_dim)] into (B, n_agents, obs_dim).
+        QMIX requires identical obs_dim for all agents.
+        """
+        agent_names = list(obs_dict.keys())
+        obs_list = [obs_dict[a] for a in agent_names]
+        return torch.stack(obs_list, dim=1)
+
     def select_action_from_policy(self, action_context: ActionContext):
         """
         Epsilon-greedy per-agent action selection.
@@ -96,13 +105,14 @@ class QMIX(VectorAlgorithm):
         actions = []
 
         # Get greedy actions for all agents once
-        state_tensor = tu.marl_states_to_tensors([state], self.device)
-        obs_tensor = state_tensor["obs"]
-        avail_actions_tensor = state_tensor["avail_actions"]
+        obs_dict_tensors, _, avail_actions_tensor = tu.marl_states_to_tensors(
+            [state], self.device
+        )
+        obs_tensors = self._stack_obs(obs_dict_tensors)  # [1, num_agents, obs_dim]
 
         self.network.eval()
         with torch.no_grad():
-            q_values = self.network(obs_tensor)  # [1, num_agents, num_actions]
+            q_values = self.network(obs_tensors)  # [1, num_agents, num_actions]
             mask = avail_actions_tensor == 0
             q_values = q_values.masked_fill(mask, -1e9)
             greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
@@ -134,40 +144,33 @@ class QMIX(VectorAlgorithm):
 
     def _compute_loss(
         self,
-        states_tensor: dict[str, torch.Tensor],
-        actions_tensor: torch.Tensor,
-        rewards_tensor: torch.Tensor,
-        next_states_tensor: dict[str, torch.Tensor],
-        dones_tensor: torch.Tensor,
-        batch_size: int,  # pylint: disable=unused-argument
+        obs_tensors: torch.Tensor,
+        next_obs_tensors: torch.Tensor,
+        states_tensors: torch.Tensor,
+        next_states_tensors: torch.Tensor,
+        actions_tensors: torch.Tensor,
+        next_avail_actions_tensors: torch.Tensor,
+        rewards_tensors: torch.Tensor,
+        dones_tensors: torch.Tensor,
     ) -> tuple[torch.Tensor, dict[str, float]]:
         """Computes the elementwise loss for QMIX. If use_double_dqn=True, applies Double DQN logic."""
 
         loss_info: dict[str, float] = {}
 
-        obs_tensor = states_tensor["obs"]
-        next_obs_tensor = next_states_tensor["obs"]
-
-        global_states_tensor = states_tensor["state"]
-        next_global_states_tensor = next_states_tensor["state"]
-
-        avail_actions_tensor = states_tensor["avail_actions"]
-        next_avail_actions_tensor = next_states_tensor["avail_actions"]
-
-        q_values = self.network(obs_tensor)
-        next_q_values_target = self.target_network(next_obs_tensor)
+        q_values = self.network(obs_tensors)
+        next_q_values_target = self.target_network(next_obs_tensors)
 
         # Get Q-values for chosen actions
         best_q_values = q_values.gather(
-            dim=2, index=actions_tensor.unsqueeze(-1)
+            dim=2, index=actions_tensors.unsqueeze(-1)
         ).squeeze(-1)
 
         if self.use_double_dqn:
             # Online network selects best actions
-            next_q_values_online = self.network(next_obs_tensor)
+            next_q_values_online = self.network(next_obs_tensors)
 
             # Mask unavailable actions in next state
-            mask = (next_avail_actions_tensor == 0).bool()
+            mask = (next_avail_actions_tensors == 0).bool()
             next_q_values_online = next_q_values_online.masked_fill(mask, -1e9)
 
             # Select argmax among valid next actions
@@ -179,20 +182,18 @@ class QMIX(VectorAlgorithm):
             ).squeeze(2)
         else:
             # Standard DQN: mask next Q-values before taking max
-            mask = (next_avail_actions_tensor == 0).bool()
+            mask = (next_avail_actions_tensors == 0).bool()
             next_q_values_target = next_q_values_target.masked_fill(mask, -1e9)
             best_next_q_values = next_q_values_target.max(dim=2)[0]
 
         # Apply mixer network to combine agent Q-values
         # QMIX mixes: Q_total = mixer(best_q_values, global_state)
-        q_total = self.mixer(best_q_values, global_states_tensor)
-        q_total_target = self.target_mixer(
-            best_next_q_values, next_global_states_tensor
-        )
+        q_total = self.mixer(best_q_values, states_tensors)
+        q_total_target = self.target_mixer(best_next_q_values, next_states_tensors)
 
         q_target = (
-            rewards_tensor
-            + (self.gamma**self.n_step) * (1 - dones_tensor) * q_total_target.detach()
+            rewards_tensors
+            + (self.gamma**self.n_step) * (1 - dones_tensors) * q_total_target.detach()
         )
 
         elementwise_loss = F.mse_loss(q_total, q_target, reduction="none")
@@ -221,10 +222,14 @@ class QMIX(VectorAlgorithm):
 
         # Use training_utils to sample and prepare batch
         (
-            states_tensor,
+            obs_dict_tensors,
+            states_tensors,
+            _,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_obs_dict_tensors,
+            next_states_tensors,
+            next_avail_actions_tensors,
             dones_tensor,
             weights_tensor,
             indices,
@@ -247,14 +252,19 @@ class QMIX(VectorAlgorithm):
         dones_tensor = dones_tensor.view(-1)
         weights_tensor = weights_tensor.view(-1)
 
+        obs_tensors = self._stack_obs(obs_dict_tensors)
+        next_obs_tensors = self._stack_obs(next_obs_dict_tensors)
+
         # Calculate loss - overriden by C51
         elementwise_loss, loss_info = self._compute_loss(
-            states_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_tensor,
-            dones_tensor,
-            batch_size,
+            obs_tensors=obs_tensors,
+            next_obs_tensors=next_obs_tensors,
+            states_tensors=states_tensors,
+            next_states_tensors=next_states_tensors,
+            actions_tensors=actions_tensor,
+            rewards_tensors=rewards_tensor,
+            next_avail_actions_tensors=next_avail_actions_tensors,
+            dones_tensors=dones_tensor,
         )
         info |= loss_info
 

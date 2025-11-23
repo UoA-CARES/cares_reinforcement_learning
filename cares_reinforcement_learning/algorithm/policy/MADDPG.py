@@ -43,19 +43,28 @@ class MADDPG(Algorithm):
         action_context: ActionContext,
     ):
         state = action_context.state
+        obs_dict = state["obs"]
+        avail_actions = action_context.available_actions
 
-        assert isinstance(state, dict)
+        assert isinstance(obs_dict, dict)
 
+        agent_ids = list(obs_dict.keys())
         actions = []
+
         for i, agent in enumerate(self.agents):
-            obs_i = state["obs"][i]
+            agent_name = agent_ids[i]  # consistent ordering in dict
+            obs_i = obs_dict[agent_name]
+            avail_i = avail_actions[i]
+
             agent_action_context = ActionContext(
                 state=obs_i,
                 evaluation=action_context.evaluation,
-                available_actions=action_context.available_actions[i],
+                available_actions=avail_i,
             )
+
             action = agent.select_action_from_policy(agent_action_context)
             actions.append(action)
+
         return actions
 
     def _compute_adversarial_actions(
@@ -205,10 +214,14 @@ class MADDPG(Algorithm):
 
         # Use training_utils to sample and prepare batch
         (
-            states_tensor,
+            obs_tensors,
+            states_tensors,
+            _,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_obs_tensors,
+            next_states_tensors,
+            _,
             dones_tensor,
             _,
             _,
@@ -219,47 +232,53 @@ class MADDPG(Algorithm):
             use_per_buffer=0,
         )
 
-        # Unpack useful tensors
-        obs_n = states_tensor["obs"]
-        next_obs_n = next_states_tensor["obs"]
-        global_state = states_tensor["state"]
-        next_global_state = next_states_tensor["state"]
-
         info: dict[str, Any] = {}
 
-        next_actions_tensor = torch.stack(
-            [
-                agent.target_actor_net(next_obs_n[:, i, :])
-                for i, agent in enumerate(self.agents)
-            ],
-            dim=1,
-        )  # shape (batch, n_agents, act_dim)
+        agent_ids = list(obs_tensors.keys())
 
+        # ---------------------------------------------------------
+        # Build next_actions_tensor: (batch, n_agents, act_dim)
+        # ---------------------------------------------------------
+        next_actions = []
+        for agent, agent_name in zip(self.agents, agent_ids):
+            obs_i_next = next_obs_tensors[agent_name]  # (batch, obs_dim_i)
+            next_action_i = agent.target_actor_net(obs_i_next)  # (batch, act_dim)
+            next_actions.append(next_action_i)
+
+        next_actions_tensor = torch.stack(next_actions, dim=1)
+
+        # Flatten joint actions
         joint_actions = actions_tensor.reshape(batch_size, -1)
 
-        for i, agent in enumerate(self.agents):
+        # ---------------------------------------------------------
+        # Update each agent
+        # ---------------------------------------------------------
+        for i, (agent, agent_name) in enumerate(zip(self.agents, agent_ids)):
+
             rewards_i = rewards_tensor[:, i].unsqueeze(-1)
             dones_i = dones_tensor[:, i].unsqueeze(-1)
 
+            # Critic update
             critic_info = self._update_critic(
                 agent=agent,
                 agent_index=i,
-                global_states=global_state,
+                global_states=states_tensors,
                 joint_actions=joint_actions,
                 rewards_i=rewards_i,
-                next_global_states=next_global_state,
+                next_global_states=next_states_tensors,
                 next_actions_tensor=next_actions_tensor,
                 dones_i=dones_i,
             )
 
-            obs_i = obs_n[:, i, :]
+            # Actor update
+            obs_i = obs_tensors[agent_name]  # (batch, obs_dim_i)
 
             actor_info = self._update_actor(
                 agent=agent,
                 agent_index=i,
                 obs_i=obs_i,
                 actions_all=actions_tensor,
-                global_states=global_state,
+                global_states=states_tensors,
             )
 
             info[f"critic_loss_agent_{i}"] = critic_info["critic_loss"]
