@@ -930,7 +930,7 @@ class MADDPGConfig(DDPGConfig):
 
     max_steps_exploration: int = 10000
 
-    max_grad_norm: float | None = 0.5
+    max_grad_norm: float | None = 1.0
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -971,7 +971,7 @@ class M3DDPGConfig(MADDPGConfig):
 
     max_steps_exploration: int = 10000
 
-    max_grad_norm: float | None = 0.5
+    max_grad_norm: float | None = 1.0
 
 
 class TD3Config(AlgorithmConfig):
