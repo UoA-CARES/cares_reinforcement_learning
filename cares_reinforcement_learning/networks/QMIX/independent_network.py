@@ -55,7 +55,9 @@ class DefaultIndependentMultiAgentNetwork(BaseIndependentMultiAgentNetwork):
     ):
         agents: list[Network | nn.Sequential] = []
 
-        obs_shape = observation_size["obs"]
+        agent_ids = list(observation_size["obs"].keys())
+
+        obs_shape = observation_size["obs"][agent_ids[0]]
         num_agents = observation_size["num_agents"]
 
         for _ in range(num_agents):
@@ -85,7 +87,9 @@ class IndependentMultiAgentNetwork(BaseIndependentMultiAgentNetwork):
     ):
         agents: list[Network | nn.Sequential] = []
 
-        obs_shape = observation_size["obs"]
+        agent_ids = list(observation_size["obs"].keys())
+
+        obs_shape = observation_size["obs"][agent_ids[0]]
         num_agents = observation_size["num_agents"]
 
         for _ in range(num_agents):

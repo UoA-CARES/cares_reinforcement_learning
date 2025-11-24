@@ -488,11 +488,9 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
 def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
     from cares_reinforcement_learning.algorithm.policy import MADDPG
     from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-    from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+    from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-    state_shape = observation_size["state"]
-    num_agents = observation_size["num_agents"]
 
     agents = []
     device = hlp.get_device()
@@ -501,17 +499,16 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
     agent_ids = list(obs_shapes.keys())
 
     for agent_name in agent_ids:
-        obs_dim = obs_shapes[agent_name]  # per-agent obs dim
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
 
-        # Actor takes per-agent obs
-        actor = Actor(obs_dim, action_num, config=config)
-
-        # Critic takes:
-        #  - global state vector (same for all)
-        #  - joint action vector (same size for all)
         critic = Critic(
-            state_shape,
-            action_num * num_agents,
+            observation_size=observation_size,
+            num_actions=action_num,
             config=config,
         )
 
@@ -530,11 +527,9 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
 def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
     from cares_reinforcement_learning.algorithm.policy import M3DDPG
     from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-    from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+    from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-    state_shape = observation_size["state"]
-    num_agents = observation_size["num_agents"]
 
     agents = []
     device = hlp.get_device()
@@ -543,17 +538,20 @@ def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
     agent_ids = list(obs_shapes.keys())
 
     for agent_name in agent_ids:
-        obs_dim = obs_shapes[agent_name]  # per-agent obs dim
-
         # Actor takes per-agent obs
-        actor = Actor(obs_dim, action_num, config=config)
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
 
         # Critic takes:
         #  - global state vector (same for all)
         #  - joint action vector (same size for all)
         critic = Critic(
-            state_shape,
-            action_num * num_agents,
+            observation_size=observation_size,
+            num_actions=action_num,
             config=config,
         )
 
