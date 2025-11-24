@@ -6,9 +6,14 @@ from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 class DefaultCritic(QNetwork):
     # pylint: disable=super-init-not-called
-    def __init__(self, observation_size: int, num_actions: int):
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_sizes: list[int] | None = None,
+    ):
         input_size = observation_size + num_actions
-        hidden_sizes = [1024, 1024]
+        hidden_sizes = hidden_sizes or [1024, 1024]
 
         # pylint: disable-next=non-parent-init-called
         BaseCritic.__init__(

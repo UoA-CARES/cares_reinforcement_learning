@@ -15,6 +15,7 @@ class DefaultActor(DDPGDefaultActor):
         super().__init__(
             observation_size=input_size,
             num_actions=num_actions,
+            hidden_sizes=[256, 256],
         )
 
 
