@@ -14,7 +14,7 @@ class DefaultCritic(DDPGDefaultCritic):
         super().__init__(
             observation_size=input_size,
             num_actions=num_actions * num_agents,
-            hidden_sizes=[256, 256],
+            hidden_sizes=[64, 64],
         )
 
 
