@@ -485,6 +485,88 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
     return agent
 
 
+def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
+    from cares_reinforcement_learning.algorithm.policy import MADDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    device = hlp.get_device()
+
+    # KEEP THE ACTOR ORDER CONSISTENT
+    agent_ids = list(obs_shapes.keys())
+
+    for agent_name in agent_ids:
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
+
+        critic = Critic(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+        )
+
+        agent = DDPG(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    maddpg_agent = MADDPG(agents=agents, config=config, device=device)
+    return maddpg_agent
+
+
+def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
+    from cares_reinforcement_learning.algorithm.policy import M3DDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    device = hlp.get_device()
+
+    # KEEP THE ACTOR ORDER CONSISTENT
+    agent_ids = list(obs_shapes.keys())
+
+    for agent_name in agent_ids:
+        # Actor takes per-agent obs
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
+
+        # Critic takes:
+        #  - global state vector (same for all)
+        #  - joint action vector (same size for all)
+        critic = Critic(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+        )
+
+        agent = DDPG(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    m3ddpg_agent = M3DDPG(agents=agents, config=config, device=device)
+    return m3ddpg_agent
+
+
 def create_TD3(observation_size, action_num, config: acf.TD3Config):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic

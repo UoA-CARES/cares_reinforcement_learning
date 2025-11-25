@@ -33,20 +33,11 @@ class BaseSharedMultiAgentNetwork(nn.Module):
 
         batch_size, num_agents, obs_dim = observations.shape
 
-        device = observations.device
-
-        # Create one-hot agent IDs
-        agent_ids = torch.eye(self.num_agents, device=device)
-        agent_ids = agent_ids.unsqueeze(0).expand(batch_size, -1, -1)  # [B, N, N]
-
-        # Concatenate IDs to observations
-        obs_with_id = torch.cat([observations, agent_ids], dim=-1)  # [B, N, obs_dim+N]
-
         # Flatten for shared forward pass
-        obs_with_id = obs_with_id.reshape(batch_size * num_agents, -1)
+        obs_flat = observations.reshape(batch_size * num_agents, obs_dim)
 
         # Shared forward pass
-        q_values = self.agent(obs_with_id)  # [B*N, num_actions]
+        q_values = self.agent(obs_flat)  # [B*N, num_actions]
 
         # Reshape back
         q_values = q_values.view(batch_size, num_agents, self.num_actions)
@@ -61,11 +52,13 @@ class DefaultSharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
     ):
         # Shared network for all agents
         # Note: add agent ID embedding dimension (num_agents)
-        obs_shape = observation_size["obs"]
+        agent_ids = list(observation_size["obs"].keys())
+
+        obs_shape = observation_size["obs"][agent_ids[0]]
         num_agents = observation_size["num_agents"]
         hidden_sizes = [64, 64]
 
-        input_size = obs_shape + num_agents
+        input_size = obs_shape
         agent = nn.Sequential(
             nn.Linear(input_size, hidden_sizes[0]),
             nn.ReLU(),
@@ -90,11 +83,12 @@ class SharedMultiAgentNetwork(BaseSharedMultiAgentNetwork):
         config: QMIXConfig,
     ):
         # Shared network for all agents
-        # Note: add agent ID embedding dimension (num_agents)
-        obs_shape = observation_size["obs"]
+        agent_ids = list(observation_size["obs"].keys())
+
+        obs_shape = observation_size["obs"][agent_ids[0]]
         num_agents = observation_size["num_agents"]
 
-        input_size = obs_shape + num_agents
+        input_size = obs_shape
         agent = Network(
             observation_size=input_size,
             num_actions=num_actions,

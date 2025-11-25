@@ -26,43 +26,46 @@ def _policy_buffer(
         )
         state = {"image": state_image, "vector": np.array(state_vector)}
     elif marl_state:
-        state = {}
-        for i in range(observation_size["num_agents"]):
-            state[f"agent_{i}"] = list(range(observation_size["obs"]))
+        obs = {
+            agent_id: np.arange(obs_dim, dtype=np.float32)
+            for agent_id, obs_dim in observation_size["obs"].items()
+        }
+
+        state = np.arange(observation_size["state"], dtype=np.float32)
+
+        avail_actions = [
+            np.zeros(action_num, dtype=np.float32)
+            for _ in range(observation_size["num_agents"])
+        ]
+
         state = {
-            "obs": list(range(observation_size["obs"])),
-            "state": state,
+            "obs": obs,
+            "state": np.arange(observation_size["state"], dtype=np.float32),
+            "avail_actions": avail_actions,
         }
     else:
         state = list(range(observation_size))
 
-    action = list(range(action_num))
-    reward = 10
-
-    if image_state:
-        next_state_vector = list(range(observation_size["vector"]))
-        next_state_image = np.random.randint(
-            255, size=observation_size["image"], dtype=np.uint8
-        )
-        next_state = {
-            "image": next_state_image,
-            "vector": np.array(next_state_vector),
-        }
-    elif marl_state:
-        next_state = {}
+    if marl_state:
+        action = []
         for i in range(observation_size["num_agents"]):
-            next_state[f"agent_{i}"] = list(range(observation_size["obs"]))
-        next_state = {
-            "obs": list(range(observation_size["obs"])),
-            "state": next_state,
-        }
+            action.append(list(range(action_num)))
+        action = np.array(action)
     else:
-        next_state = list(range(observation_size))
+        action = list(range(action_num))
 
-    done = False
+    if marl_state:
+        reward = [10] * observation_size["num_agents"]
+    else:
+        reward = 10
+
+    if marl_state:
+        done = [False] * observation_size["num_agents"]
+    else:
+        done = False
 
     for _ in range(capacity):
-        memory_buffer.add(state, action, reward, next_state, done)
+        memory_buffer.add(state, action, reward, state, done)
 
     return memory_buffer
 
@@ -78,11 +81,13 @@ def _value_buffer(
         )
         state = {"image": state_image, "vector": state_vector}
     elif marl_state:
-        obs = []
+        obs = {}
         avail_actions = []
-        for _ in range(observation_size["num_agents"]):
-            obs.append(np.arange(observation_size["obs"], dtype=np.float32))
-            avail_actions.append(np.zeros(action_num, dtype=np.float32))
+        for i, agent_id in enumerate(observation_size["obs"].keys()):
+            obs[agent_id] = np.arange(
+                observation_size["obs"][agent_id], dtype=np.float32
+            )
+            avail_actions.append(np.ones(action_num, dtype=np.float32))
 
         state = {
             "obs": obs,
@@ -99,33 +104,18 @@ def _value_buffer(
     else:
         action = randrange(action_num)
 
-    reward = 10
-
-    if image_state:
-        next_state_vector = list(range(observation_size["vector"]))
-        next_state_image = np.random.randint(
-            255, size=observation_size["image"], dtype=np.uint8
-        )
-        next_state = {"image": next_state_image, "vector": next_state_vector}
-    elif marl_state:
-        next_obs = []
-        avail_actions = []
-        for _ in range(observation_size["num_agents"]):
-            next_obs.append(np.arange(observation_size["obs"], dtype=np.float32))
-            avail_actions.append(np.zeros(action_num, dtype=np.float32))
-
-        next_state = {
-            "obs": next_obs,
-            "state": np.arange(observation_size["state"], dtype=np.float32),
-            "avail_actions": avail_actions,
-        }
+    if marl_state:
+        reward = [10] * observation_size["num_agents"]
     else:
-        next_state = list(range(observation_size))
+        reward = 10
 
-    done = False
+    if marl_state:
+        done = [False] * observation_size["num_agents"]
+    else:
+        done = False
 
     for _ in range(capacity):
-        memory_buffer.add(state, action, reward, next_state, done)
+        memory_buffer.add(state, action, reward, state, done)
 
     return memory_buffer
 
@@ -147,7 +137,11 @@ def test_algorithms(tmp_path):
 
     observation_size_image = (9, 32, 32)
 
-    observation_size_marl = {"obs": 10, "state": 30, "num_agents": 3}
+    observation_size_marl = {
+        "obs": {"agent_0": 10, "agent_1": 10, "agent_2": 10},
+        "state": 30,
+        "num_agents": 3,
+    }
 
     action_num = 2
 

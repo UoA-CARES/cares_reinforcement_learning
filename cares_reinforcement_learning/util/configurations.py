@@ -913,6 +913,69 @@ class DDPGConfig(AlgorithmConfig):
     )
 
 
+class MADDPGConfig(DDPGConfig):
+    algorithm: str = Field("MADDPG", Literal=True)
+
+    marl_observation: Literal[1] = Field(default=1, frozen=True)
+
+    actor_lr: float = 1e-2
+    critic_lr: float = 1e-2
+
+    gamma: float = 0.95
+    tau: float = 0.01
+
+    alpha: float = 0.0
+
+    batch_size: int = 1024
+    number_steps_per_train_policy: int = 100
+
+    max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 0.5
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+            FunctionLayer(layer_type="Tanh"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
+        ]
+    )
+
+
+class M3DDPGConfig(MADDPGConfig):
+    algorithm: str = Field("M3DDPG", Literal=True)
+
+    marl_observation: Literal[1] = Field(default=1, frozen=True)
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.95
+    tau: float = 0.01
+
+    alpha: float = 0.05
+
+    batch_size: int = 1024
+    number_steps_per_train_policy: int = 100
+
+    max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 1.0
+
+
 class TD3Config(AlgorithmConfig):
     algorithm: str = Field("TD3", Literal=True)
 
