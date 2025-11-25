@@ -1,5 +1,7 @@
 """
 Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
+
+Original Code (TensorFlow): https://github.com/openai/maddpg/tree/master
 """
 
 import logging
@@ -166,36 +168,63 @@ class MADDPG(Algorithm):
         self,
         agent: DDPG,
         agent_index: int,
-        obs_i: torch.Tensor,
-        actions_all: torch.Tensor,  # (B, N, act_dim)
+        obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
+        actions_tensor: torch.Tensor,  # (B, N, act_dim)
     ):
-        batch_size = obs_i.shape[0]
+        """
+        Paper-faithful MADDPG actor update:
+        - For j ≠ agent_index: use replay-buffer actions
+        - For j == agent_index: use current actor output
+        """
 
-        # --- Step 1: current policy action for agent i ---
-        pred_action_i = agent.actor_net(obs_i)
+        agent_ids = list(obs_tensors.keys())
+        batch_size = global_states.shape[0]
 
-        # --- Step 2: insert predicted action for agent i ---
-        pred_actions_tensor = actions_all.clone()
-        pred_actions_tensor[:, agent_index, :] = pred_action_i
+        # ---------------------------------------------------------
+        # Step 1: Start from replay-buffer joint actions
+        #         actions_all: (B, N, A)
+        # ---------------------------------------------------------
+        actions_all = actions_tensor.clone()  # clone so we can overwrite
 
-        # --- Step 3: adversarially perturb *other* agents ---
+        # ---------------------------------------------------------
+        # Step 2: Replace ONLY agent_i action with differentiable action
+        # ---------------------------------------------------------
+        obs_i = obs_tensors[agent_ids[agent_index]]  # (B, obs_dim_i)
+        pred_action_i = agent.actor_net(obs_i)  # differentiable
+
+        actions_all[:, agent_index, :] = pred_action_i  # keep others from buffer
+
+        # ---------------------------------------------------------
+        # Step 3: Apply M3DDPG adversarial perturbation (if enabled)
+        # ---------------------------------------------------------
         if self.alpha != 0.0:
+            # compute perturbation on ALL actions (but this returns detached)
             actions_adv = self._compute_adversarial_actions(
                 agent_index=agent_index,
-                actions=pred_actions_tensor,
+                actions=actions_all,
                 global_states=global_states,
-                critic=agent.critic_net,  # online critic
+                critic=agent.critic_net,
             )
-            # Reinsert pred_action_i so gradients flow correctly
-            pred_actions_tensor = actions_adv.clone()
-            pred_actions_tensor[:, agent_index, :] = pred_action_i
 
-        # --- Step 4: actor loss ---
-        joint_actions_pred = pred_actions_tensor.view(batch_size, -1)
-        q_val = agent.critic_net(global_states, joint_actions_pred)
-        actor_loss = -q_val.mean()
+            # reinsert differentiable action for agent i
+            actions_adv[:, agent_index, :] = pred_action_i
+            actions_all = actions_adv
 
+        # ---------------------------------------------------------
+        # Step 4: Compute actor loss: -Q_i(x, a_1,...,a_i,...,a_N)
+        # ---------------------------------------------------------
+        joint_actions_flat = actions_all.reshape(batch_size, -1)
+        q_val = agent.critic_net(global_states, joint_actions_flat)
+
+        # regularization as in TF code
+        reg = (pred_action_i**2).mean() * 1e-3
+
+        actor_loss = -q_val.mean() + reg
+
+        # ---------------------------------------------------------
+        # Step 5: Backprop
+        # ---------------------------------------------------------
         agent.actor_net_optimiser.zero_grad()
         actor_loss.backward()
 
@@ -212,56 +241,58 @@ class MADDPG(Algorithm):
         memory = training_context.memory
         batch_size = training_context.batch_size
 
-        # Use training_utils to sample and prepare batch
-        (
-            obs_tensors,
-            states_tensors,
-            _,
-            actions_tensor,
-            rewards_tensor,
-            next_obs_tensors,
-            next_states_tensors,
-            _,
-            dones_tensor,
-            _,
-            _,
-        ) = tu.sample_marl_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
-            use_per_buffer=0,
-        )
-
         info: dict[str, Any] = {}
 
-        agent_ids = list(obs_tensors.keys())
+        for agent_index, current_agent in enumerate(self.agents):
+            # ---------------------------------------------------------
+            # Update each agent
+            # ---------------------------------------------------------
 
-        # ---------------------------------------------------------
-        # Build next_actions_tensor: (batch, n_agents, act_dim)
-        # ---------------------------------------------------------
-        next_actions = []
-        for agent, agent_name in zip(self.agents, agent_ids):
-            obs_i_next = next_obs_tensors[agent_name]  # (batch, obs_dim_i)
-            next_action_i = agent.target_actor_net(obs_i_next)  # (batch, act_dim)
-            next_actions.append(next_action_i)
+            # Use training_utils to sample and prepare batch
+            (
+                obs_tensors,
+                states_tensors,
+                _,
+                actions_tensor,
+                rewards_tensor,
+                next_obs_tensors,
+                next_states_tensors,
+                _,
+                dones_tensor,
+                _,
+                _,
+            ) = tu.sample_marl_batch_to_tensors(
+                memory,
+                batch_size,
+                self.device,
+                use_per_buffer=0,
+            )
 
-        next_actions_tensor = torch.stack(next_actions, dim=1)
+            agent_ids = list(obs_tensors.keys())
 
-        # Flatten joint actions
-        joint_actions = actions_tensor.reshape(batch_size, -1)
+            # ---------------------------------------------------------
+            # Build next_actions_tensor using TARGET actors
+            # ---------------------------------------------------------
+            next_actions = []
+            for agent, agent_name in zip(self.agents, agent_ids):
+                obs_next_j = next_obs_tensors[agent_name]
+                next_action_j = agent.target_actor_net(obs_next_j)
+                next_actions.append(next_action_j)
 
-        # ---------------------------------------------------------
-        # Update each agent
-        # ---------------------------------------------------------
-        for i, (agent, agent_name) in enumerate(zip(self.agents, agent_ids)):
+            next_actions_tensor = torch.stack(next_actions, dim=1)
 
-            rewards_i = rewards_tensor[:, i].unsqueeze(-1)
-            dones_i = dones_tensor[:, i].unsqueeze(-1)
+            # Flatten replay-buffer actions for this batch
+            joint_actions = actions_tensor.reshape(batch_size, -1)
 
-            # Critic update
+            # ---------------------------------------------------------
+            # Critic update for this agent
+            # ---------------------------------------------------------
+            rewards_i = rewards_tensor[:, agent_index].unsqueeze(-1)
+            dones_i = dones_tensor[:, agent_index].unsqueeze(-1)
+
             critic_info = self._update_critic(
-                agent=agent,
-                agent_index=i,
+                agent=current_agent,
+                agent_index=agent_index,
                 global_states=states_tensors,
                 joint_actions=joint_actions,
                 rewards_i=rewards_i,
@@ -270,21 +301,21 @@ class MADDPG(Algorithm):
                 dones_i=dones_i,
             )
 
+            # ---------------------------------------------------------
             # Actor update
-            obs_i = obs_tensors[agent_name]  # (batch, obs_dim_i)
-
+            # ---------------------------------------------------------
             actor_info = self._update_actor(
-                agent=agent,
-                agent_index=i,
-                obs_i=obs_i,
-                actions_all=actions_tensor,
+                agent=current_agent,
+                agent_index=agent_index,
+                obs_tensors=obs_tensors,
                 global_states=states_tensors,
+                actions_tensor=actions_tensor,
             )
 
-            info[f"critic_loss_agent_{i}"] = critic_info["critic_loss"]
-            info[f"actor_loss_agent_{i}"] = actor_info["actor_loss"]
+            info[f"critic_loss_agent_{agent_index}"] = critic_info["critic_loss"]
+            info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
 
-            agent.update_target_networks()
+            current_agent.update_target_networks()
 
         return info
 
