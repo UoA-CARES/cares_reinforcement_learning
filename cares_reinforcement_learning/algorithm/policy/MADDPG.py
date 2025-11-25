@@ -1,5 +1,5 @@
 """
-Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
+Original Paper: https://arxiv.org/pdf/1706.02275
 
 Original Code (TensorFlow): https://github.com/openai/maddpg/tree/master
 """
