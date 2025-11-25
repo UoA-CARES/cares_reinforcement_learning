@@ -242,6 +242,15 @@ Implementation of various Actor Critic methods.
 | TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |
 | SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741)             |
 
+## Multi-Agent 
+Multi-Agent Reinforcement Learning algorithms (MARL).
+
+| Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
+| ----------- | -------------------------- | ------------ | ---------------                                             |
+| QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
+| MADDPG      | Vector (MARL)              | Continuous   | [MADDPG](https://arxiv.org/pdf/1706.02275)                  |
+| M3DDPG      | Vector (MARL)              | Continuous   | [M3DDPG](https://doi.org/10.1609/aaai.v33i01.33014213)      |
+
 ## Unsupervised Skill Discovery
 Implementation of Unsupervised Skill discovery methods
 

@@ -23,4 +23,4 @@ class TrainingContext:
 class ActionContext:
     state: np.ndarray | dict
     evaluation: bool
-    available_actions: list[int]
+    available_actions: np.ndarray

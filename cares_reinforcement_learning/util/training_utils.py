@@ -5,7 +5,7 @@ Common functions used across different RL algorithms to reduce code duplication
 while maintaining readability for students.
 """
 
-from typing import Tuple
+from typing import Tuple, Any
 
 import numpy as np
 import torch
@@ -122,7 +122,7 @@ def image_batch_to_tensors(
     dones: np.ndarray,
     device: torch.device,
     weights: np.ndarray | None = None,
-    dtype: torch.dtype = torch.float32,
+    states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
     rewards_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
@@ -137,8 +137,8 @@ def image_batch_to_tensors(
 ]:
     """Convert multimodal RL batch (states as dicts) to tensors."""
     # Convert multimodal states and next_states
-    states_tensors = image_states_to_tensors(states, device, dtype)
-    next_states_tensors = image_states_to_tensors(next_states, device, dtype)
+    states_tensors = image_states_to_tensors(states, device, states_dtype)
+    next_states_tensors = image_states_to_tensors(next_states, device, states_dtype)
 
     # Convert regular RL components
     actions_tensor = torch.tensor(
@@ -166,6 +166,121 @@ def image_batch_to_tensors(
         actions_tensor,
         rewards_tensor,
         next_states_tensors,
+        dones_tensor,
+        weights_tensor,
+    )
+
+
+def marl_states_to_tensors(
+    states: list[dict[str, Any]],
+    device: torch.device,
+    state_dtype: torch.dtype = torch.float32,
+) -> tuple[dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
+
+    batch_size = len(states)
+    first = states[0]
+
+    # -------------------------------------------------
+    # 1. Global state (always a single vector)
+    # -------------------------------------------------
+    global_states = np.stack([s["state"] for s in states], axis=0)
+    state_tensor = torch.as_tensor(global_states, dtype=state_dtype, device=device)
+
+    # -------------------------------------------------
+    # 2. Per-agent observations (dict[str → (batch, obs_dim_i)])
+    # -------------------------------------------------
+    agent_names = list(first["obs"].keys())
+    obs_tensors: dict[str, torch.Tensor] = {}
+
+    for agent in agent_names:
+        # collect obs across batch for a single agent
+        obs_list = [s["obs"][agent] for s in states]
+        obs_tensors[agent] = torch.as_tensor(
+            np.stack(obs_list, axis=0),  # (batch, obs_dim_i)
+            dtype=state_dtype,
+            device=device,
+        )
+
+    # -------------------------------------------------
+    # 3. Global avail-actions (rectangular)
+    #    shape: (batch, n_agents, action_dim)
+    # -------------------------------------------------
+    avail_actions_list = [s["avail_actions"] for s in states]
+    avail_actions_tensor = torch.as_tensor(
+        np.stack(avail_actions_list, axis=0),
+        dtype=torch.float32,
+        device=device,
+    )
+
+    # -------------------------------------------------
+    # Output
+    # -------------------------------------------------
+    return obs_tensors, state_tensor, avail_actions_tensor
+
+
+def marl_batch_to_tensors(
+    states: list[dict[str, np.ndarray]],
+    actions: list,
+    rewards: list,
+    next_states: list[dict[str, np.ndarray]],
+    dones: list,
+    device: torch.device,
+    weights: np.ndarray | None = None,
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    dict[str, torch.Tensor],
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    dict[str, torch.Tensor],
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    """Convert multimodal RL batch (states as dicts) to tensors."""
+    # Convert multimodal states and next_states
+    obs_tensors, states_tensors, avail_actions_tensor = marl_states_to_tensors(
+        states, device, states_dtype
+    )
+    next_obs_tensors, next_states_tensors, next_avail_actions_tensor = (
+        marl_states_to_tensors(next_states, device, next_states_dtype)
+    )
+
+    # Convert regular RL components
+    actions_tensor = torch.tensor(
+        np.asarray(actions), dtype=action_dtype, device=device
+    )
+    rewards_tensor = torch.tensor(
+        np.asarray(rewards), dtype=rewards_dtype, device=device
+    )
+    dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
+
+    if weights is None:
+        weights = np.array([1.0] * len(states))
+    weights_tensor = torch.tensor(
+        np.asarray(weights), dtype=weights_dtype, device=device
+    )
+
+    # Reshape to batch_size
+    batch_size = len(states)
+    weights_tensor = weights_tensor.reshape(batch_size, 1)
+
+    return (
+        obs_tensors,
+        states_tensors,
+        avail_actions_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_obs_tensors,
+        next_states_tensors,
+        next_avail_actions_tensor,
         dones_tensor,
         weights_tensor,
     )
@@ -280,7 +395,7 @@ def sample_image_batch_to_tensors(
     rewards_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
-) -> Tuple[
+) -> tuple[
     dict[str, torch.Tensor],
     torch.Tensor,
     torch.Tensor,
@@ -345,7 +460,7 @@ def sample_image_batch_to_tensors(
         dones,
         device,
         weights=weights,
-        dtype=dtype,
+        states_dtype=dtype,
         action_dtype=action_dtype,
         rewards_dtype=rewards_dtype,
         dones_dtype=dones_dtype,
@@ -363,6 +478,115 @@ def sample_image_batch_to_tensors(
     )
 
 
+def sample_marl_batch_to_tensors(
+    memory: MemoryBuffer,
+    batch_size: int,
+    device: torch.device,
+    use_per_buffer: int = 0,
+    per_sampling_strategy: str = "uniform",
+    per_weight_normalisation: str = "none",
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    dict[str, torch.Tensor],
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    dict[str, torch.Tensor],
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    torch.Tensor,
+    np.ndarray,
+]:
+    """
+    Sample a batch from memory and convert to tensors ready for training.
+
+    This function handles both uniform and priority sampling, converts numpy arrays
+    to PyTorch tensors, and reshapes them appropriately for training.
+
+    Args:
+        memory: The replay buffer to sample from
+        batch_size: Number of experiences to sample
+        device: PyTorch device to place tensors on
+        use_per_buffer: Whether to use Prioritized Experience Replay
+        per_sampling_strategy: Strategy for PER sampling
+        per_weight_normalisation: Weight normalization strategy for PER
+        states_dtype: Dtype for states tensor (default: torch.float32)
+        action_dtype: Dtype for actions tensor (default: torch.float32)
+        rewards_dtype: Dtype for rewards tensor (default: torch.float32)
+        next_states_dtype: Dtype for next_states tensor (default: torch.float32)
+        dones_dtype: Dtype for dones tensor (default: torch.long)
+        weights_dtype: Dtype for weights tensor (default: torch.float32)
+
+    Returns:
+        Tuple of (states_tensor, actions_tensor, rewards_tensor, next_states_tensor,
+                 dones_tensor, weights_tensor, indices)
+    """
+
+    # Sample from memory buffer
+    weights = None
+    if use_per_buffer:
+        experiences = memory.sample_priority(
+            batch_size,
+            sampling_strategy=per_sampling_strategy,
+            weight_normalisation=per_weight_normalisation,
+        )
+        states, actions, rewards, next_states, dones, indices, weights = experiences
+    else:
+        experiences = memory.sample_uniform(batch_size)
+        states, actions, rewards, next_states, dones, indices = experiences
+
+    batch_size = len(states)
+
+    # Convert to PyTorch tensors with specified dtypes
+    (
+        obs_tensors,
+        states_tensors,
+        avail_actions_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_obs_tensors,
+        next_states_tensors,
+        next_avail_actions_tensor,
+        dones_tensor,
+        weights_tensor,
+    ) = marl_batch_to_tensors(
+        states,
+        actions,
+        rewards,
+        next_states,
+        dones,
+        device,
+        weights=weights,
+        states_dtype=states_dtype,
+        action_dtype=action_dtype,
+        rewards_dtype=rewards_dtype,
+        next_states_dtype=next_states_dtype,
+        dones_dtype=dones_dtype,
+        weights_dtype=weights_dtype,
+    )
+
+    return (
+        obs_tensors,
+        states_tensors,
+        avail_actions_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_obs_tensors,
+        next_states_tensors,
+        next_avail_actions_tensor,
+        dones_tensor,
+        weights_tensor,
+        indices,
+    )
+
+
 def consecutive_sample_batch_to_tensors(
     memory: MemoryBuffer,
     batch_size: int,
@@ -373,7 +597,7 @@ def consecutive_sample_batch_to_tensors(
     next_states_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
-) -> Tuple[
+) -> tuple[
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
