@@ -90,8 +90,8 @@ class MLP(nn.Module):
 
         self.output_size = current_input_size if output_size is None else output_size
 
-    def forward(self, state):
-        return self.model(state)
+    def forward(self, input_value: torch.Tensor) -> torch.Tensor:
+        return self.model(input_value)
 
 
 class ResidualBlock(MLP):
@@ -111,11 +111,11 @@ class ResidualBlock(MLP):
                 input_size, None, MLPConfig(layers=[config.shortcut_layer])
             )
 
-    def forward(self, input: torch.Tensor) -> torch.Tensor:
-        main_output = self.model(input)
+    def forward(self, input_value: torch.Tensor) -> torch.Tensor:
+        main_output = self.model(input_value)
         if self.use_padding:
-            input = self.pad_channels(input, self.output_size)
-        return main_output + self.shortcut(input)
+            input_value = self.pad_channels(input_value, self.output_size)
+        return main_output + self.shortcut(input_value)
 
     def pad_channels(self, x: torch.Tensor, target_channels: int):
         """
