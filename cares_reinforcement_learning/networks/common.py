@@ -103,6 +103,7 @@ class ResidualBlock(MLP):
         super().__init__(input_size, None, MLPConfig(layers=config.main_layers))
         self.use_padding = config.use_padding
 
+        self.shortcut: nn.Module
         if config.shortcut_layer is None:
             self.shortcut = nn.Identity()
         else:
