@@ -344,6 +344,6 @@ class GoLU(nn.Module):
         x_safe = torch.clamp(x, min=-60.0)
         y = x * self.a * torch.exp(-self.b * torch.exp(-self.c * x_safe))
 
-        if torch.any(x < -60.0):
-            print("Warning: GoLU input clamped to prevent overflow.")
+        # if torch.any(x < -60.0):
+        #     print("Warning: GoLU input clamped to prevent overflow.")
         return y
