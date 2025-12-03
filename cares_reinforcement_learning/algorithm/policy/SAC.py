@@ -43,6 +43,7 @@ class SAC(VectorAlgorithm):
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
+        self.n_step = config.n_step
 
         # PER
         self.use_per_buffer = config.use_per_buffer
@@ -63,8 +64,6 @@ class SAC(VectorAlgorithm):
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
         self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.target_entropy = -self.actor_net.num_actions
-
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
@@ -72,13 +71,20 @@ class SAC(VectorAlgorithm):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
-        self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
-        )
+        self.target_entropy = -self.actor_net.num_actions
+        self.auto_entropy_tuning = config.auto_entropy_tuning
+        if self.auto_entropy_tuning:
+            # Initial alpha set to 1.0 according to other baselines as default
+            init_temperature = config.init_entropy_alpha
+            self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+            self.log_alpha.requires_grad = True
+            self.log_alpha_optimizer = torch.optim.Adam(
+                [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
+            )
+        else:
+            # Fixed alpha requires careful tuning i.e. for Atari Pong SACD uses 0.05
+            self.log_alpha = torch.tensor(config.init_entropy_alpha).log().to(device)
+            self.log_alpha.requires_grad = False
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -94,11 +100,13 @@ class SAC(VectorAlgorithm):
             "target_critic": self.target_critic_net.state_dict(),
             "actor_optimizer": self.actor_net_optimiser.state_dict(),
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
-            # Save log_alpha as a float, not a numpy array
-            "log_alpha": float(self.log_alpha.detach().cpu().item()),
-            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
             "learn_counter": int(self.learn_counter),
         }
+
+        if self.auto_entropy_tuning:
+            checkpoint["log_alpha"] = float(self.log_alpha.detach().cpu().item())
+            checkpoint["log_alpha_optimizer"] = self.log_alpha_optimizer.state_dict()
+
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models, optimisers, and training state have been saved...")
 
@@ -113,8 +121,10 @@ class SAC(VectorAlgorithm):
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
 
         # Restore log_alpha from float
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
-        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+        if self.auto_entropy_tuning:
+            self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+            self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+
         self.learn_counter = checkpoint.get("learn_counter", 0)
 
         logging.info("models, optimisers, and training state have been loaded...")
@@ -235,20 +245,28 @@ class SAC(VectorAlgorithm):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
+        info = {
+            "actor_loss": actor_loss.item(),
+            "log_pi": log_pi.mean().item(),
+        }
+
         # update the temperature (alpha)
-        alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
+        if self.auto_entropy_tuning:
+            alpha_loss = self._update_alpha(log_pi)
+            info["alpha_loss"] = alpha_loss.item()
+            info["alpha"] = self.alpha.item()
+
+        return info
+
+    def _update_alpha(self, entropy: torch.Tensor) -> torch.Tensor:
+        # update the temperature (alpha)
+        alpha_loss = -(self.log_alpha * (entropy + self.target_entropy).detach()).mean()
 
         self.log_alpha_optimizer.zero_grad()
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-            "alpha_loss": alpha_loss.item(),
-            "log_pi": log_pi.mean().item(),
-        }
-
-        return info
+        return alpha_loss
 
     def update_networks(
         self,

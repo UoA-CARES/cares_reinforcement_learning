@@ -56,6 +56,10 @@ class MLP(nn.Module):
             if isinstance(layer_spec, TrainableLayer):
                 if layer_spec.in_features is not None:
                     current_input_size = layer_spec.in_features
+                elif not isinstance(current_input_size, int):
+                    data_width = current_input_size[1]
+                    data_height = current_input_size[2]
+                    current_input_size = current_input_size[0]
 
                 if layer_spec.out_features is not None:
                     current_output_size = layer_spec.out_features
@@ -65,10 +69,29 @@ class MLP(nn.Module):
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
                     current_input_size, current_output_size, **layer_spec.params
                 )
+                if isinstance(layer, nn.Conv2d):
+                    square_state = data_width == data_height
+                    data_width = hlp.flatten(
+                        data_width, 
+                        k=layer_spec.params["kernel_size"], 
+                        s=layer_spec.params["stride"], 
+                        p=layer_spec.params["padding"]
+                    )
+                    if square_state:
+                        data_height = data_width
+                    else:
+                        data_height = hlp.flatten(
+                            data_height,
+                            k=layer_spec.params["kernel_size"],
+                            s=layer_spec.params["stride"],
+                            p=layer_spec.params["padding"]
+                        )
             elif isinstance(layer_spec, FunctionLayer):
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
                     **layer_spec.params
                 )
+                if isinstance(layer, nn.Flatten):
+                    current_output_size = data_width * data_height * current_output_size
             elif isinstance(layer_spec, NormLayer):
                 if layer_spec.in_features is not None:
                     current_input_size = layer_spec.in_features

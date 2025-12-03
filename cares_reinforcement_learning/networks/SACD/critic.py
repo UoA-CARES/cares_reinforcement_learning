@@ -6,15 +6,18 @@ from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
 class BaseCritic(nn.Module):
-    def __init__(self, Q1: nn.Module, Q2: nn.Module):
+    def __init__(self, Q1: nn.Module, Q2: nn.Module, encoder_net: MLP):
         super().__init__()
-
         self.Q1 = Q1
         self.Q2 = Q2
+        if encoder_net is None:
+            encoder_net = nn.Identity()
+        self.encoder_net = encoder_net
 
     def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        q1 = self.Q1(state)
-        q2 = self.Q2(state)
+        encoded_state = self.encoder_net(state)
+        q1 = self.Q1(encoded_state)
+        q2 = self.Q2(encoded_state)
         return q1, q2
 
 
@@ -47,7 +50,7 @@ class DefaultCritic(BaseCritic):
 
 
 class Critic(BaseCritic):
-    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig):
+    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig, encoder_net: MLP):
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
@@ -64,4 +67,4 @@ class Critic(BaseCritic):
             config=config.critic_config,
         )
 
-        super().__init__(Q1=Q1, Q2=Q2)
+        super().__init__(Q1=Q1, Q2=Q2, encoder_net=encoder_net)

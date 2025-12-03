@@ -377,6 +377,9 @@ class SACConfig(AlgorithmConfig):
     alpha_lr: float = 3e-4
     alpha_lr_params: dict[str, Any] = Field(default_factory=dict)
 
+    auto_entropy_tuning: bool = True
+    init_entropy_alpha: float = 1.0
+
     gamma: float = 0.99
     tau: float = 0.005
     reward_scale: float = 1.0
@@ -792,12 +795,16 @@ class SACDConfig(SACConfig):
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
 
+    target_entropy_multiplier: float = 0.95
+    auto_entropy_tuning: bool = True
+    init_entropy_alpha: float = 0.05
+
     batch_size: int = 64
 
-    target_entropy_multiplier: float = 0.98
 
     max_steps_exploration: int = 20000
     number_steps_per_train_policy: int = 4
+    n_step: int = 10
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -806,21 +813,29 @@ class SACDConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    actor_config: MLPConfig = MLPConfig(
+    encoder_config: MLPConfig = MLPConfig(
         layers=[
+            TrainableLayer(layer_type="Conv2d", out_features=32, params={"kernel_size": 8, "stride": 4, "padding": 0}),
+            FunctionLayer(layer_type="ReLU",),
+            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 4, "stride": 2, "padding": 0}),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 3, "stride": 1, "padding": 0}),
+            FunctionLayer(layer_type="ReLU"),
+            FunctionLayer(layer_type="Flatten"),
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
-            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+    encoder_net_shared: bool = True
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", in_features=512),
         ]
     )
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=512),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
-            FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=512),
         ]
     )

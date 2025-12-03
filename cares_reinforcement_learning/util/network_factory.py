@@ -389,9 +389,26 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
 def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
+    from cares_reinforcement_learning.networks.common import MLP
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor_image_net = None
+    critic_image_net = None
+    input_size = observation_size
+    if config.image_observation or isinstance(observation_size, tuple):
+        actor_image_net = MLP(
+            input_size=getattr(observation_size, "image", observation_size),
+            output_size=512,
+            config=config.encoder_config
+        )
+        input_size = actor_image_net.output_size
+
+        if config.encoder_net_shared:
+            critic_image_net = actor_image_net
+        else:
+            critic_image_net = actor_image_net.copy()
+
+    actor = Actor(input_size, action_num, config=config, encoder_net=actor_image_net)
+    critic = Critic(input_size, action_num, config=config, encoder_net=critic_image_net)
 
     device = hlp.get_device()
     agent = SACD(

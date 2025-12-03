@@ -5,9 +5,6 @@ Code based on: https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithm
 This code runs automatic entropy tuning
 """
 
-import copy
-import logging
-import os
 from typing import Any
 
 import numpy as np
@@ -16,7 +13,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACDConfig
 from cares_reinforcement_learning.util.training_context import (
@@ -25,7 +22,7 @@ from cares_reinforcement_learning.util.training_context import (
 )
 
 
-class SACD(VectorAlgorithm):
+class SACD(SAC):
     def __init__(
         self,
         actor_network: Actor,
@@ -33,49 +30,16 @@ class SACD(VectorAlgorithm):
         config: SACDConfig,
         device: torch.device,
     ):
-        super().__init__(policy_type="discrete_policy", config=config, device=device)
-
-        self.gamma = config.gamma
-        self.tau = config.tau
-        self.reward_scale = config.reward_scale
-
-        # PER
-        self.use_per_buffer = config.use_per_buffer
-        self.per_sampling_strategy = config.per_sampling_strategy
-        self.per_weight_normalisation = config.per_weight_normalisation
-        self.per_alpha = config.per_alpha
-        self.min_priority = config.min_priority
-
-        self.learn_counter = 0
-        self.policy_update_freq = config.policy_update_freq
-        self.target_update_freq = config.target_update_freq
-
-        # this may be called policy_net in other implementations
-        self.actor_net = actor_network.to(device)
-
-        # this may be called soft_q_net in other implementations
-        self.critic_net = critic_network.to(device)
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
-        self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
-
+        super().__init__(actor_network, critic_network, config, device)
+        self.policy_type = "discrete_policy"
         self.action_num = self.actor_net.num_actions
-
         self.target_entropy = (np.log(self.action_num) * config.target_entropy_multiplier)
 
-        self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr
-        )
-        self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=config.critic_lr
-        )
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
-        self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam(
-            [self.log_alpha], lr=config.alpha_lr
-        )
+    @property
+    def alpha(self) -> torch.Tensor:
+        return self.log_alpha.exp()
+    
 
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
 
@@ -83,8 +47,6 @@ class SACD(VectorAlgorithm):
 
         state = action_context.state
         evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -97,9 +59,6 @@ class SACD(VectorAlgorithm):
         self.actor_net.train()
         return action
 
-    @property
-    def alpha(self) -> torch.Tensor:
-        return self.log_alpha.exp()
 
     def _update_critic(
         self,
@@ -124,7 +83,7 @@ class SACD(VectorAlgorithm):
             min_qf_next_target = min_qf_next_target.sum(dim=1).unsqueeze(-1)
             next_q_value = (
                 rewards * self.reward_scale
-                + (1.0 - dones) * min_qf_next_target * self.gamma
+                + (1.0 - dones) * min_qf_next_target * self.gamma ** self.n_step
             ).flatten()
 
         # Get the q_value of the action taken
@@ -162,6 +121,7 @@ class SACD(VectorAlgorithm):
 
         return info, priorities
 
+
     def _update_actor_alpha(self, states: torch.Tensor) -> tuple[float, float]:
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
@@ -178,6 +138,21 @@ class SACD(VectorAlgorithm):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
+        info = {
+            "actor_loss": actor_loss.item(),
+            "avg_entropy": entropy.sum(dim=1).mean().item(),
+        }
+
+        # update the temperature (alpha)
+        if self.auto_entropy_tuning:
+            alpha_loss = self._update_alpha(entropy)
+            info["alpha_loss"] = alpha_loss.item()
+            info["alpha"] = self.alpha.item()
+
+        return info
+    
+
+    def _update_alpha(self, entropy: torch.Tensor) -> torch.Tensor:
         # update the temperature (alpha)
         log_prob = -entropy.detach().sum(dim=1) + self.target_entropy
         alpha_loss = -(self.log_alpha * log_prob).mean()
@@ -186,14 +161,8 @@ class SACD(VectorAlgorithm):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-            "alpha_loss": alpha_loss.item(),
-            "avg_entropy": entropy.sum(dim=1).mean().item(),
-            "alpha": self.alpha.item(),
-        }
+        return alpha_loss
 
-        return info
 
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
@@ -203,10 +172,10 @@ class SACD(VectorAlgorithm):
 
         # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            states,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_states,
             dones_tensor,
             _,
             _,
@@ -214,17 +183,19 @@ class SACD(VectorAlgorithm):
             memory=memory,
             batch_size=batch_size,
             device=self.device,
-            use_per_buffer=0,  # SACD uses uniform sampling
+            use_per_buffer=self.use_per_buffer,
+            per_sampling_strategy=self.per_sampling_strategy,
+            per_weight_normalisation=self.per_weight_normalisation,
         )
 
         info = {}
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
-            states_tensor,
+            states,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_states,
             dones_tensor,
         )
 
@@ -232,11 +203,8 @@ class SACD(VectorAlgorithm):
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_info = self._update_actor_alpha(states_tensor)
+            actor_info = self._update_actor_alpha(states)
             
-            actor_loss = actor_info["actor_loss"]
-            alpha_loss = actor_info["alpha_loss"]
-
             info |= actor_info
 
         if self.learn_counter % self.target_update_freq == 0:
@@ -244,37 +212,6 @@ class SACD(VectorAlgorithm):
 
         return info
 
-    def save_models(self, filepath: str, filename: str) -> None:
-        if not os.path.exists(filepath):
-            os.makedirs(filepath)
 
-        checkpoint = {
-            "actor": self.actor_net.state_dict(),
-            "critic": self.critic_net.state_dict(),
-            "target_critic": self.target_critic_net.state_dict(),
-            "actor_optimizer": self.actor_net_optimiser.state_dict(),
-            "critic_optimizer": self.critic_net_optimiser.state_dict(),
-            # Save log_alpha as a float, not a numpy array
-            "log_alpha": self.log_alpha.detach().cpu().item(),
-            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
-            "learn_counter": self.learn_counter,
-        }
-        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
-        logging.info("models, optimisers, and training state have been saved...")
-
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
-
-        self.actor_net.load_state_dict(checkpoint["actor"])
-
-        self.critic_net.load_state_dict(checkpoint["critic"])
-        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
-
-        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
-        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
-
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
-        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
-
-        self.learn_counter = checkpoint.get("learn_counter", 0)
-        logging.info("models, optimisers, and training state have been loaded...")
+    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+        return 0.0

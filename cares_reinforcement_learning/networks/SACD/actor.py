@@ -6,31 +6,31 @@ from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
 class BaseActor(nn.Module):
-    def __init__(self, act_net: nn.Module, discrete_net_input: int, num_actions: int):
+    def __init__(self, act_net: nn.Module, num_actions: int, encoder_net: MLP):
         super().__init__()
-
-        self.act_net = act_net
-
-        self.discrete_net = nn.Sequential(
-            nn.Linear(discrete_net_input, num_actions), nn.Softmax(dim=-1)
+        if encoder_net is None:
+            encoder_net = nn.Identity()
+        self.network = nn.Sequential(
+            encoder_net,
+            act_net,
         )
-
         self.num_actions = num_actions
+        self.keeper = None
 
     def forward(
         self, state: torch.Tensor
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
-        action_probs = self.discrete_net(self.act_net(state))
-        max_probability_action = torch.argmax(action_probs)
-        dist = torch.distributions.Categorical(action_probs)
+        logits = self.network(state)
+        deterministic_action = torch.argmax(logits, dim=1)
+        dist = torch.distributions.Categorical(logits=logits)
         sample_action = dist.sample()
 
         # Offset any values which are zero by a small amount so no nan nonsense
-        zero_offset = action_probs == 0.0
+        zero_offset = logits == 0.0
         zero_offset = zero_offset.float() * 1e-8
-        log_action_probs = torch.log(action_probs + zero_offset)
+        log_logits = torch.log(logits + zero_offset)
 
-        return sample_action, (action_probs, log_action_probs), max_probability_action
+        return sample_action, (dist.probs, dist.logits), deterministic_action
 
 
 class DefaultActor(BaseActor):
@@ -49,7 +49,7 @@ class DefaultActor(BaseActor):
 
         super().__init__(
             act_net=act_net,
-            discrete_net_input=hidden_sizes[-1],
+            encoder_net=None,
             num_actions=num_actions,
         )
 
@@ -58,18 +58,16 @@ class Actor(BaseActor):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
-    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig):
+    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig, encoder_net: MLP):
 
         act_net = MLP(
             input_size=observation_size,
-            output_size=None,
+            output_size=num_actions,
             config=config.actor_config,
         )
 
-        discrete_net_input = act_net.output_size
-
         super().__init__(
             act_net=act_net,
-            discrete_net_input=discrete_net_input,
             num_actions=num_actions,
+            encoder_net=encoder_net,
         )
