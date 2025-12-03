@@ -36,15 +36,33 @@ def batch_to_tensors(
     torch.Tensor,
 ]:
     """Convert numpy arrays to tensors with consistent dtypes."""
-    states_tensor = torch.tensor(np.asarray(states), dtype=states_dtype, device=device)
+    n = len(states)
+    state_shape = states[0].shape
+    if len(state_shape) == 1:
+        states_tensor = torch.tensor(np.asarray(states), dtype=states_dtype, device=device)
+        next_states_tensor = torch.tensor(
+            np.asarray(next_states), dtype=next_states_dtype, device=device
+        )
+    else:
+        states_array = np.empty((n, *state_shape), dtype=np.float32)
+        next_states_array = np.empty((n, *state_shape), dtype=np.float32)
+
+        for i in range(n):
+            states_array[i] = states[i]
+            next_states_array[i] = next_states[i]
+
+        states_tensor = torch.tensor(
+            states_array, dtype=states_dtype, device=device
+        )
+        next_states_tensor = torch.tensor(
+            next_states_array, dtype=next_states_dtype, device=device
+        )
+        
     actions_tensor = torch.tensor(
         np.asarray(actions), dtype=action_dtype, device=device
     )
     rewards_tensor = torch.tensor(
         np.asarray(rewards), dtype=rewards_dtype, device=device
-    )
-    next_states_tensor = torch.tensor(
-        np.asarray(next_states), dtype=next_states_dtype, device=device
     )
     dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
 
