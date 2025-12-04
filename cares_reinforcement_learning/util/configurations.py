@@ -796,7 +796,6 @@ class SACDConfig(SACConfig):
     alpha_lr: float = 3e-4
 
     target_entropy_multiplier: float = 0.95
-    auto_entropy_tuning: bool = True
     init_entropy_alpha: float = 0.05
 
     batch_size: int = 64
