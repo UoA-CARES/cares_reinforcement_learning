@@ -1027,11 +1027,9 @@ class TD3Config(AlgorithmConfig):
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),
-            # FunctionLayer(layer_type="ReLU"),
-            FunctionLayer(layer_type="FLReLU2"),
-            # FunctionLayer(layer_type="FractionalReLUPositive"),
-            # TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
-            # FunctionLayer(layer_type="ReLU"),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256),
             FunctionLayer(layer_type="Tanh"),
         ]
@@ -1040,11 +1038,9 @@ class TD3Config(AlgorithmConfig):
     critic_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),
-            FunctionLayer(layer_type="FLReLU2"),
-            # FunctionLayer(layer_type="ReLU"),
-            # FunctionLayer(layer_type="FractionalReLUPositive"),
-            # TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
-            # FunctionLayer(layer_type="ReLU"),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
