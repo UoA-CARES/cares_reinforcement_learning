@@ -12,37 +12,35 @@ import torch.nn.functional as F
 # See all: https://docs.pytorch.org/docs/stable/nn.html#non-linear-activations-weighted-sum-nonlinearity
 built_in_activations = [
     # Sigmoidal variants
-    nn.Sigmoid(),       # 1/(1+e^-x)                (0, 1)
-    nn.Tanh(),          # 2/(1+e^-2x)+1 = tanh(x)   (-1, 1) same shape as sigmoid
+    nn.Sigmoid(),  # 1/(1+e^-x)                (0, 1)
+    nn.Tanh(),  # 2/(1+e^-2x)+1 = tanh(x)   (-1, 1) same shape as sigmoid
     # ReLU variants
-    nn.ReLU(),          # max(0, x)                 ReLU: Rectified Linear Unit
-    nn.LeakyReLU(),     # ax | x
-    nn.PReLU(),         # ax | x                    PReLU: Parametric ReLU (a is a learned parameter)
+    nn.ReLU(),  # max(0, x)                 ReLU: Rectified Linear Unit
+    nn.LeakyReLU(),  # ax | x
+    nn.PReLU(),  # ax | x                    PReLU: Parametric ReLU (a is a learned parameter)
     # Non-linear variants
-    nn.Softplus(),      # ln(1+e^x)                 Smooth approximation of ReLU - gradient is sigmoid rather than step function
-    nn.ELU(),           # a(e^x)-1 | x              ELU: Exponential Linear Unit
+    nn.Softplus(),  # ln(1+e^x)                 Smooth approximation of ReLU - gradient is sigmoid rather than step function
+    nn.ELU(),  # a(e^x)-1 | x              ELU: Exponential Linear Unit
     # Self-gated variants
-    nn.GELU(),          # x * Φ(x)                  GELU: Gaussian Error Linear Unit
-    nn.SiLU(),          # x * sigmoid(x)            Aka Swish
-    nn.Mish(),          # x * tanh(softplus(x))
+    nn.GELU(),  # x * Φ(x)                  GELU: Gaussian Error Linear Unit
+    nn.SiLU(),  # x * sigmoid(x)            Aka Swish
+    nn.Mish(),  # x * tanh(softplus(x))
     # Adaptive variants
-    nn.GLU(),           # lin(x) * sigmoid(lin(x))  GLU: Gated Linear Unit (lin(x) is gated by learnt sigmoid)
+    nn.GLU(),  # lin(x) * sigmoid(lin(x))  GLU: Gated Linear Unit (lin(x) is gated by learnt sigmoid)
     # Ensemble variants
-
     # Stochastic variants
-
     # Fractional variants
-
     # Nonstandard variants
     # Maxout
-    nn.Softmax(),       # Mostly used in output layers for classification
+    nn.Softmax(),  # Mostly used in output layers for classification
     # Misc (not activations)
-    nn.Dropout(),       # Randomly zeroes some of the elements of the input tensor with probability p
-    nn.BatchNorm1d(10), # Normalizes the input to have mean 0 and variance 1
+    nn.Dropout(),  # Randomly zeroes some of the elements of the input tensor with probability p
+    nn.BatchNorm1d(10),  # Normalizes the input to have mean 0 and variance 1
 ]
 
 
 # MARK: ReLU Variants
+
 
 class FractionalReLUPositive(nn.Module):
     def __init__(self, a=0.1, epsilon=1e-6, clip_value=1.0):
@@ -226,6 +224,7 @@ class FractionalPReLU(nn.Module):
 
         return positive_side + negative_side
 
+
 class ReLU(nn.Module):
     def __init__(self, a: float = 0.5):
         super().__init__()
@@ -302,6 +301,7 @@ class FractionalReLUCustom(nn.Module):
 
 # MARK: Sigmoidal Variants
 
+
 # Fractional Tanh activation function
 class FractionalTanh(nn.Module):
     """Fractional-order Tanh activation."""
@@ -316,6 +316,7 @@ class FractionalTanh(nn.Module):
 
 
 # MARK: Self-Gated Variants
+
 
 class GoLU(nn.Module):
     """
