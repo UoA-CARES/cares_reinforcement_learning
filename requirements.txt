@@ -11,5 +11,5 @@ seaborn==0.13.0
 
 opencv-contrib-python==4.6.0.66
 numpy==1.26.4
-pydantic==1.10.13
+pydantic==2.12.4
 torch==2.7.0

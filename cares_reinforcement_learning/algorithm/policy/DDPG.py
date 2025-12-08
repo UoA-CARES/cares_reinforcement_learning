@@ -95,7 +95,8 @@ class DDPG(Algorithm):
 
     def _update_actor(self, states: torch.Tensor) -> dict[str, Any]:
         self.critic_net.eval()
-        actor_q = self.critic_net(states, self.actor_net(states))
+        actions_pred = self.actor_net(states)
+        actor_q = self.critic_net(states, actions_pred)
         self.critic_net.train()
 
         actor_loss = -actor_q.mean()
@@ -143,10 +144,13 @@ class DDPG(Algorithm):
         actor_info = self._update_actor(states_tensor)
         info |= actor_info
 
-        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+        self.update_target_networks()
 
         return info
+
+    def update_target_networks(self) -> None:
+        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):

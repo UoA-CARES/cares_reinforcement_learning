@@ -122,7 +122,7 @@ class SACAE(ImageAlgorithm):
 
     @property
     def alpha(self) -> torch.Tensor:
-        return self.log_alpha.exp()
+        return self.log_alpha.exp().detach()
 
     def _update_critic(
         self,
@@ -143,7 +143,7 @@ class SACAE(ImageAlgorithm):
             )
             target_q_values = (
                 torch.minimum(target_q_values_one, target_q_values_two)
-                - self.alpha.detach() * next_log_pi
+                - self.alpha * next_log_pi
             )
 
             q_target = (
@@ -192,7 +192,7 @@ class SACAE(ImageAlgorithm):
             qf1_pi, qf2_pi = self.critic_net(states, pi, detach_encoder=True)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
-        actor_loss = ((self.alpha.detach() * log_pi) - min_qf_pi).mean()
+        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()

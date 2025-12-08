@@ -1,5 +1,6 @@
 import random
 from contextlib import contextmanager
+from typing import overload
 
 import numpy as np
 import torch
@@ -203,52 +204,118 @@ def normalize_observation_delta(delta: torch.Tensor, statistics: dict) -> torch.
     return (delta - statistics["delta_mean"]) / statistics["delta_std"]
 
 
+@overload
 def denormalize(
-    action: float, max_action_value: float, min_action_value: float
-) -> float:
+    action: np.ndarray,
+    max_action_value: np.ndarray,
+    min_action_value: np.ndarray,
+) -> np.ndarray: ...
+
+
+@overload
+def denormalize(
+    action: list[np.ndarray],
+    max_action_value: list[np.ndarray],
+    min_action_value: list[np.ndarray],
+) -> list[np.ndarray]: ...
+
+
+def denormalize(
+    action,
+    max_action_value,
+    min_action_value,
+):
     """
     Denormalize the given action value within the specified range.
 
     Args:
-        action (float): The action value to be denormalized.
-        max_action_value (float): The maximum value of the action range.
-        min_action_value (float): The minimum value of the action range.
+        action (np.ndarray): The action value to be denormalized.
+        max_action_value (np.ndarray): The maximum value of the action range.
+        min_action_value (np.ndarray): The minimum value of the action range.
 
     Returns:
-        float: The denormalized action value.
+        np.ndarray: The denormalized action value.
 
     """
-    max_range_value: float = max_action_value
-    min_range_value: float = min_action_value
-    max_value_in: float = 1
-    min_value_in: float = -1
-    action_denorm: float = (action - min_value_in) * (
-        max_range_value - min_range_value
-    ) / (max_value_in - min_value_in) + min_range_value
-    return action_denorm
+
+    def _denormalize(
+        action: np.ndarray,
+        max_action_value: np.ndarray,
+        min_action_value: np.ndarray,
+    ) -> np.ndarray:
+        max_range_value: np.ndarray = max_action_value
+        min_range_value: np.ndarray = min_action_value
+        max_value_in: float = 1
+        min_value_in: float = -1
+        action_denorm: np.ndarray = (action - min_value_in) * (
+            max_range_value - min_range_value
+        ) / (max_value_in - min_value_in) + min_range_value
+        return action_denorm
+
+    if isinstance(action, list):
+        denormalized_actions: list[np.ndarray] = []
+        for a, max_a, min_a in zip(action, max_action_value, min_action_value):
+            denormalized_actions.append(_denormalize(a, max_a, min_a))
+        return denormalized_actions
+
+    return _denormalize(action, max_action_value, min_action_value)
 
 
-def normalize(action: float, max_action_value: float, min_action_value: float) -> float:
+@overload
+def normalize(
+    action: np.ndarray,
+    max_action_value: np.ndarray,
+    min_action_value: np.ndarray,
+) -> np.ndarray: ...
+
+
+@overload
+def normalize(
+    action: list[np.ndarray],
+    max_action_value: list[np.ndarray],
+    min_action_value: list[np.ndarray],
+) -> list[np.ndarray]: ...
+
+
+def normalize(
+    action,
+    max_action_value,
+    min_action_value,
+):
     """
     Normalize the given action value within the specified range.
 
     Args:
-        action (float): The action value to be normalized.
-        max_action_value (float): The maximum value of the action range.
-        min_action_value (float): The minimum value of the action range.
+        action (np.ndarray): The action value to be normalized.
+        max_action_value (np.ndarray): The maximum value of the action range.
+        min_action_value (np.ndarray): The minimum value of the action range.
 
     Returns:
-        float: The normalized action value.
+        np.ndarray: The normalized action value.
 
     """
-    max_range_value: float = 1
-    min_range_value: float = -1
-    max_value_in: float = max_action_value
-    min_value_in: float = min_action_value
-    action_norm: float = (action - min_value_in) * (
-        max_range_value - min_range_value
-    ) / (max_value_in - min_value_in) + min_range_value
-    return action_norm
+
+    def _normalize(
+        action: np.ndarray,
+        max_action_value: np.ndarray,
+        min_action_value: np.ndarray,
+    ) -> np.ndarray:
+        max_range_value: float = 1
+        min_range_value: float = -1
+        max_value_in: np.ndarray = max_action_value
+        min_value_in: np.ndarray = min_action_value
+        action_norm: np.ndarray = (action - min_value_in) * (
+            max_range_value - min_range_value
+        ) / (max_value_in - min_value_in) + min_range_value
+        return action_norm
+
+    if isinstance(action, list):
+        normalized_actions: list[np.ndarray] = []
+        for a, max_a, min_a in zip(action, max_action_value, min_action_value):
+            normalized_actions.append(_normalize(a, max_a, min_a))
+        return normalized_actions
+
+    return _normalize(action, max_action_value, min_action_value)
 
 
 def compare_models(model_1: torch.nn.Module, model_2: torch.nn.Module) -> bool:

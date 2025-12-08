@@ -110,8 +110,8 @@ class FactorKConfig(BurgessConfig):
     rec_dist: str = "bernoulli"
     steps_anneal: int = 0
     gamma: float = 6.0
-    disc_kwargs: dict[str, float] = Field(default_factory=lambda: None)
-    optim_kwargs: dict[str, float] = Field(
+    disc_kwargs: dict[str, float] = Field(default_factory=lambda: {})
+    optim_kwargs: dict[str, Any] = Field(
         default_factory=lambda: {"lr": 5e-5, "betas": (0.5, 0.9)}
     )
 
