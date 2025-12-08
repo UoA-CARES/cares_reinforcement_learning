@@ -109,6 +109,8 @@ def image_states_to_tensors(
     states_images_tensor = torch.tensor(images, device=device, dtype=dtype)
     states_vector_tensor = torch.tensor(vectors, device=device, dtype=dtype)
 
+    # Normalise states - image portion
+    # This because the states are [0-255] and the predictions are [0-1]
     states_images_tensor /= 255.0
 
     return {"image": states_images_tensor, "vector": states_vector_tensor}
