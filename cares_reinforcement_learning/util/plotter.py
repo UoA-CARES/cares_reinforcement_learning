@@ -641,8 +641,12 @@ def plot_evaluations():
 
             if args["plot_seeds"]:
                 seed_label.append(f"{label}_{i}")
-                seed_eval_plot_frames.append([train_data, None])
-                seed_train_plot_frames.append([eval_data, None])
+                seed_train_plot_frames.append(
+                    [train_data, train_data_two if y_train_two is not None else None]
+                )
+                seed_eval_plot_frames.append(
+                    [eval_data, eval_data_two if y_eval_two is not None else None]
+                )
 
         if args["plot_seeds"]:
             # Plot the individual training seeds
