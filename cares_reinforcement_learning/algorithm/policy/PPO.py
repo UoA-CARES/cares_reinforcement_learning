@@ -54,8 +54,6 @@ class PPO(VectorAlgorithm):
         )
         self.cov_mat = torch.diag(self.cov_var)
 
-        print('create a gent from algorithm: PPO.py')
-
     def _calculate_log_prob(
         self, state: torch.Tensor, action: torch.Tensor
     ) -> torch.Tensor:
@@ -101,9 +99,9 @@ class PPO(VectorAlgorithm):
     def _evaluate_policy(
         self, state: torch.Tensor, action: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        v = self.critic_net(state).squeeze()  # shape 5000 #squeeze()移除1的维度
+        v = self.critic_net(state).squeeze()  # shape 5000
         mean = self.actor_net(state)  # shape, 5000, 1
-        dist = MultivariateNormal(mean, self.cov_mat)  #构建一个多元正态分布（高斯分布）,PPO 在连续动作空间中策略建模的常规方式
+        dist = MultivariateNormal(mean, self.cov_mat)
         log_prob = dist.log_prob(action)  # shape, 5000
         return v, log_prob
 
@@ -112,7 +110,7 @@ class PPO(VectorAlgorithm):
     ) -> torch.Tensor:
         rtgs: list[float] = []
         discounted_reward = 0
-        for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)): #定义计算折扣累计奖励
+        for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
             discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
             rtgs.insert(0, discounted_reward)
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float).to(self.device)  # shape 5000
@@ -124,23 +122,21 @@ class PPO(VectorAlgorithm):
         # pylint: disable-next=unused-argument
 
         experiences = memory.flush()
-        states, actions, rewards, _, dones, truncated = experiences # add truncated for PPO_SIL
-
-        print('PPO.py: flush the memory, start PPO training')
+        states, actions, rewards, _, dones = experiences
 
         states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
         actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
         rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
         dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
 
-        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)  ##从sample中计算的,所有是旧的
+        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
         # compute reward to go:
-        rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor) #rtgs是实际计算得到的折扣累计奖励
+        rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
         # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
 
         # calculate advantages
-        v, _ = self._evaluate_policy(states_tensor, actions_tensor) #这是old advantages
+        v, _ = self._evaluate_policy(states_tensor, actions_tensor)
 
         advantages = rtgs.detach() - v.detach()
 
@@ -150,11 +146,10 @@ class PPO(VectorAlgorithm):
         td_errors = torch.abs(advantages).data.cpu().numpy()
 
         for _ in range(self.updates_per_iteration):
-            print('PPO.py: in updates_per_iteration loop')
-            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor) #更新后actor的新的policy下的计算结果
+            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor)
 
             # Calculate ratios
-            ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())   ##现在的策略下的概率-旧策略下的概率
+            ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())
 
             # Finding Surrogate Loss
             surrogate_lose_one = ratios * advantages
@@ -163,23 +158,21 @@ class PPO(VectorAlgorithm):
             )
 
             # final loss of clipped objective PPO
-            actor_loss = (-torch.minimum(surrogate_lose_one, surrogate_lose_two)).mean() #PPO 特有的剪切目标函数 #.mean()整个batch 的loss求平均
-            critic_loss = F.mse_loss(v, rtgs) #rtgs折扣累计奖励 #F.mse_loss() 是 PyTorch 内置的 均方误差（Mean Squared Error） 损失
+            actor_loss = (-torch.minimum(surrogate_lose_one, surrogate_lose_two)).mean()
+            critic_loss = F.mse_loss(v, rtgs)
 
-            self.actor_net_optimiser.zero_grad() #清除之前计算残留的梯度（每次优化前都要做）,Pytorch默认累加
-            actor_loss.backward(retain_graph=True) ## why???
-            self.actor_net_optimiser.step() #更新actor网络!!!!!!
+            self.actor_net_optimiser.zero_grad()
+            actor_loss.backward(retain_graph=True)
+            self.actor_net_optimiser.step()
 
             self.critic_net_optimiser.zero_grad()
-            critic_loss.backward()       #计算loss对aritic的梯度
-            self.critic_net_optimiser.step()#更新actor网络!!!!!!
+            critic_loss.backward()
+            self.critic_net_optimiser.step()
 
         info: dict[str, Any] = {}
         info["td_errors"] = td_errors
         info["critic_loss"] = critic_loss.item()
         info["actor_loss"] = actor_loss.item()
-
-        print('PPO.py: end the updates_per_iteration loop loop')
 
         return info
 

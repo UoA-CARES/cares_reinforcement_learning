@@ -10,8 +10,8 @@ from typing import Any, get_origin
 from pydantic import Field
 
 
-from cares_reinforcement_learning.util import configurations as configurations  
-from cares_reinforcement_learning.util.configurations import (  
+from cares_reinforcement_learning.util import configurations
+from cares_reinforcement_learning.util.configurations import (
     AlgorithmConfig,
     EnvironmentConfig,
     SubscriptableClass,
