@@ -10,6 +10,7 @@ from cares_reinforcement_learning.algorithm.value import C51
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.Rainbow import Network
 from cares_reinforcement_learning.util.configurations import RainbowConfig
+from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class Rainbow(C51):
@@ -28,9 +29,7 @@ class Rainbow(C51):
         self.network.reset_noise()
         self.target_network.reset_noise()
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
-        info = super().train_policy(memory, batch_size, training_step)
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        info = super().train_policy(training_context)
         self._reset_noise()
         return info

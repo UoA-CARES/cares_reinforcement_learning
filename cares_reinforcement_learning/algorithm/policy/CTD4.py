@@ -49,10 +49,10 @@ class CTD4(TD3):
         ]
 
     def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
-        action_tensor = torch.FloatTensor(action).to(self.device)
+        action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)
         action_tensor = action_tensor.unsqueeze(0)
 
         q_u_set = []
@@ -268,3 +268,24 @@ class CTD4(TD3):
         }
 
         return info
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        super().save_models(filepath, filename)
+        # Save each ensemble critic optimizer in a single file
+        ensemble_optim_state = {
+            f"optimizer_{idx}": opt.state_dict()
+            for idx, opt in enumerate(self.ensemble_critic_optimizers)
+        }
+        torch.save(
+            ensemble_optim_state,
+            f"{filepath}/{filename}_ensemble_critic_optimizers.pth",
+        )
+
+    def load_models(self, filepath: str, filename: str) -> None:
+        super().load_models(filepath, filename)
+        # Load each ensemble critic optimizer from the single file
+        ensemble_optim_state = torch.load(
+            f"{filepath}/{filename}_ensemble_critic_optimizers.pth"
+        )
+        for idx, opt in enumerate(self.ensemble_critic_optimizers):
+            opt.load_state_dict(ensemble_optim_state[f"optimizer_{idx}"])

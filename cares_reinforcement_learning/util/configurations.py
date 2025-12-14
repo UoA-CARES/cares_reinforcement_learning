@@ -1,4 +1,6 @@
-from typing import Literal, Any
+from __future__ import annotations
+
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -17,10 +19,6 @@ class SubscriptableClass(BaseModel):
         return getattr(self, item)
 
 
-class EnvironmentConfig(SubscriptableClass):
-    task: str
-
-
 class TrainingConfig(SubscriptableClass):
     """
     Configuration class for training.
@@ -30,12 +28,17 @@ class TrainingConfig(SubscriptableClass):
         number_steps_per_evaluation (int]): Number of steps per evaluation. Default is 10000.
         number_eval_episodes (int]): Number of episodes to evaluate during training. Default is 10.
         record_eval_video (int]): Whether to record a video of the evaluation. Default is 1.
+        checkpoint_interval (int]): Interval (in number of episodes) to save dataframes and checkpoints. Default is 1.
     """
 
     seeds: list[int] = [10]
     number_steps_per_evaluation: int = 10000
     number_eval_episodes: int = 10
     record_eval_video: int = 1
+
+    checkpoint_interval: int = 1
+
+    max_workers: int = 1
 
 
 class TrainableLayer(BaseModel):
@@ -59,8 +62,15 @@ class FunctionLayer(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class ResidualLayer(BaseModel):
+    layer_category: Literal["residual"] = "residual"  # Discriminator field
+    main_layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
+    shortcut_layer: TrainableLayer | None = None
+    use_padding: bool = False
+
+
 class MLPConfig(BaseModel):
-    layers: list[TrainableLayer | NormLayer | FunctionLayer]
+    layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
 
 
 class AlgorithmConfig(SubscriptableClass):
@@ -80,6 +90,10 @@ class AlgorithmConfig(SubscriptableClass):
         number_steps_per_train_policy (int]): Number of steps per updating the training policy.
 
         image_observation (int]): Whether the observation is an image.
+
+        model_path (str | None]): Path to a pre-trained model.
+
+        repetition_num_episodes (int]): Number of episodes to use for episode repetition. 0 to disable.
     """
 
     algorithm: str = Field(description="Name of the algorithm to be used")
@@ -97,8 +111,11 @@ class AlgorithmConfig(SubscriptableClass):
     max_steps_training: int = 1000000
 
     image_observation: int = 0
+    marl_observation: int = 0
 
     model_path: str | None = None
+
+    repetition_num_episodes: int = 0
 
 
 ###################################
@@ -107,7 +124,7 @@ class AlgorithmConfig(SubscriptableClass):
 
 
 class DQNConfig(AlgorithmConfig):
-    algorithm: str = Field("DQN", Literal=True)
+    algorithm: str = "DQN"
     lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 1.0
@@ -149,20 +166,20 @@ class DQNConfig(AlgorithmConfig):
 
 
 class DoubleDQNConfig(DQNConfig):
-    algorithm: str = Field("DoubleDQN", Literal=True)
+    algorithm: str = "DoubleDQN"
 
-    use_double_dqn: Literal[1] = Field(default=1, frozen=True)
+    use_double_dqn: Literal[1] = Field(default=1)
 
 
 class PERDQNConfig(DQNConfig):
-    algorithm: str = Field("PERDQN", Literal=True)
+    algorithm: str = "PERDQN"
 
     use_double_dqn: int = 1
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
 
 
 class DuelingDQNConfig(DQNConfig):
-    algorithm: str = Field("DuelingDQN", Literal=True)
+    algorithm: str = "DuelingDQN"
     lr: float = 5e-4
     gamma: float = 0.99
     tau: float = 0.005
@@ -199,7 +216,7 @@ class DuelingDQNConfig(DQNConfig):
 
 
 class NoisyNetConfig(DQNConfig):
-    algorithm: str = Field("NoisyNet", Literal=True)
+    algorithm: str = "NoisyNet"
 
     max_grad_norm: float | None = 10.0
 
@@ -228,7 +245,7 @@ class NoisyNetConfig(DQNConfig):
 
 
 class C51Config(DQNConfig):
-    algorithm: str = Field("C51", Literal=True)
+    algorithm: str = "C51"
 
     num_atoms: int = 51
     v_min: float = 0.0
@@ -236,7 +253,7 @@ class C51Config(DQNConfig):
 
 
 class QRDQNConfig(DQNConfig):
-    algorithm: str = Field("QRDQN", Literal=True)
+    algorithm: str = "QRDQN"
     lr: float = 5e-5
 
     target_update_freq: int = 5000
@@ -256,7 +273,7 @@ class QRDQNConfig(DQNConfig):
 
 
 class RainbowConfig(C51Config):
-    algorithm: str = Field("Rainbow", Literal=True)
+    algorithm: str = "Rainbow"
 
     max_grad_norm: float | None = 10.0
 
@@ -313,13 +330,65 @@ class RainbowConfig(C51Config):
     )
 
 
+class QMIXConfig(DQNConfig):
+    algorithm: str = "QMIX"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    lr: float = 1e-4
+    gamma: float = 0.99
+    tau: float = 1.0
+
+    batch_size: int = 32
+
+    target_update_freq: int = 10000
+
+    # network type
+    share_agent_weights: int = 1
+
+    # Double DQN
+    use_double_dqn: int = 0
+
+    # PER
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
+    use_per_buffer: int = 0
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # n-step
+    n_step: int = 1
+
+    max_grad_norm: float | None = None
+
+    # Exploration via Epsilon Greedy
+    max_steps_exploration: int = 0
+    start_epsilon: float = 1.0
+    end_epsilon: float = 0.05
+    decay_steps: int = 100000
+
+    # Mixer
+    embed_dim: int = 32
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+        ]
+    )
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
 
 
 class PPOConfig(AlgorithmConfig):
-    algorithm: str = Field("PPO", Literal=True)
+    algorithm: str = "PPO"
+
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
@@ -361,7 +430,7 @@ class PPOConfig(AlgorithmConfig):
 
 
 class SACConfig(AlgorithmConfig):
-    algorithm: str = Field("SAC", Literal=True)
+    algorithm: str = "SAC"
 
     actor_lr: float = 3e-4
     actor_lr_params: dict[str, Any] = Field(default_factory=dict)
@@ -408,9 +477,9 @@ class SACConfig(AlgorithmConfig):
 
 
 class SACAEConfig(SACConfig):
-    algorithm: str = Field("SACAE", Literal=True)
+    algorithm: str = "SACAE"
 
-    image_observation: Literal[1] = Field(default=1, frozen=True)
+    image_observation: Literal[1] = Field(default=1)
     batch_size: int = 128
 
     actor_lr: float = 1e-3
@@ -471,17 +540,18 @@ class SACAEConfig(SACConfig):
 
 
 class PERSACConfig(SACConfig):
-    algorithm: str = Field("PERSAC", Literal=True)
+    algorithm: str = "PERSAC"
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
 
 
 class REDQConfig(SACConfig):
-    algorithm: str = Field("REDQ", Literal=True)
+    algorithm: str = "REDQ"
+
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 1e-3
@@ -496,11 +566,12 @@ class REDQConfig(SACConfig):
     policy_update_freq: int = 20
     target_update_freq: int = 1
 
-    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
+    use_per_buffer: Literal[0] = Field(default=0)
 
 
 class TQCConfig(SACConfig):
-    algorithm: str = Field("TQC", Literal=True)
+    algorithm: str = "TQC"
+
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
@@ -541,10 +612,10 @@ class TQCConfig(SACConfig):
 
 
 class LAPSACConfig(SACConfig):
-    algorithm: str = Field("LAPSAC", Literal=True)
+    algorithm: str = "LAPSAC"
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "simple"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
@@ -553,7 +624,7 @@ class LAPSACConfig(SACConfig):
 
 
 class LA3PSACConfig(SACConfig):
-    algorithm: str = Field("LA3PSAC", Literal=True)
+    algorithm: str = "LA3PSAC"
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
@@ -561,7 +632,7 @@ class LA3PSACConfig(SACConfig):
     reward_scale: float = 5.0
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "simple"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
@@ -571,7 +642,7 @@ class LA3PSACConfig(SACConfig):
 
 
 class MAPERSACConfig(SACConfig):
-    algorithm: str = Field("MAPERSAC", Literal=True)
+    algorithm: str = "MAPERSAC"
 
     max_steps_exploration: int = 10000
 
@@ -590,7 +661,7 @@ class MAPERSACConfig(SACConfig):
     target_update_freq: int = 1
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "stratified"
     per_weight_normalisation: str = "population"
     beta: float = 0.4
@@ -618,7 +689,7 @@ class MAPERSACConfig(SACConfig):
 
 
 class RDSACConfig(SACConfig):
-    algorithm: str = Field("RDSAC", Literal=True)
+    algorithm: str = "RDSAC"
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
@@ -626,7 +697,7 @@ class RDSACConfig(SACConfig):
     gamma: float = 0.99
     tau: float = 0.005
 
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "stratified"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
@@ -650,7 +721,7 @@ class RDSACConfig(SACConfig):
 
 
 class CrossQConfig(SACConfig):
-    algorithm: str = Field("CrossQ", Literal=True)
+    algorithm: str = "CrossQ"
 
     actor_lr: float = 1e-3
     actor_lr_params: dict[str, Any] = Field(
@@ -697,7 +768,7 @@ class CrossQConfig(SACConfig):
 
 
 class DroQConfig(SACConfig):
-    algorithm: str = Field("DroQ", Literal=True)
+    algorithm: str = "DroQ"
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
@@ -729,7 +800,7 @@ class DroQConfig(SACConfig):
 
 
 class SDARConfig(SACConfig):
-    algorithm: str = Field("SDAR", Literal=True)
+    algorithm: str = "SDAR"
 
     beta_lr: float = 3e-4
     beta_lr_params: dict[str, Any] = Field(default_factory=dict)
@@ -756,7 +827,8 @@ class SDARConfig(SACConfig):
 
 
 class DynaSACConfig(SACConfig):
-    algorithm: str = Field("DynaSAC", Literal=True)
+    algorithm: str = "DynaSAC"
+
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
 
@@ -780,7 +852,8 @@ class DynaSACConfig(SACConfig):
 
 
 class SACDConfig(AlgorithmConfig):
-    algorithm: str = Field("SACD", Literal=True)
+    algorithm: str = "SACD"
+
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
@@ -825,7 +898,8 @@ class SACDConfig(AlgorithmConfig):
 
 
 class DDPGConfig(AlgorithmConfig):
-    algorithm: str = Field("DDPG", Literal=True)
+    algorithm: str = "DDPG"
+
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
@@ -854,8 +928,71 @@ class DDPGConfig(AlgorithmConfig):
     )
 
 
+class MADDPGConfig(DDPGConfig):
+    algorithm: str = "MADDPG"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-2
+    critic_lr: float = 1e-2
+
+    gamma: float = 0.95
+    tau: float = 0.01
+
+    alpha: float = 0.0
+
+    batch_size: int = 1024
+    number_steps_per_train_policy: int = 100
+
+    max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 0.5
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+            FunctionLayer(layer_type="Tanh"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
+        ]
+    )
+
+
+class M3DDPGConfig(MADDPGConfig):
+    algorithm: str = "M3DDPG"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.95
+    tau: float = 0.01
+
+    alpha: float = 0.05
+
+    batch_size: int = 1024
+    number_steps_per_train_policy: int = 100
+
+    max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 1.0
+
+
 class TD3Config(AlgorithmConfig):
-    algorithm: str = Field("TD3", Literal=True)
+    algorithm: str = "TD3"
 
     actor_lr: float = 3e-4
     actor_lr_params: dict[str, Any] = Field(default_factory=dict)
@@ -910,9 +1047,9 @@ class TD3Config(AlgorithmConfig):
 
 
 class TD3AEConfig(TD3Config):
-    algorithm: str = Field("TD3AE", Literal=True)
+    algorithm: str = "TD3AE"
 
-    image_observation: Literal[1] = Field(default=1, frozen=True)
+    image_observation: Literal[1] = Field(default=1)
     batch_size: int = 128
 
     actor_lr: float = 1e-3
@@ -962,9 +1099,9 @@ class TD3AEConfig(TD3Config):
 
 
 class NaSATD3Config(TD3Config):
-    algorithm: str = Field("NaSATD3", Literal=True)
+    algorithm: str = "NaSATD3"
 
-    image_observation: Literal[1] = Field(default=1, frozen=True)
+    image_observation: Literal[1] = Field(default=1)
 
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
@@ -1033,10 +1170,10 @@ class NaSATD3Config(TD3Config):
 
 
 class PERTD3Config(TD3Config):
-    algorithm: str = Field("PERTD3", Literal=True)
+    algorithm: str = "PERTD3"
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "stratified"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
@@ -1045,10 +1182,10 @@ class PERTD3Config(TD3Config):
 
 
 class LAPTD3Config(TD3Config):
-    algorithm: str = Field("LAPTD3", Literal=True)
+    algorithm: str = "LAPTD3"
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "simple"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
@@ -1057,20 +1194,20 @@ class LAPTD3Config(TD3Config):
 
 
 class PALTD3Config(TD3Config):
-    algorithm: str = Field("PALTD3", Literal=True)
+    algorithm: str = "PALTD3"
 
     # PER values but not PER buffer: see paper
-    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
+    use_per_buffer: Literal[0] = Field(default=0)
     beta: float = 0.4
     per_alpha: float = 0.4
     min_priority: float = 1.0
 
 
 class LA3PTD3Config(TD3Config):
-    algorithm: str = Field("LA3PTD3", Literal=True)
+    algorithm: str = "LA3PTD3"
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "simple"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
@@ -1080,7 +1217,7 @@ class LA3PTD3Config(TD3Config):
 
 
 class MAPERTD3Config(TD3Config):
-    algorithm: str = Field("MAPERTD3", Literal=True)
+    algorithm: str = "MAPERTD3"
 
     max_steps_exploration: int = 10000
 
@@ -1092,7 +1229,7 @@ class MAPERTD3Config(TD3Config):
     tau: float = 0.005
 
     # PER
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "stratified"
     per_weight_normalisation: str = "population"
     beta: float = 1.0
@@ -1116,14 +1253,14 @@ class MAPERTD3Config(TD3Config):
 
 
 class RDTD3Config(TD3Config):
-    algorithm: str = Field("RDTD3", Literal=True)
+    algorithm: str = "RDTD3"
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     gamma: float = 0.99
     tau: float = 0.005
 
-    use_per_buffer: Literal[1] = Field(default=1, frozen=True)
+    use_per_buffer: Literal[1] = Field(default=1)
     per_sampling_strategy: str = "stratified"
     per_weight_normalisation: str = "batch"
     beta: float = 0.4
@@ -1144,7 +1281,7 @@ class RDTD3Config(TD3Config):
 
 
 class CTD4Config(TD3Config):
-    algorithm: str = Field("CTD4", Literal=True)
+    algorithm: str = "CTD4"
 
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
@@ -1163,3 +1300,111 @@ class CTD4Config(TD3Config):
     policy_update_freq: int = 2
 
     fusion_method: str = "kalman"  # kalman, minimum, average
+
+
+class TD7Config(TD3Config):
+    algorithm: str = "TD7"
+
+    max_steps_exploration: int = 25000
+
+    tau: float = 1.0
+
+    target_update_rate: int = 250
+
+    max_eps_checkpointing: int = 20
+    steps_before_checkpointing: int = 75000
+    reset_weight: float = 0.9
+
+    G: Literal[1] = Field(default=1)
+
+    # PER
+    use_per_buffer: Literal[1] = Field(default=1)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.0  # full waiting of priorities
+    per_alpha: float = 0.4
+    min_priority: float = 1.0
+
+    # Equal to TD3 but uses ELU activations
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[TrainableLayer(layer_type="Linear", out_features=256)]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
+
+    # Encoder for state representation learning
+    zs_dim: int = 256
+    encoder_lr: float = 3e-4
+    encoder_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    state_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+    state_action_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
+###################################
+#         USD Algorithms          #
+###################################
+
+# TODO modify to be a base with SAC or TD3 as configs for the agent
+
+
+class DIAYNConfig(SACConfig):
+    algorithm: str = "DIAYN"
+
+    num_skills: int = 20
+
+    max_steps_exploration: Literal[0] = Field(default=0)
+
+    discriminator_lr: float = 1e-3
+    discriminator_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
+class DADSConfig(SACConfig):
+    algorithm: str = "DADS"
+
+    num_skills: int = 10
+
+    max_steps_exploration: Literal[0] = Field(default=0)
+
+    discriminator_lr: float = 1e-3
+    discriminator_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )

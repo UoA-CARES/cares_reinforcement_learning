@@ -6,8 +6,13 @@ from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 class DefaultActor(DeterministicPolicy):
     # pylint: disable=super-init-not-called
-    def __init__(self, observation_size: int, num_actions: int):
-        hidden_sizes = [1024, 1024]
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_sizes: list[int] | None = None,
+    ):
+        hidden_sizes = hidden_sizes or [1024, 1024]
 
         # pylint: disable-next=non-parent-init-called
         BasePolicy.__init__(

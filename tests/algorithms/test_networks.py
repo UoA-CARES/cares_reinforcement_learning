@@ -5,8 +5,8 @@ from pathlib import Path
 
 from torch import nn
 
-from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 
@@ -189,16 +189,28 @@ def test_actor_critics():
 
     observation_size_image = (9, 32, 32)
 
+    observation_size_marl = {
+        "obs": {"agent_0": 10, "agent_1": 10, "agent_2": 10},
+        "state": 30,
+        "num_agents": 3,
+    }
+
     action_num = 4
 
     for algorithm, alg_config in algorithm_configurations.items():
+        print(f"Testing networks for {algorithm}")
+
         alg_config = alg_config()
 
-        observation_size = (
-            {"image": observation_size_image, "vector": observation_size_vector}
-            if alg_config.image_observation
-            else observation_size_vector
-        )
+        if alg_config.marl_observation:
+            observation_size = observation_size_marl
+        elif alg_config.image_observation:
+            observation_size = {
+                "image": observation_size_image,
+                "vector": observation_size_vector,
+            }
+        else:
+            observation_size = observation_size_vector
 
         configuration_path = Path(configurations.__file__).parent
         network_path = f"{configuration_path.parent}/networks/{algorithm}"
@@ -222,12 +234,11 @@ def test_actor_critics():
                 init_signature = inspect.signature(init_method)
                 number_of_parameters = len(init_signature.parameters)
 
-                if number_of_parameters == 4:
-
+                if number_of_parameters > 3:
                     try:
                         network = cls(observation_size, action_num, alg_config)
                         default_network = default_cls(observation_size, action_num)
-                    except TypeError:
+                    except TypeError as e:
                         network = cls(
                             observation_size["vector"], action_num, alg_config
                         )

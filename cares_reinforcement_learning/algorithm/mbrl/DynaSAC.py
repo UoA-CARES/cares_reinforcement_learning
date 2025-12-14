@@ -23,6 +23,10 @@ from cares_reinforcement_learning.networks.world_models.ensemble_integrated impo
     EnsembleWorldReward,
 )
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
+from cares_reinforcement_learning.util.training_context import (
+    TrainingContext,
+    ActionContext,
+)
 
 
 class DynaSAC(VectorAlgorithm):
@@ -76,10 +80,11 @@ class DynaSAC(VectorAlgorithm):
     def _alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def select_action_from_policy(
-        self, state: np.ndarray, evaluation: bool = False
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         # pylint: disable-next=unused-argument
+
+        state = action_context.state
+        evaluation = action_context.evaluation
 
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
@@ -182,10 +187,11 @@ class DynaSAC(VectorAlgorithm):
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
-    ) -> dict[str, Any]:
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences
@@ -248,11 +254,39 @@ class DynaSAC(VectorAlgorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pth")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pth")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            # Save log_alpha as a float, not a numpy array
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
+            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
+            "learn_counter": self.learn_counter,
+        }
+
+        # add world model state if it supports it
+
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pth"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pth"))
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+
+        self.critic_net.load_state_dict(checkpoint["critic"])
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        # TODO add world model loading if needed
+
+        logging.info("models, optimisers, and training state have been loaded...")

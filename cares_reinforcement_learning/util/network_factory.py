@@ -111,6 +111,26 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
     return agent
 
 
+def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
+    from cares_reinforcement_learning.algorithm.value import QMIX
+    from cares_reinforcement_learning.networks.QMIX import (
+        SharedMultiAgentNetwork,
+        QMixer,
+    )
+
+    network = SharedMultiAgentNetwork(
+        observation_size=observation_size,
+        num_actions=action_num,
+        config=config,
+    )
+
+    mixer = QMixer(observation_size=observation_size, config=config)
+
+    device = hlp.get_device()
+    agent = QMIX(network=network, mixer=mixer, config=config, device=device)
+    return agent
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
@@ -136,23 +156,6 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
 ###################################
 #         SAC Algorithms          #
 ###################################
-
-
-def create_SACD(observation_size, action_num, config: acf.SACDConfig):
-    from cares_reinforcement_learning.algorithm.policy import SACD
-    from cares_reinforcement_learning.networks.SACD import Actor, Critic
-
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-
-    device = hlp.get_device()
-    agent = SACD(
-        actor_network=actor,
-        critic_network=critic,
-        config=config,
-        device=device,
-    )
-    return agent
 
 
 def create_SAC(observation_size, action_num, config: acf.SACConfig):
@@ -403,6 +406,63 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     return agent
 
 
+def create_SACD(observation_size, action_num, config: acf.SACDConfig):
+    from cares_reinforcement_learning.algorithm.policy import SACD
+    from cares_reinforcement_learning.networks.SACD import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SACD(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
+    from cares_reinforcement_learning.algorithm.usd import DIAYN
+    from cares_reinforcement_learning.networks.DIAYN import Discriminator
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
+    discriminator = Discriminator(
+        observation_size, num_skills=config.num_skills, config=config
+    )
+
+    device = hlp.get_device()
+    agent = DIAYN(
+        skills_agent=agent,
+        discriminator_network=discriminator,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_DADS(observation_size, action_num, config: acf.DADSConfig):
+    from cares_reinforcement_learning.algorithm.usd import DADS
+    from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
+
+    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+
+    discriminator = SkillDynamicsModel(
+        observation_size=observation_size, num_skills=config.num_skills, config=config
+    )
+
+    device = hlp.get_device()
+    agent = DADS(
+        skills_agent=agent,
+        discriminator_network=discriminator,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 ###################################
 #         TD3 Algorithms          #
 ###################################
@@ -423,6 +483,88 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
         device=device,
     )
     return agent
+
+
+def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
+    from cares_reinforcement_learning.algorithm.policy import MADDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    device = hlp.get_device()
+
+    # KEEP THE ACTOR ORDER CONSISTENT
+    agent_ids = list(obs_shapes.keys())
+
+    for agent_name in agent_ids:
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
+
+        critic = Critic(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+        )
+
+        agent = DDPG(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    maddpg_agent = MADDPG(agents=agents, config=config, device=device)
+    return maddpg_agent
+
+
+def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
+    from cares_reinforcement_learning.algorithm.policy import M3DDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    device = hlp.get_device()
+
+    # KEEP THE ACTOR ORDER CONSISTENT
+    agent_ids = list(obs_shapes.keys())
+
+    for agent_name in agent_ids:
+        # Actor takes per-agent obs
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
+
+        # Critic takes:
+        #  - global state vector (same for all)
+        #  - joint action vector (same size for all)
+        critic = Critic(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+        )
+
+        agent = DDPG(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    m3ddpg_agent = M3DDPG(agents=agents, config=config, device=device)
+    return m3ddpg_agent
 
 
 def create_TD3(observation_size, action_num, config: acf.TD3Config):
@@ -602,6 +744,27 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
     agent = CTD4(
         actor_network=actor,
         ensemble_critic=ensemble_critic,
+        config=config,
+        device=device,
+    )
+
+    return agent
+
+
+def create_TD7(observation_size, action_num, config: acf.TD7Config):
+    from cares_reinforcement_learning.algorithm.policy import TD7
+    from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
+
+    device = hlp.get_device()
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+    encoder = Encoder(observation_size, action_num, config=config)
+
+    agent = TD7(
+        actor_network=actor,
+        critic_network=critic,
+        encoder_network=encoder,
         config=config,
         device=device,
     )

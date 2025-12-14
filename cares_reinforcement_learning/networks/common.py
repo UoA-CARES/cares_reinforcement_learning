@@ -21,6 +21,7 @@ from cares_reinforcement_learning.util.configurations import (
     FunctionLayer,
     MLPConfig,
     NormLayer,
+    ResidualLayer,
     TrainableLayer,
 )
 
@@ -76,6 +77,8 @@ class MLP(nn.Module):
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
                     current_input_size, **layer_spec.params
                 )
+            elif isinstance(layer_spec, ResidualLayer):
+                layer = ResidualBlock(current_input_size, layer_spec)
             else:
                 raise ValueError(f"Unknown layer type {layer_spec}")
 
@@ -87,8 +90,48 @@ class MLP(nn.Module):
 
         self.output_size = current_input_size if output_size is None else output_size
 
-    def forward(self, state):
-        return self.model(state)
+    def forward(self, input_value: torch.Tensor) -> torch.Tensor:
+        return self.model(input_value)
+
+
+class ResidualBlock(MLP):
+    def __init__(
+        self,
+        input_size: int,
+        config: ResidualLayer,
+    ):
+        super().__init__(input_size, None, MLPConfig(layers=config.main_layers))
+        self.use_padding = config.use_padding
+
+        self.shortcut: nn.Module
+        if config.shortcut_layer is None:
+            self.shortcut = nn.Identity()
+        else:
+            self.shortcut = MLP(
+                input_size, None, MLPConfig(layers=[config.shortcut_layer])
+            )
+
+    def forward(self, input_value: torch.Tensor) -> torch.Tensor:
+        main_output = self.model(input_value)
+        if self.use_padding:
+            input_value = self.pad_channels(input_value, self.output_size)
+        return main_output + self.shortcut(input_value)
+
+    def pad_channels(self, x: torch.Tensor, target_channels: int):
+        """
+        Pads tensor `x` along channel dimension (dim=1) with zeros
+        until it reaches `target_channels`.
+        Works for shapes [N, C, L], [N, C, H, W], or [N, C, H, W, T].
+        """
+        N, C = x.shape[:2]
+        if C >= target_channels:
+            return x
+
+        pad_channels = target_channels - C
+        # Create a zero tensor of the same type and device
+        pad_shape = (N, pad_channels, *x.shape[2:])
+        zeros = torch.zeros(pad_shape, dtype=x.dtype, device=x.device)
+        return torch.cat([x, zeros], dim=1)
 
 
 class BasePolicy(nn.Module):

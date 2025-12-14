@@ -13,6 +13,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
@@ -21,6 +22,10 @@ from cares_reinforcement_learning.networks.common import (
     TwinQNetwork,
 )
 from cares_reinforcement_learning.util.configurations import TD3Config
+from cares_reinforcement_learning.util.training_context import (
+    ActionContext,
+    TrainingContext,
+)
 
 
 class TD3(VectorAlgorithm):
@@ -75,12 +80,14 @@ class TD3(VectorAlgorithm):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-    def select_action_from_policy(
-        self,
-        state: np.ndarray,
-        evaluation: bool = False,
-    ) -> np.ndarray:
+    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
+
+        state = action_context.state
+        evaluation = action_context.evaluation
+
+        assert isinstance(state, np.ndarray)
+
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -123,7 +130,8 @@ class TD3(VectorAlgorithm):
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
         with torch.no_grad():
-            next_actions = self.target_actor_net(next_states)
+            with hlp.evaluating(self.actor_net):
+                next_actions = self.target_actor_net(next_states)
 
             target_noise = self.policy_noise * torch.randn_like(next_actions)
             target_noise = torch.clamp(
@@ -198,44 +206,17 @@ class TD3(VectorAlgorithm):
 
         return actor_info
 
-    # TODO use training_step with decay rates
-    def train_policy(
-        self, memory: MemoryBuffer, batch_size: int, training_step: int
+    def update_networks(
+        self,
+        memory: MemoryBuffer,
+        indices: np.ndarray,
+        states_tensor: torch.Tensor,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_states_tensor: torch.Tensor,
+        dones_tensor: torch.Tensor,
+        weights_tensor: torch.Tensor,
     ) -> dict[str, Any]:
-        self.learn_counter += 1
-
-        self.policy_noise *= self.policy_noise_decay
-        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
-
-        self.action_noise *= self.action_noise_decay
-        self.action_noise = max(self.min_action_noise, self.action_noise)
-
-        if self.use_per_buffer:
-            experiences = memory.sample_priority(
-                batch_size,
-                sampling_stratagy=self.per_sampling_strategy,
-                weight_normalisation=self.per_weight_normalisation,
-            )
-            states, actions, rewards, next_states, dones, indices, weights = experiences
-        else:
-            experiences = memory.sample_uniform(batch_size)
-            states, actions, rewards, next_states, dones, _ = experiences
-            weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        # Convert into tensor
-        states_tensor = torch.FloatTensor(np.asarray(states)).to(self.device)
-        actions_tensor = torch.FloatTensor(np.asarray(actions)).to(self.device)
-        rewards_tensor = torch.FloatTensor(np.asarray(rewards)).to(self.device)
-        next_states_tensor = torch.FloatTensor(np.asarray(next_states)).to(self.device)
-        dones_tensor = torch.LongTensor(np.asarray(dones)).to(self.device)
-        weights_tensor = torch.FloatTensor(np.asarray(weights)).to(self.device)
-
-        # Reshape to batch_size
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
-        dones_tensor = dones_tensor.reshape(batch_size, 1)
-        weights_tensor = weights_tensor.reshape(batch_size, 1)
 
         info: dict[str, Any] = {}
 
@@ -251,7 +232,7 @@ class TD3(VectorAlgorithm):
         info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
-            # Update Actor
+            # Update the Actor and Alpha
             actor_info = self._update_actor(states_tensor, weights_tensor)
             info |= actor_info
 
@@ -265,15 +246,85 @@ class TD3(VectorAlgorithm):
 
         return info
 
+    # TODO use training_step with decay rates
+    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+        self.learn_counter += 1
+
+        memory = training_context.memory
+        batch_size = training_context.batch_size
+
+        # TODO replace with training_step based approach to avoid having to save this value
+        self.policy_noise *= self.policy_noise_decay
+        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
+
+        # TODO replace with training_step based approach to avoid having to save this value
+        self.action_noise *= self.action_noise_decay
+        self.action_noise = max(self.min_action_noise, self.action_noise)
+
+        # Use the helper to sample and prepare tensors in one step
+        (
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+            indices,
+        ) = tu.sample_batch_to_tensors(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
+            use_per_buffer=self.use_per_buffer,
+            per_sampling_strategy=self.per_sampling_strategy,
+            per_weight_normalisation=self.per_weight_normalisation,
+        )
+
+        info = self.update_networks(
+            memory,
+            indices,
+            states_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_states_tensor,
+            dones_tensor,
+            weights_tensor,
+        )
+
+        return info
+
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        torch.save(self.actor_net.state_dict(), f"{filepath}/{filename}_actor.pht")
-        torch.save(self.critic_net.state_dict(), f"{filepath}/{filename}_critic.pht")
-        logging.info("models has been saved...")
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_actor": self.target_actor_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            "learn_counter": self.learn_counter,
+            "policy_noise": self.policy_noise,
+            "action_noise": self.action_noise,
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        self.actor_net.load_state_dict(torch.load(f"{filepath}/{filename}_actor.pht"))
-        self.critic_net.load_state_dict(torch.load(f"{filepath}/{filename}_critic.pht"))
-        logging.info("models has been loaded...")
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.target_actor_net.load_state_dict(checkpoint["target_actor"])
+
+        self.critic_net.load_state_dict(checkpoint["critic"])
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        self.policy_noise = checkpoint.get("policy_noise", self.policy_noise)
+        self.action_noise = checkpoint.get("action_noise", self.action_noise)
+
+        logging.info("models, optimisers, and training state have been loaded...")
