@@ -198,7 +198,9 @@ class LongMemoryBufferTotal:
     
     def is_full(self):
         return len(self.memory_buffers) >= self.max_capacity
-    
+    def is_empty(self):
+        return len(self.memory_buffers) == 0
+
     def get_length(self):
         return len(self.memory_buffers)
     
