@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class GoLU(nn.Module):
     """
     GoLU activation function. From https://arxiv.org/pdf/2502.03654
