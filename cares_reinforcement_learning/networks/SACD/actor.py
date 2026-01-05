@@ -31,6 +31,10 @@ class BaseActor(nn.Module):
         log_logits = torch.log(logits + zero_offset)
 
         return sample_action, (dist.probs, dist.logits), deterministic_action
+    
+
+    def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
+        return super().__call__(state)
 
 
 class DefaultActor(BaseActor):

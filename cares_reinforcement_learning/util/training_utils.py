@@ -19,6 +19,7 @@ def batch_to_tensors(
     rewards: np.ndarray,
     next_states: np.ndarray,
     dones: np.ndarray,
+    extras: np.ndarray,
     device: torch.device,
     weights: np.ndarray | None = None,
     states_dtype: torch.dtype = torch.float32,
@@ -28,6 +29,7 @@ def batch_to_tensors(
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
 ) -> tuple[
+    torch.Tensor,
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
@@ -66,6 +68,13 @@ def batch_to_tensors(
     )
     dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
 
+    if extras is None:
+        extras_tensor = None
+    else:
+        extras_tensor = torch.tensor(
+            np.asarray(extras), dtype=torch.float32, device=device
+        )
+
     if weights is None:
         weights = np.array([1.0] * len(states))
 
@@ -85,6 +94,7 @@ def batch_to_tensors(
         rewards_tensor,
         next_states_tensor,
         dones_tensor,
+        extras_tensor,
         weights_tensor,
     )
 
@@ -359,10 +369,10 @@ def sample_batch_to_tensors(
             sampling_strategy=per_sampling_strategy,
             weight_normalisation=per_weight_normalisation,
         )
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        states, actions, rewards, next_states, dones, extras, indices, weights = experiences
     else:
         experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, indices = experiences
+        states, actions, rewards, next_states, dones, extras, indices = experiences
 
     batch_size = len(states)
 
@@ -373,6 +383,7 @@ def sample_batch_to_tensors(
         rewards_tensor,
         next_states_tensor,
         dones_tensor,
+        extras_tensor,
         weights_tensor,
     ) = batch_to_tensors(
         states,
@@ -380,6 +391,7 @@ def sample_batch_to_tensors(
         rewards,
         next_states,
         dones,
+        extras,
         device,
         weights=weights,
         states_dtype=states_dtype,
@@ -396,6 +408,7 @@ def sample_batch_to_tensors(
         rewards_tensor,
         next_states_tensor,
         dones_tensor,
+        extras_tensor,
         weights_tensor,
         indices,
     )

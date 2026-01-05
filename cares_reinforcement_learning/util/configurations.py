@@ -861,10 +861,9 @@ class SACDConfig(SACConfig):
     alpha_lr: float = 3e-4
 
     target_entropy_multiplier: float = 0.95
-    init_entropy_alpha: float = 0.05
+    init_entropy_alpha: float = 1.0
 
     batch_size: int = 64
-
 
     max_steps_exploration: int = 20000
     number_steps_per_train_policy: int = 4
@@ -874,15 +873,21 @@ class SACDConfig(SACConfig):
     tau: float = 0.005
     reward_scale: float = 1.0
 
+    use_clipped_q: bool = True
+    q_clip_epsilon: float = 0.5
+    use_average_q: bool = True
+    use_entropy_penalty: bool = True
+    entropy_penalty_beta: float = 0.5
+
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
     encoder_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Conv2d", out_features=32, params={"kernel_size": 8, "stride": 4, "padding": 0}),
-            FunctionLayer(layer_type="ReLU",),
-            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 4, "stride": 2, "padding": 0}),
-            FunctionLayer(layer_type="ReLU"),
+            # TrainableLayer(layer_type="Conv2d", out_features=32, params={"kernel_size": 8, "stride": 4, "padding": 0}),
+            # FunctionLayer(layer_type="ReLU",),
+            # TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 4, "stride": 2, "padding": 0}),
+            # FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 3, "stride": 1, "padding": 0}),
             FunctionLayer(layer_type="ReLU"),
             FunctionLayer(layer_type="Flatten"),
@@ -894,19 +899,42 @@ class SACDConfig(SACConfig):
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", in_features=512),
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            ResidualLayer(
+                main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear")
+                ]),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear"),
         ]
     )
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", in_features=512),
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            ResidualLayer(
+                main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear")
+                ]),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear"),
         ]
     )
 
 class SD_SACConfig(SACDConfig):
     algorithm: str = Field("SD_SAC", Literal=True)
 
+    use_clipped_avg_q: bool = True
     entropy_penalty_beta: float = 0.5
     q_clip_epsilon: float = 0.5
 

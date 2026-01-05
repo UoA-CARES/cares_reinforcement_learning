@@ -14,11 +14,16 @@ class BaseCritic(nn.Module):
             encoder_net = nn.Identity()
         self.encoder_net = encoder_net
 
+
     def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         encoded_state = self.encoder_net(state)
         q1 = self.Q1(encoded_state)
         q2 = self.Q2(encoded_state)
         return q1, q2
+    
+
+    def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        return super().__call__(state)
 
 
 class DefaultCritic(BaseCritic):

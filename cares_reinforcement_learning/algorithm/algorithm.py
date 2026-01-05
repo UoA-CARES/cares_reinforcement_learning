@@ -130,6 +130,13 @@ class Algorithm(ABC):
             "bias_segments": bias_segments,
         }
         return info
+    
+    def get_extras(self) -> list[Any]:
+        """
+        Get any extra information from the algorithm.
+        This is a placeholder method and should be implemented in subclasses if needed.
+        """
+        return []
 
     # TODO push batch_size into the algorithm
     @abstractmethod

@@ -6,6 +6,7 @@ with their corresponding network architectures.
 import inspect
 import logging
 import sys
+import numpy as np
 
 import cares_reinforcement_learning.util.configurations as acf
 import cares_reinforcement_learning.util.helpers as hlp
@@ -430,10 +431,50 @@ def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     actor = Actor(input_size, action_num, config=config, encoder_net=actor_image_net)
     critic = Critic(input_size, action_num, config=config, encoder_net=critic_image_net)
 
+    env_entropy = -np.log(1.0 / action_num)
+
     device = hlp.get_device()
     agent = SACD(
         actor_network=actor,
         critic_network=critic,
+        env_entropy=env_entropy,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_SD_SAC(observation_size, action_num, config: acf.SD_SACConfig):
+    from cares_reinforcement_learning.algorithm.policy import SD_SAC
+    from cares_reinforcement_learning.networks.SD_SAC import Actor, Critic
+    from cares_reinforcement_learning.networks.common import MLP
+
+    actor_image_net = None
+    critic_image_net = None
+    input_size = observation_size
+    if config.image_observation or isinstance(observation_size, tuple):
+        actor_image_net = MLP(
+            input_size=getattr(observation_size, "image", observation_size),
+            output_size=512,
+            config=config.encoder_config
+        )
+        input_size = actor_image_net.output_size
+
+        if config.encoder_net_shared:
+            critic_image_net = actor_image_net
+        else:
+            critic_image_net = actor_image_net.copy()
+
+    actor = Actor(input_size, action_num, config=config, encoder_net=actor_image_net)
+    critic = Critic(input_size, action_num, config=config, encoder_net=critic_image_net)
+
+    env_entropy = -np.log(1.0 / action_num)
+
+    device = hlp.get_device()
+    agent = SD_SAC(
+        actor_network=actor,
+        critic_network=critic,
+        env_entropy=env_entropy,
         config=config,
         device=device,
     )
