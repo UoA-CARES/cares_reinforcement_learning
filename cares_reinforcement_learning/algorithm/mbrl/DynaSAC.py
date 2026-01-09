@@ -83,7 +83,7 @@ class DynaSAC(VectorAlgorithm):
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         # pylint: disable-next=unused-argument
 
-        state = action_context.state
+        state = action_context.observation
         evaluation = action_context.evaluation
 
         # note that when evaluating this algorithm we need to select mu as

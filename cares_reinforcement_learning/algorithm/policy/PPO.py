@@ -22,8 +22,9 @@ from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.util.configurations import PPOConfig
 from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
     ActionContext,
+    Observation,
+    TrainingContext,
 )
 
 
@@ -74,7 +75,7 @@ class PPO(VectorAlgorithm):
 
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
-        state = action_context.state
+        state = action_context.observation.vector_state
 
         assert isinstance(state, np.ndarray)
 
@@ -94,8 +95,10 @@ class PPO(VectorAlgorithm):
 
         return action
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():

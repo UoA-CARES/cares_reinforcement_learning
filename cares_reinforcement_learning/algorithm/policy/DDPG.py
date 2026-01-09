@@ -53,7 +53,7 @@ class DDPG(Algorithm):
         action_context: ActionContext,
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
-        state = action_context.state
+        state = action_context.observation.vector_state
 
         self.actor_net.eval()
         with torch.no_grad():

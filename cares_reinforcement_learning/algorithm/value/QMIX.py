@@ -96,11 +96,9 @@ class QMIX(VectorAlgorithm):
         Epsilon-greedy per-agent action selection.
         Each agent decides independently whether to explore or exploit.
         """
-        state = action_context.state
+        state = action_context.observation
         evaluation = action_context.evaluation
         available_actions = action_context.available_actions
-
-        assert isinstance(state, dict)
 
         actions = []
 

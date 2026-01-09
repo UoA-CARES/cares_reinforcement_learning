@@ -20,6 +20,7 @@ from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
+    Observation,
     TrainingContext,
 )
 
@@ -89,10 +90,8 @@ class DQN(VectorAlgorithm):
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
 
         if evaluation:
             return self._exploit(state)
@@ -102,8 +101,10 @@ class DQN(VectorAlgorithm):
 
         return self._exploit(state)
 
-    def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: Observation, action: int) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():

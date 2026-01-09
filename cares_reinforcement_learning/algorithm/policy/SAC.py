@@ -26,6 +26,7 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.util.configurations import SACConfig
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
+    Observation,
     TrainingContext,
 )
 
@@ -123,10 +124,8 @@ class SAC(VectorAlgorithm):
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
 
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -139,8 +138,8 @@ class SAC(VectorAlgorithm):
         self.actor_net.train()
         return action
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.FloatTensor(action).to(self.device)

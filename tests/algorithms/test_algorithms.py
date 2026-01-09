@@ -8,7 +8,10 @@ from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 from cares_reinforcement_learning.util.network_factory import NetworkFactory
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    TrainingContext,
+    Observation,
+)
 
 
 def _policy_buffer(
@@ -20,31 +23,31 @@ def _policy_buffer(
     marl_state,
 ):
     if image_state:
-        state_vector = list(range(observation_size["vector"]))
+        state = np.arange(observation_size["vector"], dtype=np.float32)
         state_image = np.random.randint(
             255, size=observation_size["image"], dtype=np.uint8
         )
-        state = {"image": state_image, "vector": np.array(state_vector)}
     elif marl_state:
+        state = np.arange(observation_size["state"], dtype=np.float32)
+
         obs = {
             agent_id: np.arange(obs_dim, dtype=np.float32)
             for agent_id, obs_dim in observation_size["obs"].items()
         }
 
-        state = np.arange(observation_size["state"], dtype=np.float32)
-
         avail_actions = [
             np.zeros(action_num, dtype=np.float32)
             for _ in range(observation_size["num_agents"])
         ]
-
-        state = {
-            "obs": obs,
-            "state": np.arange(observation_size["state"], dtype=np.float32),
-            "avail_actions": avail_actions,
-        }
     else:
-        state = list(range(observation_size))
+        state = np.arange(observation_size["vector"], dtype=np.float32)
+
+    state = Observation(
+        vector_state=state,
+        image_state=state_image if image_state else None,
+        agent_states=obs if marl_state else None,
+        avail_actions=avail_actions if marl_state else None,
+    )
 
     if marl_state:
         action = []
@@ -75,12 +78,13 @@ def _value_buffer(
 ):
 
     if image_state:
-        state_vector = list(range(observation_size["vector"]))
+        state = np.arange(observation_size["vector"], dtype=np.float32)
         state_image = np.random.randint(
             255, size=observation_size["image"], dtype=np.uint8
         )
-        state = {"image": state_image, "vector": state_vector}
     elif marl_state:
+        state = np.arange(observation_size["state"], dtype=np.float32)
+
         obs = {}
         avail_actions = []
         for i, agent_id in enumerate(observation_size["obs"].keys()):
@@ -88,14 +92,15 @@ def _value_buffer(
                 observation_size["obs"][agent_id], dtype=np.float32
             )
             avail_actions.append(np.ones(action_num, dtype=np.float32))
-
-        state = {
-            "obs": obs,
-            "state": np.arange(observation_size["state"], dtype=np.float32),
-            "avail_actions": avail_actions,
-        }
     else:
-        state = list(range(observation_size))
+        state = np.arange(observation_size["vector"], dtype=np.float32)
+
+    state = Observation(
+        vector_state=state,
+        image_state=state_image if image_state else None,
+        agent_states=obs if marl_state else None,
+        avail_actions=avail_actions if marl_state else None,
+    )
 
     if marl_state:
         action = []
@@ -154,13 +159,11 @@ def test_algorithms(tmp_path):
 
         if alg_config.marl_observation:
             observation_size = observation_size_marl
-        elif alg_config.image_observation:
+        else:
             observation_size = {
                 "image": observation_size_image,
                 "vector": observation_size_vector,
             }
-        else:
-            observation_size = observation_size_vector
 
         agent = factory.create_network(
             observation_size=observation_size, action_num=action_num, config=alg_config

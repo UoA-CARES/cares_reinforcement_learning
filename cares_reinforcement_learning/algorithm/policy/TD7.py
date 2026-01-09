@@ -20,6 +20,7 @@ from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.util.configurations import TD7Config
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
+    Observation,
     TrainingContext,
 )
 
@@ -113,7 +114,7 @@ class TD7(VectorAlgorithm):
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
 
         assert isinstance(state, np.ndarray)
@@ -144,9 +145,11 @@ class TD7(VectorAlgorithm):
 
         return action
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
         # Fix: Use modern tensor creation
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)

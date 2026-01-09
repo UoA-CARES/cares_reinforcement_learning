@@ -16,6 +16,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import CTD4Config
+from cares_reinforcement_learning.util.training_context import Observation
 
 
 class CTD4(TD3):
@@ -48,8 +49,10 @@ class CTD4(TD3):
             for critic_net in self.critic_net.critics
         ]
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)

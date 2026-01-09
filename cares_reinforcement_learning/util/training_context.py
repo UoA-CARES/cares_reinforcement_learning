@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
 import torch
@@ -23,22 +24,15 @@ class TrainingContext:
 
 
 @dataclass
-class ActionContext:
-    state: np.ndarray | dict
-    evaluation: bool
-    available_actions: np.ndarray
-
-
-@dataclass
-class State:
+class Observation:
     # Vector Based
-    state: np.ndarray | None = None
+    vector_state: np.ndarray
 
     # Image Based
-    image: np.ndarray | None = None
+    image_state: np.ndarray | None = None
 
     # MARL specific
-    agent_observations: dict[str, np.ndarray] | None = None
+    agent_states: dict[str, np.ndarray] | None = None
     avail_actions: np.ndarray | None = None
 
 
@@ -57,12 +51,14 @@ class StateTensors:
 
 @dataclass
 class Experience:
-    state: State
-    next_state: State
+    state: Observation
+    next_state: Observation
+
+    info: dict[str, Any] | None
 
 
 @dataclass
-class SAExperience(Experience):
+class SingleAgentExperience(Experience):
     reward: float
     done: bool
     truncated: bool
@@ -80,7 +76,7 @@ class SAExperience(Experience):
 
 
 @dataclass
-class MAExperience(Experience):
+class MultiAgentExperience(Experience):
     reward: dict[str, float]
     done: dict[str, bool]
     truncated: dict[str, bool]
@@ -92,8 +88,15 @@ class MAExperience(Experience):
 
     @property
     def truncated_flag(self) -> bool:
-        # partial truncation shouldn't terminate the episode from training-loop POV
+        # truncated when *all* agents are truncated
         return all(self.truncated.values())
 
     def reward_sum(self) -> float:
         return float(sum(self.reward.values()))
+
+
+@dataclass
+class ActionContext:
+    observation: Observation
+    evaluation: bool
+    available_actions: np.ndarray  # TODO redundant with Observation.avail_actions

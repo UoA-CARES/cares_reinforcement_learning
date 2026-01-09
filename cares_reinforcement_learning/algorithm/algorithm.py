@@ -12,8 +12,9 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
     ActionContext,
+    Observation,
+    TrainingContext,
 )
 
 
@@ -143,9 +144,9 @@ class Algorithm(ABC):
 
     def get_intrinsic_reward(
         self,
-        state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        state: Observation,  # pylint: disable=unused-argument
         action: np.ndarray,  # pylint: disable=unused-argument
-        next_state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        next_state: Observation,  # pylint: disable=unused-argument
         **kwargs: Any,  # pylint: disable=unused-argument
     ) -> float:
         """

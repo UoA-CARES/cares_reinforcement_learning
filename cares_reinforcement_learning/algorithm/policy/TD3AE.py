@@ -21,6 +21,7 @@ from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
+    Observation,
     TrainingContext,
 )
 
@@ -103,10 +104,8 @@ class TD3AE(ImageAlgorithm):
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation
         evaluation = action_context.evaluation
-
-        assert isinstance(state, dict)
 
         with torch.no_grad():
             state_tensor = tu.image_state_to_tensors(state, self.device)

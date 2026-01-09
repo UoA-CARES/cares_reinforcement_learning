@@ -14,6 +14,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import MAPERTD3Config
+from cares_reinforcement_learning.util.training_context import Observation
 
 
 class MAPERTD3(TD3):
@@ -40,8 +41,8 @@ class MAPERTD3(TD3):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.FloatTensor(action).to(self.device)

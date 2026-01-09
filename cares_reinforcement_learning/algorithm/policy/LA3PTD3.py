@@ -12,10 +12,12 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.policy import TD3
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 from cares_reinforcement_learning.util.configurations import LA3PTD3Config
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    Observation,
+    TrainingContext,
+)
 
 
 class LA3PTD3(TD3):
@@ -38,10 +40,10 @@ class LA3PTD3(TD3):
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
         self,
-        states: np.ndarray,
+        states: list[Observation],
         actions: np.ndarray,
         rewards: np.ndarray,
-        next_states: np.ndarray,
+        next_states: list[Observation],
         dones: np.ndarray,
         uniform_sampling: bool,
     ) -> tuple[dict[str, Any], np.ndarray]:
@@ -169,7 +171,9 @@ class LA3PTD3(TD3):
                 weights, dtype=torch.float32, device=self.device
             )
             states_tensor = torch.tensor(
-                states, dtype=torch.float32, device=self.device
+                np.array([state.vector_state for state in states]),
+                dtype=torch.float32,
+                device=self.device,
             )
 
             actor_loss = self._update_actor(states_tensor, weights_tensor)
@@ -209,7 +213,9 @@ class LA3PTD3(TD3):
                 weights, dtype=torch.float32, device=self.device
             )
             states_tensor = torch.tensor(
-                states, dtype=torch.float32, device=self.device
+                np.array([state.vector_state for state in states]),
+                dtype=torch.float32,
+                device=self.device,
             )
 
             actor_info = self._update_actor(states_tensor, weights_tensor)

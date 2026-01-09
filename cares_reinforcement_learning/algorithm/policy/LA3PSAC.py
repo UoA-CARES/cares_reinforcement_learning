@@ -12,10 +12,12 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.policy import SAC
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 from cares_reinforcement_learning.util.configurations import LA3PSACConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
+from cares_reinforcement_learning.util.training_context import (
+    Observation,
+    TrainingContext,
+)
 
 
 class LA3PSAC(SAC):
@@ -33,10 +35,10 @@ class LA3PSAC(SAC):
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
         self,
-        states: np.ndarray,
+        states: list[Observation],
         actions: np.ndarray,
         rewards: np.ndarray,
-        next_states: np.ndarray,
+        next_states: list[Observation],
         dones: np.ndarray,
         uniform_sampling: bool,
     ) -> tuple[dict[str, Any], np.ndarray]:
@@ -159,7 +161,11 @@ class LA3PSAC(SAC):
         # Train Actor
         weights = np.array([1.0] * len(states))
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
-        states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+        states_tensor = torch.tensor(
+            np.array([state.vector_state for state in states]),
+            dtype=torch.float32,
+            device=self.device,
+        )
 
         actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
         info_uniform |= actor_info
@@ -198,7 +204,11 @@ class LA3PSAC(SAC):
         states, _, _, _, _, _, _ = experiences
         weights = np.array([1.0] * len(states))
 
-        states_tensor = torch.tensor(states, dtype=torch.float32, device=self.device)
+        states_tensor = torch.tensor(
+            np.array([state.vector_state for state in states]),
+            dtype=torch.float32,
+            device=self.device,
+        )
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
 
         actor_info = self._update_actor_alpha(states_tensor, weights_tensor)

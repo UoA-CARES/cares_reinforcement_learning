@@ -115,7 +115,7 @@ class SDAR(VectorAlgorithm):
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
 
         assert isinstance(state, np.ndarray)

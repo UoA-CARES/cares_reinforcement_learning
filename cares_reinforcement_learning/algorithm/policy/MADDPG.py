@@ -17,6 +17,7 @@ from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
 from cares_reinforcement_learning.util.configurations import MADDPGConfig
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
+    Observation,
     TrainingContext,
 )
 
@@ -44,8 +45,7 @@ class MADDPG(Algorithm):
         self,
         action_context: ActionContext,
     ):
-        state = action_context.state
-        obs_dict = state["obs"]
+        obs_dict = action_context.observation.agent_states
         avail_actions = action_context.available_actions
 
         assert isinstance(obs_dict, dict)
@@ -59,7 +59,7 @@ class MADDPG(Algorithm):
             avail_i = avail_actions[i]
 
             agent_action_context = ActionContext(
-                state=obs_i,
+                observation=Observation(vector_state=obs_i),
                 evaluation=action_context.evaluation,
                 available_actions=avail_i,
             )

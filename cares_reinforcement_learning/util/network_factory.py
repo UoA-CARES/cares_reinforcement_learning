@@ -23,7 +23,7 @@ def create_DQN(observation_size, action_num, config: acf.DQNConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
 
-    network = Network(observation_size, action_num, config=config)
+    network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = DQN(network=network, config=config, device=device)
@@ -34,7 +34,7 @@ def create_PERDQN(observation_size, action_num, config: acf.PERDQNConfig):
     from cares_reinforcement_learning.algorithm.value import PERDQN
     from cares_reinforcement_learning.networks.PERDQN import Network
 
-    network = Network(observation_size, action_num, config=config)
+    network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = PERDQN(network=network, config=config, device=device)
@@ -45,7 +45,7 @@ def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig
     from cares_reinforcement_learning.algorithm.value import DuelingDQN
     from cares_reinforcement_learning.networks.DuelingDQN import Network
 
-    network = Network(observation_size, action_num, config=config)
+    network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = DuelingDQN(network=network, config=config, device=device)
@@ -56,7 +56,7 @@ def create_DoubleDQN(observation_size, action_num, config: acf.DoubleDQNConfig):
     from cares_reinforcement_learning.algorithm.value import DoubleDQN
     from cares_reinforcement_learning.networks.DoubleDQN import Network
 
-    network = Network(observation_size, action_num, config=config)
+    network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = DoubleDQN(
@@ -71,7 +71,7 @@ def create_NoisyNet(observation_size, action_num, config: acf.NoisyNetConfig):
     from cares_reinforcement_learning.algorithm.value import NoisyNet
     from cares_reinforcement_learning.networks.NoisyNet import Network
 
-    network = Network(observation_size, action_num, config)
+    network = Network(observation_size["vector"], action_num, config)
 
     device = hlp.get_device()
     agent = NoisyNet(network=network, config=config, device=device)
@@ -82,7 +82,7 @@ def create_C51(observation_size, action_num, config: acf.C51Config):
     from cares_reinforcement_learning.algorithm.value import C51
     from cares_reinforcement_learning.networks.C51 import Network
 
-    network = Network(observation_size, action_num, config=config)
+    network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = C51(network=network, config=config, device=device)
@@ -93,7 +93,7 @@ def create_QRDQN(observation_size, action_num, config: acf.QRDQNConfig):
     from cares_reinforcement_learning.algorithm.value import QRDQN
     from cares_reinforcement_learning.networks.QRDQN import Network
 
-    network = Network(observation_size, action_num, config=config)
+    network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = QRDQN(network=network, config=config, device=device)
@@ -104,7 +104,7 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
     from cares_reinforcement_learning.algorithm.value import Rainbow
     from cares_reinforcement_learning.networks.Rainbow import Network
 
-    network = Network(observation_size, action_num, config=config)
+    network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = Rainbow(network=network, config=config, device=device)
@@ -140,8 +140,8 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
     from cares_reinforcement_learning.algorithm.policy import PPO
     from cares_reinforcement_learning.networks.PPO import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], config=config)
 
     device = hlp.get_device()
     agent = PPO(
@@ -162,8 +162,8 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = SAC(
@@ -208,8 +208,8 @@ def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
     from cares_reinforcement_learning.algorithm.policy import PERSAC
     from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = PERSAC(
@@ -225,8 +225,8 @@ def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
     from cares_reinforcement_learning.algorithm.policy import REDQ
     from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    ensemble_critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    ensemble_critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = REDQ(
@@ -242,8 +242,8 @@ def create_TQC(observation_size, action_num, config: acf.TQCConfig):
     from cares_reinforcement_learning.algorithm.policy import TQC
     from cares_reinforcement_learning.networks.TQC import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = TQC(
@@ -259,8 +259,8 @@ def create_LAPSAC(observation_size, action_num, config: acf.LAPSACConfig):
     from cares_reinforcement_learning.algorithm.policy import LAPSAC
     from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = LAPSAC(
@@ -276,8 +276,8 @@ def create_LA3PSAC(observation_size, action_num, config: acf.LA3PSACConfig):
     from cares_reinforcement_learning.algorithm.policy import LA3PSAC
     from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = LA3PSAC(
@@ -293,8 +293,8 @@ def create_MAPERSAC(observation_size, action_num, config: acf.MAPERSACConfig):
     from cares_reinforcement_learning.algorithm.policy import MAPERSAC
     from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = MAPERSAC(
@@ -310,8 +310,8 @@ def create_RDSAC(observation_size, action_num, config: acf.RDSACConfig):
     from cares_reinforcement_learning.algorithm.policy import RDSAC
     from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = RDSAC(
@@ -327,8 +327,8 @@ def create_DroQ(observation_size, action_num, config: acf.DroQConfig):
     from cares_reinforcement_learning.algorithm.policy import DroQ
     from cares_reinforcement_learning.networks.DroQ import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = DroQ(
@@ -344,8 +344,8 @@ def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
     from cares_reinforcement_learning.algorithm.policy import CrossQ
     from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = CrossQ(
@@ -361,8 +361,8 @@ def create_SDAR(observation_size, action_num, config: acf.SDARConfig):
     from cares_reinforcement_learning.algorithm.policy import SDAR
     from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = SDAR(
@@ -383,13 +383,13 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
     from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
 
     world_model = EnsembleWorldReward(
-        observation_size=observation_size,
+        observation_size=observation_size["vector"],
         num_actions=action_num,
         num_models=config.num_models,
         lr=config.world_model_lr,
@@ -410,8 +410,8 @@ def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = SACD(
@@ -427,10 +427,14 @@ def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
     from cares_reinforcement_learning.algorithm.usd import DIAYN
     from cares_reinforcement_learning.networks.DIAYN import Discriminator
 
-    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+    sac_observation_size = {
+        "vector": observation_size["vector"] + config.num_skills,
+    }
+
+    agent = create_SAC(sac_observation_size, action_num, config=config)
 
     discriminator = Discriminator(
-        observation_size, num_skills=config.num_skills, config=config
+        observation_size["vector"], num_skills=config.num_skills, config=config
     )
 
     device = hlp.get_device()
@@ -447,10 +451,16 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
     from cares_reinforcement_learning.algorithm.usd import DADS
     from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 
-    agent = create_SAC(observation_size + config.num_skills, action_num, config=config)
+    sac_observation_size = {
+        "vector": observation_size["vector"] + config.num_skills,
+    }
+
+    agent = create_SAC(sac_observation_size, action_num, config=config)
 
     discriminator = SkillDynamicsModel(
-        observation_size=observation_size, num_skills=config.num_skills, config=config
+        observation_size=observation_size["vector"],
+        num_skills=config.num_skills,
+        config=config,
     )
 
     device = hlp.get_device()
@@ -472,8 +482,8 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = DDPG(
@@ -571,8 +581,8 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = TD3(
@@ -634,8 +644,8 @@ def create_PERTD3(observation_size, action_num, config: acf.PERTD3Config):
     from cares_reinforcement_learning.algorithm.policy import PERTD3
     from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = PERTD3(
@@ -651,8 +661,8 @@ def create_LAPTD3(observation_size, action_num, config: acf.LAPTD3Config):
     from cares_reinforcement_learning.algorithm.policy import LAPTD3
     from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = LAPTD3(
@@ -668,8 +678,8 @@ def create_PALTD3(observation_size, action_num, config: acf.PALTD3Config):
     from cares_reinforcement_learning.algorithm.policy import PALTD3
     from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = PALTD3(
@@ -685,8 +695,8 @@ def create_LA3PTD3(observation_size, action_num, config: acf.LA3PTD3Config):
     from cares_reinforcement_learning.algorithm.policy import LA3PTD3
     from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = LA3PTD3(
@@ -702,8 +712,8 @@ def create_MAPERTD3(observation_size, action_num, config: acf.MAPERTD3Config):
     from cares_reinforcement_learning.algorithm.policy import MAPERTD3
     from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = MAPERTD3(
@@ -719,8 +729,8 @@ def create_RDTD3(observation_size, action_num, config: acf.RDTD3Config):
     from cares_reinforcement_learning.algorithm.policy import RDTD3
     from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
     agent = RDTD3(
@@ -738,8 +748,8 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
 
     device = hlp.get_device()
 
-    actor = Actor(observation_size, action_num, config=config)
-    ensemble_critic = Critic(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    ensemble_critic = Critic(observation_size["vector"], action_num, config=config)
 
     agent = CTD4(
         actor_network=actor,
@@ -757,9 +767,9 @@ def create_TD7(observation_size, action_num, config: acf.TD7Config):
 
     device = hlp.get_device()
 
-    actor = Actor(observation_size, action_num, config=config)
-    critic = Critic(observation_size, action_num, config=config)
-    encoder = Encoder(observation_size, action_num, config=config)
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
+    encoder = Encoder(observation_size["vector"], action_num, config=config)
 
     agent = TD7(
         actor_network=actor,

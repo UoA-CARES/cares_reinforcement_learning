@@ -78,7 +78,7 @@ class SACD(VectorAlgorithm):
 
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
 
         assert isinstance(state, np.ndarray)

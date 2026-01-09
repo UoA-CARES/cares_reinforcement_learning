@@ -21,8 +21,9 @@ from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
     ActionContext,
+    Observation,
+    TrainingContext,
 )
 
 
@@ -111,10 +112,8 @@ class NaSATD3(ImageAlgorithm):
         self.actor.eval()
         self.autoencoder.eval()
 
-        state = action_context.state
+        state = action_context.observation
         evaluation = action_context.evaluation
-
-        assert isinstance(state, dict)
 
         with torch.no_grad():
             state_tensor = tu.image_state_to_tensors(state, self.device)
@@ -372,9 +371,9 @@ class NaSATD3(ImageAlgorithm):
 
     def get_intrinsic_reward(
         self,
-        state: dict[str, np.ndarray],
+        state: Observation,
         action: np.ndarray,
-        next_state: dict[str, np.ndarray],
+        next_state: Observation,
         **kwargs: Any,
     ) -> float:
         if not self.intrinsic_on:

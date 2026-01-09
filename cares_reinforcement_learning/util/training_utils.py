@@ -5,19 +5,20 @@ Common functions used across different RL algorithms to reduce code duplication
 while maintaining readability for students.
 """
 
-from typing import Tuple, Any
+from typing import Any, Tuple
 
 import numpy as np
 import torch
 
 from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.util.training_context import Observation
 
 
 def batch_to_tensors(
-    states: np.ndarray,
+    states: list[Observation],
     actions: np.ndarray,
     rewards: np.ndarray,
-    next_states: np.ndarray,
+    next_states: list[Observation],
     dones: np.ndarray,
     device: torch.device,
     weights: np.ndarray | None = None,
@@ -36,15 +37,17 @@ def batch_to_tensors(
     torch.Tensor,
 ]:
     """Convert numpy arrays to tensors with consistent dtypes."""
-    states_tensor = torch.tensor(np.asarray(states), dtype=states_dtype, device=device)
+    obs = np.stack([s.vector_state for s in states], axis=0)  #
+    states_tensor = torch.tensor(np.asarray(obs), dtype=states_dtype, device=device)
     actions_tensor = torch.tensor(
         np.asarray(actions), dtype=action_dtype, device=device
     )
     rewards_tensor = torch.tensor(
         np.asarray(rewards), dtype=rewards_dtype, device=device
     )
+    next_obs = np.stack([s.vector_state for s in next_states], axis=0)
     next_states_tensor = torch.tensor(
-        np.asarray(next_states), dtype=next_states_dtype, device=device
+        np.asarray(next_obs), dtype=next_states_dtype, device=device
     )
     dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
 
@@ -72,15 +75,15 @@ def batch_to_tensors(
 
 
 def image_state_to_tensors(
-    state: dict[str, np.ndarray],
+    state: Observation,
     device: torch.device,
     dtype: torch.dtype = torch.float32,
 ) -> dict[str, torch.Tensor]:
     # For single inference, memory copying is less of a concern than safety
-    vector_tensor = torch.tensor(state["vector"], dtype=dtype, device=device)
+    vector_tensor = torch.tensor(state.vector_state, dtype=dtype, device=device)
     vector_tensor = vector_tensor.unsqueeze(0)
 
-    image_tensor = torch.tensor(state["image"], dtype=dtype, device=device)
+    image_tensor = torch.tensor(state.image_state, dtype=dtype, device=device)
     image_tensor = image_tensor.unsqueeze(0)
 
     # Normalise states - image portion
@@ -91,20 +94,20 @@ def image_state_to_tensors(
 
 
 def image_states_to_tensors(
-    states: list[dict[str, np.ndarray]],
+    states: list[Observation],
     device: torch.device,
     dtype: torch.dtype = torch.float32,
 ) -> dict[str, torch.Tensor]:
     n = len(states)
-    img_shape = states[0]["image"].shape
-    vec_shape = states[0]["vector"].shape
+    img_shape = states[0].image_state.shape  # type: ignore[union-attr]
+    vec_shape = states[0].vector_state.shape
 
     images = np.empty((n, *img_shape), dtype=np.float32)
     vectors = np.empty((n, *vec_shape), dtype=np.float32)
 
     for i in range(n):
-        images[i] = states[i]["image"]
-        vectors[i] = states[i]["vector"]
+        images[i] = states[i].image_state
+        vectors[i] = states[i].vector_state
 
     states_images_tensor = torch.tensor(images, device=device, dtype=dtype)
     states_vector_tensor = torch.tensor(vectors, device=device, dtype=dtype)
@@ -117,10 +120,10 @@ def image_states_to_tensors(
 
 
 def image_batch_to_tensors(
-    states: list[dict[str, np.ndarray]],
+    states: list[Observation],
     actions: np.ndarray,
     rewards: np.ndarray,
-    next_states: list[dict[str, np.ndarray]],
+    next_states: list[Observation],
     dones: np.ndarray,
     device: torch.device,
     weights: np.ndarray | None = None,
@@ -174,29 +177,28 @@ def image_batch_to_tensors(
 
 
 def marl_states_to_tensors(
-    states: list[dict[str, Any]],
+    states: list[Observation],
     device: torch.device,
     state_dtype: torch.dtype = torch.float32,
 ) -> tuple[dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
 
-    batch_size = len(states)
     first = states[0]
 
     # -------------------------------------------------
     # 1. Global state (always a single vector)
     # -------------------------------------------------
-    global_states = np.stack([s["state"] for s in states], axis=0)
+    global_states = np.stack([s.vector_state for s in states], axis=0)
     state_tensor = torch.as_tensor(global_states, dtype=state_dtype, device=device)
 
     # -------------------------------------------------
     # 2. Per-agent observations (dict[str → (batch, obs_dim_i)])
     # -------------------------------------------------
-    agent_names = list(first["obs"].keys())
+    agent_names = list(first.agent_states.keys())  # type: ignore[union-attr]
     obs_tensors: dict[str, torch.Tensor] = {}
 
     for agent in agent_names:
         # collect obs across batch for a single agent
-        obs_list = [s["obs"][agent] for s in states]
+        obs_list = [s.agent_states[agent] for s in states]  # type: ignore[index]
         obs_tensors[agent] = torch.as_tensor(
             np.stack(obs_list, axis=0),  # (batch, obs_dim_i)
             dtype=state_dtype,
@@ -207,24 +209,21 @@ def marl_states_to_tensors(
     # 3. Global avail-actions (rectangular)
     #    shape: (batch, n_agents, action_dim)
     # -------------------------------------------------
-    avail_actions_list = [s["avail_actions"] for s in states]
+    avail_actions_list = [s.avail_actions for s in states]
     avail_actions_tensor = torch.as_tensor(
-        np.stack(avail_actions_list, axis=0),
+        np.stack(avail_actions_list, axis=0),  # type: ignore[arg-type]
         dtype=torch.float32,
         device=device,
     )
 
-    # -------------------------------------------------
-    # Output
-    # -------------------------------------------------
     return obs_tensors, state_tensor, avail_actions_tensor
 
 
 def marl_batch_to_tensors(
-    states: list[dict[str, np.ndarray]],
+    states: list[Observation],
     actions: list,
     rewards: list,
-    next_states: list[dict[str, np.ndarray]],
+    next_states: list[Observation],
     dones: list,
     device: torch.device,
     weights: np.ndarray | None = None,

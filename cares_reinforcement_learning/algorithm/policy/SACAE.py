@@ -23,6 +23,7 @@ from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
+    Observation,
     TrainingContext,
 )
 
@@ -104,10 +105,8 @@ class SACAE(ImageAlgorithm):
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation
         evaluation = action_context.evaluation
-
-        assert isinstance(state, dict)
 
         with torch.no_grad():
             state_tensor = tu.image_state_to_tensors(state, self.device)
