@@ -424,6 +424,50 @@ class PPOConfig(AlgorithmConfig):
     )
 
 
+
+###################################
+#         PPO2 Algorithms          #
+###################################
+
+
+class PPO2Config(AlgorithmConfig):
+    algorithm: str = "PPO2"
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.99
+    eps_clip: float = 0.2
+
+    # TODO is this G?
+    updates_per_iteration: int = 10
+
+    number_steps_per_train_policy: int = 5000
+
+    max_steps_exploration: int = 0
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64), # change 1024 to 64
+            FunctionLayer(layer_type="Tanh"), # change ReLU to Tanh
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="Tanh"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+            #FunctionLayer(layer_type="Tanh"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="Tanh"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="Tanh"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
+        ]
+    )
+
+
 ###################################
 #         SAC Algorithms          #
 ###################################

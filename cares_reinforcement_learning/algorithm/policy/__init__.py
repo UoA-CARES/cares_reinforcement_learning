@@ -5,6 +5,7 @@ from .SAC import SAC
 from .SACAE import SACAE
 from .SACD import SACD
 from .PPO import PPO
+from .PPO2 import PPO2
 from .NaSATD3 import NaSATD3
 from .CTD4 import CTD4
 from .RDTD3 import RDTD3

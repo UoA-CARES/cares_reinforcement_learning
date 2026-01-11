@@ -153,6 +153,22 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
     return agent
 
 
+def create_PPO2(observation_size, action_num, config: acf.PPO2Config):
+    from cares_reinforcement_learning.algorithm.policy import PPO2
+    from cares_reinforcement_learning.networks.PPO2 import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, config=config)
+
+    device = hlp.get_device()
+    agent = PPO2(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
 ###################################
 #         SAC Algorithms          #
 ###################################
