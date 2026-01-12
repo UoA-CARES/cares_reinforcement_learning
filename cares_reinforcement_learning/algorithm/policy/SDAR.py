@@ -269,16 +269,16 @@ class SDAR(VectorAlgorithm):
             _,  # rewards_t1_tensor (not used)
             _,  # next_states_t1_tensor (not used)
             _,  # dones_t1_tensor (not used)
-            states_tensor,  # states_t2_tensor (SDAR's current states)
+            observation_tensor,  # states_t2_tensor (SDAR's current states)
             actions_tensor,  # actions_t2_tensor (SDAR's current actions)
             rewards_tensor,  # rewards_t2_tensor (SDAR's current rewards)
-            next_states_tensor,  # next_states_t2_tensor (SDAR's next states)
+            next_observation_tensor,  # next_states_t2_tensor (SDAR's next states)
             dones_tensor,  # dones_t2_tensor (SDAR's current dones)
             _,  # indices (not used by SDAR)
         ) = tu.consecutive_sample_batch_to_tensors(memory, batch_size, self.device)
 
         # Create weights tensor (SDAR doesn't use PER with consecutive sampling)
-        batch_size = len(states_tensor)
+        batch_size = len(observation_tensor.vector_state_tensor)
         weights_tensor = torch.ones(
             batch_size, 1, dtype=torch.float32, device=self.device
         )
@@ -287,10 +287,10 @@ class SDAR(VectorAlgorithm):
 
         # Update the Critic
         critic_info, _ = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -299,7 +299,9 @@ class SDAR(VectorAlgorithm):
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor_alpha(
-                states_tensor, prev_actions_tensor, weights_tensor
+                observation_tensor.vector_state_tensor,
+                prev_actions_tensor,
+                weights_tensor,
             )
             info |= actor_info
             info["alpha"] = self.alpha.item()

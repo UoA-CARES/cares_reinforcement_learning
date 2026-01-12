@@ -17,109 +17,6 @@ from cares_reinforcement_learning.util.training_context import (
 )
 
 
-def consecutive_sample_batch_to_tensors(
-    memory: MemoryBuffer,
-    batch_size: int,
-    device: torch.device,
-    states_dtype: torch.dtype = torch.float32,
-    action_dtype: torch.dtype = torch.float32,
-    rewards_dtype: torch.dtype = torch.float32,
-    next_states_dtype: torch.dtype = torch.float32,
-    dones_dtype: torch.dtype = torch.long,
-    weights_dtype: torch.dtype = torch.float32,
-) -> tuple[
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    torch.Tensor,
-    np.ndarray,
-]:
-    # Sample consecutive batch from memory buffer - this returns the full consecutive interface
-    # state_i, action_i, reward_i, next_state_i, done_i, ..._i, state_i+1, action_i+1, reward_i+1, next_state_i+1, done_i+1, ..._+i
-    experiences = memory.sample_consecutive(batch_size)
-    (
-        states_t1,
-        actions_t1,
-        rewards_t1,
-        next_states_t1,
-        dones_t1,
-        states_t2,
-        actions_t2,
-        rewards_t2,
-        next_states_t2,
-        dones_t2,
-        indices,
-    ) = experiences
-
-    batch_size = len(states_t1)
-
-    # Convert to PyTorch tensors with specified dtypes
-    (
-        states_t1_tensor,
-        actions_t1_tensor,
-        rewards_t1_tensor,
-        next_states_t1_tensor,
-        dones_t1_tensor,
-        _,
-    ) = batch_to_tensors(
-        states_t1,
-        actions_t1,
-        rewards_t1,
-        next_states_t1,
-        dones_t1,
-        device,
-        states_dtype=states_dtype,
-        action_dtype=action_dtype,
-        rewards_dtype=rewards_dtype,
-        next_states_dtype=next_states_dtype,
-        dones_dtype=dones_dtype,
-        weights_dtype=weights_dtype,
-    )
-
-    # Also convert next_actions for temporal algorithms
-    (
-        states_t2_tensor,
-        actions_t2_tensor,
-        rewards_t2_tensor,
-        next_states_t2_tensor,
-        dones_t2_tensor,
-        _,
-    ) = batch_to_tensors(
-        states_t2,
-        actions_t2,
-        rewards_t2,
-        next_states_t2,
-        dones_t2,
-        device,
-        states_dtype=states_dtype,
-        action_dtype=action_dtype,
-        rewards_dtype=rewards_dtype,
-        next_states_dtype=next_states_dtype,
-        dones_dtype=dones_dtype,
-        weights_dtype=weights_dtype,
-    )
-
-    return (
-        states_t1_tensor,
-        actions_t1_tensor,
-        rewards_t1_tensor,
-        next_states_t1_tensor,
-        dones_t1_tensor,
-        states_t2_tensor,
-        actions_t2_tensor,
-        rewards_t2_tensor,
-        next_states_t2_tensor,
-        dones_t2_tensor,
-        indices,
-    )
-
-
 def observation_to_tensors(
     observations: list[Observation],
     device: torch.device,
@@ -250,6 +147,109 @@ def sample_to_tensors(
         next_states_tensor,
         dones_tensor,
         weights_tensor,
+    )
+
+
+def consecutive_sample_batch_to_tensors(
+    memory: MemoryBuffer,
+    batch_size: int,
+    device: torch.device,
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    ObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    ObservationTensors,
+    torch.Tensor,
+    ObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    ObservationTensors,
+    torch.Tensor,
+    np.ndarray,
+]:
+    # Sample consecutive batch from memory buffer - this returns the full consecutive interface
+    # state_i, action_i, reward_i, next_state_i, done_i, ..._i, state_i+1, action_i+1, reward_i+1, next_state_i+1, done_i+1, ..._+i
+    experiences = memory.sample_consecutive(batch_size)
+    (
+        states_t1,
+        actions_t1,
+        rewards_t1,
+        next_states_t1,
+        dones_t1,
+        states_t2,
+        actions_t2,
+        rewards_t2,
+        next_states_t2,
+        dones_t2,
+        indices,
+    ) = experiences
+
+    batch_size = len(states_t1)
+
+    # Convert to PyTorch tensors with specified dtypes
+    (
+        observations_t1_tensor,
+        actions_t1_tensor,
+        rewards_t1_tensor,
+        next_observations_t1_tensor,
+        dones_t1_tensor,
+        _,
+    ) = sample_to_tensors(
+        states_t1,
+        actions_t1,
+        rewards_t1,
+        next_states_t1,
+        dones_t1,
+        device,
+        states_dtype=states_dtype,
+        action_dtype=action_dtype,
+        rewards_dtype=rewards_dtype,
+        next_states_dtype=next_states_dtype,
+        dones_dtype=dones_dtype,
+        weights_dtype=weights_dtype,
+    )
+
+    # Also convert next_actions for temporal algorithms
+    (
+        observations_t2_tensor,
+        actions_t2_tensor,
+        rewards_t2_tensor,
+        next_observations_t2_tensor,
+        dones_t2_tensor,
+        _,
+    ) = sample_to_tensors(
+        states_t2,
+        actions_t2,
+        rewards_t2,
+        next_states_t2,
+        dones_t2,
+        device,
+        states_dtype=states_dtype,
+        action_dtype=action_dtype,
+        rewards_dtype=rewards_dtype,
+        next_states_dtype=next_states_dtype,
+        dones_dtype=dones_dtype,
+        weights_dtype=weights_dtype,
+    )
+
+    return (
+        observations_t1_tensor,
+        actions_t1_tensor,
+        rewards_t1_tensor,
+        next_observations_t1_tensor,
+        dones_t1_tensor,
+        observations_t2_tensor,
+        actions_t2_tensor,
+        rewards_t2_tensor,
+        next_observations_t2_tensor,
+        dones_t2_tensor,
+        indices,
     )
 
 

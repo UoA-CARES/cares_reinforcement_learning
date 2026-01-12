@@ -378,9 +378,9 @@ class NaSATD3(ImageAlgorithm):
 
     def get_intrinsic_reward(
         self,
-        state: Observation,
+        observation: Observation,
         action: np.ndarray,
-        next_state: Observation,
+        next_observation: Observation,
         **kwargs: Any,
     ) -> float:
         if not self.intrinsic_on:
@@ -388,17 +388,25 @@ class NaSATD3(ImageAlgorithm):
             return 0.0
 
         with torch.no_grad():
-            state_tensor = tu.image_state_to_tensors(state, self.device)
-            next_state_tensor = tu.image_state_to_tensors(next_state, self.device)
+            observation_tensor = tu.observation_to_tensors([observation], self.device)
+            next_observation_tensor = tu.observation_to_tensors(
+                [next_observation], self.device
+            )
+
+            assert observation_tensor.image_state_tensor is not None
+            assert next_observation_tensor.image_state_tensor is not None
+
             action_tensor = torch.tensor(
                 action, dtype=torch.float32, device=self.device
             )
             action_tensor = action_tensor.unsqueeze(0)
 
             surprise_rate = self._get_surprise_rate(
-                state_tensor["image"], action_tensor, next_state_tensor["image"]
+                observation_tensor.image_state_tensor,
+                action_tensor,
+                next_observation_tensor.image_state_tensor,
             )
-            novelty_rate = self._get_novelty_rate(state_tensor["image"])
+            novelty_rate = self._get_novelty_rate(observation_tensor.image_state_tensor)
 
         # TODO make these parameters - i.e. Tony's work
         a = 1.0

@@ -144,9 +144,9 @@ class Algorithm(ABC):
 
     def get_intrinsic_reward(
         self,
-        state: Observation,  # pylint: disable=unused-argument
+        observation: Observation,  # pylint: disable=unused-argument
         action: np.ndarray,  # pylint: disable=unused-argument
-        next_state: Observation,  # pylint: disable=unused-argument
+        next_observation: Observation,  # pylint: disable=unused-argument
         **kwargs: Any,  # pylint: disable=unused-argument
     ) -> float:
         """
