@@ -163,17 +163,17 @@ class DQN(VectorAlgorithm):
 
         # Use training_utils to sample and prepare batch
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = tu.sample(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
@@ -187,10 +187,10 @@ class DQN(VectorAlgorithm):
 
         # Calculate loss - overriden by C51
         elementwise_loss = self._compute_loss(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             batch_size,
         )

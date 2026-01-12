@@ -158,16 +158,15 @@ class REDQ(SAC):
         memory = training_context.memory
         batch_size = training_context.batch_size
 
-        # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             _,
             _,
-        ) = tu.sample_batch_to_tensors(
+        ) = tu.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
@@ -178,17 +177,19 @@ class REDQ(SAC):
 
         # Update the Critics
         critic_info = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
         )
         info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_info = self._update_actor_alpha(states_tensor)
+            actor_info = self._update_actor_alpha(
+                observation_tensor.vector_state_tensor
+            )
             info |= actor_info
             info["alpha"] = self.alpha.item()
 

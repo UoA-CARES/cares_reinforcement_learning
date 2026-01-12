@@ -132,36 +132,39 @@ class PPO(VectorAlgorithm):
         # pylint: disable-next=unused-argument
 
         memory = training_context.memory
-        batch_size = training_context.batch_size
 
         experiences = memory.flush()
         states, actions, rewards, next_states, dones = experiences
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
             _,  # next_states not used in PPO
             dones_tensor,
             _,  # weights not needed
-        ) = tu.batch_to_tensors(
-            np.asarray(states),
-            np.asarray(actions),
-            np.asarray(rewards),
-            np.asarray(next_states),
-            np.asarray(dones),
+        ) = tu.sample_to_tensors(
+            states,  # type: ignore[arg-type]
+            actions,  # type: ignore[arg-type]
+            rewards,  # type: ignore[arg-type]
+            next_states,  # type: ignore[arg-type]
+            dones,  # type: ignore[arg-type]
             self.device,
         )
 
-        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
+        log_probs_tensor = self._calculate_log_prob(
+            observation_tensor.vector_state_tensor, actions_tensor
+        )
 
         # compute reward to go:
         rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
         # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
 
         # calculate advantages
-        v, _ = self._evaluate_policy(states_tensor, actions_tensor)
+        v, _ = self._evaluate_policy(
+            observation_tensor.vector_state_tensor, actions_tensor
+        )
 
         advantages = rtgs.detach() - v.detach()
 
@@ -171,7 +174,9 @@ class PPO(VectorAlgorithm):
         td_errors = torch.abs(advantages).data.cpu().numpy()
 
         for _ in range(self.updates_per_iteration):
-            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor)
+            v, curr_log_probs = self._evaluate_policy(
+                observation_tensor.vector_state_tensor, actions_tensor
+            )
 
             # Calculate ratios
             ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())

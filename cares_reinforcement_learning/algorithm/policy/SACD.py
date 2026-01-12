@@ -174,16 +174,15 @@ class SACD(VectorAlgorithm):
         memory = training_context.memory
         batch_size = training_context.batch_size
 
-        # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             _,
             _,
-        ) = tu.sample_batch_to_tensors(
+        ) = tu.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
@@ -194,17 +193,19 @@ class SACD(VectorAlgorithm):
 
         # Update the Critic
         critic_loss_total = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
         )
         info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
+            actor_loss, alpha_loss = self._update_actor_alpha(
+                observation_tensor.vector_state_tensor
+            )
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()

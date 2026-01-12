@@ -103,15 +103,21 @@ class QMIX(VectorAlgorithm):
         actions = []
 
         # Get greedy actions for all agents once
-        obs_dict_tensors, _, avail_actions_tensor = tu.marl_states_to_tensors(
-            [state], self.device
-        )
-        obs_tensors = self._stack_obs(obs_dict_tensors)  # [1, num_agents, obs_dim]
+        observation_tensors = tu.observation_to_tensors([state], self.device)
+
+        assert observation_tensors.agent_states_tensor is not None
+        assert observation_tensors.avail_actions_tensor is not None
+        # obs_dict_tensors, _, avail_actions_tensor = tu.marl_states_to_tensors(
+        #     [state], self.device
+        # )
+
+        # [1, num_agents, obs_dim]
+        obs_tensors = self._stack_obs(observation_tensors.agent_states_tensor)
 
         self.network.eval()
         with torch.no_grad():
             q_values = self.network(obs_tensors)  # [1, num_agents, num_actions]
-            mask = avail_actions_tensor == 0
+            mask = observation_tensors.avail_actions_tensor == 0
             q_values = q_values.masked_fill(mask, -1e9)
             greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
         self.network.train()
@@ -220,48 +226,61 @@ class QMIX(VectorAlgorithm):
 
         # Use training_utils to sample and prepare batch
         (
-            obs_dict_tensors,
-            states_tensors,
-            _,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_obs_dict_tensors,
-            next_states_tensors,
-            next_avail_actions_tensors,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_marl_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = tu.sample(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
             action_dtype=torch.long,  # DQN uses discrete actions
         )
 
+        assert observation_tensor.agent_states_tensor is not None
+        assert next_observation_tensor.agent_states_tensor is not None
+        assert next_observation_tensor.avail_actions_tensor is not None
+
+        # torch.Size([32, 3, 1]) torch.Size([32, 3, 1]) torch.Size([32, 1])
+        # torch.Size([32, 1, 1]) torch.Size([32, 1, 1]) torch.Size([32, 1])
+        # torch.Size([32]) torch.Size([32]) torch.Size([32])
+
+        print(rewards_tensor.shape, dones_tensor.shape, weights_tensor.shape)
+
         # Compress rewards and dones to 1D tensors for cooperative setting
         rewards_tensor = rewards_tensor.sum(dim=1, keepdim=True)
         dones_tensor = dones_tensor.any(dim=1, keepdim=True).float()
 
         # Reshape tensors to match DQN's expected dimensions
+
+        print(rewards_tensor.shape, dones_tensor.shape, weights_tensor.shape)
+
         rewards_tensor = rewards_tensor.view(-1)
         dones_tensor = dones_tensor.view(-1)
         weights_tensor = weights_tensor.view(-1)
 
-        obs_tensors = self._stack_obs(obs_dict_tensors)
-        next_obs_tensors = self._stack_obs(next_obs_dict_tensors)
+        print(rewards_tensor.shape, dones_tensor.shape, weights_tensor.shape)
+
+        exit()
+
+        obs_tensors = self._stack_obs(observation_tensor.agent_states_tensor)
+        next_obs_tensors = self._stack_obs(next_observation_tensor.agent_states_tensor)
 
         # Calculate loss - overriden by C51
         elementwise_loss, loss_info = self._compute_loss(
             obs_tensors=obs_tensors,
             next_obs_tensors=next_obs_tensors,
-            states_tensors=states_tensors,
-            next_states_tensors=next_states_tensors,
+            states_tensors=observation_tensor.vector_state_tensor,
+            next_states_tensors=next_observation_tensor.vector_state_tensor,
             actions_tensors=actions_tensor,
             rewards_tensors=rewards_tensor,
-            next_avail_actions_tensors=next_avail_actions_tensors,
+            next_avail_actions_tensors=next_observation_tensor.avail_actions_tensor,
             dones_tensors=dones_tensor,
         )
         info |= loss_info

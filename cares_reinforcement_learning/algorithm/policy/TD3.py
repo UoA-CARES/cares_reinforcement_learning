@@ -264,14 +264,14 @@ class TD3(VectorAlgorithm):
 
         # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_batch_to_tensors(
+        ) = tu.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
@@ -283,10 +283,10 @@ class TD3(VectorAlgorithm):
         info = self.update_networks(
             memory,
             indices,
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             weights_tensor,
         )

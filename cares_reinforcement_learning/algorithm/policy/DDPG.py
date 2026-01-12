@@ -114,14 +114,14 @@ class DDPG(Algorithm):
 
         # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             _,
             _,
-        ) = tu.sample_batch_to_tensors(
+        ) = tu.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
@@ -132,16 +132,16 @@ class DDPG(Algorithm):
 
         # Update Critic
         critic_info = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
         )
         info |= critic_info
 
         # Update Actor
-        actor_info = self._update_actor(states_tensor)
+        actor_info = self._update_actor(observation_tensor.vector_state_tensor)
         info |= actor_info
 
         self.update_target_networks()
