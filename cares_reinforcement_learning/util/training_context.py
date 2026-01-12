@@ -37,15 +37,15 @@ class Observation:
 
 
 @dataclass
-class StateTensors:
+class ObservationTensors:
     # Vector Based
-    states_tensor: torch.Tensor | None = None
+    vector_state_tensor: torch.Tensor
 
     # Image Based
-    images_tensor: torch.Tensor | None = None
+    image_state_tensor: torch.Tensor | None = None
 
     # MARL specific
-    agent_observations_tensor: dict[str, torch.Tensor] | None = None
+    agent_states_tensor: dict[str, torch.Tensor] | None = None
     avail_actions_tensor: torch.Tensor | None = None
 
 
