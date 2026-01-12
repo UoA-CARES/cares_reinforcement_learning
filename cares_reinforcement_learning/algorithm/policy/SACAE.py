@@ -23,7 +23,7 @@ from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
-    Observation,
+    ObservationTensors,
     TrainingContext,
 )
 
@@ -109,12 +109,12 @@ class SACAE(ImageAlgorithm):
         evaluation = action_context.evaluation
 
         with torch.no_grad():
-            state_tensor = tu.image_state_to_tensors(state, self.device)
+            observation_tensors = tu.observation_to_tensors([state], self.device)
 
             if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
+                (_, _, action) = self.actor_net(observation_tensors)
             else:
-                (action, _, _) = self.actor_net(state_tensor)
+                (action, _, _) = self.actor_net(observation_tensors)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -125,10 +125,10 @@ class SACAE(ImageAlgorithm):
 
     def _update_critic(
         self,
-        states: dict[str, torch.Tensor],
+        states: ObservationTensors,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
+        next_states: ObservationTensors,
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
@@ -184,7 +184,7 @@ class SACAE(ImageAlgorithm):
 
         return info, priorities
 
-    def _update_actor_alpha(self, states: dict[str, torch.Tensor]) -> dict[str, Any]:
+    def _update_actor_alpha(self, states: ObservationTensors) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
 
         with hlp.evaluating(self.critic_net):
@@ -240,30 +240,32 @@ class SACAE(ImageAlgorithm):
 
         # Sample and convert to tensors using multimodal sampling
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_image_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = tu.sample(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
+        assert observation_tensor.image_state_tensor is not None
+
         info: dict[str, Any] = {}
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -271,7 +273,7 @@ class SACAE(ImageAlgorithm):
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            actor_info = self._update_actor_alpha(states_tensor)
+            actor_info = self._update_actor_alpha(observation_tensor)
             info |= actor_info
             info["alpha"] = self.alpha.item()
 
@@ -290,7 +292,7 @@ class SACAE(ImageAlgorithm):
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_info = self._update_autoencoder(states_tensor["image"])
+            ae_info = self._update_autoencoder(observation_tensor.image_state_tensor)
             info |= ae_info
 
         # Update the Priorities

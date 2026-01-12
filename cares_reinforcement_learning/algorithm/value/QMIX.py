@@ -247,27 +247,14 @@ class QMIX(VectorAlgorithm):
         assert next_observation_tensor.agent_states_tensor is not None
         assert next_observation_tensor.avail_actions_tensor is not None
 
-        # torch.Size([32, 3, 1]) torch.Size([32, 3, 1]) torch.Size([32, 1])
-        # torch.Size([32, 1, 1]) torch.Size([32, 1, 1]) torch.Size([32, 1])
-        # torch.Size([32]) torch.Size([32]) torch.Size([32])
-
-        print(rewards_tensor.shape, dones_tensor.shape, weights_tensor.shape)
-
         # Compress rewards and dones to 1D tensors for cooperative setting
         rewards_tensor = rewards_tensor.sum(dim=1, keepdim=True)
         dones_tensor = dones_tensor.any(dim=1, keepdim=True).float()
 
         # Reshape tensors to match DQN's expected dimensions
-
-        print(rewards_tensor.shape, dones_tensor.shape, weights_tensor.shape)
-
         rewards_tensor = rewards_tensor.view(-1)
         dones_tensor = dones_tensor.view(-1)
         weights_tensor = weights_tensor.view(-1)
-
-        print(rewards_tensor.shape, dones_tensor.shape, weights_tensor.shape)
-
-        exit()
 
         obs_tensors = self._stack_obs(observation_tensor.agent_states_tensor)
         next_obs_tensors = self._stack_obs(next_observation_tensor.agent_states_tensor)

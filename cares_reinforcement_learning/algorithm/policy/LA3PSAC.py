@@ -45,13 +45,13 @@ class LA3PSAC(SAC):
 
         # Convert into tensors using helper method
         (
-            states_tensor,
+            observartion_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             _,
-        ) = tu.batch_to_tensors(
+        ) = tu.sample_to_tensors(
             states,
             actions,
             rewards,
@@ -62,10 +62,12 @@ class LA3PSAC(SAC):
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
-                next_actions, next_log_pi, _ = self.actor_net(next_states_tensor)
+                next_actions, next_log_pi, _ = self.actor_net(
+                    next_observation_tensor.vector_state_tensor
+                )
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_states_tensor, next_actions
+                next_observation_tensor.vector_state_tensor, next_actions
             )
 
             target_q_values = (
@@ -78,7 +80,9 @@ class LA3PSAC(SAC):
                 + self.gamma * (1 - dones_tensor) * target_q_values
             )
 
-        q_values_one, q_values_two = self.critic_net(states_tensor, actions_tensor)
+        q_values_one, q_values_two = self.critic_net(
+            observartion_tensor.vector_state_tensor, actions_tensor
+        )
 
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
@@ -161,13 +165,11 @@ class LA3PSAC(SAC):
         # Train Actor
         weights = np.array([1.0] * len(states))
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
-        states_tensor = torch.tensor(
-            np.array([state.vector_state for state in states]),
-            dtype=torch.float32,
-            device=self.device,
-        )
+        observation_tensor = tu.observation_to_tensors(states, device=self.device)
 
-        actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
+        actor_info = self._update_actor_alpha(
+            observation_tensor.vector_state_tensor, weights_tensor
+        )
         info_uniform |= actor_info
         info_uniform["alpha"] = self.alpha.item()
 
@@ -204,14 +206,12 @@ class LA3PSAC(SAC):
         states, _, _, _, _, _, _ = experiences
         weights = np.array([1.0] * len(states))
 
-        states_tensor = torch.tensor(
-            np.array([state.vector_state for state in states]),
-            dtype=torch.float32,
-            device=self.device,
-        )
+        observation_tensor = tu.observation_to_tensors(states, device=self.device)
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
 
-        actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
+        actor_info = self._update_actor_alpha(
+            observation_tensor.vector_state_tensor, weights_tensor
+        )
         info_priority |= actor_info
         info_priority["alpha"] = self.alpha.item()
 

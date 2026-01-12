@@ -5,7 +5,7 @@ Common functions used across different RL algorithms to reduce code duplication
 while maintaining readability for students.
 """
 
-from typing import Any, Tuple
+from typing import Tuple
 
 import numpy as np
 import torch

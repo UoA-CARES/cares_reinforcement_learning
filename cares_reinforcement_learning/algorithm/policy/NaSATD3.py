@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 
 # This is used to metric the novelty.
+# pylint: disable=import-error, no-name-in-module
 from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
@@ -23,6 +24,7 @@ from cares_reinforcement_learning.util.configurations import NaSATD3Config
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
     Observation,
+    ObservationTensors,
     TrainingContext,
 )
 
@@ -116,9 +118,9 @@ class NaSATD3(ImageAlgorithm):
         evaluation = action_context.evaluation
 
         with torch.no_grad():
-            state_tensor = tu.image_state_to_tensors(state, self.device)
+            observation_tensors = tu.observation_to_tensors([state], self.device)
 
-            action = self.actor(state_tensor)
+            action = self.actor(observation_tensors)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
@@ -135,10 +137,10 @@ class NaSATD3(ImageAlgorithm):
 
     def _update_critic(
         self,
-        states: dict[str, torch.Tensor],
+        states: ObservationTensors,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
+        next_states: ObservationTensors,
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
         with torch.no_grad():
@@ -174,7 +176,7 @@ class NaSATD3(ImageAlgorithm):
         ae_loss = self.autoencoder.update_autoencoder(states)
         return ae_loss.item()
 
-    def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
+    def _update_actor(self, states: ObservationTensors) -> float:
         actor_q_one, actor_q_two = self.critic(
             states, self.actor(states, detach_encoder=True), detach_encoder=True
         )
@@ -204,18 +206,21 @@ class NaSATD3(ImageAlgorithm):
 
     def _update_predictive_model(
         self,
-        states: dict[str, torch.Tensor],
+        states: ObservationTensors,
         actions: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
+        next_states: ObservationTensors,
     ) -> list[float]:
+
+        assert states.image_state_tensor is not None
+        assert next_states.image_state_tensor is not None
 
         with torch.no_grad():
             latent_state = self._get_latent_state(
-                states["image"], detach_output=True, sample_latent=True
+                states.image_state_tensor, detach_output=True, sample_latent=True
             )
 
             latent_next_state = self._get_latent_state(
-                next_states["image"], detach_output=True, sample_latent=True
+                next_states.image_state_tensor, detach_output=True, sample_latent=True
             )
 
         pred_losses = []
@@ -259,29 +264,31 @@ class NaSATD3(ImageAlgorithm):
 
         # Convert to tensors using multimodal batch conversion
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
-            _,  # weights not used
-        ) = tu.image_batch_to_tensors(
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-            self.device,
+            _,
+            _,
+        ) = tu.sample(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
+            use_per_buffer=0,  # NaSATD3 uses uniform sampling
         )
+
+        assert observation_tensor.image_state_tensor is not None
+        assert next_observation_tensor.image_state_tensor is not None
 
         info: dict[str, Any] = {}
 
         # Update the Critic
         critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
         )
         info["critic_loss_one"] = critic_loss_one
@@ -289,12 +296,12 @@ class NaSATD3(ImageAlgorithm):
         info["critic_loss_total"] = critic_loss_total
 
         # Update Autoencoder
-        ae_loss = self._update_autoencoder(states_tensor["image"])
+        ae_loss = self._update_autoencoder(observation_tensor.image_state_tensor)
         info["ae_loss"] = ae_loss
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states_tensor)
+            actor_loss = self._update_actor(observation_tensor)
             info["actor_loss"] = actor_loss
 
             # Update target network params
@@ -311,7 +318,7 @@ class NaSATD3(ImageAlgorithm):
         # Update intrinsic models
         if self.intrinsic_on:
             pred_losses = self._update_predictive_model(
-                states_tensor, actions_tensor, next_states_tensor
+                observation_tensor, actions_tensor, next_observation_tensor
             )
             info["pred_losses"] = pred_losses
 
