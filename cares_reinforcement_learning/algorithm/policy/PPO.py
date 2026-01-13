@@ -132,7 +132,14 @@ class PPO(VectorAlgorithm):
         batch_size = training_context.batch_size
 
         experiences = memory.flush()
-        states, actions, rewards, next_states, dones = experiences
+        #states, actions, rewards, next_states, dones = experiences
+        # Compatible with PPO2: only unpack the first 5 standard fields
+        states       = experiences[0]
+        actions      = experiences[1]
+        rewards      = experiences[2]
+        next_states  = experiences[3]
+        dones        = experiences[4]
+        episode_end  = experiences[5] if len(experiences) > 5 else dones
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
         (

@@ -172,6 +172,54 @@ class PPO2(VectorAlgorithm):
         )  # shape 5000
         return batch_rtgs
 
+    # def _calculate_rewards_to_go_episode_end(
+    #     self, batch_rewards: torch.Tensor, batch_dones: torch.Tensor, batch_episode_end: torch.Tensor, batch_next_states: torch.Tensor,
+    # ) -> torch.Tensor:
+    #     rtgs: list[float] = []
+    #     discounted_reward = 0
+    #     for reward, done, episode_end in zip(reversed(batch_rewards), reversed(batch_dones), reversed(batch_episode_end)):
+    #         if done[i] == batch_episode_end[i] == 1:
+    #             discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
+    #             rtgs.insert(0, discounted_reward)
+    #         if done[i] != 1 and batch_episode_end[i] == 1:
+    #             discounted_reward = reward + self.gamma * self._calculate_value(batch_next_states)
+    #             rtgs.insert(0, discounted_reward)
+    #     batch_rtgs_episode_end = torch.tensor(
+    #         rtgs, dtype=torch.float32, device=self.device
+    #     )  # shape 5000
+    #     return batch_rtgs_episode_end
+
+    def _calculate_rewards_to_go_episode_end(
+        self,
+        batch_rewards: torch.Tensor,
+        batch_dones: torch.Tensor,
+        batch_episode_end: torch.Tensor,
+        batch_next_states: torch.Tensor,
+    ) -> torch.Tensor:
+        with torch.no_grad():
+            next_values = self.critic_net(batch_next_states).cpu().numpy()
+        rewards = batch_rewards.cpu().numpy()
+        dones = batch_dones.cpu().numpy()
+        episode_ends = batch_episode_end.cpu().numpy()
+
+        rtgs = []
+        discounted_reward = 0
+
+        for i in reversed(range(len(rewards))):
+            if episode_ends[i]:
+                if dones[i]:
+                    discounted_reward = rewards[i]
+                else:
+                    # Target = r + gamma * V(s_next)
+                    discounted_reward = rewards[i] + self.gamma * next_values[i]
+            else:
+                # Target = r + gamma * discounted_reward
+                discounted_reward = rewards[i] + self.gamma * discounted_reward
+            rtgs.insert(0, discounted_reward)
+
+        batch_rtgs = torch.tensor(rtgs, dtype=torch.float32, device=self.device).squeeze() # shape 5000
+        return batch_rtgs
+
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
 
@@ -179,14 +227,21 @@ class PPO2(VectorAlgorithm):
         batch_size = training_context.batch_size
 
         experiences = memory.flush()
-        states, actions, rewards, next_states, dones = experiences
+        #states, actions, rewards, next_states, dones = experiences
+        states       = experiences[0]
+        actions      = experiences[1]
+        rewards      = experiences[2]
+        next_states  = experiences[3]
+        dones        = experiences[4]
+        episode_end  = experiences[5] if len(experiences) > 5 else dones
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
         (
             states_tensor,
             actions_tensor,
             rewards_tensor,
-            _,  # next_states not used in PPO
+            #_,  # next_states not used in PPO
+            next_states_tensor, # next_states for rtgs_episode_end estimated when truncated = 1
             dones_tensor,
             _,  # weights not needed
         ) = tu.batch_to_tensors(
@@ -197,17 +252,30 @@ class PPO2(VectorAlgorithm):
             np.asarray(dones),
             self.device,
         )
+        # Convert episode_end to tensors
+        episode_end_tensor = torch.tensor(np.asarray(episode_end), dtype=torch.long, device=self.device)
+        episode_end_tensor = episode_end_tensor.reshape(len(episode_end_tensor), 1)
 
         log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
         # compute reward to go:
-        rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
+        #rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
         # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
+
+        # new rtgs to covert dones and truncated and calculate in differnt methods
+        # dones: task fail, reward = last_reward, 0 or -100, depends on tasks
+        # truncated: steps reach the max_steps in tasks, reward = last_reward + gamma*critic.net(next_state)
+        rtgs_episode_end = self._calculate_rewards_to_go_episode_end(rewards_tensor, dones_tensor, episode_end_tensor, next_states_tensor) # shape 5000
 
         # calculate advantages
         v, _ = self._evaluate_policy(states_tensor, actions_tensor)
 
-        advantages = rtgs.detach() - v.detach()
+        # for shape verfication
+        if rtgs_episode_end.shape != v.shape:
+            logging.warning(f"check 1: rtgs_episode_end Shape Mismatch! rtgs: {rtgs_episode_end.shape}, v: {v.shape}")
+            rtgs_episode_end = rtgs_episode_end.view_as(v)
+        #advantages = rtgs.detach() - v.detach()
+        advantages = rtgs_episode_end.detach() - v.detach() # use rtgs_episode_end
 
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
@@ -228,7 +296,14 @@ class PPO2(VectorAlgorithm):
 
             # final loss of clipped objective PPO
             actor_loss = (-torch.minimum(surrogate_lose_one, surrogate_lose_two)).mean()
-            critic_loss = F.mse_loss(v, rtgs)
+            #critic_loss = F.mse_loss(v, rtgs)
+
+            # for shape verfication
+            if rtgs_episode_end.shape != v.shape:
+                logging.warning(f"check 2: rtgs_episode_end Shape Mismatch! rtgs: {rtgs_episode_end.shape}, v: {v.shape}")
+                rtgs_episode_end = rtgs_episode_end.view_as(v)
+
+            critic_loss = F.mse_loss(v, rtgs_episode_end) # use rtgs_episode_end
 
             self.actor_net_optimiser.zero_grad()
             actor_loss.backward(retain_graph=True)
