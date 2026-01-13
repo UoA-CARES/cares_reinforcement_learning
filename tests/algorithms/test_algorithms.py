@@ -5,13 +5,11 @@ import numpy as np
 import pytest
 
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 from cares_reinforcement_learning.util.network_factory import NetworkFactory
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    Observation,
-)
 
 
 def _policy_buffer(

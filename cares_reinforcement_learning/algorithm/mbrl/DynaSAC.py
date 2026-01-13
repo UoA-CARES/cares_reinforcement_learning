@@ -22,11 +22,9 @@ from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
     EnsembleWorldReward,
 )
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
-)
 
 
 class DynaSAC(VectorAlgorithm):

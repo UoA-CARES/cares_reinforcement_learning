@@ -13,20 +13,20 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
-from cares_reinforcement_learning.util.configurations import NaSATD3Config
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import (
     Observation,
     ObservationTensors,
-    TrainingContext,
 )
+from cares_reinforcement_learning.types.training import TrainingContext
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
 class NaSATD3(ImageAlgorithm):
@@ -118,7 +118,9 @@ class NaSATD3(ImageAlgorithm):
         evaluation = action_context.evaluation
 
         with torch.no_grad():
-            observation_tensors = tu.observation_to_tensors([state], self.device)
+            observation_tensors = memory_sampler.observation_to_tensors(
+                [state], self.device
+            )
 
             action = self.actor(observation_tensors)
             action = action.cpu().data.numpy().flatten()
@@ -259,9 +261,6 @@ class NaSATD3(ImageAlgorithm):
         self.action_noise *= self.action_noise_decay
         self.action_noise = max(self.min_action_noise, self.action_noise)
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
         # Convert to tensors using multimodal batch conversion
         (
             observation_tensor,
@@ -271,7 +270,7 @@ class NaSATD3(ImageAlgorithm):
             dones_tensor,
             _,
             _,
-        ) = tu.sample(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
@@ -388,8 +387,10 @@ class NaSATD3(ImageAlgorithm):
             return 0.0
 
         with torch.no_grad():
-            observation_tensor = tu.observation_to_tensors([observation], self.device)
-            next_observation_tensor = tu.observation_to_tensors(
+            observation_tensor = memory_sampler.observation_to_tensors(
+                [observation], self.device
+            )
+            next_observation_tensor = memory_sampler.observation_to_tensors(
                 [next_observation], self.device
             )
 

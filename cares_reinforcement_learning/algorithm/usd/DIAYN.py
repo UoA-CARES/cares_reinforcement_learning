@@ -15,12 +15,10 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    Observation,
-    TrainingContext,
-)
 
 
 class DIAYN(VectorAlgorithm):

@@ -14,7 +14,7 @@ from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.TQC import Actor, Critic
 from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.configurations import TQCConfig
-from cares_reinforcement_learning.util.training_context import Observation
+from cares_reinforcement_learning.types.observation import Observation
 
 
 class TQC(SAC):

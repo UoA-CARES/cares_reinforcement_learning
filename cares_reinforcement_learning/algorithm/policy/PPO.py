@@ -17,15 +17,13 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import PPOConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    Observation,
-    TrainingContext,
-)
 
 
 class PPO(VectorAlgorithm):
@@ -144,7 +142,7 @@ class PPO(VectorAlgorithm):
             _,  # next_states not used in PPO
             dones_tensor,
             _,  # weights not needed
-        ) = tu.sample_to_tensors(
+        ) = memory_sampler.sample_to_tensors(
             states,  # type: ignore[arg-type]
             actions,  # type: ignore[arg-type]
             rewards,  # type: ignore[arg-type]

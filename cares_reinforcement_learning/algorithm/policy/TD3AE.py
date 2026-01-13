@@ -13,17 +13,15 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import ObservationTensors
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    ObservationTensors,
-    TrainingContext,
-)
 
 
 class TD3AE(ImageAlgorithm):
@@ -108,7 +106,9 @@ class TD3AE(ImageAlgorithm):
         evaluation = action_context.evaluation
 
         with torch.no_grad():
-            observation_tensors = tu.observation_to_tensors([state], self.device)
+            observation_tensors = memory_sampler.observation_to_tensors(
+                [state], self.device
+            )
 
             action = self.actor_net(observation_tensors)
             action = action.cpu().data.numpy().flatten()
@@ -245,7 +245,7 @@ class TD3AE(ImageAlgorithm):
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,

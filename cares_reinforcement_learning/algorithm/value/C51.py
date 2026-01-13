@@ -2,12 +2,8 @@
 Original Paper:
 """
 
-from typing import Any
-
-import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.C51 import Network as C51Network
 from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork

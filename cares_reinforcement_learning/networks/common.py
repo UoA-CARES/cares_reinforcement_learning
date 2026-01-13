@@ -17,6 +17,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     VanillaAutoencoder,
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
+from cares_reinforcement_learning.types.observation import ObservationTensors
 from cares_reinforcement_learning.util.configurations import (
     FunctionLayer,
     MLPConfig,
@@ -24,7 +25,6 @@ from cares_reinforcement_learning.util.configurations import (
     ResidualLayer,
     TrainableLayer,
 )
-from cares_reinforcement_learning.util.training_context import ObservationTensors
 
 
 def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:

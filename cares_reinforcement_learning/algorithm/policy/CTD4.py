@@ -15,8 +15,8 @@ import torch
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
+from cares_reinforcement_learning.types.observation import Observation
 from cares_reinforcement_learning.util.configurations import CTD4Config
-from cares_reinforcement_learning.util.training_context import Observation
 
 
 class CTD4(TD3):

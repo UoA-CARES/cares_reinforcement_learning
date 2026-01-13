@@ -10,15 +10,12 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import LA3PTD3Config
-from cares_reinforcement_learning.util.training_context import (
-    Observation,
-    ObservationTensors,
-    TrainingContext,
-)
 
 
 class LA3PTD3(TD3):
@@ -56,7 +53,7 @@ class LA3PTD3(TD3):
             next_observation_tensor,
             dones_tensor,
             _,
-        ) = tu.sample_to_tensors(
+        ) = memory_sampler.sample_to_tensors(
             states,
             actions,
             rewards,
@@ -175,7 +172,9 @@ class LA3PTD3(TD3):
             weights_tensor = torch.tensor(
                 weights, dtype=torch.float32, device=self.device
             )
-            observation_tensor = tu.observation_to_tensors(states, device=self.device)
+            observation_tensor = memory_sampler.observation_to_tensors(
+                states, device=self.device
+            )
 
             actor_loss = self._update_actor(
                 observation_tensor.vector_state_tensor, weights_tensor
@@ -215,7 +214,9 @@ class LA3PTD3(TD3):
             weights_tensor = torch.tensor(
                 weights, dtype=torch.float32, device=self.device
             )
-            observation_tensor = tu.observation_to_tensors(states, device=self.device)
+            observation_tensor = memory_sampler.observation_to_tensors(
+                states, device=self.device
+            )
 
             actor_info = self._update_actor(
                 observation_tensor.vector_state_tensor, weights_tensor

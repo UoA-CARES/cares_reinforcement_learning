@@ -7,10 +7,9 @@ from typing import Any
 import torch
 
 from cares_reinforcement_learning.algorithm.value import C51
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.Rainbow import Network
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import RainbowConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class Rainbow(C51):

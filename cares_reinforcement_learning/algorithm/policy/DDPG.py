@@ -11,15 +11,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DDPGConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
 class DDPG(Algorithm):
@@ -121,7 +119,7 @@ class DDPG(Algorithm):
             dones_tensor,
             _,
             _,
-        ) = tu.sample(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,

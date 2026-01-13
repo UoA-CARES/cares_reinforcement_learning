@@ -2,7 +2,6 @@
 Original Paper: https://arxiv.org/pdf/1710.10044
 """
 
-import numpy as np
 import torch
 
 from cares_reinforcement_learning.algorithm.value import DQN

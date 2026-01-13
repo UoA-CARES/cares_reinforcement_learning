@@ -12,19 +12,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.networks.QMIX import (
-    SharedMultiAgentNetwork,
     QMixer,
+    SharedMultiAgentNetwork,
 )
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
 class QMIX(VectorAlgorithm):
@@ -103,7 +101,9 @@ class QMIX(VectorAlgorithm):
         actions = []
 
         # Get greedy actions for all agents once
-        observation_tensors = tu.observation_to_tensors([state], self.device)
+        observation_tensors = memory_sampler.observation_to_tensors(
+            [state], self.device
+        )
 
         assert observation_tensors.agent_states_tensor is not None
         assert observation_tensors.avail_actions_tensor is not None
@@ -233,7 +233,7 @@ class QMIX(VectorAlgorithm):
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,

@@ -15,7 +15,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
@@ -23,12 +23,10 @@ from cares_reinforcement_learning.networks.common import (
     TanhGaussianPolicy,
     TwinQNetwork,
 )
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    Observation,
-    TrainingContext,
-)
 
 
 class SAC(VectorAlgorithm):
@@ -303,7 +301,7 @@ class SAC(VectorAlgorithm):
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,

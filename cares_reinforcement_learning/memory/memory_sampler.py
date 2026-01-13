@@ -1,20 +1,28 @@
 """
-Training utilities for reinforcement learning algorithms.
-
-Common functions used across different RL algorithms to reduce code duplication
-while maintaining readability for students.
+Memory utilities for reinforcement learning algorithms.
 """
 
-from typing import Tuple
+from dataclasses import dataclass
 
 import numpy as np
 import torch
 
 from cares_reinforcement_learning.memory import MemoryBuffer
-from cares_reinforcement_learning.util.training_context import (
+from cares_reinforcement_learning.types.observation import (
     Observation,
     ObservationTensors,
 )
+
+
+@dataclass
+class BatchTensors:
+    observations: ObservationTensors
+    actions: torch.Tensor
+    rewards: torch.Tensor
+    next_observations: ObservationTensors
+    dones: torch.Tensor
+    weights: torch.Tensor
+    indices: np.ndarray
 
 
 def observation_to_tensors(
@@ -150,7 +158,7 @@ def sample_to_tensors(
     )
 
 
-def consecutive_sample_batch_to_tensors(
+def consecutive_sample(
     memory: MemoryBuffer,
     batch_size: int,
     device: torch.device,
@@ -266,7 +274,7 @@ def sample(
     next_states_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
-) -> Tuple[
+) -> tuple[
     ObservationTensors,
     torch.Tensor,
     torch.Tensor,

@@ -9,15 +9,12 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.policy import SAC
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import REDQConfig
-from cares_reinforcement_learning.util.training_context import (
-    Observation,
-    TrainingContext,
-)
 
 
 class REDQ(SAC):
@@ -166,7 +163,7 @@ class REDQ(SAC):
             dones_tensor,
             _,
             _,
-        ) = tu.sample(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,

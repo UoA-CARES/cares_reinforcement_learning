@@ -10,12 +10,10 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    Observation,
-    TrainingContext,
-)
 
 
 class Algorithm(ABC):

@@ -133,6 +133,7 @@ class MemoryBuffer:
         state, action, _, _, _, *extra = n_step_buffer[0]
         return [state, action, reward, next_state, done, *extra]
 
+    # TODO give types
     def add(self, state, action, reward, next_state, done, *extra) -> None:
         """
         Adds a single experience to the prioritized replay buffer.

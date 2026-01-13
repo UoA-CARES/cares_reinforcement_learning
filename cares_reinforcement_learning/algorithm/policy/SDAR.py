@@ -11,15 +11,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SDARConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
 class SDAR(VectorAlgorithm):
@@ -275,7 +273,7 @@ class SDAR(VectorAlgorithm):
             next_observation_tensor,  # next_states_t2_tensor (SDAR's next states)
             dones_tensor,  # dones_t2_tensor (SDAR's current dones)
             _,  # indices (not used by SDAR)
-        ) = tu.consecutive_sample_batch_to_tensors(memory, batch_size, self.device)
+        ) = memory_sampler.consecutive_sample(memory, batch_size, self.device)
 
         # Create weights tensor (SDAR doesn't use PER with consecutive sampling)
         batch_size = len(observation_tensor.vector_state_tensor)

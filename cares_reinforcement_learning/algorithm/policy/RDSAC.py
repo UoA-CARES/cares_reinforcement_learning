@@ -7,8 +7,8 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
+from cares_reinforcement_learning.types.observation import Observation
 from cares_reinforcement_learning.util.configurations import RDSACConfig
-from cares_reinforcement_learning.util.training_context import Observation
 
 
 class RDSAC(SAC):

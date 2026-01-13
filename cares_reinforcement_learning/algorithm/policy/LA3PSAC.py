@@ -10,14 +10,12 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import LA3PSACConfig
-from cares_reinforcement_learning.util.training_context import (
-    Observation,
-    TrainingContext,
-)
 
 
 class LA3PSAC(SAC):
@@ -51,7 +49,7 @@ class LA3PSAC(SAC):
             next_observation_tensor,
             dones_tensor,
             _,
-        ) = tu.sample_to_tensors(
+        ) = memory_sampler.sample_to_tensors(
             states,
             actions,
             rewards,
@@ -165,7 +163,9 @@ class LA3PSAC(SAC):
         # Train Actor
         weights = np.array([1.0] * len(states))
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
-        observation_tensor = tu.observation_to_tensors(states, device=self.device)
+        observation_tensor = memory_sampler.observation_to_tensors(
+            states, device=self.device
+        )
 
         actor_info = self._update_actor_alpha(
             observation_tensor.vector_state_tensor, weights_tensor
@@ -206,7 +206,9 @@ class LA3PSAC(SAC):
         states, _, _, _, _, _, _ = experiences
         weights = np.array([1.0] * len(states))
 
-        observation_tensor = tu.observation_to_tensors(states, device=self.device)
+        observation_tensor = memory_sampler.observation_to_tensors(
+            states, device=self.device
+        )
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
 
         actor_info = self._update_actor_alpha(
