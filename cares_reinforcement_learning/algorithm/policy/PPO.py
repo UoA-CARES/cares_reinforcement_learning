@@ -18,7 +18,7 @@ import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.interaction import ActionContext
 from cares_reinforcement_learning.types.observation import Observation
@@ -26,7 +26,7 @@ from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import PPOConfig
 
 
-class PPO(VectorAlgorithm):
+class PPO(Algorithm):
     def __init__(
         self,
         actor_network: Actor,

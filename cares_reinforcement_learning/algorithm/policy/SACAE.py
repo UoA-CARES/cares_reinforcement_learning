@@ -14,9 +14,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
@@ -26,7 +26,7 @@ from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
-class SACAE(ImageAlgorithm):
+class SACAE(Algorithm):
     def __init__(
         self,
         actor_network: Actor,

@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.QMIX import (
     QMixer,
     SharedMultiAgentNetwork,
@@ -25,7 +25,7 @@ from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class QMIX(VectorAlgorithm):
+class QMIX(Algorithm):
     def __init__(
         self,
         network: SharedMultiAgentNetwork,

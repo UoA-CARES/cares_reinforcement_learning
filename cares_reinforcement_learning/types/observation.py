@@ -4,6 +4,7 @@ import numpy as np
 import torch
 
 
+# TODO split into SingleAgentObservation and MultiAgentObservation?
 @dataclass
 class Observation:
     # Vector Based

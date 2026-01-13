@@ -14,9 +14,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
@@ -29,7 +29,7 @@ from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class SAC(VectorAlgorithm):
+class SAC(Algorithm):
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,

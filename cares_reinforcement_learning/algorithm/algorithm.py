@@ -1,8 +1,3 @@
-"""
-Original Paper: https://arxiv.org/abs/1802.09477v3
-
-"""
-
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 
@@ -159,19 +154,3 @@ class Algorithm(ABC):
         It can be overridden in subclasses to perform any necessary cleanup or logging.
         """
         pass
-
-
-class VectorAlgorithm(Algorithm):
-
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
-
-
-class ImageAlgorithm(Algorithm):
-
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...

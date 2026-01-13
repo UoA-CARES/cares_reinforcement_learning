@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.types.interaction import ActionContext
 from cares_reinforcement_learning.types.observation import Observation
@@ -23,7 +23,7 @@ from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class DQN(VectorAlgorithm):
+class DQN(Algorithm):
     def __init__(
         self,
         network: BaseNetwork,

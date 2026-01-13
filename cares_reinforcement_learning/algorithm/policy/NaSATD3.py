@@ -12,9 +12,9 @@ import torch.nn.functional as F
 from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
+import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
@@ -29,7 +29,7 @@ from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
-class NaSATD3(ImageAlgorithm):
+class NaSATD3(Algorithm):
     def __init__(
         self,
         actor_network: Actor,
