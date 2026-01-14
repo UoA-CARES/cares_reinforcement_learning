@@ -14,23 +14,22 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
     TanhGaussianPolicy,
     TwinQNetwork,
 )
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class SAC(VectorAlgorithm):
+class SAC(Algorithm):
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
@@ -123,10 +122,8 @@ class SAC(VectorAlgorithm):
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
 
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -139,8 +136,8 @@ class SAC(VectorAlgorithm):
         self.actor_net.train()
         return action
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.FloatTensor(action).to(self.device)
@@ -297,14 +294,14 @@ class SAC(VectorAlgorithm):
         batch_size = training_context.batch_size
 
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_batch_to_tensors(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
@@ -316,10 +313,10 @@ class SAC(VectorAlgorithm):
         info = self.update_networks(
             memory,
             indices,
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             weights_tensor,
         )

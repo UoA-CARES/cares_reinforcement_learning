@@ -1,8 +1,3 @@
-"""
-Original Paper: https://arxiv.org/abs/1802.09477v3
-
-"""
-
 from abc import ABC, abstractmethod
 from typing import Any, Literal
 
@@ -10,11 +5,10 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
-)
 
 
 class Algorithm(ABC):
@@ -46,7 +40,7 @@ class Algorithm(ABC):
     @abstractmethod
     def select_action_from_policy(
         self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
+    ) -> int | np.ndarray | list[int] | list[np.ndarray]: ...
 
     def _fixed_step_bias_segments(
         self, values: list[float], step_boundaries: list[int] | None = None
@@ -131,7 +125,6 @@ class Algorithm(ABC):
         }
         return info
 
-    # TODO push batch_size into the algorithm
     @abstractmethod
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]: ...
 
@@ -143,9 +136,9 @@ class Algorithm(ABC):
 
     def get_intrinsic_reward(
         self,
-        state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        observation: Observation,  # pylint: disable=unused-argument
         action: np.ndarray,  # pylint: disable=unused-argument
-        next_state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        next_observation: Observation,  # pylint: disable=unused-argument
         **kwargs: Any,  # pylint: disable=unused-argument
     ) -> float:
         """
@@ -160,19 +153,3 @@ class Algorithm(ABC):
         It can be overridden in subclasses to perform any necessary cleanup or logging.
         """
         pass
-
-
-class VectorAlgorithm(Algorithm):
-
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
-
-
-class ImageAlgorithm(Algorithm):
-
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...

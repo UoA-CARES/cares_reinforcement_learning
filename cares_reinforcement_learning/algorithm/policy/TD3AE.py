@@ -12,20 +12,19 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import ObservationTensors
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class TD3AE(ImageAlgorithm):
+class TD3AE(Algorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -103,15 +102,15 @@ class TD3AE(ImageAlgorithm):
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         self.actor_net.eval()
 
-        state = action_context.state
+        state = action_context.observation
         evaluation = action_context.evaluation
 
-        assert isinstance(state, dict)
-
         with torch.no_grad():
-            state_tensor = tu.image_state_to_tensors(state, self.device)
+            observation_tensors = memory_sampler.observation_to_tensors(
+                [state], self.device
+            )
 
-            action = self.actor_net(state_tensor)
+            action = self.actor_net(observation_tensors)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
@@ -125,10 +124,10 @@ class TD3AE(ImageAlgorithm):
 
     def _update_critic(
         self,
-        states: dict[str, torch.Tensor],
+        states: ObservationTensors,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
+        next_states: ObservationTensors,
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
@@ -187,7 +186,7 @@ class TD3AE(ImageAlgorithm):
 
         return info, priorities
 
-    def _update_actor(self, states: dict[str, torch.Tensor]) -> dict[str, Any]:
+    def _update_actor(self, states: ObservationTensors) -> dict[str, Any]:
         actions = self.actor_net(states, detach_encoder=True)
 
         with hlp.evaluating(self.critic_net):
@@ -239,29 +238,31 @@ class TD3AE(ImageAlgorithm):
 
         # Sample and convert to tensors using multimodal sampling
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_image_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = memory_sampler.sample(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
+        assert observation_tensor.image_state_tensor is not None
+
         info: dict[str, Any] = {}
 
         critic_info, priorities = self._update_critic(
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -269,7 +270,7 @@ class TD3AE(ImageAlgorithm):
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_info = self._update_actor(states_tensor)
+            actor_info = self._update_actor(observation_tensor)
             info |= actor_info
 
             # Update target network params
@@ -301,7 +302,7 @@ class TD3AE(ImageAlgorithm):
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_info = self._update_autoencoder(states_tensor["image"])
+            ae_info = self._update_autoencoder(observation_tensor.image_state_tensor)
             info |= ae_info
 
         # Update the Priorities

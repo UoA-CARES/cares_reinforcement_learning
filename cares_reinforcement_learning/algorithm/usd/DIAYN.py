@@ -12,17 +12,16 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class DIAYN(VectorAlgorithm):
+class DIAYN(Algorithm):
     def __init__(
         self,
         skills_agent: SAC,
@@ -69,20 +68,18 @@ class DIAYN(VectorAlgorithm):
 
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
 
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
 
-        assert isinstance(state, np.ndarray)
-
-        action_context.state = self._concat_state_latent(state)
+        action_context.observation.vector_state = self._concat_state_latent(state)
 
         if not evaluation:
             self.z_experience_index.append(self.z)
 
         return self.skills_agent.select_action_from_policy(action_context)
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state = self._concat_state_latent(state)
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+        state.vector_state = self._concat_state_latent(state.vector_state)
 
         return self.skills_agent._calculate_value(state, action)
 

@@ -13,18 +13,17 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class DQN(VectorAlgorithm):
+class DQN(Algorithm):
     def __init__(
         self,
         network: BaseNetwork,
@@ -89,10 +88,8 @@ class DQN(VectorAlgorithm):
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
-        state = action_context.state
+        state = action_context.observation.vector_state
         evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
 
         if evaluation:
             return self._exploit(state)
@@ -102,8 +99,10 @@ class DQN(VectorAlgorithm):
 
         return self._exploit(state)
 
-    def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: Observation, action: int) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():
@@ -162,17 +161,17 @@ class DQN(VectorAlgorithm):
 
         # Use training_utils to sample and prepare batch
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = memory_sampler.sample(
+            memory=memory,
+            batch_size=batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
@@ -186,10 +185,10 @@ class DQN(VectorAlgorithm):
 
         # Calculate loss - overriden by C51
         elementwise_loss = self._compute_loss(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             batch_size,
         )

@@ -8,17 +8,17 @@ import logging
 import os
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import MADDPGConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
 class MADDPG(Algorithm):
@@ -40,12 +40,12 @@ class MADDPG(Algorithm):
 
         self.alpha = config.alpha  # adversarial perturbation scale
 
+    # TODO verify that the ordering of agents is consistent
     def select_action_from_policy(
         self,
         action_context: ActionContext,
-    ):
-        state = action_context.state
-        obs_dict = state["obs"]
+    ) -> list[np.ndarray]:
+        obs_dict = action_context.observation.agent_states
         avail_actions = action_context.available_actions
 
         assert isinstance(obs_dict, dict)
@@ -59,7 +59,7 @@ class MADDPG(Algorithm):
             avail_i = avail_actions[i]
 
             agent_action_context = ActionContext(
-                state=obs_i,
+                observation=Observation(vector_state=obs_i),
                 evaluation=action_context.evaluation,
                 available_actions=avail_i,
             )
@@ -247,35 +247,38 @@ class MADDPG(Algorithm):
             # ---------------------------------------------------------
             # Update each agent
             # ---------------------------------------------------------
-
-            # Use training_utils to sample and prepare batch
             (
-                obs_tensors,
-                states_tensors,
-                _,
+                observation_tensor,
                 actions_tensor,
                 rewards_tensor,
-                next_obs_tensors,
-                next_states_tensors,
-                _,
+                next_observation_tensor,
                 dones_tensor,
                 _,
                 _,
-            ) = tu.sample_marl_batch_to_tensors(
-                memory,
-                batch_size,
-                self.device,
+            ) = memory_sampler.sample(
+                memory=memory,
+                batch_size=batch_size,
+                device=self.device,
                 use_per_buffer=0,
             )
 
-            agent_ids = list(obs_tensors.keys())
+            states_tensors = observation_tensor.vector_state_tensor
+            next_states_tensors = next_observation_tensor.vector_state_tensor
+
+            agent_states_tensors = observation_tensor.agent_states_tensor
+            next_agent_states_tensors = next_observation_tensor.agent_states_tensor
+
+            assert agent_states_tensors is not None
+            assert next_agent_states_tensors is not None
+
+            agent_ids = list(agent_states_tensors.keys())
 
             # ---------------------------------------------------------
             # Build next_actions_tensor using TARGET actors
             # ---------------------------------------------------------
             next_actions = []
             for agent, agent_name in zip(self.agents, agent_ids):
-                obs_next_j = next_obs_tensors[agent_name]
+                obs_next_j = next_agent_states_tensors[agent_name]
                 next_action_j = agent.target_actor_net(obs_next_j)
                 next_actions.append(next_action_j)
 
@@ -287,8 +290,8 @@ class MADDPG(Algorithm):
             # ---------------------------------------------------------
             # Critic update for this agent
             # ---------------------------------------------------------
-            rewards_i = rewards_tensor[:, agent_index].unsqueeze(-1)
-            dones_i = dones_tensor[:, agent_index].unsqueeze(-1)
+            rewards_i = rewards_tensor[:, agent_index]
+            dones_i = dones_tensor[:, agent_index]
 
             critic_info = self._update_critic(
                 agent=current_agent,
@@ -307,7 +310,7 @@ class MADDPG(Algorithm):
             actor_info = self._update_actor(
                 agent=current_agent,
                 agent_index=agent_index,
-                obs_tensors=obs_tensors,
+                obs_tensors=agent_states_tensors,
                 global_states=states_tensors,
                 actions_tensor=actions_tensor,
             )

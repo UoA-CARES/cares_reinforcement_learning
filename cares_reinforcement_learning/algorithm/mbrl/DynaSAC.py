@@ -16,20 +16,18 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
     EnsembleWorldReward,
 )
+from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
-)
 
 
-class DynaSAC(VectorAlgorithm):
+class DynaSAC(Algorithm):
     def __init__(
         self,
         actor_network: Actor,
@@ -83,7 +81,7 @@ class DynaSAC(VectorAlgorithm):
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         # pylint: disable-next=unused-argument
 
-        state = action_context.state
+        state = action_context.observation
         evaluation = action_context.evaluation
 
         # note that when evaluating this algorithm we need to select mu as

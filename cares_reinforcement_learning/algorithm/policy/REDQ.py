@@ -9,12 +9,12 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.policy import SAC
-from cares_reinforcement_learning.memory import MemoryBuffer
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
+from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import REDQConfig
-from cares_reinforcement_learning.util.training_context import TrainingContext
 
 
 class REDQ(SAC):
@@ -48,8 +48,8 @@ class REDQ(SAC):
             for critic_net in self.critic_net.critics
         ]
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.FloatTensor(action).to(self.device)
@@ -155,16 +155,15 @@ class REDQ(SAC):
         memory = training_context.memory
         batch_size = training_context.batch_size
 
-        # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             _,
             _,
-        ) = tu.sample_batch_to_tensors(
+        ) = memory_sampler.sample(
             memory=memory,
             batch_size=batch_size,
             device=self.device,
@@ -175,17 +174,19 @@ class REDQ(SAC):
 
         # Update the Critics
         critic_info = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
         )
         info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor
-            actor_info = self._update_actor_alpha(states_tensor)
+            actor_info = self._update_actor_alpha(
+                observation_tensor.vector_state_tensor
+            )
             info |= actor_info
             info["alpha"] = self.alpha.item()
 
