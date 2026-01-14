@@ -437,6 +437,7 @@ class PPO2Config(AlgorithmConfig):
     critic_lr: float = 1e-3
 
     gamma: float = 0.99
+    lambda_gae: float = 0.95 # GAE-lambda
     eps_clip: float = 0.2
 
     # TODO is this G?

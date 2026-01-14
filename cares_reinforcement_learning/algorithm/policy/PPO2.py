@@ -46,6 +46,7 @@ class PPO2(VectorAlgorithm):
         self.critic_net = critic_network.to(device)
 
         self.gamma = config.gamma
+        self.lambda_gae = config.lambda_gae # GAE-lambda
         self.action_num = self.actor_net.num_actions
         self.device = device
 
@@ -172,23 +173,6 @@ class PPO2(VectorAlgorithm):
         )  # shape 5000
         return batch_rtgs
 
-    # def _calculate_rewards_to_go_episode_end(
-    #     self, batch_rewards: torch.Tensor, batch_dones: torch.Tensor, batch_episode_end: torch.Tensor, batch_next_states: torch.Tensor,
-    # ) -> torch.Tensor:
-    #     rtgs: list[float] = []
-    #     discounted_reward = 0
-    #     for reward, done, episode_end in zip(reversed(batch_rewards), reversed(batch_dones), reversed(batch_episode_end)):
-    #         if done[i] == batch_episode_end[i] == 1:
-    #             discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
-    #             rtgs.insert(0, discounted_reward)
-    #         if done[i] != 1 and batch_episode_end[i] == 1:
-    #             discounted_reward = reward + self.gamma * self._calculate_value(batch_next_states)
-    #             rtgs.insert(0, discounted_reward)
-    #     batch_rtgs_episode_end = torch.tensor(
-    #         rtgs, dtype=torch.float32, device=self.device
-    #     )  # shape 5000
-    #     return batch_rtgs_episode_end
-
     def _calculate_rewards_to_go_episode_end(
         self,
         batch_rewards: torch.Tensor,
@@ -219,6 +203,44 @@ class PPO2(VectorAlgorithm):
 
         batch_rtgs = torch.tensor(rtgs, dtype=torch.float32, device=self.device).squeeze() # shape 5000
         return batch_rtgs
+
+    def _discounted_cumulative_sum_gae(
+        self, batch_deltas: torch.Tensor, batch_episode_end: torch.Tensor
+    ) -> torch.Tensor:
+        dis_sum: list[float] = []
+        discounted_sum = 0
+
+        for d, e in zip(reversed(batch_deltas), reversed(batch_episode_end)):
+            discounted_sum = d.item() + self.gamma * self.lambda_gae * (1 - e.item()) * discounted_sum
+            dis_sum.insert(0, discounted_sum)
+        batch_dis_sum = torch.tensor(dis_sum, dtype=torch.float32, device=self.device)
+
+        return batch_dis_sum
+
+    def _GAE_calculator(
+        self,
+        batch_states: torch.Tensor,
+        batch_reward: torch.Tensor,
+        batch_next_states: torch.Tensor,
+        batch_dones: torch.Tensor,
+        batch_episode_end: torch.Tensor,
+    ) -> torch.Tensor:
+        # GAE (Generalized Advantage Estimation) calculation based on PPO paper:
+        # delta_t = r_t + gamma * V(s_{t+1}) - V(s_t)                       --- Eq. (12)
+        # A_hat_t = delta_t + (gamma * lambda) * A_hat_{t+1}                --- Eq. (11)
+        #
+        # Mathematically, Eq. (11) is equivalent to:
+        # A_hat_t = sum_{k=0}^{T-t-1} (gamma * lambda)^k * delta_{t+k}
+        advantages = 0
+        with torch.no_grad():
+            batch_values = self.critic_net(batch_states)
+            batch_next_values = self.critic_net(batch_next_states)
+
+        deltas = batch_reward + self.gamma * batch_next_values * (1 - batch_dones) - batch_values
+        advantages = self._discounted_cumulative_sum_gae(deltas, batch_episode_end).squeeze() # shape 5000
+
+        return advantages
+
 
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
@@ -271,11 +293,23 @@ class PPO2(VectorAlgorithm):
         v, _ = self._evaluate_policy(states_tensor, actions_tensor)
 
         # for shape verfication
-        if rtgs_episode_end.shape != v.shape:
-            logging.warning(f"check 1: rtgs_episode_end Shape Mismatch! rtgs: {rtgs_episode_end.shape}, v: {v.shape}")
-            rtgs_episode_end = rtgs_episode_end.view_as(v)
+        # if rtgs_episode_end.shape != v.shape:
+        #     logging.warning(f"check 1: rtgs_episode_end Shape Mismatch! rtgs: {rtgs_episode_end.shape}, v: {v.shape}")
+        #     rtgs_episode_end = rtgs_episode_end.view_as(v)
         #advantages = rtgs.detach() - v.detach()
-        advantages = rtgs_episode_end.detach() - v.detach() # use rtgs_episode_end
+        #advantages = rtgs_episode_end.detach() - v.detach() # use rtgs_episode_end
+
+        # use GAE as advantages
+        advantages = self._GAE_calculator(states_tensor,
+                                          rewards_tensor,
+                                          next_states_tensor,
+                                          dones_tensor,
+                                          episode_end_tensor
+                                          ) # shape 5000
+        # for shape verfication
+        if advantages.shape != v.shape:
+            logging.warning(f"check 3: advantages Shape Mismatch! advantages: {advantages.shape}, v: {v.shape}")
+            advantages = advantages.view_as(v)
 
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
