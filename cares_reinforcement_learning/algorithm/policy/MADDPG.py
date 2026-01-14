@@ -8,6 +8,7 @@ import logging
 import os
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
@@ -39,10 +40,11 @@ class MADDPG(Algorithm):
 
         self.alpha = config.alpha  # adversarial perturbation scale
 
+    # TODO verify that the ordering of agents is consistent
     def select_action_from_policy(
         self,
         action_context: ActionContext,
-    ):
+    ) -> list[np.ndarray]:
         obs_dict = action_context.observation.agent_states
         avail_actions = action_context.available_actions
 

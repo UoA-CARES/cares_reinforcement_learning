@@ -40,7 +40,7 @@ class Algorithm(ABC):
     @abstractmethod
     def select_action_from_policy(
         self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
+    ) -> int | np.ndarray | list[int] | list[np.ndarray]: ...
 
     def _fixed_step_bias_segments(
         self, values: list[float], step_boundaries: list[int] | None = None
@@ -125,7 +125,6 @@ class Algorithm(ABC):
         }
         return info
 
-    # TODO push batch_size into the algorithm
     @abstractmethod
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]: ...
 

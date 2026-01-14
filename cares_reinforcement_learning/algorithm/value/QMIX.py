@@ -89,7 +89,7 @@ class QMIX(Algorithm):
         obs_list = [obs_dict[a] for a in agent_names]
         return torch.stack(obs_list, dim=1)
 
-    def select_action_from_policy(self, action_context: ActionContext):
+    def select_action_from_policy(self, action_context: ActionContext) -> list[int]:
         """
         Epsilon-greedy per-agent action selection.
         Each agent decides independently whether to explore or exploit.

@@ -9,3 +9,8 @@ class ActionContext:
     observation: Observation
     evaluation: bool
     available_actions: np.ndarray  # TODO redundant with Observation.avail_actions
+
+
+@dataclass(frozen=True)
+class Action:
+    action: np.ndarray
