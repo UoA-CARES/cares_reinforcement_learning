@@ -105,8 +105,6 @@ class SACD(SAC):
         if config.encoder_type is not None:
             self.normalise_image = getattr(config, "normalise_image", True)
             self._set_encoding(config)
-            self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
-            self.target_critic_net.eval()
 
 
     def _get_q_target(self, q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
@@ -484,7 +482,8 @@ class SACD(SAC):
                 num_layers=encoder_config.num_layers,
                 num_filters=encoder_config.num_filters,
                 kernel_size=encoder_config.kernel_size,
-                custom_network_config=getattr(config, "conv_config", None)
+                custom_network_config=getattr(config, "conv_config", None),
+                detach_at_convs=False
             )
             self.actor_net.set_encoder(encoder)            
 
@@ -497,7 +496,8 @@ class SACD(SAC):
                     num_layers=encoder_config.num_layers,
                     num_filters=encoder_config.num_filters,
                     kernel_size=encoder_config.kernel_size,
-                    custom_network_config=getattr(config, "conv_config", None)
+                    custom_network_config=getattr(config, "conv_config", None),
+                    detach_at_convs=False
                 )
             self.critic_net.set_encoder(critic_encoder)
         elif encoder_type == ImageEncoderType.VANILLA_AUTOENCODER:
@@ -518,9 +518,9 @@ class SACD(SAC):
             self.actor_net.set_encoder(autoencoder.encoder.get_detached_encoder()) # Actor trains only FC layer
             self.critic_net.set_encoder(autoencoder.encoder.get_encoder()) # Critic trains FC layer and convs
 
-            # Update target critic net to include encoder
-            self.target_critic_net = copy.deepcopy(self.critic_net).to(hlp.get_device())
-            self.target_critic_net.eval()
+        # Update target critic net to include encoder
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(hlp.get_device())
+        self.target_critic_net.eval()
 
         # Update optimisers to include encoder parameters
         self.actor_net_optimiser = torch.optim.Adam(
@@ -529,6 +529,3 @@ class SACD(SAC):
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
-
-
-
