@@ -15,12 +15,12 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
-from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SDARConfig
 
 
-class SDAR(Algorithm):
+class SDAR(Algorithm[SARLObservation]):
     actor_network: Actor
     critic_network: Critic
 
@@ -109,12 +109,13 @@ class SDAR(Algorithm):
         )
         self.force_act = True
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.observation.vector_state
-        evaluation = action_context.evaluation
+        state = observation.vector_state
 
         assert isinstance(state, np.ndarray)
 

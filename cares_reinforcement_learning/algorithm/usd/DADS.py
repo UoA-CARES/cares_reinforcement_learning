@@ -15,13 +15,12 @@ import torch.nn.functional as F
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
-from cares_reinforcement_learning.types.interaction import ActionContext
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DADSConfig
 
 
-class DADS(Algorithm):
+class DADS(Algorithm[SARLObservation]):
     def __init__(
         self,
         skills_agent: SAC,
@@ -60,18 +59,18 @@ class DADS(Algorithm):
         z_one_hot[self.z] = 1
         return np.concatenate([state, z_one_hot])
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
-        state = action_context.observation.vector_state
-        evaluation = action_context.evaluation
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
 
-        action_context.observation.vector_state = self._concat_state_latent(state)
+        observation.vector_state = self._concat_state_latent(observation.vector_state)
 
         if not evaluation:
             self.z_experience_index.append(self.z)
 
-        return self.skills_agent.select_action_from_policy(action_context)
+        return self.skills_agent.select_action_from_policy(observation, evaluation)
 
-    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state.vector_state = self._concat_state_latent(state.vector_state)
 
         return self.skills_agent._calculate_value(state, action)

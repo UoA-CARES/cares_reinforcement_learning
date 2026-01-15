@@ -5,7 +5,10 @@ import numpy as np
 import pytest
 
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    SARLObservation,
+)
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
@@ -40,12 +43,17 @@ def _policy_buffer(
     else:
         state = np.arange(observation_size["vector"], dtype=np.float32)
 
-    state = Observation(
-        vector_state=state,
-        image_state=state_image if image_state else None,
-        agent_states=obs if marl_state else None,
-        avail_actions=avail_actions if marl_state else None,
-    )
+    if marl_state:
+        state = MARLObservation(
+            global_state=state,
+            agent_states=obs,
+            avail_actions=avail_actions,
+        )
+    else:
+        state = SARLObservation(
+            vector_state=state,
+            image_state=state_image if image_state else None,
+        )
 
     if marl_state:
         action = []
@@ -93,12 +101,17 @@ def _value_buffer(
     else:
         state = np.arange(observation_size["vector"], dtype=np.float32)
 
-    state = Observation(
-        vector_state=state,
-        image_state=state_image if image_state else None,
-        agent_states=obs if marl_state else None,
-        avail_actions=avail_actions if marl_state else None,
-    )
+    if marl_state:
+        state = MARLObservation(
+            global_state=state,
+            agent_states=obs,
+            avail_actions=avail_actions,
+        )
+    else:
+        state = SARLObservation(
+            vector_state=state,
+            image_state=state_image if image_state else None,
+        )
 
     if marl_state:
         action = []

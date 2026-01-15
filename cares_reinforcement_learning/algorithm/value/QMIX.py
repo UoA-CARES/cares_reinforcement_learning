@@ -15,17 +15,14 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.networks.QMIX import (
-    QMixer,
-    SharedMultiAgentNetwork,
-)
-from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.networks.QMIX import QMixer, SharedMultiAgentNetwork
+from cares_reinforcement_learning.types.observation import MARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class QMIX(Algorithm):
+class QMIX(Algorithm[MARLObservation]):
     def __init__(
         self,
         network: SharedMultiAgentNetwork,
@@ -89,29 +86,20 @@ class QMIX(Algorithm):
         obs_list = [obs_dict[a] for a in agent_names]
         return torch.stack(obs_list, dim=1)
 
-    def select_action_from_policy(self, action_context: ActionContext) -> list[int]:
+    def select_action_from_policy(
+        self, observation: MARLObservation, evaluation: bool = False
+    ) -> list[int]:
         """
         Epsilon-greedy per-agent action selection.
         Each agent decides independently whether to explore or exploit.
         """
-        state = action_context.observation
-        evaluation = action_context.evaluation
-        available_actions = action_context.available_actions
-
         actions = []
 
         # Get greedy actions for all agents once
         observation_tensors = memory_sampler.observation_to_tensors(
-            [state], self.device
+            [observation], self.device
         )
 
-        assert observation_tensors.agent_states_tensor is not None
-        assert observation_tensors.avail_actions_tensor is not None
-        # obs_dict_tensors, _, avail_actions_tensor = tu.marl_states_to_tensors(
-        #     [state], self.device
-        # )
-
-        # [1, num_agents, obs_dim]
         obs_tensors = self._stack_obs(observation_tensors.agent_states_tensor)
 
         self.network.eval()
@@ -129,7 +117,9 @@ class QMIX(Algorithm):
             else:
                 # Each agent decides independently
                 if random.random() < self.epsilon:
-                    avail_actions_ind = np.nonzero(available_actions[agent_id])[0]
+                    avail_actions_ind = np.nonzero(observation.avail_actions[agent_id])[
+                        0
+                    ]
                     actions.append(int(np.random.choice(avail_actions_ind)))
                 else:
                     actions.append(int(greedy_actions[agent_id]))
@@ -263,8 +253,8 @@ class QMIX(Algorithm):
         elementwise_loss, loss_info = self._compute_loss(
             obs_tensors=obs_tensors,
             next_obs_tensors=next_obs_tensors,
-            states_tensors=observation_tensor.vector_state_tensor,
-            next_states_tensors=next_observation_tensor.vector_state_tensor,
+            states_tensors=observation_tensor.global_state_tensor,
+            next_states_tensors=next_observation_tensor.global_state_tensor,
             actions_tensors=actions_tensor,
             rewards_tensors=rewards_tensor,
             next_avail_actions_tensors=next_observation_tensor.avail_actions_tensor,

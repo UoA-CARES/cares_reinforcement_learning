@@ -20,13 +20,15 @@ from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
-from cares_reinforcement_learning.types.interaction import ActionContext
-from cares_reinforcement_learning.types.observation import ObservationTensors
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
+)
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
-class SACAE(Algorithm):
+class SACAE(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: Actor,
@@ -99,16 +101,15 @@ class SACAE(Algorithm):
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.observation
-        evaluation = action_context.evaluation
-
         with torch.no_grad():
             observation_tensors = memory_sampler.observation_to_tensors(
-                [state], self.device
+                [observation], self.device
             )
 
             if evaluation:
@@ -125,10 +126,10 @@ class SACAE(Algorithm):
 
     def _update_critic(
         self,
-        states: ObservationTensors,
+        states: SARLObservationTensors,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: ObservationTensors,
+        next_states: SARLObservationTensors,
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
@@ -184,7 +185,7 @@ class SACAE(Algorithm):
 
         return info, priorities
 
-    def _update_actor_alpha(self, states: ObservationTensors) -> dict[str, Any]:
+    def _update_actor_alpha(self, states: SARLObservationTensors) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
 
         with hlp.evaluating(self.critic_net):

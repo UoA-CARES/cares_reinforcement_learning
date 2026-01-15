@@ -1,17 +1,20 @@
 from abc import ABC, abstractmethod
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.types.interaction import ActionContext
 from cares_reinforcement_learning.types.observation import Observation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
+# Type variable for observation types (SARL or MARL)
+ObsType = TypeVar("ObsType", bound=Observation)
+# TODO Action TypeVar
 
-class Algorithm(ABC):
+
+class Algorithm(ABC, Generic[ObsType]):
     def __init__(
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
@@ -39,7 +42,9 @@ class Algorithm(ABC):
 
     @abstractmethod
     def select_action_from_policy(
-        self, action_context: ActionContext
+        self,
+        observation: ObsType,
+        evaluation: bool = False,
     ) -> int | np.ndarray | list[int] | list[np.ndarray]: ...
 
     def _fixed_step_bias_segments(
@@ -76,7 +81,7 @@ class Algorithm(ABC):
 
     # @abstractmethod
     def _calculate_value(
-        self, state: Any, action: int | np.ndarray
+        self, state: ObsType, action: int | np.ndarray
     ) -> float:  # pylint: disable=unused-argument
         return 0.0
 
@@ -136,9 +141,9 @@ class Algorithm(ABC):
 
     def get_intrinsic_reward(
         self,
-        observation: Observation,  # pylint: disable=unused-argument
+        observation: ObsType,  # pylint: disable=unused-argument
         action: np.ndarray,  # pylint: disable=unused-argument
-        next_observation: Observation,  # pylint: disable=unused-argument
+        next_observation: ObsType,  # pylint: disable=unused-argument
         **kwargs: Any,  # pylint: disable=unused-argument
     ) -> float:
         """

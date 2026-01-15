@@ -16,14 +16,13 @@ import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
-from cares_reinforcement_learning.types.interaction import ActionContext
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class DQN(Algorithm):
+class DQN(Algorithm[SARLObservation]):
     def __init__(
         self,
         network: BaseNetwork,
@@ -84,12 +83,13 @@ class DQN(Algorithm):
 
         return action
 
-    def select_action_from_policy(self, action_context: ActionContext) -> int:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> int:
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
-        state = action_context.observation.vector_state
-        evaluation = action_context.evaluation
+        state = observation.vector_state
 
         if evaluation:
             return self._exploit(state)
@@ -99,7 +99,7 @@ class DQN(Algorithm):
 
         return self._exploit(state)
 
-    def _calculate_value(self, state: Observation, action: int) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
             state.vector_state, dtype=torch.float32, device=self.device
         )

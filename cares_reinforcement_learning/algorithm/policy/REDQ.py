@@ -12,7 +12,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import REDQConfig
 
@@ -48,7 +48,7 @@ class REDQ(SAC):
             for critic_net in self.critic_net.critics
         ]
 
-    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 

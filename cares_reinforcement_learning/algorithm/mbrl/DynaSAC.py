@@ -17,17 +17,17 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
     EnsembleWorldReward,
 )
-from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
 
 
-class DynaSAC(Algorithm):
+class DynaSAC(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: Actor,
@@ -78,11 +78,12 @@ class DynaSAC(Algorithm):
     def _alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         # pylint: disable-next=unused-argument
 
-        state = action_context.observation
-        evaluation = action_context.evaluation
+        state = observation.vector_state
 
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()

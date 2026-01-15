@@ -2,108 +2,118 @@
 Memory utilities for reinforcement learning algorithms.
 """
 
-from dataclasses import dataclass
+from typing import cast, overload
 
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.types.observation import (
-    Observation,
-    ObservationTensors,
+    MARLObservation,
+    MARLObservationTensors,
+    SARLObservation,
+    SARLObservationTensors,
 )
 
 
-@dataclass
-class BatchTensors:
-    observations: ObservationTensors
-    actions: torch.Tensor
-    rewards: torch.Tensor
-    next_observations: ObservationTensors
-    dones: torch.Tensor
-    weights: torch.Tensor
-    indices: np.ndarray
+@overload
+def observation_to_tensors(
+    observations: list[SARLObservation],
+    device: torch.device,
+    dtype: torch.dtype = torch.float32,
+) -> SARLObservationTensors: ...
+
+
+@overload
+def observation_to_tensors(
+    observations: list[MARLObservation],
+    device: torch.device,
+    dtype: torch.dtype = torch.float32,
+) -> MARLObservationTensors: ...
 
 
 def observation_to_tensors(
-    observations: list[Observation],
+    observations: list[SARLObservation] | list[MARLObservation],
     device: torch.device,
     dtype: torch.dtype = torch.float32,
-) -> ObservationTensors:
+) -> SARLObservationTensors | MARLObservationTensors:
+    """Convert observations to tensors, handling both SARL and MARL types."""
     num_obs = len(observations)
-    first = observations[0]
 
-    # -------------------------------------------------
-    # 1. Vector and image states
-    # -------------------------------------------------
-    vector_shape = observations[0].vector_state.shape
-    vectors = np.empty((num_obs, *vector_shape), dtype=np.float32)
+    if isinstance(observations[0], MARLObservation):
+        observations = cast(list[MARLObservation], observations)
 
-    images = np.empty(0)
-    if observations[0].image_state is not None:
-        image_shape = observations[0].image_state.shape  # type: ignore[union-attr]
-        images = np.empty((num_obs, *image_shape), dtype=np.float32)
+        first = observations[0]
+        global_state_list = [obs.global_state for obs in observations]  # type: ignore[attr-defined]
+        global_state_tensor = torch.as_tensor(
+            np.stack(global_state_list, axis=0),
+            dtype=dtype,
+            device=device,
+        )
 
-    for i in range(num_obs):
-        vectors[i] = observations[i].vector_state
-
-        if observations[i].image_state is not None:
-            images[i] = observations[i].image_state
-
-    vector_state_tensor = torch.tensor(vectors, device=device, dtype=dtype)
-
-    image_state_tensor = None
-    if observations[0].image_state is not None:
-        image_state_tensor = torch.tensor(images, device=device, dtype=dtype)
-
-        # Normalise states - image portion
-        # This because the states are [0-255] and the predictions are [0-1]
-        image_state_tensor /= 255.0
-
-    agent_states_tensor: dict[str, torch.Tensor] | None = None
-    avail_actions_tensor = None
-    if first.agent_states is not None:
-        # -------------------------------------------------
-        # 2. Per-agent observations (dict[str → (batch, obs_dim_i)])
-        # -------------------------------------------------
-        agent_names = list(first.agent_states.keys())  # type: ignore[union-attr]
-        agent_states_tensor = {}
+        agent_names = list(first.agent_states.keys())
+        agent_states_tensor: dict[str, torch.Tensor] = {}
 
         for agent in agent_names:
-            # collect obs across batch for a single agent
-            obs_list = [s.agent_states[agent] for s in observations]  # type: ignore[index]
+            obs_list = [obs.agent_states[agent] for obs in observations]  # type: ignore[index]
             agent_states_tensor[agent] = torch.as_tensor(
-                np.stack(obs_list, axis=0),  # (batch, obs_dim_i)
+                np.stack(obs_list, axis=0),
                 dtype=dtype,
                 device=device,
             )
 
-        # -------------------------------------------------
-        # 3. Global avail-actions (rectangular)
-        #    shape: (batch, n_agents, action_dim)
-        # -------------------------------------------------
         avail_actions = [obs.avail_actions for obs in observations]
         avail_actions_tensor = torch.as_tensor(
-            np.stack(avail_actions, axis=0),  # type: ignore[arg-type]
+            np.stack(avail_actions, axis=0),
             dtype=torch.float32,
             device=device,
         )
 
-    observation_tensor = ObservationTensors(
-        vector_state_tensor=vector_state_tensor,
-        image_state_tensor=image_state_tensor,
-        agent_states_tensor=agent_states_tensor,
-        avail_actions_tensor=avail_actions_tensor,
+        return MARLObservationTensors(
+            global_state_tensor=global_state_tensor,
+            agent_states_tensor=agent_states_tensor,
+            avail_actions_tensor=avail_actions_tensor,
+        )
+    elif isinstance(observations[0], SARLObservation):
+        observations = cast(list[SARLObservation], observations)
+        vector_shape = observations[0].vector_state.shape
+        vectors = np.empty((num_obs, *vector_shape), dtype=np.float32)
+
+        images = np.empty(0)
+        if observations[0].image_state is not None:
+            image_shape = observations[0].image_state.shape
+            images = np.empty((num_obs, *image_shape), dtype=np.float32)
+
+        for i in range(num_obs):
+            vectors[i] = observations[i].vector_state
+
+            if observations[i].image_state is not None:
+                images[i] = observations[i].image_state
+
+        vector_state_tensor = torch.tensor(vectors, device=device, dtype=dtype)
+
+        image_state_tensor = None
+        if observations[0].image_state is not None:
+            image_state_tensor = torch.tensor(images, device=device, dtype=dtype)
+            # Normalise states - image portion (range [0-255] -> [0-1])
+            image_state_tensor /= 255.0
+
+        return SARLObservationTensors(
+            vector_state_tensor=vector_state_tensor,
+            image_state_tensor=image_state_tensor,
+        )
+
+    raise ValueError(
+        f"Unknown observation type: {type(observations[0])} cannot convert to tensors."
     )
 
-    return observation_tensor
 
-
+@overload
 def sample_to_tensors(
-    states: list[Observation],
+    states: list[SARLObservation],
     actions: np.ndarray,
     rewards: np.ndarray,
-    next_states: list[Observation],
+    next_states: list[SARLObservation],
     dones: np.ndarray,
     device: torch.device,
     weights: np.ndarray | None = None,
@@ -114,10 +124,59 @@ def sample_to_tensors(
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
 ) -> tuple[
-    ObservationTensors,
+    SARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
-    ObservationTensors,
+    SARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+]: ...
+
+
+@overload
+def sample_to_tensors(
+    states: list[MARLObservation],
+    actions: np.ndarray,
+    rewards: np.ndarray,
+    next_states: list[MARLObservation],
+    dones: np.ndarray,
+    device: torch.device,
+    weights: np.ndarray | None = None,
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+]: ...
+
+
+def sample_to_tensors(
+    states: list[SARLObservation] | list[MARLObservation],
+    actions: np.ndarray,
+    rewards: np.ndarray,
+    next_states: list[SARLObservation] | list[MARLObservation],
+    dones: np.ndarray,
+    device: torch.device,
+    weights: np.ndarray | None = None,
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    SARLObservationTensors | MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
 ]:
@@ -158,6 +217,58 @@ def sample_to_tensors(
     )
 
 
+@overload
+def consecutive_sample(
+    memory: MemoryBuffer[SARLObservation],
+    batch_size: int,
+    device: torch.device,
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    SARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    SARLObservationTensors,
+    torch.Tensor,
+    SARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    SARLObservationTensors,
+    torch.Tensor,
+    np.ndarray,
+]: ...
+
+
+@overload
+def consecutive_sample(
+    memory: MemoryBuffer[MARLObservation],
+    batch_size: int,
+    device: torch.device,
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    MARLObservationTensors,
+    torch.Tensor,
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    MARLObservationTensors,
+    torch.Tensor,
+    np.ndarray,
+]: ...
+
+
 def consecutive_sample(
     memory: MemoryBuffer,
     batch_size: int,
@@ -169,15 +280,15 @@ def consecutive_sample(
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
 ) -> tuple[
-    ObservationTensors,
+    SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
-    ObservationTensors,
+    SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
-    ObservationTensors,
+    SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
-    ObservationTensors,
+    SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     np.ndarray,
 ]:
@@ -261,6 +372,56 @@ def consecutive_sample(
     )
 
 
+@overload
+def sample(
+    memory: MemoryBuffer[SARLObservation],
+    batch_size: int,
+    device: torch.device,
+    use_per_buffer: int = 0,
+    per_sampling_strategy: str = "uniform",
+    per_weight_normalisation: str = "none",
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    SARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    SARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    np.ndarray,
+]: ...
+
+
+@overload
+def sample(
+    memory: MemoryBuffer[MARLObservation],
+    batch_size: int,
+    device: torch.device,
+    use_per_buffer: int = 0,
+    per_sampling_strategy: str = "uniform",
+    per_weight_normalisation: str = "none",
+    states_dtype: torch.dtype = torch.float32,
+    action_dtype: torch.dtype = torch.float32,
+    rewards_dtype: torch.dtype = torch.float32,
+    next_states_dtype: torch.dtype = torch.float32,
+    dones_dtype: torch.dtype = torch.long,
+    weights_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    np.ndarray,
+]: ...
+
+
 def sample(
     memory: MemoryBuffer,
     batch_size: int,
@@ -275,10 +436,10 @@ def sample(
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
 ) -> tuple[
-    ObservationTensors,
+    SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
-    ObservationTensors,
+    SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
     np.ndarray,

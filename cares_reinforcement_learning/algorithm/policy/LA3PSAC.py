@@ -9,11 +9,11 @@ from typing import Any
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import LA3PSACConfig
 
@@ -33,10 +33,10 @@ class LA3PSAC(SAC):
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
         self,
-        states: list[Observation],
+        states: list[SARLObservation],
         actions: np.ndarray,
         rewards: np.ndarray,
-        next_states: list[Observation],
+        next_states: list[SARLObservation],
         dones: np.ndarray,
         uniform_sampling: bool,
     ) -> tuple[dict[str, Any], np.ndarray]:

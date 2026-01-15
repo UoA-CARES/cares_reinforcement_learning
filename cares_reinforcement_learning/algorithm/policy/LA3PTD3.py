@@ -13,7 +13,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import LA3PTD3Config
 
@@ -38,10 +38,10 @@ class LA3PTD3(TD3):
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
         self,
-        states: list[Observation],
+        states: list[SARLObservation],
         actions: np.ndarray,
         rewards: np.ndarray,
-        next_states: list[Observation],
+        next_states: list[SARLObservation],
         dones: np.ndarray,
         uniform_sampling: bool,
     ) -> tuple[dict[str, Any], np.ndarray]:

@@ -17,19 +17,18 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
     TanhGaussianPolicy,
     TwinQNetwork,
 )
-from cares_reinforcement_learning.types.interaction import ActionContext
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class SAC(Algorithm):
+class SAC(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
@@ -118,12 +117,13 @@ class SAC(Algorithm):
 
         logging.info("models, optimisers, and training state have been loaded...")
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.observation.vector_state
-        evaluation = action_context.evaluation
+        state = observation.vector_state
 
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -136,7 +136,7 @@ class SAC(Algorithm):
         self.actor_net.train()
         return action
 
-    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
@@ -249,7 +249,7 @@ class SAC(Algorithm):
 
     def update_networks(
         self,
-        memory: MemoryBuffer,
+        memory: SARLMemoryBuffer,
         indices: np.ndarray,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
@@ -290,7 +290,7 @@ class SAC(Algorithm):
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
 
-        memory = training_context.memory
+        memory: SARLMemoryBuffer = training_context.memory  # type: ignore[assignment]
         batch_size = training_context.batch_size
 
         (

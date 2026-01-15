@@ -14,7 +14,7 @@ from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.TQC import Actor, Critic
 from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.configurations import TQCConfig
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 
 
 class TQC(SAC):
@@ -48,7 +48,7 @@ class TQC(SAC):
             ]
         ).to(device)
 
-    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 

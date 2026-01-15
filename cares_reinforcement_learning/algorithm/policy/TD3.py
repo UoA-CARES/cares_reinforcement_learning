@@ -15,19 +15,18 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
     EnsembleCritic,
     TwinQNetwork,
 )
-from cares_reinforcement_learning.types.interaction import ActionContext
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
-class TD3(Algorithm):
+class TD3(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: DeterministicPolicy,
@@ -79,13 +78,12 @@ class TD3(Algorithm):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         self.actor_net.eval()
 
-        state = action_context.observation.vector_state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -103,7 +101,7 @@ class TD3(Algorithm):
 
         return action
 
-    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
@@ -207,7 +205,7 @@ class TD3(Algorithm):
 
     def update_networks(
         self,
-        memory: MemoryBuffer,
+        memory: SARLMemoryBuffer,
         indices: np.ndarray,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
@@ -249,7 +247,7 @@ class TD3(Algorithm):
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
 
-        memory = training_context.memory
+        memory: SARLMemoryBuffer = training_context.memory  # type: ignore[assignment]
         batch_size = training_context.batch_size
 
         # TODO replace with training_step based approach to avoid having to save this value

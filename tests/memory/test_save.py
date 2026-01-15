@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from memory import memory_buffer, memory_buffer_n_step
 
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 
 
 def _images_the_same(image_one, image_two):

@@ -15,13 +15,15 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-from cares_reinforcement_learning.types.interaction import ActionContext
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    SARLObservation,
+)
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import MADDPGConfig
 
 
-class MADDPG(Algorithm):
+class MADDPG(Algorithm[MARLObservation]):
     def __init__(
         self,
         agents: list[DDPG],
@@ -43,28 +45,26 @@ class MADDPG(Algorithm):
     # TODO verify that the ordering of agents is consistent
     def select_action_from_policy(
         self,
-        action_context: ActionContext,
+        observation: MARLObservation,
+        evaluation: bool = False,
     ) -> list[np.ndarray]:
-        obs_dict = action_context.observation.agent_states
-        avail_actions = action_context.available_actions
+        agent_states = observation.agent_states
+        avail_actions = observation.avail_actions
 
-        assert isinstance(obs_dict, dict)
-
-        agent_ids = list(obs_dict.keys())
+        agent_ids = list(agent_states.keys())
         actions = []
 
         for i, agent in enumerate(self.agents):
             agent_name = agent_ids[i]  # consistent ordering in dict
-            obs_i = obs_dict[agent_name]
+            obs_i = agent_states[agent_name]
             avail_i = avail_actions[i]
 
-            agent_action_context = ActionContext(
-                observation=Observation(vector_state=obs_i),
-                evaluation=action_context.evaluation,
-                available_actions=avail_i,
+            agent_observation = SARLObservation(
+                vector_state=obs_i,
+                avail_actions=avail_i,
             )
 
-            action = agent.select_action_from_policy(agent_action_context)
+            action = agent.select_action_from_policy(agent_observation, evaluation)
             actions.append(action)
 
         return actions
@@ -262,8 +262,8 @@ class MADDPG(Algorithm):
                 use_per_buffer=0,
             )
 
-            states_tensors = observation_tensor.vector_state_tensor
-            next_states_tensors = next_observation_tensor.vector_state_tensor
+            states_tensors = observation_tensor.global_state_tensor
+            next_states_tensors = next_observation_tensor.global_state_tensor
 
             agent_states_tensors = observation_tensor.agent_states_tensor
             next_agent_states_tensors = next_observation_tensor.agent_states_tensor

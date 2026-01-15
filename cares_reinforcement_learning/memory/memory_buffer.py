@@ -10,13 +10,34 @@ import pickle
 import random
 import tempfile
 from collections import deque
+from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 
-from cares_reinforcement_learning.memory import SumTree
+from cares_reinforcement_learning.memory.sum_tree import SumTree
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    Observation,
+    SARLObservation,
+)
+
+ObsType = TypeVar("ObsType", bound=Observation)
 
 
-class MemoryBuffer:
+@dataclass
+class Sample(Generic[ObsType]):
+    states: list[ObsType]
+    actions: np.ndarray
+    rewards: np.ndarray
+    next_states: list[ObsType]
+    dones: np.ndarray
+    indices: list[int]
+    weights: list[float]
+    extras: dict[str, Any]
+
+
+class MemoryBuffer(Generic[ObsType]):
     """
     A prioritized replay buffer implementation for reinforcement learning.
 
@@ -85,6 +106,14 @@ class MemoryBuffer:
         # 5 ... = [] e.g. log_prob = []
         # n ... = []
 
+        # TODO create these - replace with an experience dataclass?
+        # self.states: list[ObsType] = []
+        # self.actions: list[Any] = []
+        # self.rewards: list[float] = []
+        # self.next_states: list[ObsType] = []
+        # self.dones: list[bool] = []
+        # self.extras: list[dict[str, Any]] = []
+
         # n-step learning
         self.n_step = n_step
         self.n_step_buffer: deque[list] = deque(maxlen=self.n_step)
@@ -133,8 +162,9 @@ class MemoryBuffer:
         state, action, _, _, _, *extra = n_step_buffer[0]
         return [state, action, reward, next_state, done, *extra]
 
-    # TODO give types
-    def add(self, state, action, reward, next_state, done, *extra) -> None:
+    def add(
+        self, state: ObsType, action, reward, next_state: ObsType, done, *extra
+    ) -> None:
         """
         Adds a single experience to the prioritized replay buffer.
 
@@ -151,6 +181,26 @@ class MemoryBuffer:
         Returns:
             None
         """
+        # SARL
+        # <class 'cares_reinforcement_learning.types.observation.SARLObservation'>
+        # <class 'numpy.ndarray'>
+        # <class 'float'>
+        # <class 'cares_reinforcement_learning.types.observation.SARLObservation'>
+        # <class 'bool'>
+
+        # MARL
+        # <class 'cares_reinforcement_learning.types.observation.MARLObservation'>
+        # <class 'list'>
+        # <class 'list'>
+        # <class 'cares_reinforcement_learning.types.observation.MARLObservation'>
+        # <class 'list'>
+
+        # print(type(state))
+        # print(type(action))
+        # print(type(reward))
+        # print(type(next_state))
+        # print(type(done))
+        # exit()
 
         experience = [state, action, reward, next_state, done, *extra]
 
@@ -512,3 +562,11 @@ class MemoryBuffer:
         with open(f"{file_path}/{file_name}.pkl", "rb") as f:
             obj = pickle.load(f)
             return obj
+
+
+class SARLMemoryBuffer(MemoryBuffer[SARLObservation]):
+    pass
+
+
+class MARLMemoryBuffer(MemoryBuffer[MARLObservation]):
+    pass

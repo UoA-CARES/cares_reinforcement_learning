@@ -15,12 +15,12 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
-from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
-class DDPG(Algorithm):
+class DDPG(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: Actor,
@@ -47,11 +47,10 @@ class DDPG(Algorithm):
         )
 
     def select_action_from_policy(
-        self,
-        action_context: ActionContext,
+        self, observation: SARLObservation, evaluation: bool = False
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
-        state = action_context.observation.vector_state
+        state = observation.vector_state
 
         self.actor_net.eval()
         with torch.no_grad():

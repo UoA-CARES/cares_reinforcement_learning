@@ -20,16 +20,15 @@ from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
-from cares_reinforcement_learning.types.interaction import ActionContext
 from cares_reinforcement_learning.types.observation import (
-    Observation,
-    ObservationTensors,
+    SARLObservation,
+    SARLObservationTensors,
 )
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
-class NaSATD3(Algorithm):
+class NaSATD3(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: Actor,
@@ -109,17 +108,15 @@ class NaSATD3(Algorithm):
 
     def select_action_from_policy(
         self,
-        action_context: ActionContext,
+        observation: SARLObservation,
+        evaluation: bool = False,
     ) -> np.ndarray:
         self.actor.eval()
         self.autoencoder.eval()
 
-        state = action_context.observation
-        evaluation = action_context.evaluation
-
         with torch.no_grad():
             observation_tensors = memory_sampler.observation_to_tensors(
-                [state], self.device
+                [observation], self.device
             )
 
             action = self.actor(observation_tensors)
@@ -139,10 +136,10 @@ class NaSATD3(Algorithm):
 
     def _update_critic(
         self,
-        states: ObservationTensors,
+        states: SARLObservationTensors,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: ObservationTensors,
+        next_states: SARLObservationTensors,
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
         with torch.no_grad():
@@ -178,7 +175,7 @@ class NaSATD3(Algorithm):
         ae_loss = self.autoencoder.update_autoencoder(states)
         return ae_loss.item()
 
-    def _update_actor(self, states: ObservationTensors) -> float:
+    def _update_actor(self, states: SARLObservationTensors) -> float:
         actor_q_one, actor_q_two = self.critic(
             states, self.actor(states, detach_encoder=True), detach_encoder=True
         )
@@ -208,9 +205,9 @@ class NaSATD3(Algorithm):
 
     def _update_predictive_model(
         self,
-        states: ObservationTensors,
+        states: SARLObservationTensors,
         actions: torch.Tensor,
-        next_states: ObservationTensors,
+        next_states: SARLObservationTensors,
     ) -> list[float]:
 
         assert states.image_state_tensor is not None
@@ -377,9 +374,9 @@ class NaSATD3(Algorithm):
 
     def get_intrinsic_reward(
         self,
-        observation: Observation,
+        observation: SARLObservation,
         action: np.ndarray,
-        next_observation: Observation,
+        next_observation: SARLObservation,
         **kwargs: Any,
     ) -> float:
         if not self.intrinsic_on:

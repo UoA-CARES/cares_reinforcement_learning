@@ -15,15 +15,14 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
-from cares_reinforcement_learning.types.interaction import ActionContext
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import TD7Config
 
 
-class TD7(Algorithm):
+class TD7(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: Actor,
@@ -109,13 +108,12 @@ class TD7(Algorithm):
             **config.encoder_lr_params,
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         self.actor_net.eval()
 
-        state = action_context.observation.vector_state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         with torch.no_grad():
             # Fix: Use modern tensor creation
@@ -143,7 +141,7 @@ class TD7(Algorithm):
 
         return action
 
-    def _calculate_value(self, state: Observation, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         # Fix: Use modern tensor creation
         state_tensor = torch.tensor(
             state.vector_state, dtype=torch.float32, device=self.device

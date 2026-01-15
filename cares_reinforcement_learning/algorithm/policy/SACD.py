@@ -18,12 +18,12 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
-from cares_reinforcement_learning.types.interaction import ActionContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
-class SACD(Algorithm):
+class SACD(Algorithm[SARLObservation]):
     def __init__(
         self,
         actor_network: Actor,
@@ -72,12 +72,13 @@ class SACD(Algorithm):
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
 
         self.actor_net.eval()
 
-        state = action_context.observation.vector_state
-        evaluation = action_context.evaluation
+        state = observation.vector_state
 
         assert isinstance(state, np.ndarray)
 

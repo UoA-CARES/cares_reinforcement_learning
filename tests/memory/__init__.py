@@ -1,5 +1,5 @@
 import pytest
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 
 
 @pytest.fixture
