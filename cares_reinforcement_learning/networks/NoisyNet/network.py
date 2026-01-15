@@ -1,6 +1,7 @@
 import torch
 from torch import nn
-from cares_reinforcement_learning.networks.common import MLP, NoisyLinear
+from cares_reinforcement_learning.networks.mlp import MLP
+from cares_reinforcement_learning.networks.noisylinear import NoisyLinear
 from cares_reinforcement_learning.util.configurations import NoisyNetConfig
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 

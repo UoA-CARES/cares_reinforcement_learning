@@ -5,7 +5,7 @@ from pathlib import Path
 
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.networks.mlp import MLP
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 

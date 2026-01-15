@@ -4,15 +4,28 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from enum import Enum
+
 from cares_reinforcement_learning.encoders.configurations import (
     BurgessConfig,
     VanillaAEConfig,
+)
+
+from cares_reinforcement_learning.util.network_configurations import (
+    TrainableLayer,
+    NormLayer,
+    FunctionLayer,
+    ResidualLayer,
+    MLPConfig,
 )
 
 # pylint disbale-next=unused-import
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - list[type] = default
 
+class ImageEncoderType(str, Enum):
+    VANILLA_AUTOENCODER = "vanilla_autoencoder"
+    CONV_NET = "conv_net"
 
 class SubscriptableClass(BaseModel):
     def __getitem__(self, item):
@@ -39,38 +52,6 @@ class TrainingConfig(SubscriptableClass):
     checkpoint_interval: int = 1
 
     max_workers: int = 1
-
-
-class TrainableLayer(BaseModel):
-    layer_category: Literal["trainable"] = "trainable"  # Discriminator field
-    layer_type: str
-    in_features: int | None = None
-    out_features: int | None = None
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-class NormLayer(BaseModel):
-    layer_category: Literal["norm"] = "norm"  # Discriminator field
-    layer_type: str
-    in_features: int | None = None
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-class FunctionLayer(BaseModel):
-    layer_category: Literal["function"] = "function"  # Discriminator field
-    layer_type: str
-    params: dict[str, Any] = Field(default_factory=dict)
-
-
-class ResidualLayer(BaseModel):
-    layer_category: Literal["residual"] = "residual"  # Discriminator field
-    main_layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
-    shortcut_layer: TrainableLayer | None = None
-    use_padding: bool = False
-
-
-class MLPConfig(BaseModel):
-    layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
 
 
 class AlgorithmConfig(SubscriptableClass):
@@ -882,21 +863,6 @@ class SACDConfig(SACConfig):
     policy_update_freq: int = 1
     target_update_freq: int = 1
 
-    encoder_config: MLPConfig = MLPConfig(
-        layers=[
-            # TrainableLayer(layer_type="Conv2d", out_features=32, params={"kernel_size": 8, "stride": 4, "padding": 0}),
-            # FunctionLayer(layer_type="ReLU",),
-            # TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 4, "stride": 2, "padding": 0}),
-            # FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 3, "stride": 1, "padding": 0}),
-            FunctionLayer(layer_type="ReLU"),
-            FunctionLayer(layer_type="Flatten"),
-            TrainableLayer(layer_type="Linear", out_features=512),
-            FunctionLayer(layer_type="ReLU"),
-        ]
-    )
-    encoder_net_shared: bool = True
-
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
@@ -931,12 +897,39 @@ class SACDConfig(SACConfig):
         ]
     )
 
-class SD_SACConfig(SACDConfig):
-    algorithm: str = Field("SD_SAC", Literal=True)
+    encoder_type: str = ImageEncoderType.VANILLA_AUTOENCODER.value
+    latent_dim: int = 128
 
-    use_clipped_avg_q: bool = True
-    entropy_penalty_beta: float = 0.5
-    q_clip_epsilon: float = 0.5
+    # AutoEncoder configs
+    autoencoder_config: VanillaAEConfig = VanillaAEConfig(
+        latent_dim=latent_dim,
+        num_layers=4,
+        num_filters=32,
+        kernel_size=3,
+        latent_lambda=1e-6,
+        encoder_optim_kwargs={"lr": 1e-3},
+        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
+    )
+    encoder_tau: float = 0.05
+
+    # Encoder Network Config
+    conv_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Conv2d", out_features=32, params={"kernel_size": 8, "stride": 4, "padding": 0}),
+            FunctionLayer(layer_type="ReLU",),
+            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 4, "stride": 2, "padding": 0}),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 3, "stride": 1, "padding": 0}),
+            FunctionLayer(layer_type="ReLU"),
+            # FunctionLayer(layer_type="Flatten"),
+            # TrainableLayer(layer_type="Linear", out_features=512),
+            # FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    # Simple ConvNet Encoder Config
+    shared_conv_net: bool = True
+
 
 ###################################
 #         TD3 Algorithms          #
