@@ -16,20 +16,24 @@ class AEConfig(SubscriptableClass):
 
     Attributes:
         type (str): Type of the autoencoder - vanilla or burgess.
+        observation_size (tuple[int] | int): Size of the observation input.
         latent_dim (int): Dimension of the latent space.
         num_layers (int): Number of layers in the encoder and decoder. Default is 4.
         num_filters (int): Number of filters in each layer. Default is 32.
         kernel_size (int): Size of the convolutional kernel. Default is 3.
+        encoder_optim_kwargs (dict[str, Any]): Keyword arguments for the encoder optimizer.
+        decoder_optim_kwargs (dict[str, Any]): Keyword arguments for the decoder optimizer.
     """
 
     type: str = Field(description="Type of the autoencoder")
+
+    observation_size: tuple[int] | int | None = None
     latent_dim: int
     num_layers: int = 4
     num_filters: int = 32
     kernel_size: int = 3
 
     encoder_optim_kwargs: dict[str, Any] = Field(default_factory=lambda: {"lr": 1e-3})
-
     decoder_optim_kwargs: dict[str, Any] = Field(default_factory=lambda: {"lr": 1e-3})
 
 

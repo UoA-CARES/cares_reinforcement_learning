@@ -8,16 +8,19 @@ This code runs automatic entropy tuning
 from dataclasses import dataclass
 from typing import Any, Mapping
 from types import MappingProxyType
+import copy
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.encoders.vanilla_autoencoder as Encoding
+from cares_reinforcement_learning.networks.mlp import MLP
 import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
-from cares_reinforcement_learning.util.configurations import SACDConfig
+from cares_reinforcement_learning.util.configurations import ImageEncoderType, SACDConfig, VanillaAEConfig
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
     TrainingContext,
@@ -98,6 +101,12 @@ class SACD(SAC):
 
         self.env_entropy = env_entropy
         self.entropy = None
+
+        if config.encoder_type is not None:
+            self.normalise_image = getattr(config, "normalise_image", True)
+            self._set_encoding(config)
+            self.target_critic_net = copy.deepcopy(self.critic_net).to(device)
+            self.target_critic_net.eval()
 
 
     def _get_q_target(self, q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
@@ -384,6 +393,12 @@ class SACD(SAC):
         self.log_alpha_optimizer.step()
 
         return alpha_loss
+    
+
+    def _update_autoencoder(self, states: torch.Tensor) -> float:
+        # Leaving this function in case this needs to be extended again in the future
+        ae_loss = self.autoencoder.update_autoencoder(states)
+        return ae_loss.item()
 
 
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
@@ -412,6 +427,9 @@ class SACD(SAC):
         )
 
         info = {}
+        if self.normalise_image:
+            states = states / 255.0
+            next_states = next_states / 255.0
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
@@ -422,8 +440,16 @@ class SACD(SAC):
             dones_tensor,
             weights_tensor,
         )
-
         info |= critic_info
+
+        # Update Autoencoder
+        if hasattr(self, "autoencoder"):
+            if hasattr(states, "image"):
+                ae_loss = self._update_autoencoder(states["image"])
+                info["ae_loss"] = ae_loss
+            else:
+                ae_loss = self._update_autoencoder(states)
+                info["ae_loss"] = ae_loss
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
@@ -439,3 +465,70 @@ class SACD(SAC):
 
     def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
         return 0.0
+    
+
+    def _set_encoding(
+            self, 
+            config: SACDConfig, 
+        ) -> None:
+        """Sets the encoder for the actor and critic networks."""
+        encoder_type = ImageEncoderType(config.encoder_type)
+        encoder_config = config.autoencoder_config
+
+        if encoder_type == ImageEncoderType.CONV_NET:
+            from cares_reinforcement_learning.encoders.vanilla_autoencoder import NewEncoder
+
+            encoder = NewEncoder(
+                observation_size=encoder_config.observation_size,
+                latent_dim=encoder_config.latent_dim,
+                num_layers=encoder_config.num_layers,
+                num_filters=encoder_config.num_filters,
+                kernel_size=encoder_config.kernel_size,
+                custom_network_config=getattr(config, "conv_config", None)
+            )
+            self.actor_net.set_encoder(encoder)            
+
+            if config.shared_conv_net:
+                critic_encoder = encoder
+            else:
+                critic_encoder = NewEncoder(
+                    observation_size=encoder_config.observation_size,
+                    latent_dim=encoder_config.latent_dim,
+                    num_layers=encoder_config.num_layers,
+                    num_filters=encoder_config.num_filters,
+                    kernel_size=encoder_config.kernel_size,
+                    custom_network_config=getattr(config, "conv_config", None)
+                )
+            self.critic_net.set_encoder(critic_encoder)
+        elif encoder_type == ImageEncoderType.VANILLA_AUTOENCODER:
+            from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+            detach_at_convs = getattr(config, "detach_at_convs", True)
+
+            # Initialize autoencoder and set encoders for actor and critic networks
+            autoencoder = VanillaAutoencoder(
+                observation_size=encoder_config.observation_size,
+                latent_dim=encoder_config.latent_dim,
+                num_layers=encoder_config.num_layers,
+                num_filters=encoder_config.num_filters,
+                kernel_size=encoder_config.kernel_size,
+                custom_encoder_config=getattr(config, "conv_config", None),
+                detach_at_convs=detach_at_convs,
+            )
+            self.autoencoder = autoencoder
+            self.actor_net.set_encoder(autoencoder.encoder.get_detached_encoder()) # Actor trains only FC layer
+            self.critic_net.set_encoder(autoencoder.encoder.get_encoder()) # Critic trains FC layer and convs
+
+            # Update target critic net to include encoder
+            self.target_critic_net = copy.deepcopy(self.critic_net).to(hlp.get_device())
+            self.target_critic_net.eval()
+
+        # Update optimisers to include encoder parameters
+        self.actor_net_optimiser = torch.optim.Adam(
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
+        )
+        self.critic_net_optimiser = torch.optim.Adam(
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
+        )
+
+
+

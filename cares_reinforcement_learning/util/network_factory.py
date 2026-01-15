@@ -187,7 +187,7 @@ def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
     ae_config = config.autoencoder_config
     decoder = Decoder(
         observation_size["image"],
-        out_dim=actor.encoder.out_dim,
+        out_height=actor.encoder.out_height,
         latent_dim=ae_config.latent_dim,
         num_layers=ae_config.num_layers,
         num_filters=ae_config.num_filters,
@@ -410,73 +410,20 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
 def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
-    from cares_reinforcement_learning.networks.common import MLP
 
-    actor_image_net = None
-    critic_image_net = None
-    input_size = observation_size
     if config.image_observation or isinstance(observation_size, tuple):
-        actor_image_net = MLP(
-            input_size=getattr(observation_size, "image", observation_size),
-            output_size=512,
-            config=config.encoder_config
-        )
-        input_size = actor_image_net.output_size
+        input_size = config.autoencoder_config.latent_dim
+        config.autoencoder_config.observation_size = observation_size
 
-        if config.encoder_net_shared:
-            critic_image_net = actor_image_net
-        else:
-            critic_image_net = actor_image_net.copy()
+    actor = Actor(input_size, action_num, config=config)
+    critic = Critic(input_size, action_num, config=config)
 
-    actor = Actor(input_size, action_num, config=config, encoder_net=actor_image_net)
-    critic = Critic(input_size, action_num, config=config, encoder_net=critic_image_net)
-
-    env_entropy = -np.log(1.0 / action_num)
-
-    device = hlp.get_device()
     agent = SACD(
         actor_network=actor,
         critic_network=critic,
-        env_entropy=env_entropy,
+        env_entropy=-np.log(1.0 / action_num),
         config=config,
-        device=device,
-    )
-    return agent
-
-
-def create_SD_SAC(observation_size, action_num, config: acf.SD_SACConfig):
-    from cares_reinforcement_learning.algorithm.policy import SD_SAC
-    from cares_reinforcement_learning.networks.SD_SAC import Actor, Critic
-    from cares_reinforcement_learning.networks.common import MLP
-
-    actor_image_net = None
-    critic_image_net = None
-    input_size = observation_size
-    if config.image_observation or isinstance(observation_size, tuple):
-        actor_image_net = MLP(
-            input_size=getattr(observation_size, "image", observation_size),
-            output_size=512,
-            config=config.encoder_config
-        )
-        input_size = actor_image_net.output_size
-
-        if config.encoder_net_shared:
-            critic_image_net = actor_image_net
-        else:
-            critic_image_net = actor_image_net.copy()
-
-    actor = Actor(input_size, action_num, config=config, encoder_net=actor_image_net)
-    critic = Critic(input_size, action_num, config=config, encoder_net=critic_image_net)
-
-    env_entropy = -np.log(1.0 / action_num)
-
-    device = hlp.get_device()
-    agent = SD_SAC(
-        actor_network=actor,
-        critic_network=critic,
-        env_entropy=env_entropy,
-        config=config,
-        device=device,
+        device=hlp.get_device(),
     )
     return agent
 
@@ -653,7 +600,7 @@ def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
     ae_config = config.autoencoder_config
     decoder = Decoder(
         observation_size["image"],
-        out_dim=actor.encoder.out_dim,
+        out_height=actor.encoder.out_height,
         latent_dim=ae_config.latent_dim,
         num_layers=ae_config.num_layers,
         num_filters=ae_config.num_filters,

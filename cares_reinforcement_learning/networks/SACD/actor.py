@@ -1,19 +1,14 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.networks.mlp import MLP
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
 class BaseActor(nn.Module):
-    def __init__(self, act_net: nn.Module, num_actions: int, encoder_net: MLP):
+    def __init__(self, act_net: nn.Module, num_actions: int):
         super().__init__()
-        if encoder_net is None:
-            encoder_net = nn.Identity()
-        self.network = nn.Sequential(
-            encoder_net,
-            act_net,
-        )
+        self.network = act_net
         self.num_actions = num_actions
         self.keeper = None
 
@@ -25,12 +20,21 @@ class BaseActor(nn.Module):
         dist = torch.distributions.Categorical(logits=logits)
         sample_action = dist.sample()
 
-        # Offset any values which are zero by a small amount so no nan nonsense
-        zero_offset = logits == 0.0
-        zero_offset = zero_offset.float() * 1e-8
-        log_logits = torch.log(logits + zero_offset)
+        return sample_action, (dist.probs, torch.log(dist.probs)), deterministic_action
+    
 
-        return sample_action, (dist.probs, dist.logits), deterministic_action
+    def set_encoder(self, encoder: nn.Module) -> None:
+        """Adds an encoder network to the actor."""
+        self.encoder = encoder
+        self.network = nn.Sequential(
+            encoder,
+            self.network,
+        )
+
+    
+    def get_encoder(self) -> nn.Module:
+        """Returns the encoder network of the actor."""
+        return self.encoder
     
 
     def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
@@ -53,7 +57,6 @@ class DefaultActor(BaseActor):
 
         super().__init__(
             act_net=act_net,
-            encoder_net=None,
             num_actions=num_actions,
         )
 
@@ -62,7 +65,7 @@ class Actor(BaseActor):
     # DiagGaussianActor
     """torch.distributions implementation of an diagonal Gaussian policy."""
 
-    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig, encoder_net: MLP):
+    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig):
 
         act_net = MLP(
             input_size=observation_size,
@@ -73,5 +76,4 @@ class Actor(BaseActor):
         super().__init__(
             act_net=act_net,
             num_actions=num_actions,
-            encoder_net=encoder_net,
         )

@@ -1,18 +1,16 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.networks.mlp import MLP
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
 class BaseCritic(nn.Module):
-    def __init__(self, Q1: nn.Module, Q2: nn.Module, encoder_net: MLP):
+    def __init__(self, Q1: nn.Module, Q2: nn.Module):
         super().__init__()
         self.Q1 = Q1
         self.Q2 = Q2
-        if encoder_net is None:
-            encoder_net = nn.Identity()
-        self.encoder_net = encoder_net
+        self.encoder_net = nn.Identity()
 
 
     def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -20,6 +18,11 @@ class BaseCritic(nn.Module):
         q1 = self.Q1(encoded_state)
         q2 = self.Q2(encoded_state)
         return q1, q2
+    
+
+    def set_encoder(self, encoder_net: MLP) -> None:
+        """Sets the encoder network for the critic."""
+        self.encoder_net = encoder_net
     
 
     def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -55,7 +58,7 @@ class DefaultCritic(BaseCritic):
 
 
 class Critic(BaseCritic):
-    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig, encoder_net: MLP):
+    def __init__(self, observation_size: int, num_actions: int, config: SACDConfig):
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
@@ -72,4 +75,4 @@ class Critic(BaseCritic):
             config=config.critic_config,
         )
 
-        super().__init__(Q1=Q1, Q2=Q2, encoder_net=encoder_net)
+        super().__init__(Q1=Q1, Q2=Q2)
