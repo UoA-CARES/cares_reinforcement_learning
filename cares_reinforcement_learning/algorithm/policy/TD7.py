@@ -361,7 +361,7 @@ class TD7(Algorithm[SARLObservation]):
     def _train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
@@ -407,7 +407,7 @@ class TD7(Algorithm[SARLObservation]):
     def _train_and_reset(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
@@ -416,7 +416,7 @@ class TD7(Algorithm[SARLObservation]):
                 self.best_min_return *= self.reset_weight
                 self.max_eps_before_update = self.max_eps_checkpointing
 
-            info = self._train_policy(memory_buffer, training_context)
+            info = self._train_policy(memory_buffer, episode_context)
 
         self.eps_since_update = 0
         self.timesteps_since_update = 0
@@ -427,13 +427,13 @@ class TD7(Algorithm[SARLObservation]):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
-        episode_steps = training_context.episode_steps
-        episode_return = training_context.episode_reward
-        episode_done = training_context.episode_done
+        episode_steps = episode_context.episode_steps
+        episode_return = episode_context.episode_reward
+        episode_done = episode_context.episode_done
 
         if not episode_done:
             return info
@@ -444,14 +444,14 @@ class TD7(Algorithm[SARLObservation]):
         self.min_return = min(self.min_return, episode_return)
 
         if self.min_return < self.best_min_return:
-            info = self._train_and_reset(memory_buffer, training_context)
+            info = self._train_and_reset(memory_buffer, episode_context)
 
         elif self.eps_since_update == self.max_eps_before_update:
             self.best_min_return = self.min_return
             self.checkpoint_actor.load_state_dict(self.actor_net.state_dict())
             self.checkpoint_encoder.load_state_dict(self.encoder_net.state_dict())
 
-            info = self._train_and_reset(memory_buffer, training_context)
+            info = self._train_and_reset(memory_buffer, episode_context)
 
         return info
 

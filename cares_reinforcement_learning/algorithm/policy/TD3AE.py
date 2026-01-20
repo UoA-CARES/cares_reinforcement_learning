@@ -229,7 +229,7 @@ class TD3AE(Algorithm[SARLObservation]):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1
 

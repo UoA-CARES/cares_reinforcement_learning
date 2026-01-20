@@ -133,7 +133,7 @@ class Algorithm(ABC, Generic[ObsType]):
 
     @abstractmethod
     def train_policy(
-        self, memory_buffer: MemoryBuffer[ObsType], training_context: EpisodeContext
+        self, memory_buffer: MemoryBuffer[ObsType], episode_context: EpisodeContext
     ) -> dict[str, Any]: ...
 
     @abstractmethod

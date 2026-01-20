@@ -28,8 +28,8 @@ class NoisyNet(DQN):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict:
-        info = super().train_policy(memory_buffer, training_context)
+        info = super().train_policy(memory_buffer, episode_context)
         self._reset_noise()
         return info

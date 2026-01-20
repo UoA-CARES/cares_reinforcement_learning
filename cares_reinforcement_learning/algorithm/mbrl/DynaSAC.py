@@ -186,11 +186,11 @@ class DynaSAC(Algorithm[SARLObservation]):
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
-    def train_policy(self, training_context: EpisodeContext) -> dict[str, Any]:
+    def train_policy(self, episode_context: EpisodeContext) -> dict[str, Any]:
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+        memory = episode_context.memory
+        batch_size = episode_context.batch_size
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences

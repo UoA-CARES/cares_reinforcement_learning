@@ -79,7 +79,7 @@ class DADS(Algorithm[SARLObservation]):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
         if len(memory_buffer) < self.batch_size:

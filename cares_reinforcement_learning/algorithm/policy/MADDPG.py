@@ -241,7 +241,7 @@ class MADDPG(Algorithm[MARLObservation]):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[MARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
         info: dict[str, Any] = {}
@@ -279,8 +279,8 @@ class MADDPG(Algorithm[MARLObservation]):
             # Build next_actions_tensor using TARGET actors
             # ---------------------------------------------------------
             next_actions = []
-            for agent, agent_name in zip(self.agents, agent_ids):
-                obs_next_j = next_agent_states_tensors[agent_name]
+            for agent, agent_id in zip(self.agents, agent_ids):
+                obs_next_j = next_agent_states_tensors[agent_id]
                 next_action_j = agent.target_actor_net(obs_next_j)
                 next_actions.append(next_action_j)
 

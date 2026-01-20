@@ -44,7 +44,7 @@ def observation_to_tensors(
         observations = cast(list[MARLObservation], observations)
 
         first = observations[0]
-        global_state_list = [obs.global_state for obs in observations]  # type: ignore[attr-defined]
+        global_state_list = [obs.global_state for obs in observations]
         global_state_tensor = torch.as_tensor(
             np.stack(global_state_list, axis=0),
             dtype=dtype,
@@ -55,7 +55,7 @@ def observation_to_tensors(
         agent_states_tensor: dict[str, torch.Tensor] = {}
 
         for agent in agent_names:
-            obs_list = [obs.agent_states[agent] for obs in observations]  # type: ignore[index]
+            obs_list = [obs.agent_states[agent] for obs in observations]
             agent_states_tensor[agent] = torch.as_tensor(
                 np.stack(obs_list, axis=0),
                 dtype=dtype,

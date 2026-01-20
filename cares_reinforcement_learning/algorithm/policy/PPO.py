@@ -129,7 +129,7 @@ class PPO(Algorithm[SARLObservation]):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
 

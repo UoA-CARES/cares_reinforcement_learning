@@ -109,7 +109,7 @@ class DDPG(Algorithm[SARLObservation]):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
         # Use the helper to sample and prepare tensors in one step

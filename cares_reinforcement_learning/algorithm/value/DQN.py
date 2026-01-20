@@ -149,13 +149,13 @@ class DQN(Algorithm[SARLObservation]):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
 
-        training_step = training_context.training_step
+        training_step = episode_context.training_step
 
         self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
 

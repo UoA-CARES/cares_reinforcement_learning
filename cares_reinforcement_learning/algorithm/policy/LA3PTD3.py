@@ -131,7 +131,7 @@ class LA3PTD3(TD3):
     def train_policy(
         self,
         memory_buffer: MemoryBuffer[SARLObservation],
-        training_context: EpisodeContext,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
