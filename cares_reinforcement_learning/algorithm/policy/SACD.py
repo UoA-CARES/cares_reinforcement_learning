@@ -17,9 +17,10 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
@@ -79,8 +80,6 @@ class SACD(Algorithm[SARLObservation]):
         self.actor_net.eval()
 
         state = observation.vector_state
-
-        assert isinstance(state, np.ndarray)
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -167,11 +166,12 @@ class SACD(Algorithm[SARLObservation]):
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
 
         (
             observation_tensor,
@@ -182,8 +182,8 @@ class SACD(Algorithm[SARLObservation]):
             _,
             _,
         ) = memory_sampler.sample(
-            memory=memory,
-            batch_size=batch_size,
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # SACD uses uniform sampling
         )

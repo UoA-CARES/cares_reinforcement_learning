@@ -15,9 +15,10 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.QMIX import QMixer, SharedMultiAgentNetwork
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import MARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
@@ -200,18 +201,20 @@ class QMIX(Algorithm[MARLObservation]):
 
         return elementwise_loss, loss_info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[MARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
         training_step = training_context.training_step
 
         self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
         # Use training_utils to sample and prepare batch
@@ -224,18 +227,14 @@ class QMIX(Algorithm[MARLObservation]):
             weights_tensor,
             indices,
         ) = memory_sampler.sample(
-            memory=memory,
-            batch_size=batch_size,
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
             action_dtype=torch.long,  # DQN uses discrete actions
         )
-
-        assert observation_tensor.agent_states_tensor is not None
-        assert next_observation_tensor.agent_states_tensor is not None
-        assert next_observation_tensor.avail_actions_tensor is not None
 
         # Compress rewards and dones to 1D tensors for cooperative setting
         rewards_tensor = rewards_tensor.sum(dim=1, keepdim=True)
@@ -272,7 +271,7 @@ class QMIX(Algorithm[MARLObservation]):
                 .flatten()
             )
 
-            memory.update_priorities(indices, priorities)
+            memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
         else:

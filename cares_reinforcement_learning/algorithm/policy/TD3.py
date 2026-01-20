@@ -15,14 +15,14 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
     EnsembleCritic,
     TwinQNetwork,
 )
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
@@ -205,7 +205,7 @@ class TD3(Algorithm[SARLObservation]):
 
     def update_networks(
         self,
-        memory: SARLMemoryBuffer,
+        memory: MemoryBuffer[SARLObservation],
         indices: np.ndarray,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
@@ -244,11 +244,12 @@ class TD3(Algorithm[SARLObservation]):
         return info
 
     # TODO use training_step with decay rates
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        memory: SARLMemoryBuffer = training_context.memory  # type: ignore[assignment]
-        batch_size = training_context.batch_size
 
         # TODO replace with training_step based approach to avoid having to save this value
         self.policy_noise *= self.policy_noise_decay
@@ -268,8 +269,8 @@ class TD3(Algorithm[SARLObservation]):
             weights_tensor,
             indices,
         ) = memory_sampler.sample(
-            memory=memory,
-            batch_size=batch_size,
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
@@ -277,7 +278,7 @@ class TD3(Algorithm[SARLObservation]):
         )
 
         info = self.update_networks(
-            memory,
+            memory_buffer,
             indices,
             observation_tensor.vector_state_tensor,
             actions_tensor,

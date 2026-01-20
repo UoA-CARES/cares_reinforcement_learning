@@ -3,38 +3,35 @@ from memory import memory_buffer
 
 def test_flush(memory_buffer):
     for i in range(2):
-        memory_buffer.add(i, i, i, i, False, 0.5 * i)
+        memory_buffer.add(i, i, i, i, False)
 
-    states, actions, rewards, next_states, dones, log_probs = memory_buffer.flush()
+    sample = memory_buffer.flush()
 
     assert (
-        len(states)
-        == len(actions)
-        == len(rewards)
-        == len(next_states)
-        == len(dones)
-        == len(log_probs)
+        len(sample.states)
+        == len(sample.actions)
+        == len(sample.rewards)
+        == len(sample.next_states)
+        == len(sample.dones)
         == 2
     )
     assert len(memory_buffer) == 0
 
 
 def test_flush_empty_buffer(memory_buffer):
-    nothing = memory_buffer.flush()
+    sample = memory_buffer.flush()
 
-    assert len(nothing) == 0
     assert len(memory_buffer) == 0
 
 
 def test_flush_order(memory_buffer):
     for i in range(5):
-        memory_buffer.add(i, i, i, i, False, 0.5 * i)
+        memory_buffer.add(i, i, i, i, False)
 
-    states, actions, rewards, next_states, dones, log_probs = memory_buffer.flush()
+    sample = memory_buffer.flush()
 
-    assert states == [0, 1, 2, 3, 4]
-    assert actions == [0, 1, 2, 3, 4]
-    assert rewards == [0, 1, 2, 3, 4]
-    assert next_states == [0, 1, 2, 3, 4]
-    assert dones == [False, False, False, False, False]
-    assert log_probs == [0.0, 0.5, 1.0, 1.5, 2.0]
+    assert sample.states == [0, 1, 2, 3, 4]
+    assert sample.actions == [0, 1, 2, 3, 4]
+    assert sample.rewards == [0, 1, 2, 3, 4]
+    assert sample.next_states == [0, 1, 2, 3, 4]
+    assert sample.dones == [False, False, False, False, False]

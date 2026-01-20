@@ -14,9 +14,10 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
@@ -105,9 +106,11 @@ class DDPG(Algorithm[SARLObservation]):
         info = {"actor_loss": actor_loss.item()}
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
 
         # Use the helper to sample and prepare tensors in one step
         (
@@ -119,8 +122,8 @@ class DDPG(Algorithm[SARLObservation]):
             _,
             _,
         ) = memory_sampler.sample(
-            memory=memory,
-            batch_size=batch_size,
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # DDPG uses uniform sampling
         )

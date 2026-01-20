@@ -5,8 +5,9 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import Observation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 # Type variable for observation types (SARL or MARL)
@@ -131,7 +132,9 @@ class Algorithm(ABC, Generic[ObsType]):
         return info
 
     @abstractmethod
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]: ...
+    def train_policy(
+        self, memory_buffer: MemoryBuffer[ObsType], training_context: EpisodeContext
+    ) -> dict[str, Any]: ...
 
     @abstractmethod
     def save_models(self, filepath: str, filename: str) -> None: ...

@@ -14,9 +14,10 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import SDARConfig
 
 
@@ -116,8 +117,6 @@ class SDAR(Algorithm[SARLObservation]):
         self.actor_net.eval()
 
         state = observation.vector_state
-
-        assert isinstance(state, np.ndarray)
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -255,11 +254,12 @@ class SDAR(Algorithm[SARLObservation]):
 
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
 
         # Use training utilities for consecutive sampling and tensor conversion
         (
@@ -274,7 +274,9 @@ class SDAR(Algorithm[SARLObservation]):
             next_observation_tensor,  # next_states_t2_tensor (SDAR's next states)
             dones_tensor,  # dones_t2_tensor (SDAR's current dones)
             _,  # indices (not used by SDAR)
-        ) = memory_sampler.consecutive_sample(memory, batch_size, self.device)
+        ) = memory_sampler.consecutive_sample(
+            memory_buffer, self.batch_size, self.device
+        )
 
         # Create weights tensor (SDAR doesn't use PER with consecutive sampling)
         batch_size = len(observation_tensor.vector_state_tensor)

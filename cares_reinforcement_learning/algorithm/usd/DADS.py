@@ -14,9 +14,10 @@ import torch.nn.functional as F
 
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DADSConfig
 
 
@@ -75,49 +76,55 @@ class DADS(Algorithm[SARLObservation]):
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, _, next_states, dones, indices = experiences
+        sample = memory_buffer.sample_uniform(self.batch_size)
+        batch_size = len(sample.states)
+
         weights = [1.0] * batch_size
 
-        batch_size = len(states)
-
-        zs = np.array(self.z_experience_index)[indices]
+        zs = np.array(self.z_experience_index)[sample.indices]
 
         zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
 
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
+
+        # TODO fix this piece - list of SARLObservations can't concate with zs_one_hot
+        states = [state.vector_state for state in sample.states]
         states_zs = np.concatenate([states, zs_one_hot], axis=1)
+
+        next_states = [state.vector_state for state in sample.next_states]
         next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
 
         # Convert into tensor using training utilities
         states_tensor = torch.tensor(
-            np.asarray(states), dtype=torch.float32, device=self.device
+            np.asarray(sample.states), dtype=torch.float32, device=self.device
         )
         states_zs_tensor = torch.tensor(
             np.asarray(states_zs), dtype=torch.float32, device=self.device
         )
 
         actions_tensor = torch.tensor(
-            np.asarray(actions), dtype=torch.float32, device=self.device
+            np.asarray(sample.actions), dtype=torch.float32, device=self.device
         )
 
         next_states_tensor = torch.tensor(
-            np.asarray(next_states), dtype=torch.float32, device=self.device
+            np.asarray(sample.next_states), dtype=torch.float32, device=self.device
         )
         next_states_zs_tensor = torch.tensor(
             np.asarray(next_states_zs), dtype=torch.float32, device=self.device
         )
 
         dones_tensor = torch.tensor(
-            np.asarray(dones), dtype=torch.long, device=self.device
+            np.asarray(sample.dones), dtype=torch.long, device=self.device
         )
         weights_tensor = torch.tensor(
             np.asarray(weights), dtype=torch.float32, device=self.device
@@ -148,8 +155,8 @@ class DADS(Algorithm[SARLObservation]):
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
 
         info = self.skills_agent.update_networks(
-            memory,
-            indices,
+            memory_buffer,
+            np.asarray(sample.indices),
             states_zs_tensor,
             actions_tensor,
             rewards_tensor,

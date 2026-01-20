@@ -17,12 +17,13 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
@@ -225,11 +226,12 @@ class TD3AE(Algorithm[SARLObservation]):
         }
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
 
         self.policy_noise *= self.policy_noise_decay
         self.policy_noise = max(self.min_policy_noise, self.policy_noise)
@@ -247,8 +249,8 @@ class TD3AE(Algorithm[SARLObservation]):
             weights_tensor,
             indices,
         ) = memory_sampler.sample(
-            memory=memory,
-            batch_size=batch_size,
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
@@ -308,7 +310,7 @@ class TD3AE(Algorithm[SARLObservation]):
 
         # Update the Priorities
         if self.use_per_buffer:
-            memory.update_priorities(indices, priorities)
+            memory_buffer.update_priorities(indices, priorities)
 
         return info
 

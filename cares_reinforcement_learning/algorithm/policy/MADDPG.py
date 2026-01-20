@@ -15,11 +15,12 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import MADDPGConfig
 
 
@@ -237,9 +238,11 @@ class MADDPG(Algorithm[MARLObservation]):
 
         return {"actor_loss": actor_loss.item()}
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[MARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
 
         info: dict[str, Any] = {}
 
@@ -254,22 +257,21 @@ class MADDPG(Algorithm[MARLObservation]):
                 next_observation_tensor,
                 dones_tensor,
                 _,
-                _,
+                indices,
             ) = memory_sampler.sample(
-                memory=memory,
-                batch_size=batch_size,
+                memory=memory_buffer,
+                batch_size=self.batch_size,
                 device=self.device,
                 use_per_buffer=0,
             )
+
+            sample_size = len(indices)
 
             states_tensors = observation_tensor.global_state_tensor
             next_states_tensors = next_observation_tensor.global_state_tensor
 
             agent_states_tensors = observation_tensor.agent_states_tensor
             next_agent_states_tensors = next_observation_tensor.agent_states_tensor
-
-            assert agent_states_tensors is not None
-            assert next_agent_states_tensors is not None
 
             agent_ids = list(agent_states_tensors.keys())
 
@@ -285,7 +287,7 @@ class MADDPG(Algorithm[MARLObservation]):
             next_actions_tensor = torch.stack(next_actions, dim=1)
 
             # Flatten replay-buffer actions for this batch
-            joint_actions = actions_tensor.reshape(batch_size, -1)
+            joint_actions = actions_tensor.reshape(sample_size, -1)
 
             # ---------------------------------------------------------
             # Critic update for this agent

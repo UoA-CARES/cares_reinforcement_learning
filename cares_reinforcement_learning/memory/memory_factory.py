@@ -2,11 +2,17 @@
 # pylint: disable=wildcard-import, unused-wildcard-import
 
 from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    SARLObservation,
+)
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 
 class MemoryFactory:
-    def create_memory(self, alg_config: AlgorithmConfig) -> MemoryBuffer:
+    def create_memory(
+        self, alg_config: AlgorithmConfig
+    ) -> MemoryBuffer[SARLObservation] | MemoryBuffer[MARLObservation]:
 
         beta = 0.0
         d_beta = 0.0
@@ -27,7 +33,17 @@ class MemoryFactory:
         if hasattr(alg_config, "gamma"):
             gamma = alg_config.gamma
 
-        return MemoryBuffer(
+        if alg_config.marl_observation:
+            return MemoryBuffer[MARLObservation](
+                max_capacity=alg_config.buffer_size,
+                min_priority=min_priority,
+                beta=beta,
+                d_beta=d_beta,
+                n_step=n_step,
+                gamma=gamma,
+            )
+
+        return MemoryBuffer[SARLObservation](
             max_capacity=alg_config.buffer_size,
             min_priority=min_priority,
             beta=beta,

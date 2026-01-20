@@ -9,7 +9,7 @@ from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-from cares_reinforcement_learning.types.training import TrainingContext
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 from cares_reinforcement_learning.util.network_factory import NetworkFactory
@@ -147,7 +147,6 @@ def test_algorithms(tmp_path):
             algorithm_configurations[name] = cls
 
     capacity = 5
-    batch_size = 2
 
     observation_size_vector = 5
 
@@ -205,17 +204,14 @@ def test_algorithms(tmp_path):
         else:
             continue
 
-        experiences = memory_buffer.sample_uniform(1)
-        states, actions, rewards, next_states, dones, _ = experiences
+        sample = memory_buffer.sample_uniform(1)
 
-        value = agent._calculate_value(states[0], actions[0])
+        value = agent._calculate_value(sample.states[0], sample.actions[0])
         assert isinstance(
             value, float
         ), f"{algorithm} did not return a float value for the calculated value"
 
-        training_context = TrainingContext(
-            memory=memory_buffer,
-            batch_size=batch_size,
+        training_context = EpisodeContext(
             training_step=1,
             episode=1,
             episode_steps=1,
@@ -223,7 +219,7 @@ def test_algorithms(tmp_path):
             episode_done=True,
         )
 
-        info = agent.train_policy(training_context)
+        info = agent.train_policy(memory_buffer, training_context)
         assert isinstance(
             info, dict
         ), f"{algorithm} did not return a dictionary of training info"
@@ -235,9 +231,8 @@ def test_algorithms(tmp_path):
         )
 
         if intrinsic_on:
-            experiences = memory_buffer.sample_uniform(1)
-            states, actions, _, next_states, _, _ = experiences
+            sample = memory_buffer.sample_uniform(1)
 
             intrinsic_reward = agent.get_intrinsic_reward(
-                states[0], actions[0], next_states[0]
+                sample.states[0], sample.actions[0], sample.next_states[0]
             )

@@ -12,12 +12,13 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
@@ -145,18 +146,20 @@ class DQN(Algorithm[SARLObservation]):
 
         return elementwise_loss
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
         training_step = training_context.training_step
 
         self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
         # Use training_utils to sample and prepare batch
@@ -169,14 +172,16 @@ class DQN(Algorithm[SARLObservation]):
             weights_tensor,
             indices,
         ) = memory_sampler.sample(
-            memory=memory,
-            batch_size=batch_size,
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
             action_dtype=torch.long,  # DQN uses discrete actions
         )
+
+        sample_size = len(indices)
 
         # Reshape tensors to match DQN's expected dimensions
         rewards_tensor = rewards_tensor.view(-1)
@@ -190,7 +195,7 @@ class DQN(Algorithm[SARLObservation]):
             rewards_tensor,
             next_observation_tensor.vector_state_tensor,
             dones_tensor,
-            batch_size,
+            sample_size,
         )
 
         if self.use_per_buffer:
@@ -203,7 +208,7 @@ class DQN(Algorithm[SARLObservation]):
                 .flatten()
             )
 
-            memory.update_priorities(indices, priorities)
+            memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
         else:

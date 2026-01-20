@@ -23,7 +23,7 @@ from cares_reinforcement_learning.networks.world_models.ensemble_integrated impo
     EnsembleWorldReward,
 )
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
 
 
@@ -186,7 +186,7 @@ class DynaSAC(Algorithm[SARLObservation]):
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(self, training_context: EpisodeContext) -> dict[str, Any]:
         self.learn_counter += 1
 
         memory = training_context.memory

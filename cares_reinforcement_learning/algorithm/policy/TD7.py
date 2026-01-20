@@ -17,8 +17,8 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.types.training import TrainingContext
 from cares_reinforcement_learning.util.configurations import TD7Config
 
 
@@ -302,7 +302,7 @@ class TD7(Algorithm[SARLObservation]):
 
     def update_networks(
         self,
-        memory: MemoryBuffer,
+        memory: MemoryBuffer[SARLObservation],
         indices: np.ndarray,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
@@ -358,11 +358,12 @@ class TD7(Algorithm[SARLObservation]):
         return info
 
     # TODO use training_step with decay rates
-    def _train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def _train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
 
         # TODO replace with training_step based approach to avoid having to save this value
         self.policy_noise *= self.policy_noise_decay
@@ -382,8 +383,8 @@ class TD7(Algorithm[SARLObservation]):
             weights_tensor,
             indices,
         ) = memory_sampler.sample(
-            memory=memory,
-            batch_size=batch_size,
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
@@ -391,7 +392,7 @@ class TD7(Algorithm[SARLObservation]):
         )
 
         info = self.update_networks(
-            memory,
+            memory_buffer,
             indices,
             observation_tensor.vector_state_tensor,
             actions_tensor,
@@ -403,7 +404,11 @@ class TD7(Algorithm[SARLObservation]):
 
         return info
 
-    def _train_and_reset(self, training_context: TrainingContext) -> dict[str, Any]:
+    def _train_and_reset(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         for _ in range(self.timesteps_since_update):
@@ -411,7 +416,7 @@ class TD7(Algorithm[SARLObservation]):
                 self.best_min_return *= self.reset_weight
                 self.max_eps_before_update = self.max_eps_checkpointing
 
-            info = self._train_policy(training_context)
+            info = self._train_policy(memory_buffer, training_context)
 
         self.eps_since_update = 0
         self.timesteps_since_update = 0
@@ -419,7 +424,11 @@ class TD7(Algorithm[SARLObservation]):
 
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MemoryBuffer[SARLObservation],
+        training_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         episode_steps = training_context.episode_steps
@@ -435,14 +444,14 @@ class TD7(Algorithm[SARLObservation]):
         self.min_return = min(self.min_return, episode_return)
 
         if self.min_return < self.best_min_return:
-            info = self._train_and_reset(training_context)
+            info = self._train_and_reset(memory_buffer, training_context)
 
         elif self.eps_since_update == self.max_eps_before_update:
             self.best_min_return = self.min_return
             self.checkpoint_actor.load_state_dict(self.actor_net.state_dict())
             self.checkpoint_encoder.load_state_dict(self.encoder_net.state_dict())
 
-            info = self._train_and_reset(training_context)
+            info = self._train_and_reset(memory_buffer, training_context)
 
         return info
 

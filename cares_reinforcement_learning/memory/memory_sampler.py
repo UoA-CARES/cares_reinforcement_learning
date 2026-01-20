@@ -7,7 +7,7 @@ from typing import cast, overload
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer, Sample
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     MARLObservationTensors,
@@ -110,13 +110,8 @@ def observation_to_tensors(
 
 @overload
 def sample_to_tensors(
-    states: list[SARLObservation],
-    actions: np.ndarray,
-    rewards: np.ndarray,
-    next_states: list[SARLObservation],
-    dones: np.ndarray,
+    buffer_sample: Sample[SARLObservation],
     device: torch.device,
-    weights: np.ndarray | None = None,
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
     rewards_dtype: torch.dtype = torch.float32,
@@ -135,13 +130,8 @@ def sample_to_tensors(
 
 @overload
 def sample_to_tensors(
-    states: list[MARLObservation],
-    actions: np.ndarray,
-    rewards: np.ndarray,
-    next_states: list[MARLObservation],
-    dones: np.ndarray,
+    buffer_sample: Sample[MARLObservation],
     device: torch.device,
-    weights: np.ndarray | None = None,
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
     rewards_dtype: torch.dtype = torch.float32,
@@ -159,13 +149,8 @@ def sample_to_tensors(
 
 
 def sample_to_tensors(
-    states: list[SARLObservation] | list[MARLObservation],
-    actions: np.ndarray,
-    rewards: np.ndarray,
-    next_states: list[SARLObservation] | list[MARLObservation],
-    dones: np.ndarray,
+    buffer_sample: Sample[SARLObservation] | Sample[MARLObservation],
     device: torch.device,
-    weights: np.ndarray | None = None,
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
     rewards_dtype: torch.dtype = torch.float32,
@@ -181,25 +166,26 @@ def sample_to_tensors(
     torch.Tensor,
 ]:
     """Convert numpy arrays to tensors with consistent dtypes."""
-    states_tensor = observation_to_tensors(states, device, states_dtype)
+    states_tensor = observation_to_tensors(buffer_sample.states, device, states_dtype)
 
     actions_tensor = torch.tensor(
-        np.asarray(actions), dtype=action_dtype, device=device
+        np.asarray(buffer_sample.actions), dtype=action_dtype, device=device
     )
 
     rewards_tensor = torch.tensor(
-        np.asarray(rewards), dtype=rewards_dtype, device=device
+        np.asarray(buffer_sample.rewards), dtype=rewards_dtype, device=device
     )
 
-    next_states_tensor = observation_to_tensors(next_states, device, next_states_dtype)
+    next_states_tensor = observation_to_tensors(
+        buffer_sample.next_states, device, next_states_dtype
+    )
 
-    dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
-
-    if weights is None:
-        weights = np.array([1.0] * len(states))
+    dones_tensor = torch.tensor(
+        np.asarray(buffer_sample.dones), dtype=dones_dtype, device=device
+    )
 
     weights_tensor = torch.tensor(
-        np.asarray(weights), dtype=weights_dtype, device=device
+        np.asarray(buffer_sample.weights), dtype=weights_dtype, device=device
     )
 
     # Reshape to batch_size
@@ -270,7 +256,7 @@ def consecutive_sample(
 
 
 def consecutive_sample(
-    memory: MemoryBuffer,
+    memory: MemoryBuffer[SARLObservation] | MemoryBuffer[MARLObservation],
     batch_size: int,
     device: torch.device,
     states_dtype: torch.dtype = torch.float32,
@@ -294,22 +280,7 @@ def consecutive_sample(
 ]:
     # Sample consecutive batch from memory buffer - this returns the full consecutive interface
     # state_i, action_i, reward_i, next_state_i, done_i, ..._i, state_i+1, action_i+1, reward_i+1, next_state_i+1, done_i+1, ..._+i
-    experiences = memory.sample_consecutive(batch_size)
-    (
-        states_t1,
-        actions_t1,
-        rewards_t1,
-        next_states_t1,
-        dones_t1,
-        states_t2,
-        actions_t2,
-        rewards_t2,
-        next_states_t2,
-        dones_t2,
-        indices,
-    ) = experiences
-
-    batch_size = len(states_t1)
+    buffer_sample_one, buffer_sample_two = memory.sample_consecutive(batch_size)
 
     # Convert to PyTorch tensors with specified dtypes
     (
@@ -320,11 +291,7 @@ def consecutive_sample(
         dones_t1_tensor,
         _,
     ) = sample_to_tensors(
-        states_t1,
-        actions_t1,
-        rewards_t1,
-        next_states_t1,
-        dones_t1,
+        buffer_sample_one,
         device,
         states_dtype=states_dtype,
         action_dtype=action_dtype,
@@ -343,11 +310,7 @@ def consecutive_sample(
         dones_t2_tensor,
         _,
     ) = sample_to_tensors(
-        states_t2,
-        actions_t2,
-        rewards_t2,
-        next_states_t2,
-        dones_t2,
+        buffer_sample_two,
         device,
         states_dtype=states_dtype,
         action_dtype=action_dtype,
@@ -368,7 +331,7 @@ def consecutive_sample(
         rewards_t2_tensor,
         next_observations_t2_tensor,
         dones_t2_tensor,
-        indices,
+        np.asarray(buffer_sample_one.indices),
     )
 
 
@@ -423,7 +386,7 @@ def sample(
 
 
 def sample(
-    memory: MemoryBuffer,
+    memory: MemoryBuffer[SARLObservation] | MemoryBuffer[MARLObservation],
     batch_size: int,
     device: torch.device,
     use_per_buffer: int = 0,
@@ -447,16 +410,13 @@ def sample(
 
     # Sample from memory buffer
     if use_per_buffer:
-        experiences = memory.sample_priority(
+        buffer_sample = memory.sample_priority(
             batch_size,
             sampling_strategy=per_sampling_strategy,
             weight_normalisation=per_weight_normalisation,
         )
-        states, actions, rewards, next_states, dones, indices, weights = experiences
     else:
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, indices = experiences
-        weights = np.array([1.0] * len(states))
+        buffer_sample = memory.sample_uniform(batch_size)
 
     # Convert to PyTorch tensors with specified dtypes
     (
@@ -467,13 +427,8 @@ def sample(
         dones_tensor,
         weights_tensor,
     ) = sample_to_tensors(
-        states,
-        actions,
-        rewards,
-        next_states,
-        dones,
-        device,
-        weights,
+        buffer_sample=buffer_sample,
+        device=device,
         states_dtype=states_dtype,
         action_dtype=action_dtype,
         rewards_dtype=rewards_dtype,
@@ -489,5 +444,5 @@ def sample(
         next_states_tensor,
         dones_tensor,
         weights_tensor,
-        indices,
+        np.asarray(buffer_sample.indices),
     )
