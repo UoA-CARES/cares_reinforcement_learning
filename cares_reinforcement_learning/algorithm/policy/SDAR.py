@@ -122,11 +122,11 @@ class SDAR(Algorithm[SARLObservation]):
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
-                (_, _, action, *_) = self.actor_net(
+                _, _, action, *_ = self.actor_net(
                     state_tensor, self.prev_action_tensor, force_act=self.force_act
                 )
             else:
-                (action, _, *_) = self.actor_net(
+                action, _, *_ = self.actor_net(
                     state_tensor, self.prev_action_tensor, force_act=self.force_act
                 )
 

@@ -114,9 +114,9 @@ class SACAE(Algorithm[SARLObservation]):
             )
 
             if evaluation:
-                (_, _, action) = self.actor_net(observation_tensors)
+                _, _, action = self.actor_net(observation_tensors)
             else:
-                (action, _, _) = self.actor_net(observation_tensors)
+                action, _, _ = self.actor_net(observation_tensors)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action

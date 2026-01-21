@@ -129,9 +129,9 @@ class SAC(Algorithm[SARLObservation]):
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
+                _, _, action = self.actor_net(state_tensor)
             else:
-                (action, _, _) = self.actor_net(state_tensor)
+                action, _, _ = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
