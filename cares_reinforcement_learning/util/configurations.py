@@ -569,6 +569,49 @@ class REDQConfig(SACConfig):
     use_per_buffer: Literal[0] = Field(default=0)
 
 
+class IDCConfig(SACConfig):
+    algorithm: str = Field("IDC", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 1e-3
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    ensemble_size: int = 5
+
+    G: int = 1
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
+
+    std_weight: float = 0.5
+
+
+class PEQConfig(SACConfig):
+    algorithm: str = Field("PEQ", Literal=True)
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 1e-3
+
+    gamma: float = 0.99
+    tau: float = 0.005
+    ensemble_size: int = 5
+
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
+    use_per_buffer: Literal[0] = Field(default=0, frozen=True)
+
+    w_mean: float = 1.0
+    w_std: float = 1.0
+    w_deviation: float = 1.0
+
+    ema_alpha: float = 0.3
+    critic_selection_strategy: str = "weighted"
+
+
 class TQCConfig(SACConfig):
     algorithm: str = "TQC"
 
