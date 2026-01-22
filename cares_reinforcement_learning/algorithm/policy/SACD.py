@@ -239,6 +239,8 @@ class SACD(SAC):
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+            if self.normalise_image:
+                state_tensor = state_tensor / 255.0
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
                 _, _, action = self.actor_net(state_tensor)
