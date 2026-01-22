@@ -16,6 +16,7 @@ from typing import Any, Generic, TypeVar
 import numpy as np
 
 from cares_reinforcement_learning.memory.sum_tree import SumTree
+from cares_reinforcement_learning.types.experience import Experience
 from cares_reinforcement_learning.types.observation import Observation
 
 ObsType = TypeVar("ObsType", bound=Observation)

@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SARLObservation:
     # Vector Based
     vector_state: np.ndarray
@@ -15,10 +15,10 @@ class SARLObservation:
     avail_actions: np.ndarray | None = None
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class MARLObservation:
-
     global_state: np.ndarray
+
     # Per-Agent States
     agent_states: dict[str, np.ndarray]
 
@@ -28,7 +28,7 @@ class MARLObservation:
 Observation = SARLObservation | MARLObservation
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class SARLObservationTensors:
     # Vector Based
     vector_state_tensor: torch.Tensor
@@ -37,7 +37,7 @@ class SARLObservationTensors:
     image_state_tensor: torch.Tensor | None = None
 
 
-@dataclass
+@dataclass(frozen=True, slots=True)
 class MARLObservationTensors:
     # Global State
     global_state_tensor: torch.Tensor

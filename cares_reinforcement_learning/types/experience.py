@@ -1,19 +1,28 @@
 from dataclasses import dataclass
+from typing import Any, Generic, TypeVar
 
 import numpy as np
 
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    Observation,
+    SARLObservation,
+)
+
+ObsType = TypeVar("ObsType", bound=Observation)
 
 
-@dataclass
-class Experience:
-    state: Observation
-    next_state: Observation
+@dataclass(slots=True)
+class Experience(Generic[ObsType]):
+    observation: ObsType
+    next_observation: ObsType
+
+    info: dict[str, Any]
 
 
-@dataclass
-class SingleAgentExperience(Experience):
-    action: np.ndarray | int
+@dataclass(slots=True)
+class SingleAgentExperience(Experience[SARLObservation]):
+    action: np.ndarray
     reward: float
     done: bool
     truncated: bool
@@ -31,23 +40,26 @@ class SingleAgentExperience(Experience):
         return self.reward
 
 
-@dataclass
-class MultiAgentExperience(Experience):
-    action: dict[str, np.ndarray] | dict[str, int]
-    reward: dict[str, float]
-    done: dict[str, bool]
-    truncated: dict[str, bool]
+@dataclass(slots=True)
+class MultiAgentExperience(Experience[MARLObservation]):
+    action: list[np.ndarray]
+    reward: list[float]
+    done: list[bool]
+    truncated: list[bool]
 
     @property
     def done_flag(self) -> bool:
         # terminal when *all* agents are done
-        return all(self.done.values())
+        return all(self.done)
 
     @property
     def truncated_flag(self) -> bool:
         # truncated when *all* agents are truncated
-        return all(self.truncated.values())
+        return all(self.truncated)
 
     @property
     def reward_sum(self) -> float:
-        return float(sum(self.reward.values()))
+        return float(sum(self.reward))
+
+
+ExperienceType = SingleAgentExperience | MultiAgentExperience
