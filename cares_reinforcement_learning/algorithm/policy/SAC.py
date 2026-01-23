@@ -135,7 +135,7 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
 
-        print(f"{self.learn_counter} State: {state} Action {action}")
+        # print(f"{self.learn_counter} State: {state} Action {action}")
         return action
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
@@ -326,12 +326,12 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
                 float(x.std()),
             )
 
-        if self.learn_counter == 5:
-            print("obs", dump_tensor(observation_tensor.vector_state_tensor))
-            print("act", dump_tensor(actions_tensor))
-            print("rew", dump_tensor(rewards_tensor))
-            print("next_obs", dump_tensor(next_observation_tensor.vector_state_tensor))
-            exit()
+        # if self.learn_counter == 5:
+        #     print("obs", dump_tensor(observation_tensor.vector_state_tensor))
+        #     print("act", dump_tensor(actions_tensor))
+        #     print("rew", dump_tensor(rewards_tensor))
+        #     print("next_obs", dump_tensor(next_observation_tensor.vector_state_tensor))
+        #     exit()
 
         # if self.learn_counter == 5:
         #     for i in range(0, self.batch_size, 20):
