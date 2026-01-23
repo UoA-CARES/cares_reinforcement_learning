@@ -77,6 +77,7 @@ class SACD(SAC):
         env_entropy: float,
         config: SACDConfig,
         device: torch.device,
+        num_tasks: int = 0,
     ):
         super().__init__(actor_network, critic_network, config, device)
         # Override typing for actor and critic networks
@@ -102,9 +103,26 @@ class SACD(SAC):
         self.env_entropy = env_entropy
         self.entropy = None
 
+        self.apply_film = True
+        if self.apply_film:
+            self.actor_net.enable_film(num_tasks)
+            self.critic_net.enable_film(num_tasks)
+
         if config.encoder_type is not None:
             self.normalise_image = getattr(config, "normalise_image", True)
             self._set_encoding(config)
+
+        # Update target critic net to include encoder
+        self.target_critic_net = copy.deepcopy(self.critic_net).to(hlp.get_device())
+        self.target_critic_net.eval()
+
+        # Update optimisers to include encoder parameters
+        self.actor_net_optimiser = torch.optim.Adam(
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
+        )
+        self.critic_net_optimiser = torch.optim.Adam(
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
+        )
 
 
     def _get_q_target(self, q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
@@ -233,6 +251,9 @@ class SACD(SAC):
         :rtype: ndarray
         """
         self.actor_net.eval()
+        if self.apply_film:
+            tasks = torch.tensor(np.asarray(action_context.extras["tasks"]), dtype=torch.float32, device=self.device).unsqueeze(0)
+            self.actor_net.update_film_params(tasks)
 
         state = action_context.state
         evaluation = action_context.evaluation
@@ -307,6 +328,7 @@ class SACD(SAC):
         next_states: torch.Tensor,
         dones: torch.Tensor,
         weights: torch.Tensor,
+        tasks: torch.Tensor = None,
     ) -> tuple[dict[str, float], np.ndarray]:
         """
         Updates the critic networks using the sampled batch of experiences.
@@ -326,6 +348,9 @@ class SACD(SAC):
         :return: Critic loss info for logging and PER priorities
         :rtype: tuple[dict[str, float], np.ndarray]
         """
+        if self.apply_film:
+            self.critic_net.update_film_params(tasks)
+        
         q_target = self._get_bootstrapped_value_estimate(next_states, rewards, dones)
 
         # Perform critic loss calculation and back propagation
@@ -350,7 +375,15 @@ class SACD(SAC):
         return critic_loss.log_info, priorities
 
 
-    def _update_actor_alpha(self, states: torch.Tensor, old_entropies: torch.Tensor = None) -> tuple[float, float]:
+    def _update_actor_alpha(
+            self, 
+            states: torch.Tensor, 
+            old_entropies: torch.Tensor = None, 
+            tasks: torch.Tensor = None
+        ) -> tuple[float, float]:
+        if self.apply_film:
+            self.actor_net.update_film_params(tasks)
+        
         info = {}
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
@@ -414,7 +447,7 @@ class SACD(SAC):
             rewards_tensor,
             next_states,
             dones_tensor,
-            old_entropies_tensor,
+            extras_tensor,
             weights_tensor,
             _,
         ) = tu.sample_batch_to_tensors(
@@ -425,6 +458,10 @@ class SACD(SAC):
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
         )
+
+        if extras_tensor is not None:
+            old_entropies_tensor = extras_tensor[:, 0].unsqueeze(dim=-1)
+            tasks_tensor = extras_tensor[:, 1:]
 
         info = {}
         if self.normalise_image:
@@ -439,6 +476,7 @@ class SACD(SAC):
             next_states,
             dones_tensor,
             weights_tensor,
+            tasks=tasks_tensor
         )
         info |= critic_info
 
@@ -453,7 +491,7 @@ class SACD(SAC):
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_info = self._update_actor_alpha(states, old_entropies_tensor)
+            actor_info = self._update_actor_alpha(states, old_entropies_tensor, tasks=tasks_tensor)
             
             info |= actor_info
 
@@ -519,15 +557,3 @@ class SACD(SAC):
             self.autoencoder = autoencoder
             self.actor_net.set_encoder(autoencoder.encoder.get_detached_encoder()) # Actor trains only FC layer
             self.critic_net.set_encoder(autoencoder.encoder.get_encoder()) # Critic trains FC layer and convs
-
-        # Update target critic net to include encoder
-        self.target_critic_net = copy.deepcopy(self.critic_net).to(hlp.get_device())
-        self.target_critic_net.eval()
-
-        # Update optimisers to include encoder parameters
-        self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
-        )
-        self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
-        )

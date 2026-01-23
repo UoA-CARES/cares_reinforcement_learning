@@ -24,3 +24,4 @@ class ActionContext:
     state: np.ndarray | dict
     evaluation: bool
     available_actions: np.ndarray
+    extras: dict = None

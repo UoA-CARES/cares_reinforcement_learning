@@ -25,6 +25,23 @@ class BaseCritic(nn.Module):
         self.encoder_net = encoder_net
     
 
+    def enable_film(self, num_tasks: int) -> None:
+        self.film_fc_layer = nn.Linear(num_tasks, len(self.Q1.film_layers) * 2).cuda()
+
+        # Q-networks share the FiLM layers
+        for i, film_layer in enumerate(self.Q2.film_layers):
+            film_layer = self.Q1.film_layers[i]
+
+
+    def update_film_params(self, tasks: torch.Tensor) -> torch.Tensor:
+        # Assume tasks is of shape (batch_size, num_tasks)
+        film_params = self.film_fc_layer(tasks)
+        for i, film_layer in enumerate(self.Q1.film_layers):
+            scales = film_params[:, 2 * i]
+            shifts = film_params[:, 2 * i + 1]
+            film_layer.set_film_parameters(scales, shifts)
+    
+
     def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         return super().__call__(state)
 

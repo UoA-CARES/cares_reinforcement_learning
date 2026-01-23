@@ -5,6 +5,7 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.networks.noisylinear import NoisyLinear
+from cares_reinforcement_learning.networks.scaleandshift import ScaleAndShift
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.util.network_configurations import (
     FunctionLayer,
@@ -12,6 +13,7 @@ from cares_reinforcement_learning.util.network_configurations import (
     NormLayer,
     ResidualLayer,
     TrainableLayer,
+    FiLMLayer,
 )
 
 
@@ -36,6 +38,7 @@ class MLP(nn.Module):
         super().__init__()
 
         self.input_size = input_size
+        self.film_layers: list[ScaleAndShift] = []
 
         layers = nn.ModuleList()
 
@@ -92,6 +95,10 @@ class MLP(nn.Module):
                 )
             elif isinstance(layer_spec, ResidualLayer):
                 layer = ResidualBlock(current_input_size, layer_spec)
+                self.film_layers.extend(layer.film_layers)
+            elif isinstance(layer_spec, FiLMLayer):
+                layer = ScaleAndShift()
+                self.film_layers.append(layer)
             else:
                 raise ValueError(f"Unknown layer type {layer_spec}")
 

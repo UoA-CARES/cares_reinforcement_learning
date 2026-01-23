@@ -10,7 +10,6 @@ class BaseActor(nn.Module):
         super().__init__()
         self.network = act_net
         self.num_actions = num_actions
-        self.keeper = None
 
     def forward(
         self, state: torch.Tensor
@@ -35,6 +34,20 @@ class BaseActor(nn.Module):
     def get_encoder(self) -> nn.Module:
         """Returns the encoder network of the actor."""
         return self.encoder
+    
+
+    def enable_film(self, num_tasks: int) -> None:
+        self.film_layers = self.network.film_layers
+        self.film_fc_layer = nn.Linear(num_tasks, len(self.film_layers) * 2).cuda()
+
+
+    def update_film_params(self, tasks: torch.Tensor) -> torch.Tensor:
+        # Assume tasks is of shape (batch_size, num_tasks)
+        film_params = self.film_fc_layer(tasks)
+        for i, film_layer in enumerate(self.film_layers):
+            scales = film_params[:, 2 * i]
+            shifts = film_params[:, 2 * i + 1]
+            film_layer.set_film_parameters(scales, shifts)
     
 
     def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:

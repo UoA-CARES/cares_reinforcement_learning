@@ -17,6 +17,7 @@ from cares_reinforcement_learning.util.network_configurations import (
     FunctionLayer,
     ResidualLayer,
     MLPConfig,
+    FiLMLayer,
 )
 
 # pylint disbale-next=unused-import
@@ -854,14 +855,16 @@ class SACDConfig(SACConfig):
     tau: float = 0.005
     reward_scale: float = 1.0
 
+    policy_update_freq: int = 1
+    target_update_freq: int = 1
+
     use_clipped_q: bool = True
     q_clip_epsilon: float = 0.5
     use_average_q: bool = True
     use_entropy_penalty: bool = True
     entropy_penalty_beta: float = 0.5
 
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
+    use_film: bool = True
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -870,12 +873,19 @@ class SACDConfig(SACConfig):
             ResidualLayer(
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
+                    FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear")
                 ]),
+            TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
+            ResidualLayer(
+                main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
+                    FiLMLayer(layer_type="FiLM"),
+                    FunctionLayer(layer_type="ReLU"),
+                ]),
             TrainableLayer(layer_type="Linear"),
         ]
     )
@@ -887,18 +897,25 @@ class SACDConfig(SACConfig):
             ResidualLayer(
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
+                    FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear")
                 ]),
+            TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
+            ResidualLayer(
+                main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
+                    FiLMLayer(layer_type="FiLM"),
+                    FunctionLayer(layer_type="ReLU"),
+                ]),
             TrainableLayer(layer_type="Linear"),
         ]
     )
 
     encoder_type: str = ImageEncoderType.VANILLA_AUTOENCODER.value
-    latent_dim: int = 128
+    latent_dim: int = 512
 
     # AutoEncoder configs
     autoencoder_config: VanillaAEConfig = VanillaAEConfig(
@@ -921,9 +938,6 @@ class SACDConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 3, "stride": 1, "padding": 0}),
             FunctionLayer(layer_type="ReLU"),
-            # FunctionLayer(layer_type="Flatten"),
-            # TrainableLayer(layer_type="Linear", out_features=512),
-            # FunctionLayer(layer_type="ReLU"),
         ]
     )
 

@@ -26,13 +26,16 @@ class FunctionLayer(BaseModel):
     params: dict[str, Any] = Field(default_factory=dict)
 
 
+class FiLMLayer(BaseModel):
+    layer_category: Literal["film"] = "film"  # Discriminator field
+
+
 class ResidualLayer(BaseModel):
     layer_category: Literal["residual"] = "residual"  # Discriminator field
-    main_layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
+    main_layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer | FiLMLayer]
     shortcut_layer: TrainableLayer | None = None
     use_padding: bool = False
 
-
 class MLPConfig(BaseModel):
-    layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
+    layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer | FiLMLayer]
 

@@ -407,7 +407,7 @@ def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
     return agent
 
 
-def create_SACD(observation_size, action_num, config: acf.SACDConfig):
+def create_SACD(observation_size, action_num, config: acf.SACDConfig, num_tasks: int = 0):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
 
@@ -424,6 +424,7 @@ def create_SACD(observation_size, action_num, config: acf.SACDConfig):
         env_entropy=-np.log(1.0 / action_num),
         config=config,
         device=hlp.get_device(),
+        num_tasks=num_tasks,
     )
     return agent
 
@@ -798,6 +799,7 @@ class NetworkFactory:
         observation_size,
         action_num: int,
         config: acf.AlgorithmConfig,
+        num_tasks: int = 0,
     ):
         algorithm = config.algorithm
 
@@ -805,7 +807,7 @@ class NetworkFactory:
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if inspect.isfunction(obj):
                 if name == f"create_{algorithm}":
-                    agent = obj(observation_size, action_num, config)
+                    agent = obj(observation_size, action_num, config, num_tasks=num_tasks)
 
         if agent is None:
             logging.warning(f"Unknown {agent} algorithm.")
