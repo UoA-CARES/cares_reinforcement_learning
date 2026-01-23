@@ -335,8 +335,8 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
         )
 
         if self.learn_counter == 5:
-            print(observation_tensor.vector_state_tensor[0])
-            print(next_observation_tensor.vector_state_tensor[0])
+            print(observation_tensor.vector_state_tensor)
+            print(next_observation_tensor.vector_state_tensor)
             print(indices)
             print(info)
             exit()
