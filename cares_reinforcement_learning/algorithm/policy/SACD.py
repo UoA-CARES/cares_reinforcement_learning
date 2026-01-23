@@ -150,7 +150,7 @@ class SACD(SAC):
         return q_values_one.gather(1, actions), q_values_two.gather(1, actions)
     
     
-    def _get_critic_loss(self, state: torch.Tensor, actions: torch.Tensor, q_target: torch.Tensor) -> CriticLossInfo:
+    def _get_critic_loss(self, state: torch.Tensor, actions: torch.Tensor, q_target: torch.Tensor, weights: torch.Tensor = None) -> CriticLossInfo:
         """
         Calculates critic loss using standard MSE loss between Q-values and target Q-values.
         
@@ -164,16 +164,22 @@ class SACD(SAC):
         :rtype: CriticLossInfo
         """
         q_values_one, q_values_two = self._get_state_action_q_values(state, actions, self.critic_net)
+        critic_loss_one = F.mse_loss(q_values_one, q_target)
+        critic_loss_two = F.mse_loss(q_values_two, q_target)
+
+        if weights is not None:
+            critic_loss_one = (critic_loss_one * weights).mean()
+            critic_loss_two = (critic_loss_two * weights).mean()
 
         return CriticLossInfo(
             q_values_one=q_values_one,
             q_values_two=q_values_two,
-            critic_loss_one=F.mse_loss(q_values_one, q_target),
-            critic_loss_two=F.mse_loss(q_values_two, q_target),
+            critic_loss_one=critic_loss_one,
+            critic_loss_two=critic_loss_two,
         )
     
 
-    def _get_clipped_critic_loss(self, state: torch.Tensor, actions: torch.Tensor, q_target: torch.Tensor) -> CriticLossInfo:
+    def _get_clipped_critic_loss(self, state: torch.Tensor, actions: torch.Tensor, q_target: torch.Tensor, weights: torch.Tensor = None) -> CriticLossInfo:
         """
         Calculates critic loss using clipped Q-values to prevent large updates.
         
@@ -211,6 +217,10 @@ class SACD(SAC):
         clipq_ratio += torch.mean((q2_clp_loss >= q2_std_loss).float()).item()
         clipq_ratio /= 2.0
         info['clip_ratio'] = clipq_ratio
+
+        if weights is not None:
+            critic_loss_one = (critic_loss_one * weights).mean()
+            critic_loss_two = (critic_loss_two * weights).mean()
 
         return CriticLossInfo(
             q_values_one=q_values_one,
@@ -416,7 +426,7 @@ class SACD(SAC):
             dones_tensor,
             old_entropies_tensor,
             weights_tensor,
-            _,
+            indices,
         ) = tu.sample_batch_to_tensors(
             memory=memory,
             batch_size=batch_size,
@@ -461,7 +471,7 @@ class SACD(SAC):
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         if self.use_per_buffer:
-            memory.update_priorities(priorities)
+            memory.update_priorities(indices, priorities)
 
         return info
 
