@@ -324,12 +324,14 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
                 float(x.std()),
             )
 
-        print("obs", dump_tensor(observation_tensor.vector_state_tensor))
-        print("act", dump_tensor(actions_tensor))
-        print("rew", dump_tensor(rewards_tensor))
-        print("next_obs", dump_tensor(next_observation_tensor.vector_state_tensor))
-        print("done", dump_tensor(dones_tensor))
-        exit()
+        if self.learn_counter >= 4:
+            print("obs", dump_tensor(observation_tensor.vector_state_tensor))
+            print("act", dump_tensor(actions_tensor))
+            print("rew", dump_tensor(rewards_tensor))
+            print("next_obs", dump_tensor(next_observation_tensor.vector_state_tensor))
+            # print("done", dump_tensor(dones_tensor))
+        if self.learn_counter == 5:
+            exit()
 
         info = self.update_networks(
             memory_buffer,
