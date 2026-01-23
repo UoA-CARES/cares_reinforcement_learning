@@ -311,11 +311,6 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        print(observation_tensor.vector_state_tensor[0])
-        print(next_observation_tensor.vector_state_tensor[0])
-        print(indices)
-        exit()
-
         info = self.update_networks(
             memory_buffer,
             indices,
