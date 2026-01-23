@@ -184,6 +184,11 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
         td_error_two = (q_values_two - q_target).abs()
 
         if self.learn_counter == 5:
+            print("Target Q Values One:", target_q_values_one.mean())
+            print("Target Q Values Two:", target_q_values_two.mean())
+            print("Alpha:", self.alpha.item())
+            print("Next Log Pi:", next_log_pi.mean())
+            print("Target Q Values Mean:", target_q_values.mean())
             print("Q Target:", q_target.mean())
             print("Q Values One:", q_values_one.mean())
             print("Q Values Two:", q_values_two.mean())
