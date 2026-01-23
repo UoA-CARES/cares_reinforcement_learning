@@ -460,6 +460,9 @@ class SACD(SAC):
         if self.learn_counter % self.target_update_freq == 0:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
+        if self.use_per_buffer:
+            memory.update_priorities(priorities)
+
         return info
 
 
