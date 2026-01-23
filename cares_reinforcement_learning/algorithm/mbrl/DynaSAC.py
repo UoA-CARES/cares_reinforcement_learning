@@ -24,10 +24,11 @@ from cares_reinforcement_learning.networks.world_models.ensemble_integrated impo
 )
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
 
 
-class DynaSAC(Algorithm[SARLObservation]):
+class DynaSAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,

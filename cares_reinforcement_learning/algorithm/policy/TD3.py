@@ -21,12 +21,13 @@ from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
     TwinQNetwork,
 )
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
-class TD3(Algorithm[SARLObservation]):
+class TD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: DeterministicPolicy,
@@ -205,7 +206,7 @@ class TD3(Algorithm[SARLObservation]):
 
     def update_networks(
         self,
-        memory: MemoryBuffer[SARLObservation],
+        memory: SARLMemoryBuffer,
         indices: np.ndarray,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
@@ -246,7 +247,7 @@ class TD3(Algorithm[SARLObservation]):
     # TODO use training_step with decay rates
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[SARLObservation],
+        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1

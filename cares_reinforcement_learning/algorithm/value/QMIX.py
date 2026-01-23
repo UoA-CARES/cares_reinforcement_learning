@@ -21,9 +21,10 @@ from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import MARLObservation
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 
 
-class QMIX(Algorithm[MARLObservation]):
+class QMIX(Algorithm[MARLObservation, MARLMemoryBuffer]):
     def __init__(
         self,
         network: SharedMultiAgentNetwork,
@@ -203,7 +204,7 @@ class QMIX(Algorithm[MARLObservation]):
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[MARLObservation],
+        memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}

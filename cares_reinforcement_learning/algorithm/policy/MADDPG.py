@@ -15,7 +15,7 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
@@ -24,7 +24,7 @@ from cares_reinforcement_learning.types.observation import (
 from cares_reinforcement_learning.util.configurations import MADDPGConfig
 
 
-class MADDPG(Algorithm[MARLObservation]):
+class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
     def __init__(
         self,
         agents: list[DDPG],
@@ -240,7 +240,7 @@ class MADDPG(Algorithm[MARLObservation]):
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[MARLObservation],
+        memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 

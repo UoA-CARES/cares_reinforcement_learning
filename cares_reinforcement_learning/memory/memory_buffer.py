@@ -9,32 +9,34 @@ import os
 import pickle
 import random
 import tempfile
+from abc import ABC, abstractmethod
 from collections import deque
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar
+from typing import Deque, Generic, TypeVar
 
 import numpy as np
 
 from cares_reinforcement_learning.memory.sum_tree import SumTree
-from cares_reinforcement_learning.types.experience import Experience
+from cares_reinforcement_learning.types.experience import (
+    ExperienceType,
+    MultiAgentExperience,
+    SingleAgentExperience,
+)
 from cares_reinforcement_learning.types.observation import Observation
 
 ObsType = TypeVar("ObsType", bound=Observation)
+ExpType = TypeVar("ExpType", bound=ExperienceType)
+MemBufT = TypeVar("MemBufT", bound="MemoryBuffer")
 
 
-@dataclass
-class Sample(Generic[ObsType]):
-    states: list[ObsType]
-    actions: list[np.ndarray]
-    rewards: list[np.ndarray]
-    next_states: list[ObsType]
-    dones: list[np.ndarray]
+@dataclass(frozen=True, slots=True)
+class Sample(Generic[ExpType]):
+    experiences: list[ExpType]
     indices: list[int]
     weights: np.ndarray
-    extras: list[Any]
 
 
-class MemoryBuffer(Generic[ObsType]):
+class MemoryBuffer(ABC, Generic[ExpType]):
     """
     A prioritized replay buffer implementation for reinforcement learning.
 
@@ -94,26 +96,11 @@ class MemoryBuffer(Generic[ObsType]):
         self.current_size = 0
 
         # Functionally is an array of buffers for each experience type
-        self.memory_buffers = []  # type: ignore
-        # 0 state = []
-        # 1 action = []
-        # 2 reward = []
-        # 3 next_state = []
-        # 4 done = []
-        # 5 ... = [] e.g. log_prob = []
-        # n ... = []
-
-        # TODO create these - replace with an experience dataclass?
-        # self.states: list[ObsType] = []
-        # self.actions: list[Any] = []
-        # self.rewards: list[float] = []
-        # self.next_states: list[ObsType] = []
-        # self.dones: list[bool] = []
-        # self.extras: list[dict[str, Any]] = []
+        self.memory_buffers: list[ExpType] = []  # type: ignore
 
         # n-step learning
         self.n_step = n_step
-        self.n_step_buffer: deque[list] = deque(maxlen=self.n_step)
+        self.n_step_buffer: Deque[ExpType] = deque(maxlen=self.n_step)
         self.gamma = gamma
 
         # The SumTree is an efficient data structure for sampling based on priorities
@@ -143,25 +130,10 @@ class MemoryBuffer(Generic[ObsType]):
         """
         return self.current_size
 
-    def _apply_n_step(self, n_step_buffer: deque) -> list:
-        """Return n step rew, next_obs, and done."""
-        # info of the last transition
-        state, action, reward, next_state, done, *_ = n_step_buffer[-1]
+    @abstractmethod
+    def _apply_n_step(self, n_step_buffer: Deque[ExpType]) -> ExpType: ...
 
-        for transition in reversed(list(n_step_buffer)[:-1]):
-            _, _, step_reward, step_next_state, step_done, *_ = transition
-
-            reward = step_reward + self.gamma * reward * (1 - step_done)
-            next_state, done = (
-                (step_next_state, step_done) if step_done else (next_state, done)
-            )
-
-        state, action, _, _, _, *extra = n_step_buffer[0]
-        return [state, action, reward, next_state, done, *extra]
-
-    def add(
-        self, state: ObsType, action, reward, next_state: ObsType, done, *extra
-    ) -> None:
+    def add(self, experience: ExpType) -> None:
         """
         Adds a single experience to the prioritized replay buffer.
 
@@ -178,8 +150,6 @@ class MemoryBuffer(Generic[ObsType]):
         Returns:
             None
         """
-        experience = [state, action, reward, next_state, done, *extra]
-
         # n-step learning - default is 1-step which means regular buffer behaviour
         self.n_step_buffer.append(experience)
         if len(self.n_step_buffer) < self.n_step:
@@ -188,16 +158,10 @@ class MemoryBuffer(Generic[ObsType]):
         # Calculate the n-step return - default is 1-step which means regular buffer behaviour
         experience = self._apply_n_step(self.n_step_buffer)
 
-        # Iterate over the list of experiences (state, action, reward, next_state, done, ...) and add them to the buffer
-        for index, exp in enumerate(experience):
-            # Dynamically create the full memory size on first experience
-            if index >= len(self.memory_buffers):
-                # NOTE: This is a list of numpy arrays in order to use index extraction in sample O(1)
-                memory = np.array([None] * self.max_capacity)
-                self.memory_buffers.append(memory)
-
-            # This adds to the latest position in the buffer
-            self.memory_buffers[index][self.tree_pointer] = exp
+        if len(self.memory_buffers) < self.max_capacity:
+            self.memory_buffers.append(experience)
+        else:
+            self.memory_buffers[self.tree_pointer] = experience
 
         # Add the priority to the SumTree - Prioritised Experience Replay
         new_priority = self.max_priority
@@ -206,7 +170,7 @@ class MemoryBuffer(Generic[ObsType]):
         self.tree_pointer = (self.tree_pointer + 1) % self.max_capacity
         self.current_size = min(self.current_size + 1, self.max_capacity)
 
-    def sample_uniform(self, batch_size: int) -> Sample[ObsType]:
+    def sample_uniform(self, batch_size: int) -> Sample[ExpType]:
         """
         Samples experiences uniformly from the buffer.
 
@@ -214,43 +178,21 @@ class MemoryBuffer(Generic[ObsType]):
             batch_size (int): The number of experiences to sample.
 
         Returns:
-            Sample: A Sample dataclass containing the sampled experiences, indices, and weights.
+            Sample[ExpType]: A sample of experiences.
         """
-
-        if self.current_size == 0:
-            return Sample[ObsType](
-                states=[],
-                actions=[],
-                rewards=[],
-                next_states=[],
-                dones=[],
-                indices=[],
-                weights=np.asarray([]),
-                extras=[],
-            )
 
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
         indices = np.random.randint(self.current_size, size=batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
-        experiences = []
-        for buffer in self.memory_buffers:
-            # NOTE: we convert back to a standard list here
-            experiences.append(buffer[indices].tolist())
+        experiences = [self.memory_buffers[i] for i in indices]
 
-        sample = Sample[ObsType](
-            states=experiences[0],
-            actions=experiences[1],
-            rewards=experiences[2],
-            next_states=experiences[3],
-            dones=experiences[4],
+        return Sample(
+            experiences=experiences,
             indices=indices.tolist(),
-            weights=np.array([1.0] * batch_size),
-            extras=experiences[5:] if len(experiences) > 5 else [],
+            weights=np.ones(len(experiences)),
         )
-
-        return sample
 
     def _importance_sampling_prioritised_weights(
         self, indices: np.ndarray, weight_normalisation="batch"
@@ -302,7 +244,7 @@ class MemoryBuffer(Generic[ObsType]):
         batch_size: int,
         sampling_strategy: str = "stratified",
         weight_normalisation: str = "batch",
-    ) -> Sample[ObsType]:
+    ) -> Sample[ExpType]:
         """
         Samples experiences from the prioritized replay buffer.
 
@@ -314,22 +256,10 @@ class MemoryBuffer(Generic[ObsType]):
             weight_normalisation (str): The type of weight normalisation to use. Options are "batch" or "population".
 
         Returns:
-            Sample: A Sample dataclass containing the sampled experiences, indices, and weights.
+            list[ExpType]: A list of sampled experiences based on inverse priorities.
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the importance weights for each sampled experience.
         """
-        if self.current_size == 0:
-            return Sample[ObsType](
-                states=[],
-                actions=[],
-                rewards=[],
-                next_states=[],
-                dones=[],
-                indices=[],
-                weights=np.asarray([]),
-                extras=[],
-            )
-
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
@@ -352,25 +282,15 @@ class MemoryBuffer(Generic[ObsType]):
         self.beta = min(self.beta + self.d_beta, 1.0)
 
         # Extracts the experiences at the desired indices from the buffer
-        experiences = []
-        for buffer in self.memory_buffers:
-            # NOTE: we convert back to a standard list here
-            experiences.append(buffer[indices].tolist())
+        experiences = [self.memory_buffers[i] for i in indices]
 
-        sample = Sample[ObsType](
-            states=experiences[0],
-            actions=experiences[1],
-            rewards=experiences[2],
-            next_states=experiences[3],
-            dones=experiences[4],
+        return Sample(
+            experiences=experiences,
             indices=indices.tolist(),
             weights=weights,
-            extras=experiences[5:] if len(experiences) > 5 else [],
         )
 
-        return sample
-
-    def sample_inverse_priority(self, batch_size: int) -> Sample[ObsType]:
+    def sample_inverse_priority(self, batch_size: int) -> Sample[ExpType]:
         """
         Samples experiences from the buffer based on inverse priorities.
 
@@ -378,21 +298,16 @@ class MemoryBuffer(Generic[ObsType]):
             batch_size (int): The number of experiences to sample.
 
         Returns:
-            Sample: A Sample dataclass containing the sampled experiences, indices, and weights.
+            list[ExpType]: A list of sampled experiences based on inverse priorities.
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the inverse importance weights for each sampled experience.
 
         """
         if self.current_size == 0:
-            return Sample[ObsType](
-                states=[],
-                actions=[],
-                rewards=[],
-                next_states=[],
-                dones=[],
+            return Sample(
+                experiences=[],
                 indices=[],
                 weights=np.asarray([]),
-                extras=[],
             )
 
         # If batch size is greater than size we need to limit it to just the data that exists
@@ -411,23 +326,13 @@ class MemoryBuffer(Generic[ObsType]):
         indices = self.inverse_tree.sample_simple(batch_size)
 
         # Extracts the experiences at the desired indices from the buffer
-        experiences = []
-        for buffer in self.memory_buffers:
-            # NOTE: we convert back to a standard list here
-            experiences.append(buffer[indices].tolist())
+        experiences = [self.memory_buffers[i] for i in indices]
 
-        sample = Sample[ObsType](
-            states=experiences[0],
-            actions=experiences[1],
-            rewards=experiences[2],
-            next_states=experiences[3],
-            dones=experiences[4],
+        return Sample(
+            experiences=experiences,
             indices=indices.tolist(),
             weights=reversed_priorities[indices],
-            extras=experiences[5:] if len(experiences) > 5 else [],
         )
-
-        return sample
 
     def reset_priorities(self) -> None:
         """
@@ -470,7 +375,7 @@ class MemoryBuffer(Generic[ObsType]):
         self.max_priority = max(priorities.max(), self.max_priority)
         self.sum_tree.batch_set(indices, priorities)
 
-    def flush(self) -> Sample[ObsType]:
+    def flush(self) -> Sample[ExpType]:
         """
         Flushes the memory buffers and returns the experiences in order.
 
@@ -478,31 +383,16 @@ class MemoryBuffer(Generic[ObsType]):
             experiences (list): The full memory buffer in order.
         """
         if self.current_size == 0:
-            return Sample[ObsType](
-                states=[],
-                actions=[],
-                rewards=[],
-                next_states=[],
-                dones=[],
+            return Sample(
+                experiences=[],
                 indices=[],
                 weights=np.asarray([]),
-                extras=[],
             )
 
-        experiences = []
-        for buffer in self.memory_buffers:
-            # NOTE: we convert back to a standard list here
-            experiences.append(buffer[0 : self.current_size].tolist())
-
-        sample = Sample[ObsType](
-            states=experiences[0],
-            actions=experiences[1],
-            rewards=experiences[2],
-            next_states=experiences[3],
-            dones=experiences[4],
+        sample = Sample(
+            experiences=self.memory_buffers[: self.current_size],
             indices=list(range(self.current_size)),
-            weights=(np.asarray([1.0] * len(self))),
-            extras=experiences[5:] if len(experiences) > 5 else [],
+            weights=(np.asarray([1.0] * self.current_size)),
         )
 
         self.clear()
@@ -511,7 +401,7 @@ class MemoryBuffer(Generic[ObsType]):
 
     def sample_consecutive(
         self, batch_size: int
-    ) -> tuple[Sample[ObsType], Sample[ObsType]]:
+    ) -> tuple[Sample[ExpType], Sample[ExpType]]:
         """
         Randomly samples consecutive experiences from the memory buffer.
 
@@ -520,20 +410,15 @@ class MemoryBuffer(Generic[ObsType]):
 
         Returns:
             tuple: A tuple containing the sampled experiences and their corresponding next experiences.
-                - Sample: A Sample dataclass containing the sampled experiences, indices, and weights.
-                - Sample: A Sample dataclass containing the next sampled experiences, indices, and weights.
+                - list[ExpType]: A list of sampled experiences.
+                - list[ExpType]: A list of next sampled experiences.
 
         """
         if self.current_size == 0:
-            empty = Sample[ObsType](
-                states=[],
-                actions=[],
-                rewards=[],
-                next_states=[],
-                dones=[],
+            empty: Sample[ExpType] = Sample(
+                experiences=[],
                 indices=[],
                 weights=np.asarray([]),
-                extras=[],
             )
             return empty, empty
 
@@ -552,42 +437,26 @@ class MemoryBuffer(Generic[ObsType]):
             idxs = random.sample(candididate_indices, batch_size - len(sampled_indices))
             for i in idxs:
                 # Check the experience is not done and not already sampled.
-                done = self.memory_buffers[4][i]
+                done = self.memory_buffers[i].done_flag
                 if (not done) and (i not in sampled_indices):
                     sampled_indices.append(i)
 
-        experiences = []
-        for buffer in self.memory_buffers:
-            # NOTE: we convert back to a standard list here
-            experiences.append(buffer[np.array(sampled_indices)].tolist())
+        experiences = [self.memory_buffers[i] for i in sampled_indices]
 
-        sample = Sample[ObsType](
-            states=experiences[0],
-            actions=experiences[1],
-            rewards=experiences[2],
-            next_states=experiences[3],
-            dones=experiences[4],
+        sample = Sample(
+            experiences=experiences,
             indices=sampled_indices,
             weights=np.asarray([1.0] * batch_size),
-            extras=experiences[5:] if len(experiences) > 5 else [],
         )
 
         next_sampled_indices = (np.array(sampled_indices) + 1).tolist()
 
-        next_experiences = []
-        for buffer in self.memory_buffers:
-            # NOTE: we convert back to a standard list here
-            next_experiences.append(buffer[np.array(next_sampled_indices)].tolist())
+        experiences = [self.memory_buffers[i] for i in next_sampled_indices]
 
-        next_sample = Sample[ObsType](
-            states=next_experiences[0],
-            actions=next_experiences[1],
-            rewards=next_experiences[2],
-            next_states=next_experiences[3],
-            dones=next_experiences[4],
+        next_sample = Sample(
+            experiences=experiences,
             indices=next_sampled_indices,
             weights=np.asarray([1.0] * batch_size),
-            extras=next_experiences[5:] if len(next_experiences) > 5 else [],
         )
 
         return sample, next_sample
@@ -652,10 +521,115 @@ class MemoryBuffer(Generic[ObsType]):
         os.replace(tmp.name, final_path)
 
     @classmethod
-    def load(cls, file_path: str, file_name: str):
+    def load(cls: type[MemBufT], file_path: str, file_name: str) -> MemBufT:
         """
         Simple object deserialization given a filename
         """
         with open(f"{file_path}/{file_name}.pkl", "rb") as f:
             obj = pickle.load(f)
             return obj
+
+
+class SARLMemoryBuffer(MemoryBuffer[SingleAgentExperience]):
+    def __init__(
+        self,
+        max_capacity: int = int(1e6),
+        min_priority: float = 1e-4,
+        beta: float = 0.4,
+        d_beta: float = 6e-7,
+        n_step: int = 1,
+        gamma: float = 0.99,
+    ):
+        super().__init__(max_capacity, min_priority, beta, d_beta, n_step, gamma)
+
+    def _apply_n_step(
+        self, n_step_buffer: deque[SingleAgentExperience]
+    ) -> SingleAgentExperience:
+        first = n_step_buffer[0]
+        last = n_step_buffer[-1]
+
+        n_reward = last.reward
+        n_next_observation = last.next_observation
+        n_done = last.done
+        n_truncated = last.truncated
+
+        # Walk backwards over earlier transitions (excluding last)
+        for n_exp in reversed(list(n_step_buffer)[:-1]):
+            step_terminal = n_exp.done or n_exp.truncated
+
+            # If a terminal happened at this step, the effective next_state becomes this step's next_state
+            # and the terminal flags become this step's flags.
+            if step_terminal:
+                n_next_observation = n_exp.next_observation
+                n_done = n_exp.done
+                n_truncated = n_exp.truncated
+
+            # Discounted accumulation. If terminal has occurred at/after this step,
+            # we should not bootstrap further (i.e., multiply future return by 0).
+            n_reward = n_exp.reward + self.gamma * n_reward * (1 - int(step_terminal))
+
+        # Build new experience using state/action from the first transition
+        return SingleAgentExperience(
+            observation=first.observation,
+            next_observation=n_next_observation,
+            action=first.action,
+            reward=n_reward,
+            done=n_done,
+            truncated=n_truncated,
+            info=first.info,
+        )
+
+
+class MARLMemoryBuffer(MemoryBuffer[MultiAgentExperience]):
+    def __init__(
+        self,
+        max_capacity: int = int(1e6),
+        min_priority: float = 1e-4,
+        beta: float = 0.4,
+        d_beta: float = 6e-7,
+        n_step: int = 1,
+        gamma: float = 0.99,
+    ):
+        super().__init__(max_capacity, min_priority, beta, d_beta, n_step, gamma)
+
+    def _apply_n_step(
+        self,
+        n_step_buffer: deque[MultiAgentExperience],
+    ) -> MultiAgentExperience:
+        first = n_step_buffer[0]
+        last = n_step_buffer[-1]
+
+        # Start from the last step in the window
+        n_reward = list(last.reward)
+        n_next_observation = last.next_observation
+        n_done = list(last.done)
+        n_truncated = list(last.truncated)
+
+        # Walk backwards over earlier transitions (excluding last)
+        for n_exp in reversed(list(n_step_buffer)[:-1]):
+            # WARNING: This currently assumes that all agents share the same done/truncated flags
+            step_terminal = n_exp.done_flag or n_exp.truncated_flag
+
+            # discounted accumulation per agent
+            if step_terminal:
+                n_next_observation = n_exp.next_observation
+                n_done = list(n_exp.done)
+                n_truncated = list(n_exp.truncated)
+
+            n_reward = [
+                r + self.gamma * nr * (1 - int(step_terminal))
+                for r, nr in zip(n_exp.reward, n_reward)
+            ]
+
+        return MultiAgentExperience(
+            observation=first.observation,
+            next_observation=n_next_observation,
+            action=first.action,
+            reward=n_reward,
+            done=n_done,
+            truncated=n_truncated,
+            info=first.info,
+        )
+
+
+Memory = SARLMemoryBuffer | MARLMemoryBuffer

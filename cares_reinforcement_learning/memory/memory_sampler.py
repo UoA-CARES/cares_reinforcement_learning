@@ -2,18 +2,40 @@
 Memory utilities for reinforcement learning algorithms.
 """
 
-from typing import cast, overload
+from typing import TypeGuard, cast, overload
 
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer, Sample
+from cares_reinforcement_learning.memory.memory_buffer import (
+    MARLMemoryBuffer,
+    Sample,
+    SARLMemoryBuffer,
+)
+from cares_reinforcement_learning.types.experience import (
+    MultiAgentExperience,
+    SingleAgentExperience,
+)
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     MARLObservationTensors,
     SARLObservation,
     SARLObservationTensors,
 )
+
+
+def is_sarl_sample(
+    buffer_sample: Sample[SingleAgentExperience] | Sample[MultiAgentExperience],
+) -> TypeGuard[Sample[SingleAgentExperience]]:
+    """Type guard to narrow Sample union to SARL variant."""
+    return isinstance(buffer_sample.experiences[0], SingleAgentExperience)
+
+
+def is_marl_sample(
+    buffer_sample: Sample[SingleAgentExperience] | Sample[MultiAgentExperience],
+) -> TypeGuard[Sample[MultiAgentExperience]]:
+    """Type guard to narrow Sample union to MARL variant."""
+    return isinstance(buffer_sample.experiences[0], MultiAgentExperience)
 
 
 @overload
@@ -108,9 +130,107 @@ def observation_to_tensors(
     )
 
 
+def _sample_to_tensors_sarl(
+    buffer_sample: Sample[SingleAgentExperience],
+    device: torch.device,
+    states_dtype: torch.dtype,
+    action_dtype: torch.dtype,
+    rewards_dtype: torch.dtype,
+    next_states_dtype: torch.dtype,
+    dones_dtype: torch.dtype,
+    weights_dtype: torch.dtype,
+) -> tuple[
+    SARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    SARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    states = [exp.observation for exp in buffer_sample.experiences]
+    actions = [exp.action for exp in buffer_sample.experiences]
+    rewards = [exp.reward for exp in buffer_sample.experiences]
+    next_states = [exp.next_observation for exp in buffer_sample.experiences]
+    dones = [exp.done for exp in buffer_sample.experiences]
+
+    states_tensor = observation_to_tensors(states, device, states_dtype)
+    actions_tensor = torch.tensor(
+        np.asarray(actions), dtype=action_dtype, device=device
+    )
+    rewards_tensor = torch.tensor(
+        np.asarray(rewards), dtype=rewards_dtype, device=device
+    )
+    next_states_tensor = observation_to_tensors(next_states, device, next_states_dtype)
+    dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
+    weights_tensor = torch.tensor(
+        np.asarray(buffer_sample.weights), dtype=weights_dtype, device=device
+    )
+
+    rewards_tensor = rewards_tensor.unsqueeze(-1)
+    dones_tensor = dones_tensor.unsqueeze(-1)
+    weights_tensor = weights_tensor.unsqueeze(-1)
+    return (
+        states_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_states_tensor,
+        dones_tensor,
+        weights_tensor,
+    )
+
+
+def _sample_to_tensors_marl(
+    buffer_sample: Sample[MultiAgentExperience],
+    device: torch.device,
+    states_dtype: torch.dtype,
+    action_dtype: torch.dtype,
+    rewards_dtype: torch.dtype,
+    next_states_dtype: torch.dtype,
+    dones_dtype: torch.dtype,
+    weights_dtype: torch.dtype,
+) -> tuple[
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+    MARLObservationTensors,
+    torch.Tensor,
+    torch.Tensor,
+]:
+    states = [exp.observation for exp in buffer_sample.experiences]
+    actions = [exp.action for exp in buffer_sample.experiences]
+    rewards = [exp.reward for exp in buffer_sample.experiences]
+    next_states = [exp.next_observation for exp in buffer_sample.experiences]
+    dones = [exp.done for exp in buffer_sample.experiences]
+
+    states_tensor = observation_to_tensors(states, device, states_dtype)
+    actions_tensor = torch.tensor(
+        np.asarray(actions), dtype=action_dtype, device=device
+    )
+    rewards_tensor = torch.tensor(
+        np.asarray(rewards), dtype=rewards_dtype, device=device
+    )
+    next_states_tensor = observation_to_tensors(next_states, device, next_states_dtype)
+    dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
+    weights_tensor = torch.tensor(
+        np.asarray(buffer_sample.weights), dtype=weights_dtype, device=device
+    )
+
+    rewards_tensor = rewards_tensor.unsqueeze(-1)
+    dones_tensor = dones_tensor.unsqueeze(-1)
+    weights_tensor = weights_tensor.unsqueeze(-1)
+    return (
+        states_tensor,
+        actions_tensor,
+        rewards_tensor,
+        next_states_tensor,
+        dones_tensor,
+        weights_tensor,
+    )
+
+
 @overload
 def sample_to_tensors(
-    buffer_sample: Sample[SARLObservation],
+    buffer_sample: Sample[SingleAgentExperience],
     device: torch.device,
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
@@ -130,7 +250,7 @@ def sample_to_tensors(
 
 @overload
 def sample_to_tensors(
-    buffer_sample: Sample[MARLObservation],
+    buffer_sample: Sample[MultiAgentExperience],
     device: torch.device,
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
@@ -149,7 +269,7 @@ def sample_to_tensors(
 
 
 def sample_to_tensors(
-    buffer_sample: Sample[SARLObservation] | Sample[MARLObservation],
+    buffer_sample: Sample[SingleAgentExperience] | Sample[MultiAgentExperience],
     device: torch.device,
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
@@ -165,47 +285,36 @@ def sample_to_tensors(
     torch.Tensor,
     torch.Tensor,
 ]:
-    """Convert numpy arrays to tensors with consistent dtypes."""
-    states_tensor = observation_to_tensors(buffer_sample.states, device, states_dtype)
-
-    actions_tensor = torch.tensor(
-        np.asarray(buffer_sample.actions), dtype=action_dtype, device=device
-    )
-
-    rewards_tensor = torch.tensor(
-        np.asarray(buffer_sample.rewards), dtype=rewards_dtype, device=device
-    )
-
-    next_states_tensor = observation_to_tensors(
-        buffer_sample.next_states, device, next_states_dtype
-    )
-
-    dones_tensor = torch.tensor(
-        np.asarray(buffer_sample.dones), dtype=dones_dtype, device=device
-    )
-
-    weights_tensor = torch.tensor(
-        np.asarray(buffer_sample.weights), dtype=weights_dtype, device=device
-    )
-
-    # Reshape to batch_size
-    rewards_tensor = rewards_tensor.unsqueeze(-1)
-    dones_tensor = dones_tensor.unsqueeze(-1)
-    weights_tensor = weights_tensor.unsqueeze(-1)
-
-    return (
-        states_tensor,
-        actions_tensor,
-        rewards_tensor,
-        next_states_tensor,
-        dones_tensor,
-        weights_tensor,
+    if is_sarl_sample(buffer_sample):
+        return _sample_to_tensors_sarl(
+            buffer_sample,
+            device,
+            states_dtype,
+            action_dtype,
+            rewards_dtype,
+            next_states_dtype,
+            dones_dtype,
+            weights_dtype,
+        )
+    if is_marl_sample(buffer_sample):
+        return _sample_to_tensors_marl(
+            buffer_sample,
+            device,
+            states_dtype,
+            action_dtype,
+            rewards_dtype,
+            next_states_dtype,
+            dones_dtype,
+            weights_dtype,
+        )
+    raise TypeError(
+        "buffer_sample must be Sample[SingleAgentExperience] or Sample[MultiAgentExperience]"
     )
 
 
 @overload
 def consecutive_sample(
-    memory: MemoryBuffer[SARLObservation],
+    memory: SARLMemoryBuffer,
     batch_size: int,
     device: torch.device,
     states_dtype: torch.dtype = torch.float32,
@@ -231,7 +340,7 @@ def consecutive_sample(
 
 @overload
 def consecutive_sample(
-    memory: MemoryBuffer[MARLObservation],
+    memory: MARLMemoryBuffer,
     batch_size: int,
     device: torch.device,
     states_dtype: torch.dtype = torch.float32,
@@ -256,7 +365,7 @@ def consecutive_sample(
 
 
 def consecutive_sample(
-    memory: MemoryBuffer[SARLObservation] | MemoryBuffer[MARLObservation],
+    memory: SARLMemoryBuffer | MARLMemoryBuffer,
     batch_size: int,
     device: torch.device,
     states_dtype: torch.dtype = torch.float32,
@@ -337,7 +446,7 @@ def consecutive_sample(
 
 @overload
 def sample(
-    memory: MemoryBuffer[SARLObservation],
+    memory: SARLMemoryBuffer,
     batch_size: int,
     device: torch.device,
     use_per_buffer: int = 0,
@@ -362,7 +471,7 @@ def sample(
 
 @overload
 def sample(
-    memory: MemoryBuffer[MARLObservation],
+    memory: MARLMemoryBuffer,
     batch_size: int,
     device: torch.device,
     use_per_buffer: int = 0,
@@ -386,7 +495,7 @@ def sample(
 
 
 def sample(
-    memory: MemoryBuffer[SARLObservation] | MemoryBuffer[MARLObservation],
+    memory: SARLMemoryBuffer | MARLMemoryBuffer,
     batch_size: int,
     device: torch.device,
     use_per_buffer: int = 0,
@@ -420,10 +529,10 @@ def sample(
 
     # Convert to PyTorch tensors with specified dtypes
     (
-        states_tensor,
+        observation_tensor,
         actions_tensor,
         rewards_tensor,
-        next_states_tensor,
+        next_observation_tensor,
         dones_tensor,
         weights_tensor,
     ) = sample_to_tensors(
@@ -438,10 +547,10 @@ def sample(
     )
 
     return (
-        states_tensor,
+        observation_tensor,
         actions_tensor,
         rewards_tensor,
-        next_states_tensor,
+        next_observation_tensor,
         dones_tensor,
         weights_tensor,
         np.asarray(buffer_sample.indices),

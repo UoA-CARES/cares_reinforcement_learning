@@ -26,10 +26,11 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
-class SACAE(Algorithm[SARLObservation]):
+class SACAE(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -236,7 +237,7 @@ class SACAE(Algorithm[SARLObservation]):
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[SARLObservation],
+        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1

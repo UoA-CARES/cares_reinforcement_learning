@@ -6,6 +6,7 @@ Code: https://github.com/google-research/dads
 
 import logging
 import os
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
@@ -14,14 +15,14 @@ import torch.nn.functional as F
 
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import DADSConfig
 
 
-class DADS(Algorithm[SARLObservation]):
+class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         skills_agent: SAC,
@@ -64,7 +65,10 @@ class DADS(Algorithm[SARLObservation]):
         self, observation: SARLObservation, evaluation: bool = False
     ) -> np.ndarray:
 
-        observation.vector_state = self._concat_state_latent(observation.vector_state)
+        observation = replace(
+            observation,
+            vector_state=self._concat_state_latent(observation.vector_state),
+        )
 
         if not evaluation:
             self.z_experience_index.append(self.z)
@@ -72,13 +76,15 @@ class DADS(Algorithm[SARLObservation]):
         return self.skills_agent.select_action_from_policy(observation, evaluation)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
-        state.vector_state = self._concat_state_latent(state.vector_state)
+        state = replace(
+            state, vector_state=self._concat_state_latent(state.vector_state)
+        )
 
         return self.skills_agent._calculate_value(state, action)
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[SARLObservation],
+        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
@@ -86,7 +92,7 @@ class DADS(Algorithm[SARLObservation]):
             return {}
 
         sample = memory_buffer.sample_uniform(self.batch_size)
-        batch_size = len(sample.states)
+        batch_size = len(sample.experiences)
 
         weights = [1.0] * batch_size
 
@@ -97,34 +103,44 @@ class DADS(Algorithm[SARLObservation]):
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
 
-        # TODO fix this piece - list of SARLObservations can't concate with zs_one_hot
-        states = [state.vector_state for state in sample.states]
+        states = np.stack(
+            [experience.observation.vector_state for experience in sample.experiences]
+        )
         states_zs = np.concatenate([states, zs_one_hot], axis=1)
 
-        next_states = [state.vector_state for state in sample.next_states]
+        next_states = np.stack(
+            [
+                experience.next_observation.vector_state
+                for experience in sample.experiences
+            ]
+        )
         next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
 
         # Convert into tensor using training utilities
         states_tensor = torch.tensor(
-            np.asarray(sample.states), dtype=torch.float32, device=self.device
+            np.asarray(states), dtype=torch.float32, device=self.device
         )
         states_zs_tensor = torch.tensor(
             np.asarray(states_zs), dtype=torch.float32, device=self.device
         )
 
         actions_tensor = torch.tensor(
-            np.asarray(sample.actions), dtype=torch.float32, device=self.device
+            np.asarray([experience.action for experience in sample.experiences]),
+            dtype=torch.float32,
+            device=self.device,
         )
 
         next_states_tensor = torch.tensor(
-            np.asarray(sample.next_states), dtype=torch.float32, device=self.device
+            np.asarray(next_states), dtype=torch.float32, device=self.device
         )
         next_states_zs_tensor = torch.tensor(
             np.asarray(next_states_zs), dtype=torch.float32, device=self.device
         )
 
         dones_tensor = torch.tensor(
-            np.asarray(sample.dones), dtype=torch.long, device=self.device
+            np.asarray([experience.done for experience in sample.experiences]),
+            dtype=torch.long,
+            device=self.device,
         )
         weights_tensor = torch.tensor(
             np.asarray(weights), dtype=torch.float32, device=self.device

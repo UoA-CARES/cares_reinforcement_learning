@@ -24,10 +24,11 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
-class TD3AE(Algorithm[SARLObservation]):
+class TD3AE(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -228,7 +229,7 @@ class TD3AE(Algorithm[SARLObservation]):
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[SARLObservation],
+        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1

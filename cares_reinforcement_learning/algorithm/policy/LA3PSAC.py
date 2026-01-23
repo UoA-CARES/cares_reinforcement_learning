@@ -12,10 +12,10 @@ import torch
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import SAC
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer, Sample
+from cares_reinforcement_learning.memory.memory_buffer import Sample, SARLMemoryBuffer
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.experience import SingleAgentExperience
 from cares_reinforcement_learning.util.configurations import LA3PSACConfig
 
 
@@ -34,7 +34,7 @@ class LA3PSAC(SAC):
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
         self,
-        sample: Sample[SARLObservation],
+        sample: Sample[SingleAgentExperience],
         uniform_sampling: bool,
     ) -> tuple[dict[str, Any], np.ndarray]:
 
@@ -123,7 +123,7 @@ class LA3PSAC(SAC):
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[SARLObservation],
+        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1
@@ -146,10 +146,11 @@ class LA3PSAC(SAC):
         memory_buffer.update_priorities(np.asarray(uniform_sample.indices), priorities)
 
         # Train Actor
-        weights = np.array([1.0] * len(uniform_sample.states))
+        weights = np.array([1.0] * len(uniform_sample.experiences))
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
         observation_tensor = memory_sampler.observation_to_tensors(
-            uniform_sample.states, device=self.device
+            [experience.observation for experience in uniform_sample.experiences],
+            device=self.device,
         )
 
         actor_info = self._update_actor_alpha(
@@ -182,10 +183,11 @@ class LA3PSAC(SAC):
 
         ######################### ACTOR PRIORITIZED SAMPLING #########################
         inverse_sample = memory_buffer.sample_inverse_priority(priority_batch_size)
-        weights = np.array([1.0] * len(inverse_sample.states))
+        weights = np.array([1.0] * len(inverse_sample.experiences))
 
         observation_tensor = memory_sampler.observation_to_tensors(
-            inverse_sample.states, device=self.device
+            [experience.observation for experience in inverse_sample.experiences],
+            device=self.device,
         )
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
 

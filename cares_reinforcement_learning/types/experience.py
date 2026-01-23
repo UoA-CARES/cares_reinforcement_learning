@@ -12,7 +12,7 @@ from cares_reinforcement_learning.types.observation import (
 ObsType = TypeVar("ObsType", bound=Observation)
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class Experience(Generic[ObsType]):
     observation: ObsType
     next_observation: ObsType
@@ -20,7 +20,7 @@ class Experience(Generic[ObsType]):
     info: dict[str, Any]
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class SingleAgentExperience(Experience[SARLObservation]):
     action: np.ndarray
     reward: float
@@ -40,7 +40,7 @@ class SingleAgentExperience(Experience[SARLObservation]):
         return self.reward
 
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class MultiAgentExperience(Experience[MARLObservation]):
     action: list[np.ndarray]
     reward: list[float]

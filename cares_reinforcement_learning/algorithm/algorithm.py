@@ -5,17 +5,18 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import Memory
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import Observation
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 # Type variable for observation types (SARL or MARL)
 ObsType = TypeVar("ObsType", bound=Observation)
+MemType = TypeVar("MemType", bound=Memory)
 # TODO Action TypeVar
 
 
-class Algorithm(ABC, Generic[ObsType]):
+class Algorithm(ABC, Generic[ObsType, MemType]):
     def __init__(
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
@@ -133,7 +134,7 @@ class Algorithm(ABC, Generic[ObsType]):
 
     @abstractmethod
     def train_policy(
-        self, memory_buffer: MemoryBuffer[ObsType], episode_context: EpisodeContext
+        self, memory_buffer: MemType, episode_context: EpisodeContext
     ) -> dict[str, Any]: ...
 
     @abstractmethod

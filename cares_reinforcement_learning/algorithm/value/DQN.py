@@ -21,9 +21,10 @@ from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 
 
-class DQN(Algorithm[SARLObservation]):
+class DQN(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         network: BaseNetwork,
@@ -148,7 +149,7 @@ class DQN(Algorithm[SARLObservation]):
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[SARLObservation],
+        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}

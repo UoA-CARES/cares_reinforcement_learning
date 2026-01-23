@@ -15,13 +15,14 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
-class DDPG(Algorithm[SARLObservation]):
+class DDPG(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -108,7 +109,7 @@ class DDPG(Algorithm[SARLObservation]):
 
     def train_policy(
         self,
-        memory_buffer: MemoryBuffer[SARLObservation],
+        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
