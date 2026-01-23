@@ -329,6 +329,8 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
             print("act", dump_tensor(actions_tensor))
             print("rew", dump_tensor(rewards_tensor))
             print("next_obs", dump_tensor(next_observation_tensor.vector_state_tensor))
+            print(observation_tensor.vector_state_tensor[0:10])
+            print(next_observation_tensor.vector_state_tensor[0:10])
             # print("done", dump_tensor(dones_tensor))
         if self.learn_counter == 5:
             exit()
