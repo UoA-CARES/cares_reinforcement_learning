@@ -311,6 +311,26 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
+        def dump_tensor(x):
+            return (
+                x.dtype,
+                x.device,
+                tuple(x.shape),
+                x.is_contiguous(),
+                x.stride(),
+                float(x.min()),
+                float(x.max()),
+                float(x.mean()),
+                float(x.std()),
+            )
+
+        print("obs", dump_tensor(observation_tensor.vector_state_tensor))
+        print("act", dump_tensor(actions_tensor))
+        print("rew", dump_tensor(rewards_tensor))
+        print("next_obs", dump_tensor(next_observation_tensor.vector_state_tensor))
+        print("done", dump_tensor(dones_tensor))
+        exit()
+
         info = self.update_networks(
             memory_buffer,
             indices,
