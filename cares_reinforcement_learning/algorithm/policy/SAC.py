@@ -329,10 +329,23 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
             print("act", dump_tensor(actions_tensor))
             print("rew", dump_tensor(rewards_tensor))
             print("next_obs", dump_tensor(next_observation_tensor.vector_state_tensor))
-            print(observation_tensor.vector_state_tensor[0:10])
-            print(next_observation_tensor.vector_state_tensor[0:10])
             # print("done", dump_tensor(dones_tensor))
+
         if self.learn_counter == 5:
+            for i in range(0, self.batch_size, 20):
+                print(f"==== Batch slice {i}====")
+                print(
+                    "obs",
+                    dump_tensor(observation_tensor.vector_state_tensor[i : i + 10]),
+                )
+                print("act", dump_tensor(actions_tensor[i : i + 10]))
+                print("rew", dump_tensor(rewards_tensor[i : i + 10]))
+                print(
+                    "next_obs",
+                    dump_tensor(
+                        next_observation_tensor.vector_state_tensor[i : i + 10]
+                    ),
+                )
             exit()
 
         info = self.update_networks(

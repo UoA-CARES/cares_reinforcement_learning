@@ -154,16 +154,12 @@ def _sample_to_tensors_sarl(
     dones = [exp.done for exp in buffer_sample.experiences]
 
     states_tensor = observation_to_tensors(states, device, states_dtype)
-    actions_tensor = torch.tensor(
-        np.asarray(actions), dtype=action_dtype, device=device
-    )
-    rewards_tensor = torch.tensor(
-        np.asarray(rewards), dtype=rewards_dtype, device=device
-    )
+    actions_tensor = torch.tensor(np.stack(actions), dtype=action_dtype, device=device)
+    rewards_tensor = torch.tensor(np.stack(rewards), dtype=rewards_dtype, device=device)
     next_states_tensor = observation_to_tensors(next_states, device, next_states_dtype)
-    dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
+    dones_tensor = torch.tensor(np.stack(dones), dtype=dones_dtype, device=device)
     weights_tensor = torch.tensor(
-        np.asarray(buffer_sample.weights), dtype=weights_dtype, device=device
+        buffer_sample.weights, dtype=weights_dtype, device=device
     )
 
     rewards_tensor = rewards_tensor.unsqueeze(-1)
@@ -203,16 +199,12 @@ def _sample_to_tensors_marl(
     dones = [exp.done for exp in buffer_sample.experiences]
 
     states_tensor = observation_to_tensors(states, device, states_dtype)
-    actions_tensor = torch.tensor(
-        np.asarray(actions), dtype=action_dtype, device=device
-    )
-    rewards_tensor = torch.tensor(
-        np.asarray(rewards), dtype=rewards_dtype, device=device
-    )
+    actions_tensor = torch.tensor(np.stack(actions), dtype=action_dtype, device=device)
+    rewards_tensor = torch.tensor(np.stack(rewards), dtype=rewards_dtype, device=device)
     next_states_tensor = observation_to_tensors(next_states, device, next_states_dtype)
-    dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
+    dones_tensor = torch.tensor(np.stack(dones), dtype=dones_dtype, device=device)
     weights_tensor = torch.tensor(
-        np.asarray(buffer_sample.weights), dtype=weights_dtype, device=device
+        buffer_sample.weights, dtype=weights_dtype, device=device
     )
 
     rewards_tensor = rewards_tensor.unsqueeze(-1)

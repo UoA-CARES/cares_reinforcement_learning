@@ -39,6 +39,17 @@ class SingleAgentExperience(Experience[SARLObservation]):
     def reward_sum(self) -> float:
         return self.reward
 
+    def clone(self) -> "SingleAgentExperience":
+        return SingleAgentExperience(
+            observation=self.observation.clone(),
+            action=self.action.copy(),
+            reward=float(self.reward),
+            next_observation=self.next_observation.clone(),
+            done=bool(self.done),
+            truncated=bool(self.truncated),
+            info=self.info.copy(),
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class MultiAgentExperience(Experience[MARLObservation]):

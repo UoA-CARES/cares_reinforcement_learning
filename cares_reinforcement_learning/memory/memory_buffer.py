@@ -151,7 +151,7 @@ class MemoryBuffer(ABC, Generic[ExpType]):
             None
         """
         # n-step learning - default is 1-step which means regular buffer behaviour
-        self.n_step_buffer.append(experience)
+        self.n_step_buffer.append(experience.clone())
         if len(self.n_step_buffer) < self.n_step:
             return
 
