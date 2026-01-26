@@ -151,16 +151,10 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
             target_q = agent.target_critic_net(next_global_states, next_joint_actions)
             q_target = rewards_i + self.gamma * (1 - dones_i) * target_q
 
-        print(q_target.shape, q_target.mean())
-
         # --- Step 3: critic regression on *current* joint_actions (unperturbed) ---
         q_values = agent.critic_net(global_states, joint_actions)
 
-        print(q_values.shape, q_values.mean())
-
         loss = F.mse_loss(q_values, q_target)
-
-        print(loss)
 
         agent.critic_net_optimiser.zero_grad()
         loss.backward()
@@ -286,19 +280,6 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
 
             agent_ids = list(agent_states_tensors.keys())
 
-            print(agent_ids)
-            print(states_tensors.shape, states_tensors.mean())
-            print(next_states_tensors.shape, next_states_tensors.mean())
-
-            print(actions_tensor.shape, actions_tensor.mean())
-            print(rewards_tensor.shape, rewards_tensor.mean())
-
-            for _, agent_id in enumerate(agent_ids):
-                print(f"{agent_states_tensors[agent_id].mean()}")
-
-            for _, agent_id in enumerate(agent_ids):
-                print(f"{next_agent_states_tensors[agent_id].mean()}")
-
             # ---------------------------------------------------------
             # Build next_actions_tensor using TARGET actors
             # ---------------------------------------------------------
@@ -310,21 +291,14 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
 
             next_actions_tensor = torch.stack(next_actions, dim=1)
 
-            print(next_actions_tensor.shape, next_actions_tensor.mean())
-
             # Flatten replay-buffer actions for this batch
             joint_actions = actions_tensor.reshape(sample_size, -1)
-
-            print(joint_actions.shape, joint_actions.mean())
 
             # ---------------------------------------------------------
             # Critic update for this agent
             # ---------------------------------------------------------
             rewards_i = rewards_tensor[:, agent_index]
             dones_i = dones_tensor[:, agent_index]
-
-            print(rewards_i.shape, rewards_i.mean())
-            print(dones_i.shape)
 
             critic_info = self._update_critic(
                 agent=current_agent,
