@@ -33,7 +33,7 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
-        self.agents = agents
+        self.agent_networks = agents
         self.num_agents = len(agents)
 
         self.gamma = config.gamma
@@ -42,6 +42,8 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
         self.max_grad_norm = config.max_grad_norm
 
         self.alpha = config.alpha  # adversarial perturbation scale
+
+        self.learn_counter = 0
 
     # TODO verify that the ordering of agents is consistent
     def select_action_from_policy(
@@ -55,7 +57,7 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
         agent_ids = list(agent_states.keys())
         actions = []
 
-        for i, agent in enumerate(self.agents):
+        for i, agent in enumerate(self.agent_networks):
             agent_name = agent_ids[i]  # consistent ordering in dict
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[i]
@@ -149,9 +151,16 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
             target_q = agent.target_critic_net(next_global_states, next_joint_actions)
             q_target = rewards_i + self.gamma * (1 - dones_i) * target_q
 
+        print(q_target.shape, q_target.mean())
+
         # --- Step 3: critic regression on *current* joint_actions (unperturbed) ---
         q_values = agent.critic_net(global_states, joint_actions)
+
+        print(q_values.shape, q_values.mean())
+
         loss = F.mse_loss(q_values, q_target)
+
+        print(loss)
 
         agent.critic_net_optimiser.zero_grad()
         loss.backward()
@@ -244,9 +253,11 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
+        self.learn_counter += 1
+
         info: dict[str, Any] = {}
 
-        for agent_index, current_agent in enumerate(self.agents):
+        for agent_index, current_agent in enumerate(self.agent_networks):
             # ---------------------------------------------------------
             # Update each agent
             # ---------------------------------------------------------
@@ -279,21 +290,28 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
             # Build next_actions_tensor using TARGET actors
             # ---------------------------------------------------------
             next_actions = []
-            for agent, agent_id in zip(self.agents, agent_ids):
+            for agent, agent_id in zip(self.agent_networks, agent_ids):
                 obs_next_j = next_agent_states_tensors[agent_id]
                 next_action_j = agent.target_actor_net(obs_next_j)
                 next_actions.append(next_action_j)
 
             next_actions_tensor = torch.stack(next_actions, dim=1)
 
+            print(next_actions_tensor.shape, next_actions_tensor.mean())
+
             # Flatten replay-buffer actions for this batch
             joint_actions = actions_tensor.reshape(sample_size, -1)
+
+            print(joint_actions.shape, joint_actions.mean())
 
             # ---------------------------------------------------------
             # Critic update for this agent
             # ---------------------------------------------------------
             rewards_i = rewards_tensor[:, agent_index]
             dones_i = dones_tensor[:, agent_index]
+
+            print(rewards_i.shape, rewards_i.mean())
+            print(dones_i.shape, dones_i.mean())
 
             critic_info = self._update_critic(
                 agent=current_agent,
@@ -322,13 +340,16 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
 
             current_agent.update_target_networks()
 
+        if self.learn_counter == 1:
+            exit()
+
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for i, agent in enumerate(self.agents):
+        for i, agent in enumerate(self.agent_networks):
             agent_filepath = os.path.join(filepath, f"agent_{i}")
             agent_filename = f"{filename}_agent_{i}_checkpoint"
             agent.save_models(agent_filepath, agent_filename)
@@ -336,7 +357,7 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for i, agent in enumerate(self.agents):
+        for i, agent in enumerate(self.agent_networks):
             agent_filepath = os.path.join(filepath, f"agent_{i}")
             agent_filename = f"{filename}_agent_{i}_checkpoint"
             agent.load_models(agent_filepath, agent_filename)
