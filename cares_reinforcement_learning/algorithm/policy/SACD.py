@@ -86,10 +86,10 @@ class SACD(Algorithm[SARLObservation, SARLMemoryBuffer]):
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
+                _, _, action = self.actor_net(state_tensor)
                 # action = np.argmax(action_probs)
             else:
-                (action, _, _) = self.actor_net(state_tensor)
+                action, _, _ = self.actor_net(state_tensor)
                 # action = np.random.choice(a=self.action_num, p=action_probs)
         self.actor_net.train()
         return action.item()
