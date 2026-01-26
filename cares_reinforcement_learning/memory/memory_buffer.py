@@ -498,9 +498,11 @@ class MemoryBuffer(ABC, Generic[ExpType]):
         """
         self.tree_pointer = 0
         self.current_size = 0
-        self.memory_buffers = []
+        self.memory_buffers.clear()
+        self.n_step_buffer.clear()
 
         self.sum_tree = SumTree(self.max_capacity)
+        self.inverse_tree = SumTree(self.max_capacity)
         self.max_priority = 1.0
         self.beta = self.init_beta
 
