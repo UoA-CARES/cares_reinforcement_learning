@@ -286,6 +286,8 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
 
             agent_ids = list(agent_states_tensors.keys())
 
+            print(agent_ids)
+
             # ---------------------------------------------------------
             # Build next_actions_tensor using TARGET actors
             # ---------------------------------------------------------
