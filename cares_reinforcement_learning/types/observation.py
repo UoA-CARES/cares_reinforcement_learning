@@ -33,6 +33,15 @@ class MARLObservation:
 
     avail_actions: np.ndarray
 
+    def clone(self) -> "MARLObservation":
+        return MARLObservation(
+            global_state=self.global_state.copy(),
+            agent_states={
+                agent_id: state.copy() for agent_id, state in self.agent_states.items()
+            },
+            avail_actions=self.avail_actions.copy(),
+        )
+
 
 Observation = SARLObservation | MARLObservation
 

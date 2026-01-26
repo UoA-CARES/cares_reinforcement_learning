@@ -72,5 +72,16 @@ class MultiAgentExperience(Experience[MARLObservation]):
     def reward_sum(self) -> float:
         return float(sum(self.reward))
 
+    def clone(self) -> "MultiAgentExperience":
+        return MultiAgentExperience(
+            observation=self.observation.clone(),
+            action=[act.copy() for act in self.action],
+            reward=[float(r) for r in self.reward],
+            next_observation=self.next_observation.clone(),
+            done=[bool(d) for d in self.done],
+            truncated=[bool(t) for t in self.truncated],
+            info=self.info.copy(),
+        )
+
 
 ExperienceType = SingleAgentExperience | MultiAgentExperience
