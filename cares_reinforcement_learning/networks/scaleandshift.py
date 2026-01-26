@@ -11,9 +11,8 @@ class ScaleAndShift(nn.Module):
 
 
     def set_film_parameters(self, scales: torch.Tensor, shifts: torch.Tensor):
-        film_modifier_reduction = 10.0 # without reduction, film modifiers cause instability
-        self.scales = scales / film_modifier_reduction + torch.ones_like(scales) # center scaling around one
-        self.shifts = shifts / film_modifier_reduction
+        self.scales = scales  + torch.ones_like(scales) # center scaling around one
+        self.shifts = shifts
 
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
