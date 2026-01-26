@@ -327,9 +327,6 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
 
             current_agent.update_target_networks()
 
-        if self.learn_counter == 1:
-            exit()
-
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:
