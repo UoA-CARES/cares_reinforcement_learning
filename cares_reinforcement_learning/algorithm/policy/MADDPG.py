@@ -311,7 +311,7 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
             dones_i = dones_tensor[:, agent_index]
 
             print(rewards_i.shape, rewards_i.mean())
-            print(dones_i.shape, dones_i.mean())
+            print(dones_i.shape)
 
             critic_info = self._update_critic(
                 agent=current_agent,
