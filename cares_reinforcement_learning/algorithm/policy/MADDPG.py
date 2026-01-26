@@ -287,6 +287,17 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
             agent_ids = list(agent_states_tensors.keys())
 
             print(agent_ids)
+            print(states_tensors.shape, states_tensors.mean())
+            print(next_states_tensors.shape, next_states_tensors.mean())
+
+            print(actions_tensor.shape, actions_tensor.mean())
+            print(rewards_tensor.shape, rewards_tensor.mean())
+
+            for _, agent_id in enumerate(agent_ids):
+                print(f"{agent_states_tensors[agent_id].mean()}")
+
+            for _, agent_id in enumerate(agent_ids):
+                print(f"{next_agent_states_tensors[agent_id].mean()}")
 
             # ---------------------------------------------------------
             # Build next_actions_tensor using TARGET actors
