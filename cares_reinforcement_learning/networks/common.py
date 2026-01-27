@@ -17,7 +17,10 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     VanillaAutoencoder,
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
-from cares_reinforcement_learning.types.observation import ObservationTensors
+from cares_reinforcement_learning.types.observation import (
+    ObservationTensors,
+    SARLObservationTensors,
+)
 from cares_reinforcement_learning.util.configurations import (
     FunctionLayer,
     MLPConfig,
@@ -385,7 +388,7 @@ class EncoderPolicy(nn.Module):
         self.apply(hlp.weight_init)
 
     def forward(  # type: ignore
-        self, state: ObservationTensors, detach_encoder: bool = False
+        self, state: SARLObservationTensors, detach_encoder: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
         state_latent = self.encoder(state.image_state_tensor, detach_cnn=detach_encoder)
@@ -415,7 +418,7 @@ class EncoderCritic(nn.Module):
 
     def forward(
         self,
-        state: ObservationTensors,
+        state: SARLObservationTensors,
         action: torch.Tensor,
         detach_encoder: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
@@ -447,7 +450,7 @@ class AEActor(nn.Module):
         self.apply(hlp.weight_init)
 
     def forward(
-        self, state: ObservationTensors, detach_encoder: bool = False
+        self, state: SARLObservationTensors, detach_encoder: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # NaSATD3 detatches the encoder at the output
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
@@ -485,7 +488,7 @@ class AECritc(nn.Module):
 
     def forward(
         self,
-        state: ObservationTensors,
+        state: SARLObservationTensors,
         action: torch.Tensor,
         detach_encoder: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
