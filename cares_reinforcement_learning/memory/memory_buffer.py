@@ -130,6 +130,13 @@ class MemoryBuffer(ABC, Generic[ExpType]):
         """
         return self.current_size
 
+    def _empty_sample(self) -> Sample[ExpType]:
+        return Sample(
+            experiences=[],
+            indices=[],
+            weights=np.asarray([]),
+        )
+
     @abstractmethod
     def _apply_n_step(self, n_step_buffer: Deque[ExpType]) -> ExpType: ...
 
@@ -180,6 +187,9 @@ class MemoryBuffer(ABC, Generic[ExpType]):
         Returns:
             Sample[ExpType]: A sample of experiences.
         """
+
+        if self.current_size == 0:
+            return self._empty_sample()
 
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
@@ -260,6 +270,9 @@ class MemoryBuffer(ABC, Generic[ExpType]):
                 - The indices represent the indices of the sampled experiences in the buffer.
                 - The weights represent the importance weights for each sampled experience.
         """
+        if self.current_size == 0:
+            return self._empty_sample()
+
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
 
@@ -304,11 +317,7 @@ class MemoryBuffer(ABC, Generic[ExpType]):
 
         """
         if self.current_size == 0:
-            return Sample(
-                experiences=[],
-                indices=[],
-                weights=np.asarray([]),
-            )
+            return self._empty_sample()
 
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size)
@@ -383,13 +392,9 @@ class MemoryBuffer(ABC, Generic[ExpType]):
             experiences (list): The full memory buffer in order.
         """
         if self.current_size == 0:
-            return Sample(
-                experiences=[],
-                indices=[],
-                weights=np.asarray([]),
-            )
+            return self._empty_sample()
 
-        sample = Sample(
+        sample: Sample[ExpType] = Sample(
             experiences=self.memory_buffers[: self.current_size],
             indices=list(range(self.current_size)),
             weights=(np.asarray([1.0] * self.current_size)),
@@ -415,12 +420,7 @@ class MemoryBuffer(ABC, Generic[ExpType]):
 
         """
         if self.current_size == 0:
-            empty: Sample[ExpType] = Sample(
-                experiences=[],
-                indices=[],
-                weights=np.asarray([]),
-            )
-            return empty, empty
+            return self._empty_sample(), self._empty_sample()
 
         # If batch size is greater than size we need to limit it to just the data that exists
         batch_size = min(batch_size, self.current_size - 1)
@@ -443,7 +443,7 @@ class MemoryBuffer(ABC, Generic[ExpType]):
 
         experiences = [self.memory_buffers[i] for i in sampled_indices]
 
-        sample = Sample(
+        sample: Sample[ExpType] = Sample(
             experiences=experiences,
             indices=sampled_indices,
             weights=np.asarray([1.0] * batch_size),
@@ -453,42 +453,13 @@ class MemoryBuffer(ABC, Generic[ExpType]):
 
         experiences = [self.memory_buffers[i] for i in next_sampled_indices]
 
-        next_sample = Sample(
+        next_sample: Sample[ExpType] = Sample(
             experiences=experiences,
             indices=next_sampled_indices,
             weights=np.asarray([1.0] * batch_size),
         )
 
         return sample, next_sample
-
-    def get_statistics(self) -> dict[str, np.ndarray]:
-        """
-        Calculate statistics of the replay buffer.
-
-        Returns:
-            statistics (dict): A dictionary containing the following statistics:
-                - observation_mean: Mean of the observations in the replay buffer.
-                - observation_std: Standard deviation of the observations in the replay buffer.
-                - delta_mean: Mean of the differences between consecutive observations.
-                - delta_std: Standard deviation of the differences between consecutive observations.
-        """
-        states = np.array(self.memory_buffers[0][: self.current_size].tolist())
-        next_states = np.array(self.memory_buffers[3][: self.current_size].tolist())
-        diff_states = next_states - states
-
-        # Add a small number to avoid zeros.
-        observation_mean = np.mean(states, axis=0) + 0.00001
-        observation_std = np.std(states, axis=0) + 0.00001
-        delta_mean = np.mean(diff_states, axis=0) + 0.00001
-        delta_std = np.std(diff_states, axis=0) + 0.00001
-
-        statistics = {
-            "observation_mean": observation_mean,
-            "observation_std": observation_std,
-            "delta_mean": delta_mean,
-            "delta_std": delta_std,
-        }
-        return statistics
 
     def clear(self) -> None:
         """

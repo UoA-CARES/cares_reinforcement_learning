@@ -141,11 +141,11 @@ def test_consistent_insertion_time(buffer_class, exp_builder):
 
     first_insertion = timeit.timeit(lambda: buffer.add(experience), number=1)
 
-    for _ in range(1000000):
+    for _ in range(int(1e6) - 1):
         experience = exp_builder()
 
         buffer.add(experience)
 
     last_insertion = timeit.timeit(lambda: buffer.add(experience), number=1)
 
-    assert last_insertion < 10 * first_insertion
+    assert last_insertion < 3 * first_insertion
