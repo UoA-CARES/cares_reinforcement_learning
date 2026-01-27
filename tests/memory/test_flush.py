@@ -20,6 +20,13 @@ def get_sarl_observation(state_size: int = 4) -> SARLObservation:
     return SARLObservation(vector_state=np.array([1.0] * state_size), image_state=None)
 
 
+def get_indexed_sarl_observation(index: int, state_size: int = 4) -> SARLObservation:
+    """Create an indexed SARL observation for order-sensitive testing."""
+    return SARLObservation(
+        vector_state=np.array([float(index)] * state_size), image_state=None
+    )
+
+
 def get_marl_observation(state_size: int = 4, num_agents: int = 2) -> MARLObservation:
     """Create a dummy MARL observation for testing."""
     agent_states = {
@@ -27,6 +34,20 @@ def get_marl_observation(state_size: int = 4, num_agents: int = 2) -> MARLObserv
     }
     return MARLObservation(
         global_state=np.array([1.0] * state_size),
+        agent_states=agent_states,
+        avail_actions=np.ones((num_agents,), dtype=bool),
+    )
+
+
+def get_indexed_marl_observation(
+    index: int, state_size: int = 4, num_agents: int = 2
+) -> MARLObservation:
+    """Create an indexed MARL observation for order-sensitive testing."""
+    agent_states = {
+        f"agent_{i}": np.array([float(index)] * state_size) for i in range(num_agents)
+    }
+    return MARLObservation(
+        global_state=np.array([float(index)] * state_size),
         agent_states=agent_states,
         avail_actions=np.ones((num_agents,), dtype=bool),
     )
@@ -127,7 +148,14 @@ def test_flush_order(buffer_class, exp_builder):
     buffer = buffer_class(max_capacity=5)
 
     for i in range(5):
-        experience = exp_builder()
+        if buffer_class is SARLMemoryBuffer:
+            obs = get_indexed_sarl_observation(i)
+            next_obs = get_indexed_sarl_observation(i)
+        else:
+            obs = get_indexed_marl_observation(i)
+            next_obs = get_indexed_marl_observation(i)
+
+        experience = exp_builder(observation=obs, next_observation=next_obs)
         buffer.add(experience)
 
     sample = buffer.flush()
@@ -136,4 +164,14 @@ def test_flush_order(buffer_class, exp_builder):
     assert len(sample.experiences) == 5
     assert len(sample.indices) == 5
     assert len(sample.weights) == 5
+    assert sample.indices == list(range(5))
+
+    # Verify experiences preserve insertion order
+    for i, exp in enumerate(sample.experiences):
+        if buffer_class is SARLMemoryBuffer:
+            assert np.allclose(exp.observation.vector_state, float(i))
+            assert np.allclose(exp.next_observation.vector_state, float(i))
+        else:
+            assert np.allclose(exp.observation.global_state, float(i))
+            assert np.allclose(exp.next_observation.global_state, float(i))
     assert len(buffer) == 0
