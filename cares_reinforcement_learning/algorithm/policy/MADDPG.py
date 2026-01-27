@@ -325,6 +325,7 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
             info[f"critic_loss_agent_{agent_index}"] = critic_info["critic_loss"]
             info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
 
+        for current_agent in self.agent_networks:
             current_agent.update_target_networks()
 
         return info
