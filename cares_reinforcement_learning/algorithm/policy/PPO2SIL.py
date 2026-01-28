@@ -1,14 +1,9 @@
 """
 Original Paper:
-                https://arxiv.org/abs/1707.06347
-Good Explanation:
-                https://www.youtube.com/watch?v=5P7I-xPq8u8
+                https://proceedings.mlr.press/v80/oh18b/oh18b.pdf
 Code based on:
-                https://github.com/ericyangyu/PPO-for-Beginners
-                https://github.com/nikhilbarhate99/PPO-PyTorch
-Update network based on:
-                https://github.com/openai/spinningup/blob/master/spinup/algos/pytorch/ppo/core.py
-                https://github.com/vwxyzjn/cleanrl/blob/master/cleanrl/ppo_continuous_action.py
+                https://github.com/junhyukoh/self-imitation-learning/blob/master/baselines/common/self_imitation.py
+                https://github.com/kengz/SLM-Lab/blob/master/slm_lab/agent/algorithm/sil.py
 
 """
 
@@ -24,20 +19,22 @@ from torch.distributions import Normal # add for Diagonal Gaussia
 
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.networks.PPO2 import Actor, Critic
-from cares_reinforcement_learning.util.configurations import PPO2Config
+from cares_reinforcement_learning.networks.PPO2SIL import Actor, Critic
+from cares_reinforcement_learning.util.configurations import PPO2SILConfig
+from cares_reinforcement_learning.algorithm.policy.SIL import SIL
+from cares_reinforcement_learning.util.configurations import SILConfig
 from cares_reinforcement_learning.util.training_context import (
     TrainingContext,
     ActionContext,
 )
 
 
-class PPO2(VectorAlgorithm):
+class PPO2SIL(VectorAlgorithm):
     def __init__(
         self,
         actor_network: Actor,
         critic_network: Critic,
-        config: PPO2Config,
+        config: PPO2SILConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
@@ -74,26 +71,27 @@ class PPO2(VectorAlgorithm):
         self.updates_per_iteration = config.updates_per_iteration
         self.eps_clip = config.eps_clip
 
-        # remove MultivariateNormal
-        # self.cov_var = torch.full(size=(self.action_num,), fill_value=0.5).to(
-        #    self.device
-        # )
-        # self.cov_mat = torch.diag(self.cov_var)
+        # add a learn counter as SAC and TD3, for SIL train loop control
+        self.learn_counter = 0
+        # --- SIL module initialization ---
+        self.use_SIL = config.use_SIL
 
+        if self.use_SIL:
+            sil_config = SILConfig()
+            try:
+                # Use 'config.sil_config' which is the instantiated object.
+                # containing values from your configuration file/factory.
+                self.SIL = SIL(
+                    main_algorithm=self,
+                    config=sil_config, # Correct: passing the instance
+                    device=self.device
+                )
+                self.SIL.sil_n_update = 4  # set up for PPO2 for test
+                print('SIL module: Initialization successful and attached to main algorithm.')
+            except Exception as e:
+                logging.error(f"SIL module failed to initialize: {e}")
+                raise e
 
-        # for debug
-        print("--- PPO2 Actor Architecture ---")
-        print(self.actor_net)
-        print("--- PPO2 Critic Architecture ---")
-        print(self.critic_net)
-        print("--- PPO2 initailed ---")
-
-        print("--- Check log_std status ---")
-        print(f"log_std resides in PPO2: {self.log_std.device}, Shape: {self.log_std.shape}")
-        all_params = []
-        for group in self.actor_net_optimiser.param_groups:
-            all_params.extend(group['params'])
-        print(f"Is log_std in Optimizer? {any(p is self.log_std for p in all_params)}")
 
     def _get_action_dist(self, mean: torch.Tensor):
         std = torch.exp(self.log_std)
@@ -201,7 +199,7 @@ class PPO2(VectorAlgorithm):
                 discounted_reward = rewards[i] + self.gamma * discounted_reward
             rtgs.insert(0, discounted_reward)
 
-        batch_rtgs = torch.tensor(rtgs, dtype=torch.float32, device=self.device).squeeze() # shape 5000
+        batch_rtgs = torch.tensor(np.array(rtgs), dtype=torch.float32, device=self.device).squeeze() # shape 5000
         return batch_rtgs
 
     def _discounted_cumulative_sum_gae(
@@ -245,6 +243,8 @@ class PPO2(VectorAlgorithm):
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
 
+        self.learn_counter += 1 # add for SIL train loop
+
         memory = training_context.memory
         batch_size = training_context.batch_size
 
@@ -278,6 +278,10 @@ class PPO2(VectorAlgorithm):
         # Convert episode_end to tensors -> intergraed to batch to batch_to_tensors function
         # episode_ends_tensor = torch.tensor(np.asarray(episode_ends), dtype=torch.long, device=self.device)
         # episode_ends_tensor = episode_ends_tensor.reshape(len(episode_ends_tensor), 1)
+
+        # step sample for SIL
+        if self.use_SIL:
+            self.SIL.step(states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor, episode_ends_tensor)
 
         log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
@@ -348,6 +352,7 @@ class PPO2(VectorAlgorithm):
             critic_loss.backward()
             self.critic_net_optimiser.step()
 
+
         info: dict[str, Any] = {}
         info["td_errors"] = td_errors
         info["critic_loss"] = critic_loss.item()
@@ -355,6 +360,14 @@ class PPO2(VectorAlgorithm):
 
         current_std = torch.exp(self.log_std).mean().item() # add std to log
         info["step_std"] = current_std
+
+        # SIL train
+        # PPO2: per 1/ train SIL in 0.01*sil_loss for test
+        # PPO2: need to set sil_n_update = 4 for Mujoco for test
+        if (self.use_SIL and self.learn_counter %  self.SIL.sil_update_interval == 0):
+            sil_info = self.SIL.train()
+            # combiane info
+            info |= sil_info
 
         return info
 

@@ -426,7 +426,7 @@ class PPOConfig(AlgorithmConfig):
 
 
 ###################################
-#         PPO2 Algorithms          #
+#         PPO2 Algorithms         #
 ###################################
 
 
@@ -467,6 +467,58 @@ class PPO2Config(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
         ]
     )
+
+
+###################################
+#         PPO2SIL Algorithms      #
+###################################
+
+
+class PPO2SILConfig(PPO2Config):
+    algorithm: str = "PPO2SIL"
+
+    use_SIL: int = 1
+
+###################################
+#         SIL Algorithms          #
+###################################
+
+
+class SILConfig(AlgorithmConfig):
+    algorithm: str = "SIL"
+    # to do: should SIL have individual lr ?
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.99
+    eps_clip: float = 0.2
+
+    # what for this 
+
+    # number_steps_per_train_policy: int = 5000    # algo default is 1
+
+    # max_steps_exploration: int = 0
+
+    # to do: hwo to find a good batch size for SIL?
+    # How without IS impact the SIL batch_size?
+    batch_size: int = 128
+
+    # SIL hyperparameter
+    sil_update_interval: int = 1
+    sil_n_update: int = 1  #update times after policy train
+    sil_clip: float = 20  # sil clip value, using in advanagtes
+    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
+
+    # sil PER
+    use_per_buffer: int = 1
+    sil_per_sampling_strategy: str = "stratified"
+    sil_per_weight_normalisation: str = "batch"
+    sil_beta: float = 0
+    sil_d_beta: float = 0
+    sil_per_alpha: float = 0.6
+    sil_min_priority: float = 1e-6
+
+    sil_policy_update_freq: int = 1
 
 
 ###################################
@@ -519,6 +571,18 @@ class SACConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
+
+
+###################################
+#         SACSIL Algorithms          #
+###################################
+
+
+class SACSILConfig(SACConfig):
+    algorithm: str = "SACSIL"
+
+    use_SIL: int = 1
+
 
 
 class SACAEConfig(SACConfig):
@@ -1089,6 +1153,12 @@ class TD3Config(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
+
+
+class TD3SILConfig(TD3Config):
+    algorithm: str = "TD3SIL"
+
+    use_SIL: int = 1
 
 
 class TD3AEConfig(TD3Config):

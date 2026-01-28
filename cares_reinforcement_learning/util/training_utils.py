@@ -19,6 +19,7 @@ def batch_to_tensors(
     rewards: np.ndarray,
     next_states: np.ndarray,
     dones: np.ndarray,
+    episode_ends: np.ndarray,
     device: torch.device,
     weights: np.ndarray | None = None,
     states_dtype: torch.dtype = torch.float32,
@@ -26,6 +27,7 @@ def batch_to_tensors(
     rewards_dtype: torch.dtype = torch.float32,
     next_states_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
+    episode_ends_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
 ) -> tuple[
     torch.Tensor,
@@ -47,6 +49,7 @@ def batch_to_tensors(
         np.asarray(next_states), dtype=next_states_dtype, device=device
     )
     dones_tensor = torch.tensor(np.asarray(dones), dtype=dones_dtype, device=device)
+    episode_ends_tensor = torch.tensor(np.asarray(episode_ends), dtype=episode_ends_dtype, device=device)
 
     if weights is None:
         weights = np.array([1.0] * len(states))
@@ -59,6 +62,7 @@ def batch_to_tensors(
     batch_size = len(rewards_tensor)
     rewards_tensor = rewards_tensor.reshape(batch_size, 1)
     dones_tensor = dones_tensor.reshape(batch_size, 1)
+    episode_ends_tensor = episode_ends_tensor.reshape(batch_size, 1)
     weights_tensor = weights_tensor.reshape(batch_size, 1)
 
     return (
@@ -67,6 +71,7 @@ def batch_to_tensors(
         rewards_tensor,
         next_states_tensor,
         dones_tensor,
+        episode_ends_tensor,
         weights_tensor,
     )
 
@@ -298,8 +303,10 @@ def sample_batch_to_tensors(
     rewards_dtype: torch.dtype = torch.float32,
     next_states_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
+    episode_ends_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
 ) -> Tuple[
+    torch.Tensor,
     torch.Tensor,
     torch.Tensor,
     torch.Tensor,
@@ -341,10 +348,10 @@ def sample_batch_to_tensors(
             sampling_strategy=per_sampling_strategy,
             weight_normalisation=per_weight_normalisation,
         )
-        states, actions, rewards, next_states, dones, indices, weights = experiences
+        states, actions, rewards, next_states, dones, episode_ends, indices, weights = experiences
     else:
         experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, indices = experiences
+        states, actions, rewards, next_states, dones, episode_ends, indices = experiences   # since PPO2 add a episode_end, here need to add one more
 
     batch_size = len(states)
 
@@ -355,6 +362,7 @@ def sample_batch_to_tensors(
         rewards_tensor,
         next_states_tensor,
         dones_tensor,
+        episode_ends_tensor,
         weights_tensor,
     ) = batch_to_tensors(
         states,
@@ -362,6 +370,7 @@ def sample_batch_to_tensors(
         rewards,
         next_states,
         dones,
+        episode_ends,
         device,
         weights=weights,
         states_dtype=states_dtype,
@@ -369,6 +378,7 @@ def sample_batch_to_tensors(
         rewards_dtype=rewards_dtype,
         next_states_dtype=next_states_dtype,
         dones_dtype=dones_dtype,
+        episode_ends_dtype=episode_ends_dtype,
         weights_dtype=weights_dtype,
     )
 
@@ -378,6 +388,7 @@ def sample_batch_to_tensors(
         rewards_tensor,
         next_states_tensor,
         dones_tensor,
+        episode_ends_tensor,
         weights_tensor,
         indices,
     )
