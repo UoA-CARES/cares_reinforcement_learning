@@ -179,7 +179,7 @@ class DIAYN(Algorithm[SARLObservation, SARLMemoryBuffer]):
         )
 
         # Update the Discriminator
-        logits = self.discriminator_net(states_tensor)
+        logits = self.discriminator_net(next_states_tensor)
         discriminator_loss = self.cross_ent_loss(logits, zs_tensor.squeeze(-1))
 
         info["discriminator_loss"] = discriminator_loss.item()

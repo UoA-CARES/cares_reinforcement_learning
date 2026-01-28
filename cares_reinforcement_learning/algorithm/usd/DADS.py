@@ -5,6 +5,7 @@ Code: https://github.com/google-research/dads
 """
 
 import logging
+import math
 import os
 from dataclasses import replace
 from typing import Any
@@ -15,10 +16,10 @@ import torch.nn.functional as F
 
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import DADSConfig
 
 
@@ -82,14 +83,38 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
         return self.skills_agent._calculate_value(state, action)
 
+    def _gaussian_log_likelihood(
+        self,
+        x: torch.Tensor,  # [B, D]
+        mean: torch.Tensor,  # [B, D]
+        logvar: torch.Tensor,  # [B, D]  (log variance)
+    ) -> torch.Tensor:
+        """
+        Stable log N(x | mean, exp(logvar)).
+        Returns shape [B] (sum over feature dim).
+        """
+        # Clamp log-variance for numerical stability
+        logvar = torch.clamp(logvar, min=-7.0, max=2.0)  # tweak if needed
+
+        # Inverse variance: exp(-logvar) is stable when logvar is clamped
+        inv_var = torch.exp(-logvar)
+
+        # log-likelihood per-dimension then sum over feature dim
+        log_likelihood = -0.5 * (
+            (x - mean) ** 2 * inv_var + logvar + math.log(2.0 * math.pi)
+        )
+        return log_likelihood.sum(dim=-1)  # [B]
+
     def train_policy(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
+        info: dict[str, Any] = {}
+
         if len(memory_buffer) < self.batch_size:
-            return {}
+            return info
 
         sample = memory_buffer.sample_uniform(self.batch_size)
         batch_size = len(sample.experiences)
@@ -103,22 +128,22 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
 
-        states = np.stack(
+        states_tensor = np.stack(
             [experience.observation.vector_state for experience in sample.experiences]
         )
-        states_zs = np.concatenate([states, zs_one_hot], axis=1)
+        states_zs = np.concatenate([states_tensor, zs_one_hot], axis=1)
 
-        next_states = np.stack(
+        next_states_tensor = np.stack(
             [
                 experience.next_observation.vector_state
                 for experience in sample.experiences
             ]
         )
-        next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
+        next_states_zs = np.concatenate([next_states_tensor, zs_one_hot], axis=1)
 
         # Convert into tensor using training utilities
         states_tensor = torch.tensor(
-            np.asarray(states), dtype=torch.float32, device=self.device
+            np.asarray(states_tensor), dtype=torch.float32, device=self.device
         )
         states_zs_tensor = torch.tensor(
             np.asarray(states_zs), dtype=torch.float32, device=self.device
@@ -131,7 +156,7 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
         )
 
         next_states_tensor = torch.tensor(
-            np.asarray(next_states), dtype=torch.float32, device=self.device
+            np.asarray(next_states_tensor), dtype=torch.float32, device=self.device
         )
         next_states_zs_tensor = torch.tensor(
             np.asarray(next_states_zs), dtype=torch.float32, device=self.device
@@ -153,16 +178,111 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
         # Predict next-state distribution
         mean, logvar = self.discriminator_net(states_tensor, z_onehot)
 
-        # Compute Gaussian log-likelihood (sum over state dims)
-        epsilon = 1e-6
-        log_likelihood = -0.5 * (
-            ((next_states_tensor - mean) ** 2) / (logvar.exp() + epsilon)
-            + logvar
-            + np.log(2 * np.pi)
-        ).sum(dim=-1)
+        use_delta_s = True
+        target = (
+            (next_states_tensor - states_tensor) if use_delta_s else next_states_tensor
+        )
 
-        # Use as intrinsic reward (detached)
-        rewards_tensor = log_likelihood.detach().unsqueeze(-1)
+        # Compute Gaussian log-likelihood (sum over state dims)
+        log_q_true = self._gaussian_log_likelihood(target, mean, logvar)
+
+        # -----------------------------
+        # TF-faithful marginal estimate
+        # current + per-transition alternates (excluding current)
+        # -----------------------------
+        num_alt_skills = min(self.num_skills - 1, 16)  # TF: num_reps
+        if num_alt_skills < 1:
+            raise ValueError(
+                "DADS requires num_skills >= 2 to form alternate-skill marginal."
+            )
+
+        num_transitions, state_dim = states_tensor.shape
+        num_skills = self.num_skills
+
+        # current skill indices per transition: [N]
+        current_skill = zs_tensor.squeeze(-1)  # long, shape [N]
+
+        # Sample per-transition alternate skills uniformly from {0..K-1}\{current_skill}
+        # Vectorized "skip" trick:
+        # 1) sample offsets in [0, K-2]
+        alt_offsets = torch.randint(
+            low=0,
+            high=num_skills - 1,
+            size=(num_transitions, num_alt_skills),
+            device=self.device,
+        )  # [N, M]
+
+        # 2) map offsets to actual skill ids in [0, K-1], skipping current_skill
+        alt_skill_ids = (
+            alt_offsets + (alt_offsets >= current_skill.unsqueeze(1)).long()
+        )  # [N, M]
+
+        # One-hot: [N, M, K]
+        # pylint: disable-next=not-callable
+        alt_skill_onehot = F.one_hot(alt_skill_ids, num_skills).float()
+
+        # Repeat states/targets across the M alternates: [N*M, D]
+        states_rep = (
+            states_tensor.unsqueeze(1)
+            .expand(num_transitions, num_alt_skills, state_dim)
+            .reshape(num_transitions * num_alt_skills, state_dim)
+        )
+        target_rep = (
+            target.unsqueeze(1)
+            .expand(num_transitions, num_alt_skills, state_dim)
+            .reshape(num_transitions * num_alt_skills, state_dim)
+        )
+
+        # Flatten skills: [N*M, K]
+        alt_skills_rep = alt_skill_onehot.reshape(
+            num_transitions * num_alt_skills, num_skills
+        )
+
+        # Evaluate log q for alternates: log q(Δs | s, z_alt)
+        mean_alt, logvar_alt = self.discriminator_net(states_rep, alt_skills_rep)
+        log_q_alt = self._gaussian_log_likelihood(
+            target_rep, mean_alt, logvar_alt
+        ).view(
+            num_transitions, num_alt_skills
+        )  # [N, M]
+
+        # TF-style denominator includes current-skill likelihood explicitly:
+        # log( (q_z + sum q_alt) / (M+1) ) computed stably in log-space
+        log_q_all = torch.cat([log_q_true.unsqueeze(1), log_q_alt], dim=1)  # [N, M+1]
+        log_marginal = torch.logsumexp(log_q_all, dim=1) - math.log(
+            num_alt_skills + 1
+        )  # [N]
+
+        # Intrinsic reward (detach before SAC update)
+        rewards_tensor = (log_q_true - log_marginal).detach().unsqueeze(-1)  # [N, 1]
+
+        with torch.no_grad():
+            # reward stats
+            r = rewards_tensor.squeeze(-1)  # [N]
+            info["dads_reward_mean"] = r.mean().item()
+            info["dads_reward_std"] = r.std(unbiased=False).item()
+            info["dads_reward_min"] = r.min().item()
+            info["dads_reward_max"] = r.max().item()
+
+            # target (Δs) magnitude
+            abs_target = target.abs()
+            info["dads_target_abs_mean"] = abs_target.mean().item()
+            info["dads_target_abs_max"] = abs_target.max().item()
+
+            # log_q stats
+            info["dads_logq_true_mean"] = log_q_true.mean().item()
+            info["dads_logq_true_std"] = log_q_true.std(unbiased=False).item()
+            info["dads_log_marginal_mean"] = log_marginal.mean().item()
+
+            # variance / logvar stats (current skill)
+            info["disc_logvar_cur_min"] = logvar.min().item()
+            info["disc_logvar_cur_mean"] = logvar.mean().item()
+            info["disc_logvar_cur_max"] = logvar.max().item()
+
+            # variance / logvar stats (alternate skills)
+            info["disc_logvar_alt_min"] = logvar_alt.min().item()
+            info["disc_logvar_alt_mean"] = logvar_alt.mean().item()
+            info["disc_logvar_alt_max"] = logvar_alt.max().item()
 
         # Reshape to batch_size x whatever
         # rewards_tensor = rewards_tensor.reshape(batch_size, 1)
@@ -170,7 +290,7 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
         weights_tensor = weights_tensor.reshape(batch_size, 1)
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
 
-        info = self.skills_agent.update_networks(
+        info |= self.skills_agent.update_networks(
             memory_buffer,
             np.asarray(sample.indices),
             states_zs_tensor,
@@ -182,7 +302,7 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
         )
 
         # Update the Discriminator
-        discriminator_loss = -log_likelihood.mean()
+        discriminator_loss = -log_q_true.mean()
 
         info["discriminator_loss"] = discriminator_loss.item()
 
