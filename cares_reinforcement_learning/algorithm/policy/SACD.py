@@ -365,7 +365,7 @@ class SACD(SAC):
 
         # Perform critic loss calculation and back propagation
         act = actions.long()
-        critic_loss = self._get_critic_loss(states, act, q_target)
+        critic_loss = self._get_critic_loss(states, act, q_target, weights=weights)
         self.critic_net_optimiser.zero_grad()
         critic_loss.total_loss.backward()
         self.critic_net_optimiser.step()
