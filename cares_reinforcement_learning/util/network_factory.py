@@ -169,6 +169,23 @@ def create_PPO2(observation_size, action_num, config: acf.PPO2Config):
     )
     return agent
 
+
+def create_PPO2SIL(observation_size, action_num, config: acf.PPO2SILConfig):
+    from cares_reinforcement_learning.algorithm.policy import PPO2SIL
+    from cares_reinforcement_learning.networks.PPO2SIL import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, config=config)
+
+    device = hlp.get_device()
+    agent = PPO2SIL(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
 ###################################
 #         SAC Algorithms          #
 ###################################
@@ -183,6 +200,23 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
 
     device = hlp.get_device()
     agent = SAC(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_SACSIL(observation_size, action_num, config: acf.SACSILConfig):
+    from cares_reinforcement_learning.algorithm.policy import SACSIL
+    from cares_reinforcement_learning.networks.SACSIL import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SACSIL(
         actor_network=actor,
         critic_network=critic,
         config=config,
@@ -592,6 +626,23 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
 
     device = hlp.get_device()
     agent = TD3(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
+def create_TD3SIL(observation_size, action_num, config: acf.TD3SILConfig):
+    from cares_reinforcement_learning.algorithm.policy import TD3SIL
+    from cares_reinforcement_learning.networks.TD3SIL import Actor, Critic
+
+    actor = Actor(observation_size, action_num, config=config)
+    critic = Critic(observation_size, action_num, config=config)
+
+    device = hlp.get_device()
+    agent = TD3SIL(
         actor_network=actor,
         critic_network=critic,
         config=config,
