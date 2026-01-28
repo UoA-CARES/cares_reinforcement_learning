@@ -1,6 +1,5 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 
 from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.util.configurations import DADSConfig
@@ -29,8 +28,8 @@ class DefaultSkillDynamicsModel(nn.Module):
         self.logvar_head = nn.Linear(256, observation_size)
 
         # reasonable clipping bounds for log-variance (std ≈ e^-5 to e^5)
-        self.logvar_min = -5.0
-        self.logvar_max = 5.0
+        self.logvar_min = -7.0
+        self.logvar_max = 2.0
 
     def forward(
         self, state: torch.Tensor, skill_onehot: torch.Tensor
@@ -69,8 +68,8 @@ class SkillDynamicsModel(nn.Module):
         self.logvar_head = nn.Linear(self.network.output_size, observation_size)
 
         # reasonable clipping bounds for log-variance (std ≈ e^-5 to e^5)
-        self.logvar_min = -5.0
-        self.logvar_max = 5.0
+        self.logvar_min = config.logvar_min
+        self.logvar_max = config.logvar_max
 
     def forward(
         self, state: torch.Tensor, skill_onehot: torch.Tensor

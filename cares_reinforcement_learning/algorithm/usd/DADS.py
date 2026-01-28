@@ -94,9 +94,6 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
         Returns shape [B] (sum over feature dim).
         """
         # Clamp log-variance for numerical stability
-        logvar = torch.clamp(logvar, min=-7.0, max=2.0)  # tweak if needed
-
-        # Inverse variance: exp(-logvar) is stable when logvar is clamped
         inv_var = torch.exp(-logvar)
 
         # log-likelihood per-dimension then sum over feature dim
