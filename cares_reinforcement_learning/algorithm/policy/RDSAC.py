@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import RDSACConfig
 
 
@@ -29,8 +30,10 @@ class RDSAC(SAC):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)

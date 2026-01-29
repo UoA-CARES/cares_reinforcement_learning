@@ -6,23 +6,23 @@ Code: https://github.com/alirezakazemipour/DIAYN-PyTorch/tree/main
 
 import logging
 import os
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class DIAYN(VectorAlgorithm):
+class DIAYN(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         skills_agent: SAC,
@@ -67,45 +67,58 @@ class DIAYN(VectorAlgorithm):
         z_one_hot[self.z] = 1
         return np.concatenate([state, z_one_hot])
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
 
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
-
-        action_context.state = self._concat_state_latent(state)
+        observation = replace(
+            observation,
+            vector_state=self._concat_state_latent(observation.vector_state),
+        )
 
         if not evaluation:
             self.z_experience_index.append(self.z)
 
-        return self.skills_agent.select_action_from_policy(action_context)
+        return self.skills_agent.select_action_from_policy(observation, evaluation)
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state = self._concat_state_latent(state)
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
+        state = replace(
+            state, vector_state=self._concat_state_latent(state.vector_state)
+        )
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, _, next_states, dones, indices = experiences
+        sample = memory_buffer.sample_uniform(self.batch_size)
+        batch_size = len(sample.experiences)
+
         weights = [1.0] * batch_size
 
-        batch_size = len(states)
-
-        zs = np.array(self.z_experience_index)[indices]
+        zs = np.array(self.z_experience_index)[sample.indices]
 
         zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
 
         # Concatenate zs (skills) as one-hot to states
         zs_one_hot = np.eye(self.num_skills)[zs]
+        states = np.stack(
+            [experience.observation.vector_state for experience in sample.experiences]
+        )
         states_zs = np.concatenate([states, zs_one_hot], axis=1)
+
+        next_states = np.stack(
+            [
+                experience.next_observation.vector_state
+                for experience in sample.experiences
+            ]
+        )
         next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
 
         # Convert into tensor using training utilities
@@ -117,7 +130,9 @@ class DIAYN(VectorAlgorithm):
         )
 
         actions_tensor = torch.tensor(
-            np.asarray(actions), dtype=torch.float32, device=self.device
+            np.asarray([experience.action for experience in sample.experiences]),
+            dtype=torch.float32,
+            device=self.device,
         )
 
         next_states_tensor = torch.tensor(
@@ -128,7 +143,9 @@ class DIAYN(VectorAlgorithm):
         )
 
         dones_tensor = torch.tensor(
-            np.asarray(dones), dtype=torch.long, device=self.device
+            np.asarray([experience.done for experience in sample.experiences]),
+            dtype=torch.long,
+            device=self.device,
         )
         weights_tensor = torch.tensor(
             np.asarray(weights), dtype=torch.float32, device=self.device
@@ -151,8 +168,8 @@ class DIAYN(VectorAlgorithm):
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
 
         info = self.skills_agent.update_networks(
-            memory,
-            indices,
+            memory_buffer,
+            np.asarray(sample.indices),
             states_zs_tensor,
             actions_tensor,
             rewards_tensor,
@@ -162,7 +179,7 @@ class DIAYN(VectorAlgorithm):
         )
 
         # Update the Discriminator
-        logits = self.discriminator_net(states_tensor)
+        logits = self.discriminator_net(next_states_tensor)
         discriminator_loss = self.cross_ent_loss(logits, zs_tensor.squeeze(-1))
 
         info["discriminator_loss"] = discriminator_loss.item()

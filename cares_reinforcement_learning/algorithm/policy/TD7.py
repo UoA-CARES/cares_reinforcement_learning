@@ -12,19 +12,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import TD7Config
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class TD7(VectorAlgorithm):
+class TD7(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -110,13 +108,12 @@ class TD7(VectorAlgorithm):
             **config.encoder_lr_params,
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         self.actor_net.eval()
 
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         with torch.no_grad():
             # Fix: Use modern tensor creation
@@ -144,9 +141,11 @@ class TD7(VectorAlgorithm):
 
         return action
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         # Fix: Use modern tensor creation
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)
@@ -303,7 +302,7 @@ class TD7(VectorAlgorithm):
 
     def update_networks(
         self,
-        memory: MemoryBuffer,
+        memory: SARLMemoryBuffer,
         indices: np.ndarray,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
@@ -359,11 +358,12 @@ class TD7(VectorAlgorithm):
         return info
 
     # TODO use training_step with decay rates
-    def _train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def _train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
 
         # TODO replace with training_step based approach to avoid having to save this value
         self.policy_noise *= self.policy_noise_decay
@@ -375,16 +375,16 @@ class TD7(VectorAlgorithm):
 
         # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_batch_to_tensors(
-            memory=memory,
-            batch_size=batch_size,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
@@ -392,19 +392,23 @@ class TD7(VectorAlgorithm):
         )
 
         info = self.update_networks(
-            memory,
+            memory_buffer,
             indices,
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             weights_tensor,
         )
 
         return info
 
-    def _train_and_reset(self, training_context: TrainingContext) -> dict[str, Any]:
+    def _train_and_reset(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         for _ in range(self.timesteps_since_update):
@@ -412,7 +416,7 @@ class TD7(VectorAlgorithm):
                 self.best_min_return *= self.reset_weight
                 self.max_eps_before_update = self.max_eps_checkpointing
 
-            info = self._train_policy(training_context)
+            info = self._train_policy(memory_buffer, episode_context)
 
         self.eps_since_update = 0
         self.timesteps_since_update = 0
@@ -420,12 +424,16 @@ class TD7(VectorAlgorithm):
 
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
-        episode_steps = training_context.episode_steps
-        episode_return = training_context.episode_reward
-        episode_done = training_context.episode_done
+        episode_steps = episode_context.episode_steps
+        episode_return = episode_context.episode_reward
+        episode_done = episode_context.episode_done
 
         if not episode_done:
             return info
@@ -436,14 +444,14 @@ class TD7(VectorAlgorithm):
         self.min_return = min(self.min_return, episode_return)
 
         if self.min_return < self.best_min_return:
-            info = self._train_and_reset(training_context)
+            info = self._train_and_reset(memory_buffer, episode_context)
 
         elif self.eps_since_update == self.max_eps_before_update:
             self.best_min_return = self.min_return
             self.checkpoint_actor.load_state_dict(self.actor_net.state_dict())
             self.checkpoint_encoder.load_state_dict(self.encoder_net.state_dict())
 
-            info = self._train_and_reset(training_context)
+            info = self._train_and_reset(memory_buffer, episode_context)
 
         return info
 

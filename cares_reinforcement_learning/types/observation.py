@@ -1,0 +1,68 @@
+from dataclasses import dataclass
+
+import numpy as np
+import torch
+
+
+@dataclass(frozen=True, slots=True)
+class SARLObservation:
+    # Vector Based
+    vector_state: np.ndarray
+
+    # Image Based
+    image_state: np.ndarray | None = None
+
+    avail_actions: np.ndarray | None = None
+
+    def clone(self) -> "SARLObservation":
+        return SARLObservation(
+            vector_state=self.vector_state.copy(),
+            image_state=None if self.image_state is None else self.image_state.copy(),
+            avail_actions=(
+                None if self.avail_actions is None else self.avail_actions.copy()
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class MARLObservation:
+    global_state: np.ndarray
+
+    # Per-Agent States
+    agent_states: dict[str, np.ndarray]
+
+    avail_actions: np.ndarray
+
+    def clone(self) -> "MARLObservation":
+        return MARLObservation(
+            global_state=self.global_state.copy(),
+            agent_states={
+                agent_id: state.copy() for agent_id, state in self.agent_states.items()
+            },
+            avail_actions=self.avail_actions.copy(),
+        )
+
+
+Observation = SARLObservation | MARLObservation
+
+
+@dataclass(frozen=True, slots=True)
+class SARLObservationTensors:
+    # Vector Based
+    vector_state_tensor: torch.Tensor
+
+    # Image Based
+    image_state_tensor: torch.Tensor | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class MARLObservationTensors:
+    # Global State
+    global_state_tensor: torch.Tensor
+
+    # Per-Agent States
+    agent_states_tensor: dict[str, torch.Tensor]
+    avail_actions_tensor: torch.Tensor
+
+
+ObservationTensors = SARLObservationTensors | MARLObservationTensors

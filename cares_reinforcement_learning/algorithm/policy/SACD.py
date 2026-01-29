@@ -14,18 +14,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import SACDConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class SACD(VectorAlgorithm):
+class SACD(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -74,23 +73,22 @@ class SACD(VectorAlgorithm):
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
 
         self.actor_net.eval()
 
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
-                (_, _, action) = self.actor_net(state_tensor)
+                _, _, action = self.actor_net(state_tensor)
                 # action = np.argmax(action_probs)
             else:
-                (action, _, _) = self.actor_net(state_tensor)
+                action, _, _ = self.actor_net(state_tensor)
                 # action = np.random.choice(a=self.action_num, p=action_probs)
         self.actor_net.train()
         return action.item()
@@ -168,24 +166,24 @@ class SACD(VectorAlgorithm):
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
-
-        # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             _,
             _,
-        ) = tu.sample_batch_to_tensors(
-            memory=memory,
-            batch_size=batch_size,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # SACD uses uniform sampling
         )
@@ -194,17 +192,19 @@ class SACD(VectorAlgorithm):
 
         # Update the Critic
         critic_loss_total = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
         )
         info["critic_loss"] = critic_loss_total
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_loss, alpha_loss = self._update_actor_alpha(states_tensor)
+            actor_loss, alpha_loss = self._update_actor_alpha(
+                observation_tensor.vector_state_tensor
+            )
             info["actor_loss"] = actor_loss
             info["alpha_loss"] = alpha_loss
             info["alpha"] = self.alpha.item()

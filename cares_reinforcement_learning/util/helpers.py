@@ -505,3 +505,17 @@ def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float
 
 def avg_l1_norm(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     return x / x.abs().mean(-1, keepdim=True).clamp(min=eps)
+
+
+def dump_tensor(x):
+    return (
+        x.dtype,
+        x.device,
+        tuple(x.shape),
+        x.is_contiguous(),
+        x.stride(),
+        float(x.min()),
+        float(x.max()),
+        float(x.mean()),
+        float(x.std()),
+    )

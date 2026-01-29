@@ -1397,6 +1397,9 @@ class DADSConfig(SACConfig):
 
     num_skills: int = 10
 
+    logvar_min: float = -7.0
+    logvar_max: float = 2.0
+
     max_steps_exploration: Literal[0] = Field(default=0)
 
     discriminator_lr: float = 1e-3

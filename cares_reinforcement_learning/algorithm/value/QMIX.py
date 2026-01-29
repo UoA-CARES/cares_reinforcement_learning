@@ -12,22 +12,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.networks.QMIX import (
-    SharedMultiAgentNetwork,
-    QMixer,
-)
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.networks.QMIX import QMixer, SharedMultiAgentNetwork
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import MARLObservation
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
+from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 
 
-class QMIX(VectorAlgorithm):
+class QMIX(Algorithm[MARLObservation, MARLMemoryBuffer]):
     def __init__(
         self,
         network: SharedMultiAgentNetwork,
@@ -91,29 +87,26 @@ class QMIX(VectorAlgorithm):
         obs_list = [obs_dict[a] for a in agent_names]
         return torch.stack(obs_list, dim=1)
 
-    def select_action_from_policy(self, action_context: ActionContext):
+    def select_action_from_policy(
+        self, observation: MARLObservation, evaluation: bool = False
+    ) -> list[int]:
         """
         Epsilon-greedy per-agent action selection.
         Each agent decides independently whether to explore or exploit.
         """
-        state = action_context.state
-        evaluation = action_context.evaluation
-        available_actions = action_context.available_actions
-
-        assert isinstance(state, dict)
-
         actions = []
 
         # Get greedy actions for all agents once
-        obs_dict_tensors, _, avail_actions_tensor = tu.marl_states_to_tensors(
-            [state], self.device
+        observation_tensors = memory_sampler.observation_to_tensors(
+            [observation], self.device
         )
-        obs_tensors = self._stack_obs(obs_dict_tensors)  # [1, num_agents, obs_dim]
+
+        obs_tensors = self._stack_obs(observation_tensors.agent_states_tensor)
 
         self.network.eval()
         with torch.no_grad():
             q_values = self.network(obs_tensors)  # [1, num_agents, num_actions]
-            mask = avail_actions_tensor == 0
+            mask = observation_tensors.avail_actions_tensor == 0
             q_values = q_values.masked_fill(mask, -1e9)
             greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
         self.network.train()
@@ -125,7 +118,9 @@ class QMIX(VectorAlgorithm):
             else:
                 # Each agent decides independently
                 if random.random() < self.epsilon:
-                    avail_actions_ind = np.nonzero(available_actions[agent_id])[0]
+                    avail_actions_ind = np.nonzero(observation.avail_actions[agent_id])[
+                        0
+                    ]
                     actions.append(int(np.random.choice(avail_actions_ind)))
                 else:
                     actions.append(int(greedy_actions[agent_id]))
@@ -206,37 +201,35 @@ class QMIX(VectorAlgorithm):
 
         return elementwise_loss, loss_info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: MARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
-        training_step = training_context.training_step
+        training_step = episode_context.training_step
 
         self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
         # Use training_utils to sample and prepare batch
         (
-            obs_dict_tensors,
-            states_tensors,
-            _,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_obs_dict_tensors,
-            next_states_tensors,
-            next_avail_actions_tensors,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_marl_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
@@ -252,18 +245,18 @@ class QMIX(VectorAlgorithm):
         dones_tensor = dones_tensor.view(-1)
         weights_tensor = weights_tensor.view(-1)
 
-        obs_tensors = self._stack_obs(obs_dict_tensors)
-        next_obs_tensors = self._stack_obs(next_obs_dict_tensors)
+        obs_tensors = self._stack_obs(observation_tensor.agent_states_tensor)
+        next_obs_tensors = self._stack_obs(next_observation_tensor.agent_states_tensor)
 
         # Calculate loss - overriden by C51
         elementwise_loss, loss_info = self._compute_loss(
             obs_tensors=obs_tensors,
             next_obs_tensors=next_obs_tensors,
-            states_tensors=states_tensors,
-            next_states_tensors=next_states_tensors,
+            states_tensors=observation_tensor.global_state_tensor,
+            next_states_tensors=next_observation_tensor.global_state_tensor,
             actions_tensors=actions_tensor,
             rewards_tensors=rewards_tensor,
-            next_avail_actions_tensors=next_avail_actions_tensors,
+            next_avail_actions_tensors=next_observation_tensor.avail_actions_tensor,
             dones_tensors=dones_tensor,
         )
         info |= loss_info
@@ -278,7 +271,7 @@ class QMIX(VectorAlgorithm):
                 .flatten()
             )
 
-            memory.update_priorities(indices, priorities)
+            memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
         else:

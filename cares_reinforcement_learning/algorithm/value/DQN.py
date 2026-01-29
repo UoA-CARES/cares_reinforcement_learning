@@ -12,19 +12,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 
 
-class DQN(VectorAlgorithm):
+class DQN(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         network: BaseNetwork,
@@ -85,14 +84,13 @@ class DQN(VectorAlgorithm):
 
         return action
 
-    def select_action_from_policy(self, action_context: ActionContext) -> int:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> int:
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         if evaluation:
             return self._exploit(state)
@@ -102,8 +100,10 @@ class DQN(VectorAlgorithm):
 
         return self._exploit(state)
 
-    def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():
@@ -146,38 +146,42 @@ class DQN(VectorAlgorithm):
 
         return elementwise_loss
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
-        training_step = training_context.training_step
+        training_step = episode_context.training_step
 
         self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
         # Use training_utils to sample and prepare batch
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
             indices,
-        ) = tu.sample_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
             action_dtype=torch.long,  # DQN uses discrete actions
         )
+
+        sample_size = len(indices)
 
         # Reshape tensors to match DQN's expected dimensions
         rewards_tensor = rewards_tensor.view(-1)
@@ -186,12 +190,12 @@ class DQN(VectorAlgorithm):
 
         # Calculate loss - overriden by C51
         elementwise_loss = self._compute_loss(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
-            batch_size,
+            sample_size,
         )
 
         if self.use_per_buffer:
@@ -204,7 +208,7 @@ class DQN(VectorAlgorithm):
                 .flatten()
             )
 
-            memory.update_priorities(indices, priorities)
+            memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
         else:

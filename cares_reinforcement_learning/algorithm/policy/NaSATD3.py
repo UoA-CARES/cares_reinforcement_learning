@@ -8,25 +8,28 @@ import torch
 import torch.nn.functional as F
 
 # This is used to metric the novelty.
+# pylint: disable=import-error, no-name-in-module
 from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
-from cares_reinforcement_learning.util.configurations import NaSATD3Config
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
 )
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.util.configurations import NaSATD3Config
 
 
-class NaSATD3(ImageAlgorithm):
+class NaSATD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -106,20 +109,18 @@ class NaSATD3(ImageAlgorithm):
 
     def select_action_from_policy(
         self,
-        action_context: ActionContext,
+        observation: SARLObservation,
+        evaluation: bool = False,
     ) -> np.ndarray:
         self.actor.eval()
         self.autoencoder.eval()
 
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, dict)
-
         with torch.no_grad():
-            state_tensor = tu.image_state_to_tensors(state, self.device)
+            observation_tensors = memory_sampler.observation_to_tensors(
+                [observation], self.device
+            )
 
-            action = self.actor(state_tensor)
+            action = self.actor(observation_tensors)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
@@ -136,10 +137,10 @@ class NaSATD3(ImageAlgorithm):
 
     def _update_critic(
         self,
-        states: dict[str, torch.Tensor],
+        states: SARLObservationTensors,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
+        next_states: SARLObservationTensors,
         dones: torch.Tensor,
     ) -> tuple[float, float, float]:
         with torch.no_grad():
@@ -175,7 +176,7 @@ class NaSATD3(ImageAlgorithm):
         ae_loss = self.autoencoder.update_autoencoder(states)
         return ae_loss.item()
 
-    def _update_actor(self, states: dict[str, torch.Tensor]) -> float:
+    def _update_actor(self, states: SARLObservationTensors) -> float:
         actor_q_one, actor_q_two = self.critic(
             states, self.actor(states, detach_encoder=True), detach_encoder=True
         )
@@ -205,18 +206,21 @@ class NaSATD3(ImageAlgorithm):
 
     def _update_predictive_model(
         self,
-        states: dict[str, torch.Tensor],
+        states: SARLObservationTensors,
         actions: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
+        next_states: SARLObservationTensors,
     ) -> list[float]:
+
+        assert states.image_state_tensor is not None
+        assert next_states.image_state_tensor is not None
 
         with torch.no_grad():
             latent_state = self._get_latent_state(
-                states["image"], detach_output=True, sample_latent=True
+                states.image_state_tensor, detach_output=True, sample_latent=True
             )
 
             latent_next_state = self._get_latent_state(
-                next_states["image"], detach_output=True, sample_latent=True
+                next_states.image_state_tensor, detach_output=True, sample_latent=True
             )
 
         pred_losses = []
@@ -237,15 +241,16 @@ class NaSATD3(ImageAlgorithm):
 
         return pred_losses
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.actor.train()
         self.critic.train()
         self.autoencoder.train()
         self.autoencoder.encoder.train()
         self.autoencoder.decoder.train()
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
 
         self.learn_counter += 1
 
@@ -255,34 +260,33 @@ class NaSATD3(ImageAlgorithm):
         self.action_noise *= self.action_noise_decay
         self.action_noise = max(self.min_action_noise, self.action_noise)
 
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, rewards, next_states, dones, _ = experiences
-
         # Convert to tensors using multimodal batch conversion
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
-            _,  # weights not used
-        ) = tu.image_batch_to_tensors(
-            states,
-            actions,
-            rewards,
-            next_states,
-            dones,
-            self.device,
+            _,
+            _,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
+            use_per_buffer=0,  # NaSATD3 uses uniform sampling
         )
+
+        assert observation_tensor.image_state_tensor is not None
+        assert next_observation_tensor.image_state_tensor is not None
 
         info: dict[str, Any] = {}
 
         # Update the Critic
         critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
         )
         info["critic_loss_one"] = critic_loss_one
@@ -290,12 +294,12 @@ class NaSATD3(ImageAlgorithm):
         info["critic_loss_total"] = critic_loss_total
 
         # Update Autoencoder
-        ae_loss = self._update_autoencoder(states_tensor["image"])
+        ae_loss = self._update_autoencoder(observation_tensor.image_state_tensor)
         info["ae_loss"] = ae_loss
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(states_tensor)
+            actor_loss = self._update_actor(observation_tensor)
             info["actor_loss"] = actor_loss
 
             # Update target network params
@@ -312,7 +316,7 @@ class NaSATD3(ImageAlgorithm):
         # Update intrinsic models
         if self.intrinsic_on:
             pred_losses = self._update_predictive_model(
-                states_tensor, actions_tensor, next_states_tensor
+                observation_tensor, actions_tensor, next_observation_tensor
             )
             info["pred_losses"] = pred_losses
 
@@ -372,9 +376,9 @@ class NaSATD3(ImageAlgorithm):
 
     def get_intrinsic_reward(
         self,
-        state: dict[str, np.ndarray],
+        observation: SARLObservation,
         action: np.ndarray,
-        next_state: dict[str, np.ndarray],
+        next_observation: SARLObservation,
         **kwargs: Any,
     ) -> float:
         if not self.intrinsic_on:
@@ -382,17 +386,27 @@ class NaSATD3(ImageAlgorithm):
             return 0.0
 
         with torch.no_grad():
-            state_tensor = tu.image_state_to_tensors(state, self.device)
-            next_state_tensor = tu.image_state_to_tensors(next_state, self.device)
+            observation_tensor = memory_sampler.observation_to_tensors(
+                [observation], self.device
+            )
+            next_observation_tensor = memory_sampler.observation_to_tensors(
+                [next_observation], self.device
+            )
+
+            assert observation_tensor.image_state_tensor is not None
+            assert next_observation_tensor.image_state_tensor is not None
+
             action_tensor = torch.tensor(
                 action, dtype=torch.float32, device=self.device
             )
             action_tensor = action_tensor.unsqueeze(0)
 
             surprise_rate = self._get_surprise_rate(
-                state_tensor["image"], action_tensor, next_state_tensor["image"]
+                observation_tensor.image_state_tensor,
+                action_tensor,
+                next_observation_tensor.image_state_tensor,
             )
-            novelty_rate = self._get_novelty_rate(state_tensor["image"])
+            novelty_rate = self._get_novelty_rate(observation_tensor.image_state_tensor)
 
         # TODO make these parameters - i.e. Tony's work
         a = 1.0

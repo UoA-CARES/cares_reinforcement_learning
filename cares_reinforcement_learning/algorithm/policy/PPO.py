@@ -17,17 +17,16 @@ import torch
 import torch.nn.functional as F
 from torch.distributions import MultivariateNormal
 
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import PPOConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
-)
 
 
-class PPO(VectorAlgorithm):
+class PPO(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -72,11 +71,11 @@ class PPO(VectorAlgorithm):
         self.actor_net.train()
         return log_prob
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         self.actor_net.eval()
-        state = action_context.state
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -94,8 +93,10 @@ class PPO(VectorAlgorithm):
 
         return action
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():
@@ -125,40 +126,37 @@ class PPO(VectorAlgorithm):
         )  # shape 5000
         return batch_rtgs
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         # pylint: disable-next=unused-argument
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
-
-        experiences = memory.flush()
-        states, actions, rewards, next_states, dones = experiences
+        sample = memory_buffer.flush()
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
             _,  # next_states not used in PPO
             dones_tensor,
             _,  # weights not needed
-        ) = tu.batch_to_tensors(
-            np.asarray(states),
-            np.asarray(actions),
-            np.asarray(rewards),
-            np.asarray(next_states),
-            np.asarray(dones),
-            self.device,
-        )
+        ) = memory_sampler.sample_to_tensors(sample, self.device)
 
-        log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
+        log_probs_tensor = self._calculate_log_prob(
+            observation_tensor.vector_state_tensor, actions_tensor
+        )
 
         # compute reward to go:
         rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
         # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
 
         # calculate advantages
-        v, _ = self._evaluate_policy(states_tensor, actions_tensor)
+        v, _ = self._evaluate_policy(
+            observation_tensor.vector_state_tensor, actions_tensor
+        )
 
         advantages = rtgs.detach() - v.detach()
 
@@ -168,7 +166,9 @@ class PPO(VectorAlgorithm):
         td_errors = torch.abs(advantages).data.cpu().numpy()
 
         for _ in range(self.updates_per_iteration):
-            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor)
+            v, curr_log_probs = self._evaluate_policy(
+                observation_tensor.vector_state_tensor, actions_tensor
+            )
 
             # Calculate ratios
             ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())

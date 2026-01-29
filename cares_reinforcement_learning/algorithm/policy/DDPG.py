@@ -11,18 +11,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DDPGConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class DDPG(Algorithm):
+class DDPG(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -49,11 +48,10 @@ class DDPG(Algorithm):
         )
 
     def select_action_from_policy(
-        self,
-        action_context: ActionContext,
+        self, observation: SARLObservation, evaluation: bool = False
     ) -> np.ndarray:
         # pylint: disable-next=unused-argument
-        state = action_context.state
+        state = observation.vector_state
 
         self.actor_net.eval()
         with torch.no_grad():
@@ -108,22 +106,24 @@ class DDPG(Algorithm):
         info = {"actor_loss": actor_loss.item()}
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
 
         # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             _,
             _,
-        ) = tu.sample_batch_to_tensors(
-            memory=memory,
-            batch_size=batch_size,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # DDPG uses uniform sampling
         )
@@ -132,16 +132,16 @@ class DDPG(Algorithm):
 
         # Update Critic
         critic_info = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
         )
         info |= critic_info
 
         # Update Actor
-        actor_info = self._update_actor(states_tensor)
+        actor_info = self._update_actor(observation_tensor.vector_state_tensor)
         info |= actor_info
 
         self.update_target_networks()

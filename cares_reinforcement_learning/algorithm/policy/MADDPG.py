@@ -8,20 +8,23 @@ import logging
 import os
 from typing import Any
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.training_utils as tu
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-from cares_reinforcement_learning.util.configurations import MADDPGConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
+from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    SARLObservation,
 )
+from cares_reinforcement_learning.util.configurations import MADDPGConfig
 
 
-class MADDPG(Algorithm):
+class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
     def __init__(
         self,
         agents: list[DDPG],
@@ -30,7 +33,7 @@ class MADDPG(Algorithm):
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
-        self.agents = agents
+        self.agent_networks = agents
         self.num_agents = len(agents)
 
         self.gamma = config.gamma
@@ -40,31 +43,31 @@ class MADDPG(Algorithm):
 
         self.alpha = config.alpha  # adversarial perturbation scale
 
+        self.learn_counter = 0
+
+    # TODO verify that the ordering of agents is consistent
     def select_action_from_policy(
         self,
-        action_context: ActionContext,
-    ):
-        state = action_context.state
-        obs_dict = state["obs"]
-        avail_actions = action_context.available_actions
+        observation: MARLObservation,
+        evaluation: bool = False,
+    ) -> list[np.ndarray]:
+        agent_states = observation.agent_states
+        avail_actions = observation.avail_actions
 
-        assert isinstance(obs_dict, dict)
-
-        agent_ids = list(obs_dict.keys())
+        agent_ids = list(agent_states.keys())
         actions = []
 
-        for i, agent in enumerate(self.agents):
+        for i, agent in enumerate(self.agent_networks):
             agent_name = agent_ids[i]  # consistent ordering in dict
-            obs_i = obs_dict[agent_name]
+            obs_i = agent_states[agent_name]
             avail_i = avail_actions[i]
 
-            agent_action_context = ActionContext(
-                state=obs_i,
-                evaluation=action_context.evaluation,
-                available_actions=avail_i,
+            agent_observation = SARLObservation(
+                vector_state=obs_i,
+                avail_actions=avail_i,
             )
 
-            action = agent.select_action_from_policy(agent_action_context)
+            action = agent.select_action_from_policy(agent_observation, evaluation)
             actions.append(action)
 
         return actions
@@ -150,6 +153,7 @@ class MADDPG(Algorithm):
 
         # --- Step 3: critic regression on *current* joint_actions (unperturbed) ---
         q_values = agent.critic_net(global_states, joint_actions)
+
         loss = F.mse_loss(q_values, q_target)
 
         agent.critic_net_optimiser.zero_grad()
@@ -237,58 +241,64 @@ class MADDPG(Algorithm):
 
         return {"actor_loss": actor_loss.item()}
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+    def train_policy(
+        self,
+        memory_buffer: MARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
+
+        self.learn_counter += 1
 
         info: dict[str, Any] = {}
 
-        for agent_index, current_agent in enumerate(self.agents):
+        for agent_index, current_agent in enumerate(self.agent_networks):
             # ---------------------------------------------------------
             # Update each agent
             # ---------------------------------------------------------
-
-            # Use training_utils to sample and prepare batch
             (
-                obs_tensors,
-                states_tensors,
-                _,
+                observation_tensor,
                 actions_tensor,
                 rewards_tensor,
-                next_obs_tensors,
-                next_states_tensors,
-                _,
+                next_observation_tensor,
                 dones_tensor,
                 _,
-                _,
-            ) = tu.sample_marl_batch_to_tensors(
-                memory,
-                batch_size,
-                self.device,
+                indices,
+            ) = memory_sampler.sample(
+                memory=memory_buffer,
+                batch_size=self.batch_size,
+                device=self.device,
                 use_per_buffer=0,
             )
 
-            agent_ids = list(obs_tensors.keys())
+            sample_size = len(indices)
+
+            states_tensors = observation_tensor.global_state_tensor
+            next_states_tensors = next_observation_tensor.global_state_tensor
+
+            agent_states_tensors = observation_tensor.agent_states_tensor
+            next_agent_states_tensors = next_observation_tensor.agent_states_tensor
+
+            agent_ids = list(agent_states_tensors.keys())
 
             # ---------------------------------------------------------
             # Build next_actions_tensor using TARGET actors
             # ---------------------------------------------------------
             next_actions = []
-            for agent, agent_name in zip(self.agents, agent_ids):
-                obs_next_j = next_obs_tensors[agent_name]
+            for agent, agent_id in zip(self.agent_networks, agent_ids):
+                obs_next_j = next_agent_states_tensors[agent_id]
                 next_action_j = agent.target_actor_net(obs_next_j)
                 next_actions.append(next_action_j)
 
             next_actions_tensor = torch.stack(next_actions, dim=1)
 
             # Flatten replay-buffer actions for this batch
-            joint_actions = actions_tensor.reshape(batch_size, -1)
+            joint_actions = actions_tensor.reshape(sample_size, -1)
 
             # ---------------------------------------------------------
             # Critic update for this agent
             # ---------------------------------------------------------
-            rewards_i = rewards_tensor[:, agent_index].unsqueeze(-1)
-            dones_i = dones_tensor[:, agent_index].unsqueeze(-1)
+            rewards_i = rewards_tensor[:, agent_index]
+            dones_i = dones_tensor[:, agent_index]
 
             critic_info = self._update_critic(
                 agent=current_agent,
@@ -307,7 +317,7 @@ class MADDPG(Algorithm):
             actor_info = self._update_actor(
                 agent=current_agent,
                 agent_index=agent_index,
-                obs_tensors=obs_tensors,
+                obs_tensors=agent_states_tensors,
                 global_states=states_tensors,
                 actions_tensor=actions_tensor,
             )
@@ -315,6 +325,7 @@ class MADDPG(Algorithm):
             info[f"critic_loss_agent_{agent_index}"] = critic_info["critic_loss"]
             info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
 
+        for current_agent in self.agent_networks:
             current_agent.update_target_networks()
 
         return info
@@ -323,7 +334,7 @@ class MADDPG(Algorithm):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for i, agent in enumerate(self.agents):
+        for i, agent in enumerate(self.agent_networks):
             agent_filepath = os.path.join(filepath, f"agent_{i}")
             agent_filename = f"{filename}_agent_{i}_checkpoint"
             agent.save_models(agent_filepath, agent_filename)
@@ -331,7 +342,7 @@ class MADDPG(Algorithm):
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for i, agent in enumerate(self.agents):
+        for i, agent in enumerate(self.agent_networks):
             agent_filepath = os.path.join(filepath, f"agent_{i}")
             agent_filename = f"{filename}_agent_{i}_checkpoint"
             agent.load_models(agent_filepath, agent_filename)

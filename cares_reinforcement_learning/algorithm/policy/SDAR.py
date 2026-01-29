@@ -11,18 +11,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import SDARConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
 
 
-class SDAR(VectorAlgorithm):
+class SDAR(Algorithm[SARLObservation, SARLMemoryBuffer]):
     actor_network: Actor
     critic_network: Critic
 
@@ -111,24 +110,23 @@ class SDAR(VectorAlgorithm):
         )
         self.force_act = True
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
-                (_, _, action, *_) = self.actor_net(
+                _, _, action, *_ = self.actor_net(
                     state_tensor, self.prev_action_tensor, force_act=self.force_act
                 )
             else:
-                (action, _, *_) = self.actor_net(
+                action, _, *_ = self.actor_net(
                     state_tensor, self.prev_action_tensor, force_act=self.force_act
                 )
 
@@ -256,11 +254,12 @@ class SDAR(VectorAlgorithm):
 
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
 
         # Use training utilities for consecutive sampling and tensor conversion
         (
@@ -269,16 +268,18 @@ class SDAR(VectorAlgorithm):
             _,  # rewards_t1_tensor (not used)
             _,  # next_states_t1_tensor (not used)
             _,  # dones_t1_tensor (not used)
-            states_tensor,  # states_t2_tensor (SDAR's current states)
+            observation_tensor,  # states_t2_tensor (SDAR's current states)
             actions_tensor,  # actions_t2_tensor (SDAR's current actions)
             rewards_tensor,  # rewards_t2_tensor (SDAR's current rewards)
-            next_states_tensor,  # next_states_t2_tensor (SDAR's next states)
+            next_observation_tensor,  # next_states_t2_tensor (SDAR's next states)
             dones_tensor,  # dones_t2_tensor (SDAR's current dones)
             _,  # indices (not used by SDAR)
-        ) = tu.consecutive_sample_batch_to_tensors(memory, batch_size, self.device)
+        ) = memory_sampler.consecutive_sample(
+            memory_buffer, self.batch_size, self.device
+        )
 
         # Create weights tensor (SDAR doesn't use PER with consecutive sampling)
-        batch_size = len(states_tensor)
+        batch_size = len(observation_tensor.vector_state_tensor)
         weights_tensor = torch.ones(
             batch_size, 1, dtype=torch.float32, device=self.device
         )
@@ -287,10 +288,10 @@ class SDAR(VectorAlgorithm):
 
         # Update the Critic
         critic_info, _ = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -299,7 +300,9 @@ class SDAR(VectorAlgorithm):
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor_alpha(
-                states_tensor, prev_actions_tensor, weights_tensor
+                observation_tensor.vector_state_tensor,
+                prev_actions_tensor,
+                weights_tensor,
             )
             info |= actor_info
             info["alpha"] = self.alpha.item()

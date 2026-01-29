@@ -16,20 +16,19 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
 from cares_reinforcement_learning.networks.world_models.ensemble_integrated import (
     EnsembleWorldReward,
 )
+from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import DynaSACConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
-)
 
 
-class DynaSAC(VectorAlgorithm):
+class DynaSAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -80,20 +79,21 @@ class DynaSAC(VectorAlgorithm):
     def _alpha(self) -> torch.Tensor:
         return self.log_alpha.exp()
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def select_action_from_policy(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> np.ndarray:
         # pylint: disable-next=unused-argument
 
-        state = action_context.state
-        evaluation = action_context.evaluation
+        state = observation.vector_state
 
         # note that when evaluating this algorithm we need to select mu as
         self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).unsqueeze(0).to(self.device)
             if evaluation is False:
-                (action, _, _) = self.actor_net(state_tensor)
+                action, _, _ = self.actor_net(state_tensor)
             else:
-                (_, _, action) = self.actor_net(state_tensor)
+                _, _, action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
         return action
@@ -187,11 +187,11 @@ class DynaSAC(VectorAlgorithm):
             pred_states, pred_actions, pred_rs, pred_n_states, pred_dones
         )
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train_policy(self, episode_context: EpisodeContext) -> dict[str, Any]:
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+        memory = episode_context.memory
+        batch_size = episode_context.batch_size
 
         experiences = memory.sample_uniform(batch_size)
         states, actions, rewards, next_states, dones, _ = experiences

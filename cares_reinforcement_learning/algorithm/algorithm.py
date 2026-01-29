@@ -1,23 +1,22 @@
-"""
-Original Paper: https://arxiv.org/abs/1802.09477v3
-
-"""
-
 from abc import ABC, abstractmethod
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.memory.memory_buffer import Memory
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import Observation
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
-)
+
+# Type variable for observation types (SARL or MARL)
+ObsType = TypeVar("ObsType", bound=Observation)
+MemType = TypeVar("MemType", bound=Memory)
+# TODO Action TypeVar
 
 
-class Algorithm(ABC):
+class Algorithm(ABC, Generic[ObsType, MemType]):
     def __init__(
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
@@ -45,8 +44,10 @@ class Algorithm(ABC):
 
     @abstractmethod
     def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
+        self,
+        observation: ObsType,
+        evaluation: bool = False,
+    ) -> int | np.ndarray | list[int] | list[np.ndarray]: ...
 
     def _fixed_step_bias_segments(
         self, values: list[float], step_boundaries: list[int] | None = None
@@ -82,7 +83,7 @@ class Algorithm(ABC):
 
     # @abstractmethod
     def _calculate_value(
-        self, state: Any, action: int | np.ndarray
+        self, state: ObsType, action: int | np.ndarray
     ) -> float:  # pylint: disable=unused-argument
         return 0.0
 
@@ -131,9 +132,10 @@ class Algorithm(ABC):
         }
         return info
 
-    # TODO push batch_size into the algorithm
     @abstractmethod
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]: ...
+    def train_policy(
+        self, memory_buffer: MemType, episode_context: EpisodeContext
+    ) -> dict[str, Any]: ...
 
     @abstractmethod
     def save_models(self, filepath: str, filename: str) -> None: ...
@@ -143,9 +145,9 @@ class Algorithm(ABC):
 
     def get_intrinsic_reward(
         self,
-        state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        observation: ObsType,  # pylint: disable=unused-argument
         action: np.ndarray,  # pylint: disable=unused-argument
-        next_state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        next_observation: ObsType,  # pylint: disable=unused-argument
         **kwargs: Any,  # pylint: disable=unused-argument
     ) -> float:
         """
@@ -160,19 +162,3 @@ class Algorithm(ABC):
         It can be overridden in subclasses to perform any necessary cleanup or logging.
         """
         pass
-
-
-class VectorAlgorithm(Algorithm):
-
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
-
-
-class ImageAlgorithm(Algorithm):
-
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
