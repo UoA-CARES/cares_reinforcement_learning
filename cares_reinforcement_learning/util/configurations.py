@@ -842,7 +842,7 @@ class SACDConfig(SACConfig):
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
 
-    target_entropy_multiplier: float = 0.95
+    target_entropy_multiplier: float = 0.98
     init_entropy_alpha: float = 1.0
 
     batch_size: int = 64
@@ -864,7 +864,7 @@ class SACDConfig(SACConfig):
     use_entropy_penalty: bool = True
     entropy_penalty_beta: float = 0.5
 
-    use_film: bool = True
+    normalise_state: bool = True
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -874,6 +874,9 @@ class SACDConfig(SACConfig):
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
                 ]),
@@ -881,6 +884,9 @@ class SACDConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             ResidualLayer(
                 main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
+                    FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
@@ -898,6 +904,9 @@ class SACDConfig(SACConfig):
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
                 ]),
@@ -905,6 +914,9 @@ class SACDConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             ResidualLayer(
                 main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    NormLayer(layer_type="LayerNorm"),
+                    FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
