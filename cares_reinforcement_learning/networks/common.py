@@ -17,10 +17,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     VanillaAutoencoder,
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
-from cares_reinforcement_learning.types.observation import (
-    ObservationTensors,
-    SARLObservationTensors,
-)
+from cares_reinforcement_learning.types.observation import SARLObservationTensors
 from cares_reinforcement_learning.util.configurations import (
     FunctionLayer,
     MLPConfig,
