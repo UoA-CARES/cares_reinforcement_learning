@@ -15,7 +15,6 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation

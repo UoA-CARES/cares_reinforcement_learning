@@ -18,6 +18,7 @@ class Experience(Generic[ObsType]):
     next_observation: ObsType
 
     info: dict[str, Any]
+    # train_data: dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)

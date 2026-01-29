@@ -19,7 +19,6 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (

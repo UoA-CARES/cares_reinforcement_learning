@@ -19,7 +19,6 @@ from torch.distributions import MultivariateNormal
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext

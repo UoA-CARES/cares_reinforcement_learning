@@ -18,7 +18,6 @@ from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.types.episode import EpisodeContext
