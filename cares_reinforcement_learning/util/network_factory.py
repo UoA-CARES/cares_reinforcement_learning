@@ -414,6 +414,8 @@ def create_SACD(observation_size, action_num, config: acf.SACDConfig, num_tasks:
     if config.image_observation or isinstance(observation_size, tuple):
         input_size = config.autoencoder_config.latent_dim
         config.autoencoder_config.observation_size = observation_size
+    else:
+        input_size = observation_size
 
     actor = Actor(input_size, action_num, config=config)
     critic = Critic(input_size, action_num, config=config)
