@@ -15,11 +15,17 @@ class BaseActor(nn.Module):
         self, state: torch.Tensor
     ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         logits = self.network(state)
-        deterministic_action = torch.argmax(logits, dim=1)
-        dist = torch.distributions.Categorical(logits=logits)
+        probs = torch.softmax(logits, dim=1)
+        
+        dist = torch.distributions.Categorical(probs=probs)
+        deterministic_action = torch.argmax(probs, dim=1)
         sample_action = dist.sample()
 
-        return sample_action, (dist.probs, torch.log(dist.probs)), deterministic_action
+        zero_offset = probs == 0.0
+        zero_offset = zero_offset.float() * 1e-8
+        log_action_probs = torch.log(probs + zero_offset)
+
+        return sample_action, (probs, log_action_probs), deterministic_action
     
 
     def set_encoder(self, encoder: nn.Module) -> None:
