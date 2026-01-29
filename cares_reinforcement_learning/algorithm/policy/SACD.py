@@ -103,13 +103,19 @@ class SACD(SAC):
         self.env_entropy = env_entropy
         self.entropy = None
 
-        self.apply_film = True
-        if self.apply_film:
+        self.apply_actor_film = False
+        self.apply_critic_film = False
+
+        if len(self.actor_net.network.film_layers) > 0:
+            self.apply_actor_film = True
             self.actor_net.enable_film(num_tasks)
+
+        if len(self.critic_net.Q1.film_layers) > 0:
+            self.apply_critic_film = True
             self.critic_net.enable_film(num_tasks)
 
-        if config.encoder_type is not None:
-            self.normalise_image = getattr(config, "normalise_image", True)
+        self.normalise_state = config.normalise_state
+        if hasattr(config, "encoder_type"):
             self._set_encoding(config)
 
         # Update target critic net to include encoder
@@ -261,7 +267,7 @@ class SACD(SAC):
         :rtype: ndarray
         """
         self.actor_net.eval()
-        if self.apply_film:
+        if self.apply_actor_film:
             tasks = torch.tensor(np.asarray(action_context.extras["tasks"]), dtype=torch.float32, device=self.device).unsqueeze(0)
             self.actor_net.update_film_params(tasks)
 
@@ -270,11 +276,11 @@ class SACD(SAC):
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-            if self.normalise_image:
+            if self.normalise_state:
                 state_tensor = state_tensor / 255.0
             state_tensor = state_tensor.unsqueeze(0)
             if evaluation:
-                _, _, action = self.actor_net(state_tensor)
+                _, (action_probs, log_action_probs), action = self.actor_net(state_tensor)
             else:
                 action, (action_probs, log_action_probs), _ = self.actor_net(state_tensor)
                 self.entropy = -torch.sum(action_probs * log_action_probs, dim=-1)
@@ -358,7 +364,7 @@ class SACD(SAC):
         :return: Critic loss info for logging and PER priorities
         :rtype: tuple[dict[str, float], np.ndarray]
         """
-        if self.apply_film:
+        if self.apply_critic_film:
             self.critic_net.update_film_params(tasks)
         
         q_target = self._get_bootstrapped_value_estimate(next_states, rewards, dones)
@@ -391,7 +397,7 @@ class SACD(SAC):
             old_entropies: torch.Tensor = None, 
             tasks: torch.Tensor = None
         ) -> tuple[float, float]:
-        if self.apply_film:
+        if self.apply_actor_film:
             self.actor_net.update_film_params(tasks)
         
         info = {}
@@ -474,7 +480,7 @@ class SACD(SAC):
             tasks_tensor = extras_tensor[:, 1:]
 
         info = {}
-        if self.normalise_image:
+        if self.normalise_state:
             states = states / 255.0
             next_states = next_states / 255.0
 
