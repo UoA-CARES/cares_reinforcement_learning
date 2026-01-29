@@ -625,13 +625,11 @@ def plot_evaluations():
                 )
                 continue
 
-            eval_data = _read_data(
-                result_directory, "eval", window_size, x_eval, y_eval
-            )
+            eval_data = _read_data(result_directory, "eval", 1, x_eval, y_eval)
 
             if y_eval_two is not None:
                 eval_data_two = _read_data(
-                    result_directory, "eval", window_size, x_eval, y_eval_two
+                    result_directory, "eval", 1, x_eval, y_eval_two
                 )
                 average_eval_data_two = pd.concat(
                     [average_eval_data_two, eval_data_two], ignore_index=True
@@ -643,8 +641,12 @@ def plot_evaluations():
 
             if args["plot_seeds"]:
                 seed_label.append(f"{label}_{i}")
-                seed_eval_plot_frames.append(eval_data)
-                seed_train_plot_frames.append(train_data)
+                seed_train_plot_frames.append(
+                    [train_data, train_data_two if y_train_two is not None else None]
+                )
+                seed_eval_plot_frames.append(
+                    [eval_data, eval_data_two if y_eval_two is not None else None]
+                )
 
         if args["plot_seeds"]:
             # Plot the individual training seeds
