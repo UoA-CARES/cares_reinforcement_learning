@@ -842,28 +842,29 @@ class SACDConfig(SACConfig):
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
 
-    target_entropy_multiplier: float = 0.98
-    init_entropy_alpha: float = 1.0
-
-    batch_size: int = 64
-
-    max_steps_exploration: int = 20000
-    number_steps_per_train_policy: int = 4
-    n_step: int = 10
-
+    # Base algorithm configs
     gamma: float = 0.99
     tau: float = 0.005
     reward_scale: float = 1.0
-
+    batch_size: int = 64
+    buffer_size: int = 100_000
+    max_steps_exploration: int = 20_000
+    number_steps_per_train_policy: int = 4
+    n_step: int = 10
     policy_update_freq: int = 1
     target_update_freq: int = 1
+    use_per_buffer: int = 1
 
+    # SAC and SACD specific configs
+    target_entropy_multiplier: float = 0.98
+    init_entropy_alpha: float = 1.0
     use_clipped_q: bool = True
     q_clip_epsilon: float = 0.5
     use_average_q: bool = True
     use_entropy_penalty: bool = True
     entropy_penalty_beta: float = 0.5
 
+    # Network configs
     normalise_state: bool = True
 
     actor_config: MLPConfig = MLPConfig(
@@ -926,6 +927,7 @@ class SACDConfig(SACConfig):
         ]
     )
 
+    # Image State Configs
     encoder_type: str = ImageEncoderType.VANILLA_AUTOENCODER.value
     latent_dim: int = 512
 
