@@ -15,15 +15,16 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 
 
-class DQN(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class DQN(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
     def __init__(
         self,
         network: BaseNetwork,
@@ -86,19 +87,19 @@ class DQN(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
     def select_action_from_policy(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> int:
+    ) -> ActionSample[int]:
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
         state = observation.vector_state
 
         if evaluation:
-            return self._exploit(state)
+            return ActionSample(action=self._exploit(state), source="policy")
 
         if random.random() < self.epsilon:
-            return self._explore()
+            return ActionSample(action=self._explore(), source="explore")
 
-        return self._exploit(state)
+        return ActionSample(action=self._exploit(state), source="policy")
 
     def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
@@ -170,6 +171,7 @@ class DQN(Algorithm[SARLObservation, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,

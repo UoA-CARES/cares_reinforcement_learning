@@ -15,15 +15,16 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 from cares_reinforcement_learning.networks.QMIX import QMixer, SharedMultiAgentNetwork
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import MARLObservation
 from cares_reinforcement_learning.util.configurations import QMIXConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 
 
-class QMIX(Algorithm[MARLObservation, MARLMemoryBuffer]):
+class QMIX(Algorithm[MARLObservation, list[int], MARLMemoryBuffer]):
     def __init__(
         self,
         network: SharedMultiAgentNetwork,
@@ -89,7 +90,7 @@ class QMIX(Algorithm[MARLObservation, MARLMemoryBuffer]):
 
     def select_action_from_policy(
         self, observation: MARLObservation, evaluation: bool = False
-    ) -> list[int]:
+    ) -> ActionSample[list[int]]:
         """
         Epsilon-greedy per-agent action selection.
         Each agent decides independently whether to explore or exploit.
@@ -125,7 +126,7 @@ class QMIX(Algorithm[MARLObservation, MARLMemoryBuffer]):
                 else:
                     actions.append(int(greedy_actions[agent_id]))
 
-        return actions
+        return ActionSample(action=actions, source="policy")
 
     # def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
     #     state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -225,6 +226,7 @@ class QMIX(Algorithm[MARLObservation, MARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,

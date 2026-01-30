@@ -18,12 +18,13 @@ from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DADSConfig
 
 
-class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         skills_agent: SAC,
@@ -64,7 +65,7 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
     def select_action_from_policy(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
 
         observation = replace(
             observation,
@@ -74,7 +75,11 @@ class DADS(Algorithm[SARLObservation, SARLMemoryBuffer]):
         if not evaluation:
             self.z_experience_index.append(self.z)
 
-        return self.skills_agent.select_action_from_policy(observation, evaluation)
+        action_sample = self.skills_agent.select_action_from_policy(
+            observation, evaluation
+        )
+        action_sample.extras["skill"] = self.z
+        return action_sample
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state = replace(

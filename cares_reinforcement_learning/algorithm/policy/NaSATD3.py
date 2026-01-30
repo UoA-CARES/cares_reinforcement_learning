@@ -27,9 +27,10 @@ from cares_reinforcement_learning.types.observation import (
 )
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
+from cares_reinforcement_learning.types.action import ActionSample
 
 
-class NaSATD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class NaSATD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -111,7 +112,7 @@ class NaSATD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
         self,
         observation: SARLObservation,
         evaluation: bool = False,
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         self.actor.eval()
         self.autoencoder.eval()
 
@@ -133,7 +134,7 @@ class NaSATD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
         self.actor.train()
         self.autoencoder.train()
-        return action
+        return ActionSample(action=action, source="policy")
 
     def _update_critic(
         self,
@@ -267,6 +268,7 @@ class NaSATD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
             rewards_tensor,
             next_observation_tensor,
             dones_tensor,
+            _,
             _,
             _,
         ) = memory_sampler.sample(

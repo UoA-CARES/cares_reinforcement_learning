@@ -165,6 +165,7 @@ class REDQ(SAC):
             dones_tensor,
             _,
             _,
+            _,
         ) = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,

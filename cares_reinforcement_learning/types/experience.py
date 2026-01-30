@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
 import numpy as np
@@ -18,7 +18,7 @@ class Experience(Generic[ObsType]):
     next_observation: ObsType
 
     info: dict[str, Any]
-    # train_data: dict[str, Any]
+    train_data: dict[str, Any] = field(default_factory=dict, kw_only=True)
 
 
 @dataclass(frozen=True, slots=True)

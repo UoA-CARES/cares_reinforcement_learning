@@ -16,12 +16,13 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import SDARConfig
 
 
-class SDAR(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class SDAR(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     actor_network: Actor
     critic_network: Critic
 
@@ -112,7 +113,7 @@ class SDAR(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
     def select_action_from_policy(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
@@ -135,7 +136,8 @@ class SDAR(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
-        return action
+
+        return ActionSample(action=action, source="policy")
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
@@ -268,11 +270,13 @@ class SDAR(Algorithm[SARLObservation, SARLMemoryBuffer]):
             _,  # rewards_t1_tensor (not used)
             _,  # next_states_t1_tensor (not used)
             _,  # dones_t1_tensor (not used)
+            _,  # extras ignored
             observation_tensor,  # states_t2_tensor (SDAR's current states)
             actions_tensor,  # actions_t2_tensor (SDAR's current actions)
             rewards_tensor,  # rewards_t2_tensor (SDAR's current rewards)
             next_observation_tensor,  # next_states_t2_tensor (SDAR's next states)
             dones_tensor,  # dones_t2_tensor (SDAR's current dones)
+            _,  # extras ignored
             _,  # indices (not used by SDAR)
         ) = memory_sampler.consecutive_sample(
             memory_buffer, self.batch_size, self.device

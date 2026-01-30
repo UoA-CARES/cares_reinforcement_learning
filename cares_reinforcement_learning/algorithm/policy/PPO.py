@@ -24,9 +24,10 @@ from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import PPOConfig
+from cares_reinforcement_learning.types.action import ActionSample
 
 
-class PPO(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -73,7 +74,7 @@ class PPO(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
     def select_action_from_policy(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
         state = observation.vector_state
 
@@ -91,7 +92,7 @@ class PPO(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
         self.actor_net.train()
 
-        return action
+        return ActionSample(action=action, source="policy")
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
@@ -143,6 +144,7 @@ class PPO(Algorithm[SARLObservation, SARLMemoryBuffer]):
             _,  # next_states not used in PPO
             dones_tensor,
             _,  # weights not needed
+            _,
         ) = memory_sampler.sample_to_tensors(sample, self.device)
 
         log_probs_tensor = self._calculate_log_prob(

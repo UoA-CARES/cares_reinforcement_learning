@@ -374,38 +374,6 @@ def create_SDAR(observation_size, action_num, config: acf.SDARConfig):
     return agent
 
 
-def create_DynaSAC(observation_size, action_num, config: acf.DynaSACConfig):
-    """
-    Create networks for model-based SAC agent. The Actor and Critic is same.
-    An extra world model is added.
-    """
-    from cares_reinforcement_learning.algorithm.mbrl import DynaSAC
-    from cares_reinforcement_learning.networks.DynaSAC import Actor, Critic
-    from cares_reinforcement_learning.networks.world_models import EnsembleWorldReward
-
-    actor = Actor(observation_size["vector"], action_num, config=config)
-    critic = Critic(observation_size["vector"], action_num, config=config)
-
-    device = hlp.get_device()
-
-    world_model = EnsembleWorldReward(
-        observation_size=observation_size["vector"],
-        num_actions=action_num,
-        num_models=config.num_models,
-        lr=config.world_model_lr,
-        device=device,
-    )
-
-    agent = DynaSAC(
-        actor_network=actor,
-        critic_network=critic,
-        world_network=world_model,
-        config=config,
-        device=device,
-    )
-    return agent
-
-
 def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
