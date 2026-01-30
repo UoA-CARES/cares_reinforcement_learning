@@ -88,7 +88,7 @@ class SACSIL(VectorAlgorithm):
         if self.use_SIL:
             sil_config = SILConfig()
             try:
-                # extract_hyperparameters from main algortham, connect to network, 
+                # extract_hyperparameters from main algortham, connect to network
                 # initail a sil_memory, end with initial check
                 self.SIL = SIL(
                     main_algorithm=self,
@@ -333,10 +333,6 @@ class SACSIL(VectorAlgorithm):
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
         )
-
-        # step sample for SIL
-        if self.use_SIL:
-            self.SIL.step(states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor, episode_ends_tensor)
 
         info = self.update_networks(
             memory,

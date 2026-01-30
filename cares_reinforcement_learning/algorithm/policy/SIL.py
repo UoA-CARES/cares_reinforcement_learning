@@ -61,6 +61,7 @@ class SIL(VectorAlgorithm):
         self.sil_policy_update_freq = config.sil_policy_update_freq
 
         self.sil_learn_counter = 0
+        self._temp_buffer = [] # for observe and step in SAC/TD3, save the roll-out data until episode end
 
         # get training hyperparameter from main algorithms
         self._extract_hyperparameters()
@@ -219,7 +220,9 @@ class SIL(VectorAlgorithm):
         logging.info(f"SIL module successfully attached and verified for {main_name}")
 
     def MC_return_calculator(
-            self, batch_rewards: torch.Tensor, batch_episode_ends: torch.Tensor
+            self,
+            batch_rewards: torch.Tensor,
+            batch_episode_ends: torch.Tensor
         ) -> torch.Tensor:
         batch_returns = torch.zeros_like(batch_rewards)
         running_return = 0
@@ -228,7 +231,8 @@ class SIL(VectorAlgorithm):
             running_return = batch_rewards[t] + self.gamma * running_return * mask
             batch_returns[t] = running_return
 
-        return batch_returns
+        # print(f"---batch_returns.shape: {batch_returns.shape}")
+        return batch_returns #[batch_size]
 
     def step(
             self,
@@ -285,18 +289,46 @@ class SIL(VectorAlgorithm):
             )
 
         # to do: update priority in sil_memory before sampling
-        # priorities = ((f_advantages)
-        #               .clamp(self.sil_min_priority)
-        #               .pow(self.sil_per_alpha)
-        #               .cpu()
-        #               .data.numpy()
-        #               .flatten())
-        # self.sil_memory.update_priorities(indices, priorities) #indices not available before sampling
 
         # for debug
         filtered_num = f_states.shape[0]
-        # print(f" SIL: filtered {filtered_num} s-a good experiences to SIL_memory")
-        # print("-" * 60)
+        print(f" SIL: filtered {filtered_num} s-a good experiences to SIL_memory")
+        print("-" * 60)
+
+    def observe_step(
+            self,
+            state,       # np.ndarray
+            action,      # np.ndarray
+            reward,      # float / np.ndarray
+            next_state,  # np.ndarray
+            done,        # bool
+            episode_end, # bool
+        ):
+        """
+        oberserve roll-out and step data when episode end
+        design for SAC, TD3, which return data each step
+        """
+        if not hasattr(self, '_temp_buffer'):
+            self._temp_buffer = []
+
+        self._temp_buffer.append((state, action, reward, next_state, done, episode_end))
+
+        if episode_end:
+            if not self._temp_buffer:
+                return
+            states, actions, rewards, next_states, dones, episode_ends = zip(*self._temp_buffer)
+            batch_states = torch.from_numpy(np.array(states)).float().to(self.device)
+            batch_actions = torch.from_numpy(np.array(actions)).float().to(self.device)
+            batch_rewards = torch.from_numpy(np.array(rewards)).float().to(self.device)
+            batch_next_states = torch.from_numpy(np.array(next_states)).float().to(self.device)
+            batch_dones = torch.from_numpy(np.array(dones)).float().to(self.device)
+            batch_episode_ends = torch.from_numpy(np.array(episode_ends)).float().to(self.device)
+            # for debug
+            print(f"--- Episode End. Processing {len(self._temp_buffer)} steps for SIL ---")
+
+            self.step(batch_states, batch_actions, batch_rewards, batch_next_states, batch_dones, batch_episode_ends)
+            # Note: must be clear and read for next episode
+            self._temp_buffer.clear()
 
     def _get_nlog_p(self, states, actions ):
         # get -log_prob of action from actor, with grad
@@ -339,6 +371,7 @@ class SIL(VectorAlgorithm):
             #sample = dist.rsample()
             log_pi = dist.log_prob(actions).sum(-1, keepdim=True) # using action from sil_memory
             nlog_p = -log_pi
+            nlog_p = nlog_p.view(-1)
 
         # TD3
         if algo_name == "TD3SIL":
@@ -346,7 +379,9 @@ class SIL(VectorAlgorithm):
             pred_actions = self.actor_net(states)
             pred_mes = torch.pow(pred_actions - actions, 2).sum(dim=-1, keepdim=True)
             nlog_p = pred_mes
+            nlog_p = nlog_p.view(-1)
 
+        # print(f"---_get_nlog_p, nlog_p.shape: {nlog_p.shape}")
         return nlog_p
 
     def _get_value(self, states, actions):
@@ -356,26 +391,36 @@ class SIL(VectorAlgorithm):
 
         # PPO2
         if algo_name == "PPO2SIL":
-            v = self.critic_net(states) # shape: [batch_size, 1]
+            v = self.critic_net(states).squeeze(-1) # shape:[batch_size]
 
         # SAC
         # to do: which value sould be use: from critic_net, or target_critic_net ?
         # current use mini q value from critic_net
         if algo_name == "SACSIL":
             q1, q2 = self.critic_net(states, actions)
-            v = torch.min(q1, q2)
+            v = torch.min(q1, q2).squeeze(-1) # shape:[batch_size]
 
         # TD3
         # to do : doble confirm the value
         if algo_name == "TD3SIL":
             q1, q2 = self.critic_net(states, actions)
-            v = torch.min(q1, q2)
+            v = torch.min(q1, q2).squeeze(-1) # shape:[batch_size]
 
+        # print(f"---_get_value, v.shape: {v.shape}")
         return v
 
-    def sil_advantages_calculator(self,states, actions, returns):
+    def sil_advantages_calculator(self, states, actions, returns):
         # R - V, with grad
-        advantages = returns - self._get_value(states, actions) # shape[]
+
+        # for debug: shape issue
+        if returns.dim() > 1:
+            returns = returns.squeeze(-1)
+        v = self._get_value(states, actions)
+        if v .dim() > 1:
+            v = v.squeeze(-1)
+
+        advantages = returns - self._get_value(states, actions) # shape[Batch_size]
+        # print(f"---sil_advantages_calculator, advantages.shape: {advantages.shape}")
 
         return advantages
 
@@ -398,7 +443,11 @@ class SIL(VectorAlgorithm):
 
         # SIL critic loss calculation:
         # sil_value_loss  = 1/2 * || (R - V_θ(s))+ ||^2
-        clipped_advantages = torch.clamp(advantages, min=0.0)
+        clipped_advantages = torch.clamp(advantages, min=0.0).view(-1)
+
+        # check shape
+        # print('------SIL critic loss calculate------')
+        # print(f"advantages.shape: {advantages.shape}, clipped_advantages.shape: {clipped_advantages.shape}")
         sil_critic_loss = ((0.5 * torch.pow(clipped_advantages, 2)).mean())*self.sil_weight
 
         # Update the Critic
@@ -417,6 +466,10 @@ class SIL(VectorAlgorithm):
             # to do: should using latest advs in here?
             curr_advanatges = self.sil_advantages_calculator(states_tensor, actions_tensor, returns_tensor).detach()
             clipped_curr_advanatges = torch.clamp(curr_advanatges, min=0.0)
+
+            #check shape
+            # print('------SIL actor loss calculate------')
+            # print(f"nlog_p.shape: {nlog_p.shape}, clipped_curr_advanatges.shape: {clipped_curr_advanatges.shape}")
             sil_actor_loss = ((nlog_p * clipped_curr_advanatges).mean())*self.sil_weight
 
             self.actor_net_optimiser.zero_grad()
@@ -426,6 +479,10 @@ class SIL(VectorAlgorithm):
             info |= {"sil_actor_loss": sil_actor_loss.item()}
 
         # update priority base on advs
+
+        # check teh shape
+        # print('------SIL per priority------')
+        # print(f"curr_advanatges.shape: {curr_advanatges.shape}")
         priorities = ((curr_advanatges)
                       .clamp(self.sil_min_priority)
                       .pow(self.sil_per_alpha)
@@ -483,12 +540,12 @@ class SIL(VectorAlgorithm):
                     weights_tensor,
                 )
                 self.sil_learn_counter += 1
-                print(f"SIL trained {self.sil_learn_counter}")
+                # print(f"SIL trained {self.sil_learn_counter}")
 
-                print("-" * 60)
+                # print("-" * 60)
             return info
         else:
-            print(f"only {curr_experiences_num} data, less than SIL batch size {sil_min_batch_size}, skip SIL train")
+            # print(f"only {curr_experiences_num} data, less than SIL batch size {sil_min_batch_size}, skip SIL train")
             info = {"sil_status": "skipped"}
 
             return info

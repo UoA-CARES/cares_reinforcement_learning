@@ -79,8 +79,8 @@ class PPO2SIL(VectorAlgorithm):
         if self.use_SIL:
             sil_config = SILConfig()
             try:
-                # Use 'config.sil_config' which is the instantiated object.
-                # containing values from your configuration file/factory.
+                # extract_hyperparameters from main algortham, connect to network
+                # initail a sil_memory, end with initial check
                 self.SIL = SIL(
                     main_algorithm=self,
                     config=sil_config, # Correct: passing the instance
@@ -275,13 +275,6 @@ class PPO2SIL(VectorAlgorithm):
             np.asarray(episode_ends),
             self.device,
         )
-        # Convert episode_end to tensors -> intergraed to batch to batch_to_tensors function
-        # episode_ends_tensor = torch.tensor(np.asarray(episode_ends), dtype=torch.long, device=self.device)
-        # episode_ends_tensor = episode_ends_tensor.reshape(len(episode_ends_tensor), 1)
-
-        # step sample for SIL
-        if self.use_SIL:
-            self.SIL.step(states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor, episode_ends_tensor)
 
         log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
