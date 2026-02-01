@@ -148,14 +148,14 @@ def _sample_to_tensors_sarl(
     torch.Tensor,
     list[dict[str, Any]],
 ]:
-    states, actions, rewards, next_states, dones, extras = [], [], [], [], [], []
+    states, actions, rewards, next_states, dones, train_data = [], [], [], [], [], []
     for exp in buffer_sample.experiences:
         states.append(exp.observation)
         actions.append(exp.action)
         rewards.append(exp.reward)
         next_states.append(exp.next_observation)
         dones.append(exp.done)
-        extras.append(exp.info)
+        train_data.append(exp.train_data)
 
     states_tensor = observation_to_tensors(states, device, states_dtype)
     actions_tensor = torch.tensor(np.stack(actions), dtype=action_dtype, device=device)
@@ -176,7 +176,7 @@ def _sample_to_tensors_sarl(
         next_states_tensor,
         dones_tensor,
         weights_tensor,
-        extras,
+        train_data,
     )
 
 
@@ -198,14 +198,14 @@ def _sample_to_tensors_marl(
     torch.Tensor,
     list[dict[str, Any]],
 ]:
-    states, actions, rewards, next_states, dones, extras = [], [], [], [], [], []
+    states, actions, rewards, next_states, dones, train_data = [], [], [], [], [], []
     for exp in buffer_sample.experiences:
         states.append(exp.observation)
         actions.append(exp.action)
         rewards.append(exp.reward)
         next_states.append(exp.next_observation)
         dones.append(exp.done)
-        extras.append(exp.info)
+        train_data.append(exp.train_data)
 
     states_tensor = observation_to_tensors(states, device, states_dtype)
     actions_tensor = torch.tensor(np.stack(actions), dtype=action_dtype, device=device)
@@ -226,7 +226,7 @@ def _sample_to_tensors_marl(
         next_states_tensor,
         dones_tensor,
         weights_tensor,
-        extras,
+        train_data,
     )
 
 
@@ -410,7 +410,7 @@ def consecutive_sample(
         next_observations_t1_tensor,
         dones_t1_tensor,
         _,  # weights ignored
-        extras_t1,
+        train_data_t1,
     ) = sample_to_tensors(
         buffer_sample_one,
         device,
@@ -430,7 +430,7 @@ def consecutive_sample(
         next_observations_t2_tensor,
         dones_t2_tensor,
         _,  # weights ignored
-        extras_t2,
+        train_data_t2,
     ) = sample_to_tensors(
         buffer_sample_two,
         device,
@@ -448,13 +448,13 @@ def consecutive_sample(
         rewards_t1_tensor,
         next_observations_t1_tensor,
         dones_t1_tensor,
-        extras_t1,
+        train_data_t1,
         observations_t2_tensor,
         actions_t2_tensor,
         rewards_t2_tensor,
         next_observations_t2_tensor,
         dones_t2_tensor,
-        extras_t2,
+        train_data_t2,
         np.asarray(buffer_sample_one.indices),
     )
 
@@ -553,7 +553,7 @@ def sample(
         next_observation_tensor,
         dones_tensor,
         weights_tensor,
-        extras,
+        train_data,
     ) = sample_to_tensors(
         buffer_sample=buffer_sample,
         device=device,
@@ -572,6 +572,6 @@ def sample(
         next_observation_tensor,
         dones_tensor,
         weights_tensor,
-        extras,
+        train_data,
         np.asarray(buffer_sample.indices),
     )

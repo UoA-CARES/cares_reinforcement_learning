@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
@@ -38,15 +39,11 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         self.num_skills = config.num_skills
 
-        p_z = np.full(self.num_skills, 1 / self.num_skills)
-        self.p_z = np.tile(p_z, self.batch_size).reshape(
-            self.batch_size, self.num_skills
-        )
+        self.p_z = np.full(
+            self.num_skills, 1.0 / self.num_skills, dtype=np.float32
+        )  # (K,)
 
-        self.z = np.random.choice(self.num_skills, p=p_z)
-
-        self.z_experience_index = []
-        self.z_experience_index.append(self.z)
+        self.z = np.random.choice(self.num_skills, p=self.p_z)
 
         self.cross_ent_loss = torch.nn.CrossEntropyLoss()
 
@@ -59,9 +56,6 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             raise ValueError(f"Skill index {skill} is out of bounds.")
 
         self.z = skill
-
-        if not evaluation:
-            self.z_experience_index.append(self.z)
 
     def _concat_state_latent(self, state: np.ndarray) -> np.ndarray:
         z_one_hot = np.zeros(self.num_skills)
@@ -76,9 +70,6 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             observation,
             vector_state=self._concat_state_latent(observation.vector_state),
         )
-
-        if not evaluation:
-            self.z_experience_index.append(self.z)
 
         action_sample = self.skills_agent.select_action_from_policy(
             observation, evaluation
@@ -102,79 +93,82 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         if len(memory_buffer) < self.batch_size:
             return {}
 
-        sample = memory_buffer.sample_uniform(self.batch_size)
-        batch_size = len(sample.experiences)
+        (
+            observation_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_observation_tensor,
+            dones_tensor,
+            weights_tensor,
+            extras,
+            indices,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
+            use_per_buffer=0,  # DIAYN does not use PER
+        )
 
-        weights = [1.0] * batch_size
+        batch_size = len(observation_tensor.vector_state_tensor)
 
-        zs = np.array(self.z_experience_index)[sample.indices]
-
-        zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
+        skills = [extra["skill"] for extra in extras]
+        zs_tensor = torch.tensor(skills, dtype=torch.long, device=self.device)
 
         # Concatenate zs (skills) as one-hot to states
-        zs_one_hot = np.eye(self.num_skills)[zs]
-        states = np.stack(
-            [experience.observation.vector_state for experience in sample.experiences]
-        )
-        states_zs = np.concatenate([states, zs_one_hot], axis=1)
-
-        next_states = np.stack(
-            [
-                experience.next_observation.vector_state
-                for experience in sample.experiences
-            ]
-        )
-        next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
-
-        # Convert into tensor using training utilities
-        states_tensor = torch.tensor(
-            np.asarray(states), dtype=torch.float32, device=self.device
-        )
-        states_zs_tensor = torch.tensor(
-            np.asarray(states_zs), dtype=torch.float32, device=self.device
+        # pylint: disable-next=not-callable
+        zs_one_hot = F.one_hot(zs_tensor, num_classes=self.num_skills).to(
+            observation_tensor.vector_state_tensor.dtype
         )
 
-        actions_tensor = torch.tensor(
-            np.asarray([experience.action for experience in sample.experiences]),
-            dtype=torch.float32,
-            device=self.device,
+        states_zs_tensor = torch.cat(
+            [observation_tensor.vector_state_tensor, zs_one_hot], dim=1
         )
 
-        next_states_tensor = torch.tensor(
-            np.asarray(next_states), dtype=torch.float32, device=self.device
-        )
-        next_states_zs_tensor = torch.tensor(
-            np.asarray(next_states_zs), dtype=torch.float32, device=self.device
+        next_states_zs_tensor = torch.cat(
+            [next_observation_tensor.vector_state_tensor, zs_one_hot], dim=1
         )
 
-        dones_tensor = torch.tensor(
-            np.asarray([experience.done for experience in sample.experiences]),
-            dtype=torch.long,
-            device=self.device,
-        )
-        weights_tensor = torch.tensor(
-            np.asarray(weights), dtype=torch.float32, device=self.device
-        )
+        # Derive rewards from the discriminator
+        p_z = torch.as_tensor(self.p_z, dtype=torch.float32, device=self.device)  # (K,)
 
-        # Dervive rewards from the discriminator
-        p_z = torch.tensor(self.p_z, dtype=torch.float32, device=self.device)
+        # Choose state vs next_state; keeping your current next_state choice:
+        logits = self.discriminator_net(
+            observation_tensor.vector_state_tensor
+        )  # (B, K)
 
-        logits = self.discriminator_net(next_states_tensor)
-        p_z = p_z.gather(-1, zs_tensor)
-        logq_z_ns = F.log_softmax(logits, dim=-1)
-        rewards_tensor = logq_z_ns.gather(-1, zs_tensor).detach() - torch.log(
-            p_z + 1e-6
-        )
+        z_idx = zs_tensor.unsqueeze(1)  # (B, 1)
+        logq = F.log_softmax(logits, dim=-1)  # (B, K)
+        logq_z = logq.gather(1, z_idx)  # (B, 1)
+
+        p_z_batch = p_z[zs_tensor].unsqueeze(1)  # (B, 1)
+        rewards_tensor = logq_z.detach() - torch.log(p_z_batch + 1e-6)  # (B, 1)
 
         # Reshape to batch_size x whatever
-        # rewards_tensor = rewards_tensor.reshape(batch_size, 1)
         dones_tensor = dones_tensor.reshape(batch_size, 1)
         weights_tensor = weights_tensor.reshape(batch_size, 1)
-        rewards_tensor = rewards_tensor.reshape(batch_size, 1)
+
+        # ---- DIAYN diagnostics (CSV-friendly scalars) ----
+        with torch.no_grad():
+            probs = torch.softmax(logits, dim=-1)  # (B, K)
+            pred_z = probs.argmax(dim=-1)  # (B,)
+
+            disc_acc = (pred_z == zs_tensor).float().mean()
+            disc_entropy = -(probs * probs.clamp_min(1e-9).log()).sum(dim=-1).mean()
+            mean_logq_z = logq_z.mean()
+
+            r = rewards_tensor.squeeze(1)
+            r_mean = r.mean()
+            r_std = r.std(unbiased=False)
+            r_p10 = torch.quantile(r, 0.10)
+            r_p50 = torch.quantile(r, 0.50)
+            r_p90 = torch.quantile(r, 0.90)
+
+            z_unique = zs_tensor.unique().numel()
+        # -----------------------------------------------
 
         info = self.skills_agent.update_networks(
             memory_buffer,
-            np.asarray(sample.indices),
+            indices,
             states_zs_tensor,
             actions_tensor,
             rewards_tensor,
@@ -183,9 +177,23 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             weights_tensor,
         )
 
+        # Add DIAYN diagnostics to info dict (numbers only)
+        info.update(
+            {
+                "disc_acc": float(disc_acc.item()),
+                "disc_entropy": float(disc_entropy.item()),
+                "mean_logq_z": float(mean_logq_z.item()),
+                "r_mean": float(r_mean.item()),
+                "r_std": float(r_std.item()),
+                "r_p10": float(r_p10.item()),
+                "r_p50": float(r_p50.item()),
+                "r_p90": float(r_p90.item()),
+                "z_unique": int(z_unique),
+            }
+        )
+
         # Update the Discriminator
-        logits = self.discriminator_net(next_states_tensor)
-        discriminator_loss = self.cross_ent_loss(logits, zs_tensor.squeeze(-1))
+        discriminator_loss = self.cross_ent_loss(logits, zs_tensor)
 
         info["discriminator_loss"] = discriminator_loss.item()
 
@@ -196,8 +204,7 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         return info
 
     def episode_done(self):
-        p_z = np.full(self.num_skills, 1 / self.num_skills)
-        self.z = np.random.choice(self.num_skills, p=p_z)
+        self.z = np.random.choice(self.num_skills, p=self.p_z)
 
         return super().episode_done()
 
@@ -213,7 +220,6 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             "discriminator_state_dict": self.discriminator_net.state_dict(),
             "discriminator_optimizer_state_dict": self.discriminator_optimizer.state_dict(),
             "z": self.z,
-            "z_experience_index": self.z_experience_index,
         }
         torch.save(checkpoint, f"{filepath}/{filename}_diayn.pth")
         logging.info("DIAYN models and state have been saved...")
@@ -229,7 +235,4 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         )
 
         self.z = checkpoint.get("z", self.z)
-        self.z_experience_index = checkpoint.get(
-            "z_experience_index", self.z_experience_index
-        )
         logging.info("DIAYN models and state have been loaded...")
