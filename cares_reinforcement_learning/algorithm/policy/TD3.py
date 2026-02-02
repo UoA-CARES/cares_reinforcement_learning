@@ -21,12 +21,13 @@ from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
     TwinQNetwork,
 )
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
-class TD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: DeterministicPolicy,
@@ -78,9 +79,9 @@ class TD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
 
         state = observation.vector_state
@@ -99,7 +100,7 @@ class TD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
                 action = np.clip(action, -1, 1)
         self.actor_net.train()
 
-        return action
+        return ActionSample(action=action, source="policy")
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
@@ -267,6 +268,7 @@ class TD3(Algorithm[SARLObservation, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,

@@ -19,6 +19,7 @@ from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     SARLObservation,
@@ -27,7 +28,7 @@ from cares_reinforcement_learning.types.observation import (
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
-class TD3AE(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class TD3AE(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -102,9 +103,9 @@ class TD3AE(Algorithm[SARLObservation, SARLMemoryBuffer]):
             **config.autoencoder_config.decoder_optim_kwargs,
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
 
         with torch.no_grad():
@@ -122,7 +123,8 @@ class TD3AE(Algorithm[SARLObservation, SARLMemoryBuffer]):
                 action = action + noise
                 action = np.clip(action, -1, 1)
         self.actor_net.train()
-        return action
+
+        return ActionSample(action=action, source="policy")
 
     def _update_critic(
         self,
@@ -247,6 +249,7 @@ class TD3AE(Algorithm[SARLObservation, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,

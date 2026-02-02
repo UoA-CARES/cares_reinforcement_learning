@@ -826,31 +826,6 @@ class SDARConfig(SACConfig):
     )
 
 
-class DynaSACConfig(SACConfig):
-    algorithm: str = "DynaSAC"
-
-    actor_lr: float = 3e-4
-    critic_lr: float = 3e-4
-
-    alpha_lr: float = 3e-4
-
-    # TODO this bool doesn't work as expected - needs to be int 1/0
-    use_bounded_active: bool = False
-    num_models: int = 5
-
-    gamma: float = 0.99
-    tau: float = 0.005
-
-    log_std_bounds: list[float] = [-20, 2]
-
-    policy_update_freq: int = 1
-    target_update_freq: int = 1
-
-    horizon: int = 3
-    num_samples: int = 10
-    world_model_lr: float = 0.001
-
-
 class SACDConfig(AlgorithmConfig):
     algorithm: str = "SACD"
 
@@ -1397,6 +1372,7 @@ class DADSConfig(SACConfig):
 
     num_skills: int = 10
 
+    z_dim: int = 2
     logvar_min: float = -7.0
     logvar_max: float = 2.0
 

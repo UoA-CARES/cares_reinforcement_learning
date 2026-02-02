@@ -26,14 +26,14 @@ class BaseDiscriminator(nn.Module):
 
 
 class DefaultDiscriminator(BaseDiscriminator):
-    def __init__(self, observation_size: int, num_skills: int):
+    def __init__(self, observation_size: int):
 
         network = nn.Sequential(
             nn.Linear(in_features=observation_size, out_features=256),
             nn.ReLU(),
             nn.Linear(in_features=256, out_features=256),
             nn.ReLU(),
-            nn.Linear(in_features=256, out_features=num_skills),
+            nn.Linear(in_features=256, out_features=20),
         )
 
         super().__init__(network=network)
@@ -52,10 +52,10 @@ class DefaultDiscriminator(BaseDiscriminator):
 
 
 class Discriminator(BaseDiscriminator):
-    def __init__(self, observation_size: int, num_skills: int, config: DIAYNConfig):
+    def __init__(self, observation_size: int, config: DIAYNConfig):
         network = MLP(
             input_size=observation_size,
-            output_size=num_skills,
+            output_size=config.num_skills,
             config=config.discriminator_config,
         )
 

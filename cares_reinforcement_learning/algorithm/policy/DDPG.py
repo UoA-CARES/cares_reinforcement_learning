@@ -16,12 +16,13 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
-class DDPG(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class DDPG(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -47,9 +48,9 @@ class DDPG(Algorithm[SARLObservation, SARLMemoryBuffer]):
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         # pylint: disable-next=unused-argument
         state = observation.vector_state
 
@@ -60,7 +61,7 @@ class DDPG(Algorithm[SARLObservation, SARLMemoryBuffer]):
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
-        return action
+        return ActionSample(action=action, source="policy")
 
     def _update_critic(
         self,
@@ -119,6 +120,7 @@ class DDPG(Algorithm[SARLObservation, SARLMemoryBuffer]):
             rewards_tensor,
             next_observation_tensor,
             dones_tensor,
+            _,
             _,
             _,
         ) = memory_sampler.sample(

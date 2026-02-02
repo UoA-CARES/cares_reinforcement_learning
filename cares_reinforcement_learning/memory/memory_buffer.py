@@ -550,6 +550,7 @@ class SARLMemoryBuffer(MemoryBuffer[SingleAgentExperience]):
             done=n_done,
             truncated=n_truncated,
             info=first.info,
+            train_data=first.train_data,
         )
 
 
@@ -602,6 +603,7 @@ class MARLMemoryBuffer(MemoryBuffer[MultiAgentExperience]):
             done=n_done,
             truncated=n_truncated,
             info=first.info,
+            train_data=first.train_data,
         )
 
 

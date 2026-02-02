@@ -6,6 +6,7 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.memory.memory_buffer import Memory
+from cares_reinforcement_learning.types.action import ActionSample, ActType
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import Observation
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
@@ -13,10 +14,9 @@ from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 # Type variable for observation types (SARL or MARL)
 ObsType = TypeVar("ObsType", bound=Observation)
 MemType = TypeVar("MemType", bound=Memory)
-# TODO Action TypeVar
 
 
-class Algorithm(ABC, Generic[ObsType, MemType]):
+class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
     def __init__(
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
@@ -43,11 +43,11 @@ class Algorithm(ABC, Generic[ObsType, MemType]):
         self.device = device
 
     @abstractmethod
-    def select_action_from_policy(
+    def act(
         self,
         observation: ObsType,
         evaluation: bool = False,
-    ) -> int | np.ndarray | list[int] | list[np.ndarray]: ...
+    ) -> ActionSample[ActType]: ...
 
     def _fixed_step_bias_segments(
         self, values: list[float], step_boundaries: list[int] | None = None

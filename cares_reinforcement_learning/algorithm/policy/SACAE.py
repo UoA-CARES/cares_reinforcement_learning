@@ -19,17 +19,18 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.SACAE import Actor, Critic
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import SACAEConfig
 
 
-class SACAE(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class SACAE(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -102,9 +103,9 @@ class SACAE(Algorithm[SARLObservation, SARLMemoryBuffer]):
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
@@ -119,7 +120,8 @@ class SACAE(Algorithm[SARLObservation, SARLMemoryBuffer]):
                 action, _, _ = self.actor_net(observation_tensors)
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
-        return action
+
+        return ActionSample(action=action, source="policy")
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -249,6 +251,7 @@ class SACAE(Algorithm[SARLObservation, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,

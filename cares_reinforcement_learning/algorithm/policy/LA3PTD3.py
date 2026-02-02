@@ -50,6 +50,7 @@ class LA3PTD3(TD3):
             next_observation_tensor,
             dones_tensor,
             _,
+            _,
         ) = memory_sampler.sample_to_tensors(sample, self.device)
 
         with torch.no_grad():

@@ -16,6 +16,7 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
 from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
@@ -24,7 +25,7 @@ from cares_reinforcement_learning.types.observation import (
 from cares_reinforcement_learning.util.configurations import MADDPGConfig
 
 
-class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
+class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
     def __init__(
         self,
         agents: list[DDPG],
@@ -46,11 +47,11 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
         self.learn_counter = 0
 
     # TODO verify that the ordering of agents is consistent
-    def select_action_from_policy(
+    def act(
         self,
         observation: MARLObservation,
         evaluation: bool = False,
-    ) -> list[np.ndarray]:
+    ) -> ActionSample[list[np.ndarray]]:
         agent_states = observation.agent_states
         avail_actions = observation.avail_actions
 
@@ -67,10 +68,10 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
                 avail_actions=avail_i,
             )
 
-            action = agent.select_action_from_policy(agent_observation, evaluation)
-            actions.append(action)
+            agent_sample = agent.act(agent_observation, evaluation)
+            actions.append(agent_sample.action)
 
-        return actions
+        return ActionSample(action=actions, source="policy")
 
     def _compute_adversarial_actions(
         self,
@@ -261,6 +262,7 @@ class MADDPG(Algorithm[MARLObservation, MARLMemoryBuffer]):
                 rewards_tensor,
                 next_observation_tensor,
                 dones_tensor,
+                _,
                 _,
                 indices,
             ) = memory_sampler.sample(

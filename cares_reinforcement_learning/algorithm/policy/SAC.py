@@ -23,12 +23,13 @@ from cares_reinforcement_learning.networks.common import (
     TanhGaussianPolicy,
     TwinQNetwork,
 )
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
@@ -117,9 +118,9 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
         logging.info("models, optimisers, and training state have been loaded...")
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         # note that when evaluating this algorithm we need to select mu as action
         self.actor_net.eval()
 
@@ -135,8 +136,7 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
             action = action.cpu().data.numpy().flatten()
         self.actor_net.train()
 
-        # print(f"{self.learn_counter} State: {state} Action {action}")
-        return action
+        return ActionSample(action=action, source="policy")
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
@@ -303,6 +303,7 @@ class SAC(Algorithm[SARLObservation, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,

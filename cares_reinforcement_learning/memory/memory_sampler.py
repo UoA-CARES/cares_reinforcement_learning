@@ -2,7 +2,7 @@
 Memory utilities for reinforcement learning algorithms.
 """
 
-from typing import TypeGuard, cast, overload
+from typing import Any, TypeGuard, cast, overload
 
 import numpy as np
 import torch
@@ -146,12 +146,16 @@ def _sample_to_tensors_sarl(
     SARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
 ]:
-    states = [exp.observation for exp in buffer_sample.experiences]
-    actions = [exp.action for exp in buffer_sample.experiences]
-    rewards = [exp.reward for exp in buffer_sample.experiences]
-    next_states = [exp.next_observation for exp in buffer_sample.experiences]
-    dones = [exp.done for exp in buffer_sample.experiences]
+    states, actions, rewards, next_states, dones, train_data = [], [], [], [], [], []
+    for exp in buffer_sample.experiences:
+        states.append(exp.observation)
+        actions.append(exp.action)
+        rewards.append(exp.reward)
+        next_states.append(exp.next_observation)
+        dones.append(exp.done)
+        train_data.append(exp.train_data)
 
     states_tensor = observation_to_tensors(states, device, states_dtype)
     actions_tensor = torch.tensor(np.stack(actions), dtype=action_dtype, device=device)
@@ -172,6 +176,7 @@ def _sample_to_tensors_sarl(
         next_states_tensor,
         dones_tensor,
         weights_tensor,
+        train_data,
     )
 
 
@@ -191,12 +196,16 @@ def _sample_to_tensors_marl(
     MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
 ]:
-    states = [exp.observation for exp in buffer_sample.experiences]
-    actions = [exp.action for exp in buffer_sample.experiences]
-    rewards = [exp.reward for exp in buffer_sample.experiences]
-    next_states = [exp.next_observation for exp in buffer_sample.experiences]
-    dones = [exp.done for exp in buffer_sample.experiences]
+    states, actions, rewards, next_states, dones, train_data = [], [], [], [], [], []
+    for exp in buffer_sample.experiences:
+        states.append(exp.observation)
+        actions.append(exp.action)
+        rewards.append(exp.reward)
+        next_states.append(exp.next_observation)
+        dones.append(exp.done)
+        train_data.append(exp.train_data)
 
     states_tensor = observation_to_tensors(states, device, states_dtype)
     actions_tensor = torch.tensor(np.stack(actions), dtype=action_dtype, device=device)
@@ -217,6 +226,7 @@ def _sample_to_tensors_marl(
         next_states_tensor,
         dones_tensor,
         weights_tensor,
+        train_data,
     )
 
 
@@ -237,6 +247,7 @@ def sample_to_tensors(
     SARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
 ]: ...
 
 
@@ -257,6 +268,7 @@ def sample_to_tensors(
     MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
 ]: ...
 
 
@@ -276,6 +288,7 @@ def sample_to_tensors(
     SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
 ]:
     if is_sarl_sample(buffer_sample):
         return _sample_to_tensors_sarl(
@@ -321,11 +334,13 @@ def consecutive_sample(
     torch.Tensor,
     SARLObservationTensors,
     torch.Tensor,
+    list[dict[str, Any]],
     SARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
     SARLObservationTensors,
     torch.Tensor,
+    list[dict[str, Any]],
     np.ndarray,
 ]: ...
 
@@ -347,11 +362,13 @@ def consecutive_sample(
     torch.Tensor,
     MARLObservationTensors,
     torch.Tensor,
+    list[dict[str, Any]],
     MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
     MARLObservationTensors,
     torch.Tensor,
+    list[dict[str, Any]],
     np.ndarray,
 ]: ...
 
@@ -372,11 +389,13 @@ def consecutive_sample(
     torch.Tensor,
     SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
+    list[dict[str, Any]],
     SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
     SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
+    list[dict[str, Any]],
     np.ndarray,
 ]:
     # Sample consecutive batch from memory buffer - this returns the full consecutive interface
@@ -390,7 +409,8 @@ def consecutive_sample(
         rewards_t1_tensor,
         next_observations_t1_tensor,
         dones_t1_tensor,
-        _,
+        _,  # weights ignored
+        train_data_t1,
     ) = sample_to_tensors(
         buffer_sample_one,
         device,
@@ -409,7 +429,8 @@ def consecutive_sample(
         rewards_t2_tensor,
         next_observations_t2_tensor,
         dones_t2_tensor,
-        _,
+        _,  # weights ignored
+        train_data_t2,
     ) = sample_to_tensors(
         buffer_sample_two,
         device,
@@ -427,11 +448,13 @@ def consecutive_sample(
         rewards_t1_tensor,
         next_observations_t1_tensor,
         dones_t1_tensor,
+        train_data_t1,
         observations_t2_tensor,
         actions_t2_tensor,
         rewards_t2_tensor,
         next_observations_t2_tensor,
         dones_t2_tensor,
+        train_data_t2,
         np.asarray(buffer_sample_one.indices),
     )
 
@@ -457,6 +480,7 @@ def sample(
     SARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
     np.ndarray,
 ]: ...
 
@@ -482,6 +506,7 @@ def sample(
     MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
     np.ndarray,
 ]: ...
 
@@ -506,6 +531,7 @@ def sample(
     SARLObservationTensors | MARLObservationTensors,
     torch.Tensor,
     torch.Tensor,
+    list[dict[str, Any]],
     np.ndarray,
 ]:
 
@@ -527,6 +553,7 @@ def sample(
         next_observation_tensor,
         dones_tensor,
         weights_tensor,
+        train_data,
     ) = sample_to_tensors(
         buffer_sample=buffer_sample,
         device=device,
@@ -545,5 +572,6 @@ def sample(
         next_observation_tensor,
         dones_tensor,
         weights_tensor,
+        train_data,
         np.asarray(buffer_sample.indices),
     )

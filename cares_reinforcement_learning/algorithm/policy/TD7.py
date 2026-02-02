@@ -17,12 +17,13 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import TD7Config
 
 
-class TD7(Algorithm[SARLObservation, SARLMemoryBuffer]):
+class TD7(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def __init__(
         self,
         actor_network: Actor,
@@ -108,9 +109,9 @@ class TD7(Algorithm[SARLObservation, SARLMemoryBuffer]):
             **config.encoder_lr_params,
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
-    ) -> np.ndarray:
+    ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
 
         state = observation.vector_state
@@ -139,7 +140,7 @@ class TD7(Algorithm[SARLObservation, SARLMemoryBuffer]):
 
         self.actor_net.train()
 
-        return action
+        return ActionSample(action=action, source="policy")
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         # Fix: Use modern tensor creation
@@ -381,6 +382,7 @@ class TD7(Algorithm[SARLObservation, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,

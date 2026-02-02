@@ -12,10 +12,10 @@ class DefaultSkillDynamicsModel(nn.Module):
     Outputs mean and log-variance for next-state prediction.
     """
 
-    def __init__(self, observation_size: int, num_skills: int):
+    def __init__(self, observation_size: int):
         super().__init__()
 
-        input_size = observation_size + num_skills
+        input_size = observation_size + 2
 
         self.network = nn.Sequential(
             nn.Linear(in_features=input_size, out_features=256),
@@ -53,10 +53,10 @@ class SkillDynamicsModel(nn.Module):
     Outputs mean and log-variance for next-state prediction.
     """
 
-    def __init__(self, observation_size: int, num_skills: int, config: DADSConfig):
+    def __init__(self, observation_size: int, config: DADSConfig):
         super().__init__()
 
-        input_size = observation_size + num_skills
+        input_size = observation_size + config.z_dim
 
         self.network = MLP(
             input_size=input_size,
