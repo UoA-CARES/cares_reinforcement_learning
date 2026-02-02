@@ -73,6 +73,15 @@ class PPO2SIL(VectorAlgorithm):
 
         # add a learn counter as SAC and TD3, for SIL train loop control
         self.learn_counter = 0
+
+        # SIL hyperparameter
+        self.sil_update_interval = config.sil_update_interval
+        self.sil_n_update = config.sil_n_update #update times after policy train
+        self.sil_clip = config.sil_clip # sil clip value, using in advanagtes
+        self.sil_max_nlog = config.sil_max_nlog # to do: how to select
+        self.sil_max_grad_norm = config.sil_max_grad_norm # to do: how to select
+        self.sil_weight = config.sil_weight # to do: how to set for different algos
+
         # --- SIL module initialization ---
         self.use_SIL = config.use_SIL
 
@@ -276,6 +285,10 @@ class PPO2SIL(VectorAlgorithm):
             self.device,
         )
 
+        # # step sample for SIL
+        # if self.use_SIL:
+        #     self.SIL.step(states_tensor, actions_tensor, rewards_tensor, next_states_tensor, dones_tensor, episode_ends_tensor)
+
         log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
 
         # compute reward to go:
@@ -345,14 +358,19 @@ class PPO2SIL(VectorAlgorithm):
             critic_loss.backward()
             self.critic_net_optimiser.step()
 
-
         info: dict[str, Any] = {}
-        info["td_errors"] = td_errors
-        info["critic_loss"] = critic_loss.item()
-        info["actor_loss"] = actor_loss.item()
+        #info["td_errors"] = td_errors
+        # info["critic_loss"] = critic_loss.item()
+        # info["actor_loss"] = actor_loss.item()
 
         current_std = torch.exp(self.log_std).mean().item() # add std to log
-        info["step_std"] = current_std
+        #info["step_std"] = current_std
+
+        info |= {
+            "critic_loss": critic_loss.item(),
+            "actor_loss": actor_loss.item(),
+            "step_std": current_std,
+            }
 
         # SIL train
         # PPO2: per 1/ train SIL in 0.01*sil_loss for test
@@ -361,7 +379,7 @@ class PPO2SIL(VectorAlgorithm):
             sil_info = self.SIL.train()
             # combiane info
             info |= sil_info
-
+        #print(f"DEBUG: Final Info Keys: {info.keys()}") # for debug, log miss
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:

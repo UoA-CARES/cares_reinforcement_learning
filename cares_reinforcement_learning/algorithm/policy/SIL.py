@@ -43,12 +43,15 @@ class SIL(VectorAlgorithm):
         self.main_algo = main_algorithm
         self.config = config
 
-        # SIL hyperparameter
-        self.sil_update_interval = config.sil_update_interval
-        self.sil_n_update = config.sil_n_update #update times after policy train
-        self.sil_clip = config.sil_clip # sil clip value, using in advanagtes
+        # # SIL hyperparameter--> move to main_algos
+        # self.sil_update_interval = config.sil_update_interval
+        # self.sil_n_update = config.sil_n_update #update times after policy train
+        # self.sil_clip = config.sil_clip # sil clip value, using in advanagtes
+        # self.sil_max_nlog = config.sil_max_nlog # to do: how to select
+        # self.sil_max_grad_norm = config.sil_max_grad_norm # to do: how to select
+        # self.sil_weight = config.sil_weight # to do: how to set for different algos
+
         self.sil_batch_size = config.batch_size
-        self.sil_weight = config.sil_weight # to do: how to set for different algos
 
         self.use_per_buffer = config.use_per_buffer
         self.sil_per_sampling_strategy  = config.sil_per_sampling_strategy
@@ -81,7 +84,9 @@ class SIL(VectorAlgorithm):
         """
         Priority: 1. Main Agent Attributes -> 2. SIL Config
         """
+        # to do: set sil_lr to network
         params_to_sync = ["actor_lr", "critic_lr", "gamma"] # remove batch_size, SIL should have same or small batch_size for update
+        sil_params_main_algos = ["sil_update_interval", "sil_n_update", "sil_clip", "sil_max_nlog", "sil_max_grad_norm", "sil_weight"]
         
         for param in params_to_sync:
             # Look for attribute directly on the agent instance (e.g., self.main_algo.gamma)
@@ -92,6 +97,21 @@ class SIL(VectorAlgorithm):
                 setattr(self, f"sil_{param}", main_val)
             elif sil_val is not None:
                 setattr(self, f"sil_{param}", sil_val)
+                logging.info(f"SIL: Parameter '{param}' inherited from SIL Config: {sil_val}")
+            else:
+                error_msg = f"Critical Parameter '{param}' missing in both Agent and SIL Config!"
+                logging.error(error_msg)
+                raise AttributeError(error_msg)
+        # get sil parameter from main algos run command
+        for param in sil_params_main_algos:
+            # Look for attribute directly on the agent instance (e.g., self.main_algo.gamma)
+            main_val = getattr(self.main_algo, param, None)
+            sil_val = getattr(self.config, param, None)
+
+            if main_val is not None:
+                setattr(self, f"{param}", main_val)
+            elif sil_val is not None:
+                setattr(self, f"{param}", sil_val)
                 logging.info(f"SIL: Parameter '{param}' inherited from SIL Config: {sil_val}")
             else:
                 error_msg = f"Critical Parameter '{param}' missing in both Agent and SIL Config!"
@@ -163,6 +183,8 @@ class SIL(VectorAlgorithm):
 
         print("\n" + "="*60)
         print(f" SIL MODULE INITIALIZED FOR [ {main_name} ] ")
+        print(f" SIL V0.1: experiences filter: reward > 0")
+        print(f" SIL V0.1: Only clamp on advantages: min=0; max=sil_clip")
         print("-" * 60)
 
         all_systems_go = True
@@ -195,13 +217,17 @@ class SIL(VectorAlgorithm):
 
         # 3. Essential Training Hyperparameters (Inherited or Configured)
         status_table = {
-            "SIL Batch Size": getattr(self, "sil_batch_size", None),
-            "SIL Actor LR": getattr(self, "sil_actor_lr", None),
-            "SIL Critic LR": getattr(self, "sil_critic_lr", None),
-            "SIL Gamma": getattr(self, "sil_gamma", None),
-            "SIL N-Updates": getattr(self, "sil_n_update", None),
-            "SIL Advantage Clip": getattr(self, "sil_clip", None),
-            "Device": self.device
+            "sil_batch_size": getattr(self, "sil_batch_size", None),
+            "sil_actor_lr": getattr(self, "sil_actor_lr", None),
+            "sil_critic_lr": getattr(self, "sil_critic_lr", None),
+            "sil_gamma": getattr(self, "sil_gamma", None),
+            "sil_update_interval": getattr(self, "sil_update_interval", None),
+            "sil_n_update": getattr(self, "sil_n_update", None),
+            "sil_clip": getattr(self, "sil_clip", None),
+            "sil_weight": getattr(self, "sil_weight", None),
+            "sil_max_nlog": getattr(self, "sil_max_nlog", None),
+            "sil_max_grad_norm": getattr(self, "sil_max_grad_norm", None),
+            "device": self.device
         }
 
         for key, value in status_table.items():
@@ -258,8 +284,13 @@ class SIL(VectorAlgorithm):
         # calculate MC return for all episodes in memory
         batch_returns = self.MC_return_calculator(batch_rewards, batch_episode_ends)
 
-        advantages = self.sil_advantages_calculator(batch_states, batch_actions, batch_returns).detach()
-        masks = (advantages > 0).flatten()
+        # to do: how to filter good experiences in step stage for all tasks?
+        # advantages = self.sil_advantages_calculator(batch_states, batch_actions, batch_returns).detach()
+        # masks = (advantages > 0).flatten()   # advanatges is changing with critic
+
+        # solution 1: same sa source code, using reward > 0
+        rewards = batch_rewards.view(-1)
+        masks = (rewards > 0).flatten()
 
         f_states = batch_states[masks]
         f_actions = batch_actions[masks]
@@ -267,7 +298,6 @@ class SIL(VectorAlgorithm):
         f_next_states = batch_next_states[masks]
         f_dones = batch_dones[masks]
         f_episode_ends = batch_episode_ends[masks]
-        f_advantages = advantages[masks]
 
         # check the lens and shape before adding to sil_memory
         tensors = [f_states, f_actions, f_returns, f_next_states, f_dones, f_episode_ends]
@@ -363,7 +393,12 @@ class SIL(VectorAlgorithm):
             log_std = torch.tanh(log_std)
 
             log_std_min, log_std_max = self.actor_net.log_std_bounds
-            log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
+            # new limit for SACSIL
+            sil_log_std_min = -5.0
+            sil_log_std_max = log_std_max
+
+            #log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
+            log_std = sil_log_std_min + 0.5 * (sil_log_std_max - sil_log_std_min) * (log_std + 1)
 
             std = log_std.exp()
 
@@ -443,7 +478,7 @@ class SIL(VectorAlgorithm):
 
         # SIL critic loss calculation:
         # sil_value_loss  = 1/2 * || (R - V_θ(s))+ ||^2
-        clipped_advantages = torch.clamp(advantages, min=0.0).view(-1)
+        clipped_advantages = torch.clamp(advantages, min=0.0, max = self.sil_clip).view(-1)
 
         # check shape
         # print('------SIL critic loss calculate------')
@@ -455,35 +490,52 @@ class SIL(VectorAlgorithm):
         sil_critic_loss.backward()
         self.critic_net_optimiser.step()
 
-        info |= {"sil_critic_loss": sil_critic_loss.item()}
+        info |= {
+            "sil/critic/adv_mean": advantages.mean().item(),
+            "sil/critic/adv_max": advantages.max().item(),
+            "sil/critic/clipped_adv_mean": clipped_advantages.mean().item(),
+            "sil/critic_loss": sil_critic_loss.item(),
+            }
 
+        #info |= {"sil_critic_loss": sil_critic_loss.item()}
 
 
         if self.sil_learn_counter % self.sil_policy_update_freq == 0:
             # Update the Actor
             # sil_policy_loss = -log π_θ(a|s) * (R - V_θ(s))+
             nlog_p = self._get_nlog_p(states_tensor, actions_tensor)
+            clipped_nlog_p = torch.clamp(nlog_p, max= self.sil_max_nlog)
             # to do: should using latest advs in here?
             curr_advanatges = self.sil_advantages_calculator(states_tensor, actions_tensor, returns_tensor).detach()
-            clipped_curr_advanatges = torch.clamp(curr_advanatges, min=0.0)
+            clipped_curr_advanatges = torch.clamp(curr_advanatges, min=0.0, max = self.sil_clip)
 
             #check shape
             # print('------SIL actor loss calculate------')
             # print(f"nlog_p.shape: {nlog_p.shape}, clipped_curr_advanatges.shape: {clipped_curr_advanatges.shape}")
-            sil_actor_loss = ((nlog_p * clipped_curr_advanatges).mean())*self.sil_weight
+            sil_actor_loss = ((clipped_nlog_p * clipped_curr_advanatges).mean())*self.sil_weight
 
             self.actor_net_optimiser.zero_grad()
             sil_actor_loss.backward()
             self.actor_net_optimiser.step()
 
-            info |= {"sil_actor_loss": sil_actor_loss.item()}
+            info |= {
+                "sil/actor/nlog_p_mean": nlog_p.mean().item(),
+                "sil/actor/nlog_p_max": nlog_p.max().item(),
+                "sil/actor/clipped_nlog_p_mean": clipped_nlog_p.mean().item(),
+                "sil/actor/curr_advs_mean": curr_advanatges.mean().item(),
+                "sil/actor/curr_advs_max": curr_advanatges.max().item(),
+                "sil/actor/clipped_curr_advs_mean": clipped_curr_advanatges.mean().item(),
+                "sil/actor_loss": sil_actor_loss.item()
+                }
+
+            #info |= {"sil_actor_loss": sil_actor_loss.item()}
 
         # update priority base on advs
 
         # check teh shape
         # print('------SIL per priority------')
         # print(f"curr_advanatges.shape: {curr_advanatges.shape}")
-        priorities = ((curr_advanatges)
+        priorities = ((curr_advanatges)     # to do: here should be clipped_curr_advanatges ?
                       .clamp(self.sil_min_priority)
                       .pow(self.sil_per_alpha)
                       .cpu()

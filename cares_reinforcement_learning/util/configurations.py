@@ -479,6 +479,16 @@ class PPO2SILConfig(PPO2Config):
 
     use_SIL: int = 1
 
+    # SIL hyperparameter
+    sil_update_interval: int = 1
+    sil_n_update: int = 1  #update times after policy train
+
+    sil_clip: float = 100  # sil clip value, using in advanagtes
+    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_max_grad_norm: float = 0.5 # add for sil update clamp
+
+
 ###################################
 #         SIL Algorithms          #
 ###################################
@@ -506,8 +516,11 @@ class SILConfig(AlgorithmConfig):
     # SIL hyperparameter
     sil_update_interval: int = 1
     sil_n_update: int = 1  #update times after policy train
-    sil_clip: float = 20  # sil clip value, using in advanagtes
+
+    sil_clip: float = 100  # sil clip value, using in advanagtes
     sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_max_grad_norm: float = 0.5 # add for sil update clamp
 
     # sil PER
     use_per_buffer: int = 1
@@ -583,6 +596,14 @@ class SACSILConfig(SACConfig):
 
     use_SIL: int = 1
 
+    # SIL hyperparameter
+    sil_update_interval: int = 1
+    sil_n_update: int = 1  #update times after policy train
+
+    sil_clip: float = 100  # sil clip value, using in advanagtes
+    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_max_grad_norm: float = 0.5 # add for sil update clamp
 
 
 class SACAEConfig(SACConfig):
@@ -1159,6 +1180,15 @@ class TD3SILConfig(TD3Config):
     algorithm: str = "TD3SIL"
 
     use_SIL: int = 1
+
+    # SIL hyperparameter
+    sil_update_interval: int = 1
+    sil_n_update: int = 1  #update times after policy train
+
+    sil_clip: float = 100  # sil clip value, using in advanagtes
+    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_max_grad_norm: float = 0.5 # add for sil update clamp
 
 
 class TD3AEConfig(TD3Config):
