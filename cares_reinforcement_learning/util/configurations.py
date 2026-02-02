@@ -874,7 +874,6 @@ class SACDConfig(SACConfig):
             ResidualLayer(
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
@@ -886,7 +885,6 @@ class SACDConfig(SACConfig):
             ResidualLayer(
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
@@ -904,7 +902,6 @@ class SACDConfig(SACConfig):
             ResidualLayer(
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
@@ -916,7 +913,6 @@ class SACDConfig(SACConfig):
             ResidualLayer(
                 main_layers=[
                     TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
