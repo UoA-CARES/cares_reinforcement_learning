@@ -88,7 +88,7 @@ class QMIX(Algorithm[MARLObservation, list[int], MARLMemoryBuffer]):
         obs_list = [obs_dict[a] for a in agent_names]
         return torch.stack(obs_list, dim=1)
 
-    def select_action_from_policy(
+    def act(
         self, observation: MARLObservation, evaluation: bool = False
     ) -> ActionSample[list[int]]:
         """

@@ -118,7 +118,7 @@ class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         logging.info("models, optimisers, and training state have been loaded...")
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         # note that when evaluating this algorithm we need to select mu as action

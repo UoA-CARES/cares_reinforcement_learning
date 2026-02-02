@@ -48,7 +48,7 @@ class DDPG(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         # pylint: disable-next=unused-argument

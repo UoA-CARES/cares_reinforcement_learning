@@ -103,7 +103,7 @@ class TD3AE(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             **config.autoencoder_config.decoder_optim_kwargs,
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()

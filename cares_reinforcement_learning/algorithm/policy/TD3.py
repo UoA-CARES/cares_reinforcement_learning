@@ -79,7 +79,7 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()

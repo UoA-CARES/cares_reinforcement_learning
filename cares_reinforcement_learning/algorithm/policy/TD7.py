@@ -109,7 +109,7 @@ class TD7(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             **config.encoder_lr_params,
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()

@@ -47,7 +47,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         self.learn_counter = 0
 
     # TODO verify that the ordering of agents is consistent
-    def select_action_from_policy(
+    def act(
         self,
         observation: MARLObservation,
         evaluation: bool = False,
@@ -68,9 +68,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                 avail_actions=avail_i,
             )
 
-            agent_sample = agent.select_action_from_policy(
-                agent_observation, evaluation
-            )
+            agent_sample = agent.act(agent_observation, evaluation)
             actions.append(agent_sample.action)
 
         return ActionSample(action=actions, source="policy")

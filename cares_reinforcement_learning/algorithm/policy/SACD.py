@@ -74,7 +74,7 @@ class SACD(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
             [self.log_alpha], lr=config.alpha_lr
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[int]:
 

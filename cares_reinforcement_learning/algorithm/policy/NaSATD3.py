@@ -108,7 +108,7 @@ class NaSATD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             for i in range(self.ensemble_size)
         ]
 
-    def select_action_from_policy(
+    def act(
         self,
         observation: SARLObservation,
         evaluation: bool = False,

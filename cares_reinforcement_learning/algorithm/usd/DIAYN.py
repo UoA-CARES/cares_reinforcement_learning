@@ -62,7 +62,7 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         z_one_hot[self.z] = 1
         return np.concatenate([state, z_one_hot])
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
 
@@ -71,9 +71,7 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             vector_state=self._concat_state_latent(observation.vector_state),
         )
 
-        action_sample = self.skills_agent.select_action_from_policy(
-            observation, evaluation
-        )
+        action_sample = self.skills_agent.act(observation, evaluation)
         action_sample.extras["skill"] = self.z
         return action_sample
 

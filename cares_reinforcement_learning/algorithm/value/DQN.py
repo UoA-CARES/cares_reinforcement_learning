@@ -85,7 +85,7 @@ class DQN(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
 
         return action
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[int]:
         """

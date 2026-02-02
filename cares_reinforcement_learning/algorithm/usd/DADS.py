@@ -64,7 +64,7 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     def _concat_state_latent(self, state: np.ndarray) -> np.ndarray:
         return np.concatenate([state, self.z])
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
 
@@ -73,9 +73,7 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             vector_state=self._concat_state_latent(observation.vector_state),
         )
 
-        action_sample = self.skills_agent.select_action_from_policy(
-            observation, evaluation
-        )
+        action_sample = self.skills_agent.act(observation, evaluation)
         action_sample.extras["z"] = self.z.copy()
         return action_sample
 

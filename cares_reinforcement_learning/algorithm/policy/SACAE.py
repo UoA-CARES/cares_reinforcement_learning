@@ -103,7 +103,7 @@ class SACAE(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         # note that when evaluating this algorithm we need to select mu as action

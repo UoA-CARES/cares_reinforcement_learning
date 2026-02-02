@@ -43,7 +43,7 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self.device = device
 
     @abstractmethod
-    def select_action_from_policy(
+    def act(
         self,
         observation: ObsType,
         evaluation: bool = False,

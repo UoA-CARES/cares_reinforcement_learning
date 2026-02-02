@@ -111,7 +111,7 @@ class SDAR(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         )
         self.force_act = True
 
-    def select_action_from_policy(
+    def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         # note that when evaluating this algorithm we need to select mu as action
