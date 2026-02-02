@@ -401,9 +401,7 @@ def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
 
     agent = create_SAC(sac_observation_size, action_num, config=config)
 
-    discriminator = Discriminator(
-        observation_size["vector"], num_skills=config.num_skills, config=config
-    )
+    discriminator = Discriminator(observation_size["vector"], config=config)
 
     device = hlp.get_device()
     agent = DIAYN(
@@ -427,7 +425,6 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
 
     discriminator = SkillDynamicsModel(
         observation_size=observation_size["vector"],
-        z_dim=config.z_dim,
         config=config,
     )
 
