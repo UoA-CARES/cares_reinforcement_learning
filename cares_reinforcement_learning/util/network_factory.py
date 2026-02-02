@@ -420,14 +420,14 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
     from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 
     sac_observation_size = {
-        "vector": observation_size["vector"] + config.num_skills,
+        "vector": observation_size["vector"] + config.z_dim,
     }
 
     agent = create_SAC(sac_observation_size, action_num, config=config)
 
     discriminator = SkillDynamicsModel(
         observation_size=observation_size["vector"],
-        num_skills=config.num_skills,
+        z_dim=config.z_dim,
         config=config,
     )
 

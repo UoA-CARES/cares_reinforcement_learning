@@ -12,10 +12,10 @@ from typing import Any
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.memory import memory_sampler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.types.action import ActionSample
@@ -39,11 +39,17 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         self.num_skills = config.num_skills
 
-        p_z = np.full(self.num_skills, 1 / self.num_skills)
-        self.z = np.random.choice(self.num_skills, p=p_z)
+        self.z_dim = config.z_dim
+        self.z = np.random.randn(self.z_dim).astype(np.float32)  # z ~ N(0, I)
 
-        self.z_experience_index = []
-        self.z_experience_index.append(self.z)
+        rng = np.random.default_rng(100)
+        self.eval_z_radius = getattr(config, "eval_z_radius", 2.0)
+        self.eval_z_bank = rng.standard_normal(
+            size=(self.num_skills, self.z_dim)
+        ).astype(np.float32)
+
+        norms = np.linalg.norm(self.eval_z_bank, axis=1, keepdims=True) + 1e-8
+        self.eval_z_bank = (self.eval_z_bank / norms) * self.eval_z_radius
 
         self.discriminator_optimizer = torch.optim.Adam(
             self.discriminator_net.parameters(), lr=config.discriminator_lr
@@ -53,15 +59,10 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         if skill < 0 or skill >= self.num_skills:
             raise ValueError(f"Skill index {skill} is out of bounds.")
 
-        self.z = skill
-
-        if not evaluation:
-            self.z_experience_index.append(self.z)
+        self.z = self.eval_z_bank[skill]
 
     def _concat_state_latent(self, state: np.ndarray) -> np.ndarray:
-        z_one_hot = np.zeros(self.num_skills)
-        z_one_hot[self.z] = 1
-        return np.concatenate([state, z_one_hot])
+        return np.concatenate([state, self.z])
 
     def select_action_from_policy(
         self, observation: SARLObservation, evaluation: bool = False
@@ -72,13 +73,10 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             vector_state=self._concat_state_latent(observation.vector_state),
         )
 
-        if not evaluation:
-            self.z_experience_index.append(self.z)
-
         action_sample = self.skills_agent.select_action_from_policy(
             observation, evaluation
         )
-        action_sample.extras["skill"] = self.z
+        action_sample.extras["z"] = self.z.copy()
         return action_sample
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
@@ -118,71 +116,47 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         if len(memory_buffer) < self.batch_size:
             return info
 
-        sample = memory_buffer.sample_uniform(self.batch_size)
-        batch_size = len(sample.experiences)
-
-        weights = [1.0] * batch_size
-
-        zs = np.array(self.z_experience_index)[sample.indices]
-
-        zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
-
-        # Concatenate zs (skills) as one-hot to states
-        zs_one_hot = np.eye(self.num_skills)[zs]
-
-        states_tensor = np.stack(
-            [experience.observation.vector_state for experience in sample.experiences]
-        )
-        states_zs = np.concatenate([states_tensor, zs_one_hot], axis=1)
-
-        next_states_tensor = np.stack(
-            [
-                experience.next_observation.vector_state
-                for experience in sample.experiences
-            ]
-        )
-        next_states_zs = np.concatenate([next_states_tensor, zs_one_hot], axis=1)
-
-        # Convert into tensor using training utilities
-        states_tensor = torch.tensor(
-            np.asarray(states_tensor), dtype=torch.float32, device=self.device
-        )
-        states_zs_tensor = torch.tensor(
-            np.asarray(states_zs), dtype=torch.float32, device=self.device
-        )
-
-        actions_tensor = torch.tensor(
-            np.asarray([experience.action for experience in sample.experiences]),
-            dtype=torch.float32,
+        (
+            observation_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_observation_tensor,
+            dones_tensor,
+            weights_tensor,
+            extras,
+            indices,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
+            use_per_buffer=0,  # DADS does not use PER
         )
 
-        next_states_tensor = torch.tensor(
-            np.asarray(next_states_tensor), dtype=torch.float32, device=self.device
-        )
-        next_states_zs_tensor = torch.tensor(
-            np.asarray(next_states_zs), dtype=torch.float32, device=self.device
-        )
+        z_list = [extra["z"] for extra in extras]
+        z_tensor = torch.tensor(
+            np.asarray(z_list), dtype=torch.float32, device=self.device
+        )  # (B, z_dim)
 
-        dones_tensor = torch.tensor(
-            np.asarray([experience.done for experience in sample.experiences]),
-            dtype=torch.long,
-            device=self.device,
+        states_z_tensor = torch.cat(
+            [observation_tensor.vector_state_tensor, z_tensor], dim=1
         )
-        weights_tensor = torch.tensor(
-            np.asarray(weights), dtype=torch.float32, device=self.device
+        next_states_z_tensor = torch.cat(
+            [next_observation_tensor.vector_state_tensor, z_tensor], dim=1
         )
-
-        # One-hot encode skill
-        # pylint: disable-next=not-callable
-        z_onehot = F.one_hot(zs_tensor.squeeze(-1), self.num_skills).float()
 
         # Predict next-state distribution
-        mean, logvar = self.discriminator_net(states_tensor, z_onehot)
+        mean, logvar = self.discriminator_net(
+            observation_tensor.vector_state_tensor, z_tensor
+        )
 
         use_delta_s = True
         target = (
-            (next_states_tensor - states_tensor) if use_delta_s else next_states_tensor
+            (
+                next_observation_tensor.vector_state_tensor
+                - observation_tensor.vector_state_tensor
+            )
+            if use_delta_s
+            else next_observation_tensor.vector_state_tensor
         )
 
         # Compute Gaussian log-likelihood (sum over state dims)
@@ -191,90 +165,51 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         # -----------------------------
         # TF-faithful marginal estimate
         # current + per-transition alternates (excluding current)
-        # -----------------------------
-        num_alt_skills = min(self.num_skills - 1, 16)  # TF: num_reps
-        if num_alt_skills < 1:
-            raise ValueError(
-                "DADS requires num_skills >= 2 to form alternate-skill marginal."
-            )
+        num_skills = 16
+        batch_size, state_dim = observation_tensor.vector_state_tensor.shape
 
-        num_transitions, state_dim = states_tensor.shape
-        num_skills = self.num_skills
+        z_alt = torch.randn(
+            batch_size, num_skills, self.z_dim, device=self.device
+        )  # (N, M, dz)
 
-        # current skill indices per transition: [N]
-        current_skill = zs_tensor.squeeze(-1)  # long, shape [N]
-
-        # Sample per-transition alternate skills uniformly from {0..K-1}\{current_skill}
-        # Vectorized "skip" trick:
-        # 1) sample offsets in [0, K-2]
-        alt_offsets = torch.randint(
-            low=0,
-            high=num_skills - 1,
-            size=(num_transitions, num_alt_skills),
-            device=self.device,
-        )  # [N, M]
-
-        # 2) map offsets to actual skill ids in [0, K-1], skipping current_skill
-        alt_skill_ids = (
-            alt_offsets + (alt_offsets >= current_skill.unsqueeze(1)).long()
-        )  # [N, M]
-
-        # One-hot: [N, M, K]
-        # pylint: disable-next=not-callable
-        alt_skill_onehot = F.one_hot(alt_skill_ids, num_skills).float()
-
-        # Repeat states/targets across the M alternates: [N*M, D]
         states_rep = (
-            states_tensor.unsqueeze(1)
-            .expand(num_transitions, num_alt_skills, state_dim)
-            .reshape(num_transitions * num_alt_skills, state_dim)
+            observation_tensor.vector_state_tensor.unsqueeze(1)
+            .expand(batch_size, num_skills, state_dim)
+            .reshape(batch_size * num_skills, state_dim)
         )
         target_rep = (
             target.unsqueeze(1)
-            .expand(num_transitions, num_alt_skills, state_dim)
-            .reshape(num_transitions * num_alt_skills, state_dim)
+            .expand(batch_size, num_skills, state_dim)
+            .reshape(batch_size * num_skills, state_dim)
         )
+        z_alt_rep = z_alt.reshape(batch_size * num_skills, self.z_dim)  # (N*M, dz)
 
-        # Flatten skills: [N*M, K]
-        alt_skills_rep = alt_skill_onehot.reshape(
-            num_transitions * num_alt_skills, num_skills
-        )
-
-        # Evaluate log q for alternates: log q(Δs | s, z_alt)
-        mean_alt, logvar_alt = self.discriminator_net(states_rep, alt_skills_rep)
+        mean_alt, logvar_alt = self.discriminator_net(states_rep, z_alt_rep)
         log_q_alt = self._gaussian_log_likelihood(
             target_rep, mean_alt, logvar_alt
-        ).view(
-            num_transitions, num_alt_skills
-        )  # [N, M]
+        ).view(batch_size, num_skills)
 
-        # TF-style denominator includes current-skill likelihood explicitly:
-        # log( (q_z + sum q_alt) / (M+1) ) computed stably in log-space
-        log_q_all = torch.cat([log_q_true.unsqueeze(1), log_q_alt], dim=1)  # [N, M+1]
-        log_marginal = torch.logsumexp(log_q_all, dim=1) - math.log(
-            num_alt_skills + 1
-        )  # [N]
-
-        # Intrinsic reward (detach before SAC update)
-        rewards_tensor = (log_q_true - log_marginal).detach().unsqueeze(-1)  # [N, 1]
+        log_q_all = torch.cat([log_q_true.unsqueeze(1), log_q_alt], dim=1)  # (N, M+1)
+        log_marginal = torch.logsumexp(log_q_all, dim=1) - math.log(num_skills + 1)
+        rewards_tensor = (log_q_true - log_marginal).detach().unsqueeze(1)  # (N, 1)
 
         with torch.no_grad():
             # reward stats
             r = rewards_tensor.squeeze(-1)  # [N]
-            info["dads_reward_mean"] = r.mean().item()
-            info["dads_reward_std"] = r.std(unbiased=False).item()
-            info["dads_reward_min"] = r.min().item()
-            info["dads_reward_max"] = r.max().item()
+            info["reward_mean"] = r.mean().item()
+            info["reward_std"] = r.std(unbiased=False).item()
+            info["reward_min"] = r.min().item()
+            info["reward_max"] = r.max().item()
 
             # target (Δs) magnitude
             abs_target = target.abs()
-            info["dads_target_abs_mean"] = abs_target.mean().item()
-            info["dads_target_abs_max"] = abs_target.max().item()
+            info["target_abs_mean"] = abs_target.mean().item()
+            info["target_abs_max"] = abs_target.max().item()
 
             # log_q stats
-            info["dads_logq_true_mean"] = log_q_true.mean().item()
-            info["dads_logq_true_std"] = log_q_true.std(unbiased=False).item()
-            info["dads_log_marginal_mean"] = log_marginal.mean().item()
+            info["logq_true_mean"] = log_q_true.mean().item()
+            info["logq_true_std"] = log_q_true.std(unbiased=False).item()
+            info["log_marginal_mean"] = log_marginal.mean().item()
 
             # variance / logvar stats (current skill)
             info["disc_logvar_cur_min"] = logvar.min().item()
@@ -294,11 +229,11 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         info |= self.skills_agent.update_networks(
             memory_buffer,
-            np.asarray(sample.indices),
-            states_zs_tensor,
+            indices,
+            states_z_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_zs_tensor,
+            next_states_z_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -315,8 +250,7 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         return info
 
     def episode_done(self):
-        p_z = np.full(self.num_skills, 1 / self.num_skills)
-        self.z = np.random.choice(self.num_skills, p=p_z)
+        self.z = np.random.randn(self.z_dim).astype(np.float32)
 
         return super().episode_done()
 
@@ -329,7 +263,6 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         checkpoint = {
             "discriminator": self.discriminator_net.state_dict(),
             "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
-            "z_experience_index": self.z_experience_index,
             "z": self.z,
         }
         torch.save(checkpoint, f"{filepath}/{filename}_dads.pth")
@@ -342,9 +275,6 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.discriminator_net.load_state_dict(checkpoint["discriminator"])
         self.discriminator_optimizer.load_state_dict(
             checkpoint["discriminator_optimizer"]
-        )
-        self.z_experience_index = checkpoint.get(
-            "z_experience_index", self.z_experience_index
         )
         self.z = checkpoint.get("z", self.z)
         logging.info("models, optimisers, and DADS state have been loaded...")

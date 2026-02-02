@@ -1372,6 +1372,7 @@ class DADSConfig(SACConfig):
 
     num_skills: int = 10
 
+    z_dim: int = 2
     logvar_min: float = -7.0
     logvar_max: float = 2.0
 

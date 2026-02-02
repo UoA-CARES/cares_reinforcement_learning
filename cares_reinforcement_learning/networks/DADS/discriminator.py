@@ -53,10 +53,10 @@ class SkillDynamicsModel(nn.Module):
     Outputs mean and log-variance for next-state prediction.
     """
 
-    def __init__(self, observation_size: int, num_skills: int, config: DADSConfig):
+    def __init__(self, observation_size: int, z_dim: int, config: DADSConfig):
         super().__init__()
 
-        input_size = observation_size + num_skills
+        input_size = observation_size + z_dim
 
         self.network = MLP(
             input_size=input_size,
