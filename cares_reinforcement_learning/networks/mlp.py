@@ -62,10 +62,10 @@ class MLP(nn.Module):
                 if isinstance(layer, nn.Conv2d):
                     square_state = data_width == data_height
                     data_width = hlp.flatten(
-                        data_width, 
-                        k=layer_spec.params["kernel_size"], 
-                        s=layer_spec.params["stride"], 
-                        p=layer_spec.params["padding"]
+                        data_width,
+                        k=layer_spec.params["kernel_size"],
+                        s=layer_spec.params["stride"],
+                        p=layer_spec.params["padding"],
                     )
                     if square_state:
                         data_height = data_width
@@ -74,9 +74,13 @@ class MLP(nn.Module):
                             data_height,
                             k=layer_spec.params["kernel_size"],
                             s=layer_spec.params["stride"],
-                            p=layer_spec.params["padding"]
+                            p=layer_spec.params["padding"],
                         )
-                    self.conv_output_shape = (current_output_size, data_height, data_width)
+                    self.conv_output_shape = (
+                        current_output_size,
+                        data_height,
+                        data_width,
+                    )
             elif isinstance(layer_spec, FunctionLayer):
                 layer = get_pytorch_module_from_name(layer_spec.layer_type)(
                     **layer_spec.params
@@ -145,4 +149,3 @@ class ResidualBlock(MLP):
         pad_shape = (N, pad_channels, *x.shape[2:])
         zeros = torch.zeros(pad_shape, dtype=x.dtype, device=x.device)
         return torch.cat([x, zeros], dim=1)
-

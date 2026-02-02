@@ -23,9 +23,11 @@ from cares_reinforcement_learning.util.network_configurations import (
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - list[type] = default
 
+
 class ImageEncoderType(str, Enum):
     VANILLA_AUTOENCODER = "vanilla_autoencoder"
     CONV_NET = "conv_net"
+
 
 class SubscriptableClass(BaseModel):
     def __getitem__(self, item):
@@ -846,9 +848,9 @@ class SACDConfig(SACConfig):
 
     batch_size: int = 64
 
-    max_steps_exploration: int = 20000
+    max_steps_exploration: int = 1000
     number_steps_per_train_policy: int = 4
-    n_step: int = 10
+    n_step: int = 1
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -873,8 +875,9 @@ class SACDConfig(SACConfig):
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear")
-                ]),
+                    TrainableLayer(layer_type="Linear"),
+                ]
+            ),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear"),
         ]
@@ -890,14 +893,15 @@ class SACDConfig(SACConfig):
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear")
-                ]),
+                    TrainableLayer(layer_type="Linear"),
+                ]
+            ),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear"),
         ]
     )
 
-    encoder_type: str = ImageEncoderType.VANILLA_AUTOENCODER.value
+    encoder_type: str = None
     latent_dim: int = 128
 
     # AutoEncoder configs
@@ -915,11 +919,25 @@ class SACDConfig(SACConfig):
     # Encoder Network Config
     conv_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Conv2d", out_features=32, params={"kernel_size": 8, "stride": 4, "padding": 0}),
-            FunctionLayer(layer_type="ReLU",),
-            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 4, "stride": 2, "padding": 0}),
+            TrainableLayer(
+                layer_type="Conv2d",
+                out_features=32,
+                params={"kernel_size": 8, "stride": 4, "padding": 0},
+            ),
+            FunctionLayer(
+                layer_type="ReLU",
+            ),
+            TrainableLayer(
+                layer_type="Conv2d",
+                out_features=64,
+                params={"kernel_size": 4, "stride": 2, "padding": 0},
+            ),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 3, "stride": 1, "padding": 0}),
+            TrainableLayer(
+                layer_type="Conv2d",
+                out_features=64,
+                params={"kernel_size": 3, "stride": 1, "padding": 0},
+            ),
             FunctionLayer(layer_type="ReLU"),
             # FunctionLayer(layer_type="Flatten"),
             # TrainableLayer(layer_type="Linear", out_features=512),
