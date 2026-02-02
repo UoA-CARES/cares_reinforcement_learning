@@ -123,7 +123,7 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
-            extras,
+            train_data,
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,
@@ -132,7 +132,7 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             use_per_buffer=0,  # DADS does not use PER
         )
 
-        z_list = [extra["z"] for extra in extras]
+        z_list = [extra["z"] for extra in train_data]
         z_tensor = torch.tensor(
             np.asarray(z_list), dtype=torch.float32, device=self.device
         )  # (B, z_dim)

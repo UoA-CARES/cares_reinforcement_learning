@@ -100,7 +100,7 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
-            extras,
+            train_data,
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,
@@ -111,7 +111,7 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         batch_size = len(observation_tensor.vector_state_tensor)
 
-        skills = [extra["skill"] for extra in extras]
+        skills = [extra["skill"] for extra in train_data]
         zs_tensor = torch.tensor(skills, dtype=torch.long, device=self.device)
 
         # Concatenate zs (skills) as one-hot to states
