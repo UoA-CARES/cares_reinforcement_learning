@@ -1,15 +1,16 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP, NoisyLinear
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
 from cares_reinforcement_learning.util.configurations import RainbowConfig
 
 
 class BaseRainbowNetwork(BaseNetwork):
     def __init__(
         self,
-        oberservation_size: int,
+        observation_size: int,
         num_actions: int,
         output_size: int,
         num_atoms: int,
@@ -19,7 +20,7 @@ class BaseRainbowNetwork(BaseNetwork):
         value_stream: MLP | nn.Sequential,
         advantage_stream: MLP | nn.Sequential,
     ):
-        super().__init__(observation_size=oberservation_size, num_actions=num_actions)
+        super().__init__(observation_size=observation_size, num_actions=num_actions)
 
         self.output_size = output_size
         self.num_atoms = num_atoms
@@ -107,7 +108,7 @@ class DefaultNetwork(BaseRainbowNetwork):
         )
 
         super().__init__(
-            oberservation_size=observation_size,
+            observation_size=observation_size,
             num_actions=num_actions,
             output_size=output_size,
             num_atoms=num_atoms,
@@ -143,7 +144,7 @@ class Network(BaseRainbowNetwork):
         )
 
         super().__init__(
-            oberservation_size=observation_size,
+            observation_size=observation_size,
             num_actions=num_actions,
             output_size=output_size,
             num_atoms=config.num_atoms,
