@@ -1,8 +1,7 @@
 import torch
 from torch import nn
-from torch.nn import functional as F
 
-from cares_reinforcement_learning.networks.common import MLP
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
 
 
