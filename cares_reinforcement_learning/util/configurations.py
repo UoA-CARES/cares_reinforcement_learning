@@ -926,7 +926,16 @@ class MADDPGConfig(DDPGConfig):
     gamma: float = 0.95
     tau: float = 0.01
 
-    alpha: float = 0.0
+    # M3DDPG specific
+    use_m3: int = 0
+    m3_alpha: float = 0.05
+
+    # ERNIE specific
+    use_ernie: int = 0
+    ernie_lambda: float = 1e-3
+    ernie_eps: float = 0.05
+    ernie_k_steps: int = 1
+    ernie_norm: Literal["linf", "l2"] = "linf"
 
     batch_size: int = 1024
     number_steps_per_train_policy: int = 100
@@ -961,6 +970,8 @@ class M3DDPGConfig(MADDPGConfig):
     algorithm: str = "M3DDPG"
 
     marl_observation: Literal[1] = Field(default=1)
+
+    use_m3: Literal[1] = Field(default=1)
 
     actor_lr: float = 1e-3
     critic_lr: float = 1e-3
