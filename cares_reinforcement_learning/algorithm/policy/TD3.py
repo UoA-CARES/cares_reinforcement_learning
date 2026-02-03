@@ -95,9 +95,10 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 # this is part the TD3 too, add noise to the action
                 noise = np.random.normal(
                     0, scale=self.action_noise, size=self.action_num
-                )
+                ).astype(np.float32)
                 action = action + noise
                 action = np.clip(action, -1, 1)
+
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
@@ -235,8 +236,7 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             info |= actor_info
 
             # Update target network params
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+            self.update_target_networks()
 
         # Update the Priorities
         if self.use_per_buffer:
@@ -291,6 +291,10 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         )
 
         return info
+
+    def update_target_networks(self) -> None:
+        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):

@@ -559,6 +559,45 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
     return agent
 
 
+def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
+    from cares_reinforcement_learning.algorithm.policy import MATD3
+    from cares_reinforcement_learning.algorithm.policy.TD3 import TD3
+    from cares_reinforcement_learning.networks.MATD3 import Actor, Critic
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    device = hlp.get_device()
+
+    # KEEP THE ACTOR ORDER CONSISTENT
+    agent_ids = list(obs_shapes.keys())
+
+    for agent_name in agent_ids:
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
+
+        critic = Critic(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+        )
+
+        agent = TD3(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    matd3_agent = MATD3(agents=agents, config=config, device=device)
+    return matd3_agent
+
+
 def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
     from cares_reinforcement_learning.algorithm.policy import TD3AE
     from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
