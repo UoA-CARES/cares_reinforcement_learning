@@ -1,7 +1,33 @@
 """
-Original Paper: https://arxiv.org/pdf/1706.02275
+MASAC (Multi-Agent Soft Actor-Critic) implementation notes
+----------------------------------------------------------
 
-Original Code (TensorFlow): https://github.com/openai/maddpg/tree/master
+This algorithm extends SAC to the multi-agent setting using centralized critics
+and decentralized stochastic actors.
+
+Replay sampling:
+- A single minibatch is sampled per training iteration and reused across agents.
+- This provides an unbiased estimate of each agent's update while reducing
+  sampling-induced variance and ensuring consistency of joint transitions.
+
+Critic updates:
+- Next-state actions are sampled from the current stochastic policies.
+- Target critics are used to compute TD targets including the entropy term.
+- Each agent's entropy contribution is handled independently.
+
+Actor updates:
+- Policies are stochastic and optimized under a maximum-entropy objective.
+- For actor updates, current actions are sampled for ALL agents.
+- When updating agent i, gradients flow only through agent i's action;
+  other agents' actions are detached.
+- This aligns the update with the expectation under the current joint policy
+  distribution, which is required by SAC's objective.
+
+Rationale:
+- Unlike deterministic methods (MADDPG/MATD3), SAC optimizes an expectation
+  over actions drawn from the current policy.
+- Using replay actions for other agents would evaluate Q under a stale joint
+  behavior distribution, introducing additional bias as policies evolve.
 """
 
 import logging
@@ -128,7 +154,7 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         global_states: torch.Tensor,
     ):
         """
-        Paper-faithful MATD3 actor update:
+        Paper-faithful MASAC actor update:
         - For j ≠ agent_index: use replay-buffer actions
         - For j == agent_index: use current actor output
         """
@@ -138,6 +164,10 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         # ---------------------------------------------------------
         # Sample CURRENT actions for all agents (detach others)
+        # For MASAC, we sample current actions from all agents when
+        # computing each agent’s actor loss, detaching other agents’ samples.
+        # This aligns the update with SAC’s maximum-entropy objective,
+        # which is an expectation over actions drawn from the current stochastic policy.
         # ---------------------------------------------------------
         actions_list = []
         logp_i: torch.Tensor
@@ -206,6 +236,9 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         # ---------------------------------------------------------
         # Sample ONCE for all agents (recommended for TD3/SAC)
+        # Shared minibatch: We draw one minibatch per training iteration and reuse it across agent updates.
+        # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
+        # keeping joint transitions consistent for centralized critics.
         # ---------------------------------------------------------
         (
             observation_tensor,

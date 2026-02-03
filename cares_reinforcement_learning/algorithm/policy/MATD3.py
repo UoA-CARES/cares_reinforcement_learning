@@ -1,7 +1,33 @@
 """
-Original Paper: https://arxiv.org/pdf/1706.02275
+MATD3 (Multi-Agent TD3) implementation notes
+--------------------------------------------
 
-Original Code (TensorFlow): https://github.com/openai/maddpg/tree/master
+This algorithm extends MADDPG with TD3 improvements:
+twin critics, delayed policy updates, and target policy smoothing.
+
+Replay sampling:
+- A single minibatch is sampled per training iteration and reused across agents.
+- This preserves unbiased updates while reducing variance and keeping joint
+  transitions consistent for centralized critics.
+- TD3 introduces explicit variance-reduction mechanisms (twin critics and
+  target smoothing), making shared minibatch updates more stable than the
+  original MADDPG per-agent sampling scheme.
+
+Critic updates:
+- Twin critics are trained using TD3-style targets with target policy smoothing.
+- Noise is applied only to NEXT actions for critic targets to reduce
+  overestimation bias.
+
+Actor updates:
+- Actors are deterministic and updated with a delayed frequency.
+- When updating agent i, only agent i's action is replaced with the current
+  actor output; other agents' actions come from the replay buffer.
+- This mirrors MADDPG and avoids unnecessary coupling of agent updates.
+
+No joint action resampling:
+- TD3's stochasticity is confined to target policy smoothing.
+- Resampling other agents' current actions is unnecessary and can increase
+  variance without benefit for deterministic policy gradients.
 """
 
 import logging
@@ -189,6 +215,9 @@ class MATD3(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         # ---------------------------------------------------------
         # Sample ONCE for all agents (recommended for TD3/SAC)
+        # Shared minibatch: We draw one minibatch per training iteration and reuse it across agent updates.
+        # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
+        # keeping joint transitions consistent for centralized critics.
         # ---------------------------------------------------------
         (
             observation_tensor,
