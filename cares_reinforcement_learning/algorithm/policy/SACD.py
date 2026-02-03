@@ -20,7 +20,11 @@ import cares_reinforcement_learning.util.helpers as hlp
 import cares_reinforcement_learning.util.training_utils as tu
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
-from cares_reinforcement_learning.util.configurations import ImageEncoderType, SACDConfig, VanillaAEConfig
+from cares_reinforcement_learning.util.configurations import (
+    ImageEncoderType,
+    SACDConfig,
+    VanillaAEConfig,
+)
 from cares_reinforcement_learning.util.training_context import (
     ActionContext,
     TrainingContext,
@@ -38,7 +42,7 @@ class CriticLossInfo:
     @property
     def total_loss(self) -> torch.Tensor:
         return self.critic_loss_one + self.critic_loss_two
-    
+
     @property
     def log_info(self) -> Mapping[str, Any]:
         info = {
@@ -70,6 +74,7 @@ class SACD(SAC):
     :param device: The device to run the computations on
     :type device: torch.device
     """
+
     def __init__(
         self,
         actor_network: Actor,
@@ -86,8 +91,8 @@ class SACD(SAC):
 
         # Set base SAC configs
         self.action_num = self.actor_net.num_actions
-        self.target_entropy = (np.log(self.action_num) * config.target_entropy_multiplier)
-        
+        self.target_entropy = np.log(self.action_num) * config.target_entropy_multiplier
+
         # Assumes that q average and clip should always be used together
         if config.use_clipped_q:
             self.q_clip_epsilon = config.q_clip_epsilon
@@ -105,12 +110,13 @@ class SACD(SAC):
         if config.encoder_type is not None:
             self.normalise_image = getattr(config, "normalise_image", True)
             self._set_encoding(config)
-
+        else:
+            self.normalise_image = False
 
     def _get_q_target(self, q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
         """
         Standard Q-target calculation using minimum of two Q-values.
-        
+
         :param q1: Critic 1 Q-values
         :type q1: torch.Tensor
         :param q2: Critic 2 Q-values
@@ -120,23 +126,23 @@ class SACD(SAC):
         """
         return torch.minimum(q1, q2)
 
-
     def _get_avg_q_target(self, q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
         """
         Calculates the average Q-target using the mean of two Q-values.
-        
+
         :param q1: Critic 1 Q-values
         :param q2: Critic 2 Q-values
         :return: Average of the two Q-values
         :rtype: torch.Tensor
         """
         return torch.mean(torch.stack((q1, q2), dim=-1), dim=-1)
-    
-    
-    def _get_state_action_q_values(self, state: torch.Tensor, actions: torch.Tensor, network: Critic) -> tuple[torch.Tensor, torch.Tensor]:
+
+    def _get_state_action_q_values(
+        self, state: torch.Tensor, actions: torch.Tensor, network: Critic
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Retrieves Q-values for given states and actions from the specified critic network.
-        
+
         :param state: Batch of states
         :type state: torch.Tensor
         :param actions: Batch of actions taken at those states
@@ -148,12 +154,17 @@ class SACD(SAC):
         """
         q_values_one, q_values_two = network(state)
         return q_values_one.gather(1, actions), q_values_two.gather(1, actions)
-    
-    
-    def _get_critic_loss(self, state: torch.Tensor, actions: torch.Tensor, q_target: torch.Tensor, weights: torch.Tensor = None) -> CriticLossInfo:
+
+    def _get_critic_loss(
+        self,
+        state: torch.Tensor,
+        actions: torch.Tensor,
+        q_target: torch.Tensor,
+        weights: torch.Tensor = None,
+    ) -> CriticLossInfo:
         """
         Calculates critic loss using standard MSE loss between Q-values and target Q-values.
-        
+
         :param state: Batch of states from replay buffer experiences
         :type state: torch.Tensor
         :param actions: Batch of actions taken at those states
@@ -163,7 +174,9 @@ class SACD(SAC):
         :return: Dataclass containing critic losses and extra info
         :rtype: CriticLossInfo
         """
-        q_values_one, q_values_two = self._get_state_action_q_values(state, actions, self.critic_net)
+        q_values_one, q_values_two = self._get_state_action_q_values(
+            state, actions, self.critic_net
+        )
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
 
@@ -177,12 +190,17 @@ class SACD(SAC):
             critic_loss_one=critic_loss_one,
             critic_loss_two=critic_loss_two,
         )
-    
 
-    def _get_clipped_critic_loss(self, state: torch.Tensor, actions: torch.Tensor, q_target: torch.Tensor, weights: torch.Tensor = None) -> CriticLossInfo:
+    def _get_clipped_critic_loss(
+        self,
+        state: torch.Tensor,
+        actions: torch.Tensor,
+        q_target: torch.Tensor,
+        weights: torch.Tensor = None,
+    ) -> CriticLossInfo:
         """
         Calculates critic loss using clipped Q-values to prevent large updates.
-        
+
         :param state: Batch of states from replay buffer experiences
         :type state: torch.Tensor
         :param actions: Batch of actions taken at those states
@@ -195,28 +213,36 @@ class SACD(SAC):
         info = {}
 
         # Get q value estimate from training and target critic networks for each action
-        q_values_one, q_values_two = self._get_state_action_q_values(state, actions, self.critic_net)
-        q_target_one, q_target_two = self._get_state_action_q_values(state, actions, self.target_critic_net)
-        
+        q_values_one, q_values_two = self._get_state_action_q_values(
+            state, actions, self.critic_net
+        )
+        q_target_one, q_target_two = self._get_state_action_q_values(
+            state, actions, self.target_critic_net
+        )
+
         # Compute clipped q value and select max loss using standard and clipped q values
-        clipped_q1 = q_target_one + torch.clamp(q_values_one - q_target_one, -self.q_clip_epsilon, self.q_clip_epsilon)
+        clipped_q1 = q_target_one + torch.clamp(
+            q_values_one - q_target_one, -self.q_clip_epsilon, self.q_clip_epsilon
+        )
         q1_std_loss = F.mse_loss(q_values_one, q_target)
         q1_clp_loss = F.mse_loss(clipped_q1, q_target)
         critic_loss_one = torch.maximum(q1_std_loss, q1_clp_loss)
-        info['clipped_q1'] = clipped_q1.mean().item()
+        info["clipped_q1"] = clipped_q1.mean().item()
 
         # Repeat for critic 2
-        clipped_qf2 = q_target_two + torch.clamp(q_values_two - q_target_two, -self.q_clip_epsilon, self.q_clip_epsilon)
+        clipped_qf2 = q_target_two + torch.clamp(
+            q_values_two - q_target_two, -self.q_clip_epsilon, self.q_clip_epsilon
+        )
         q2_std_loss = F.mse_loss(q_values_two, q_target)
         q2_clp_loss = F.mse_loss(clipped_qf2, q_target)
         critic_loss_two = torch.maximum(q2_std_loss, q2_clp_loss)
-        info['clipped_q2'] = clipped_qf2.mean().item()
+        info["clipped_q2"] = clipped_qf2.mean().item()
 
         # Compute proportion of: clipped q value losses >= standard q value losses
-        clipq_ratio = torch.mean((q1_clp_loss >= q1_std_loss).float()).item() 
+        clipq_ratio = torch.mean((q1_clp_loss >= q1_std_loss).float()).item()
         clipq_ratio += torch.mean((q2_clp_loss >= q2_std_loss).float()).item()
         clipq_ratio /= 2.0
-        info['clip_ratio'] = clipq_ratio
+        info["clip_ratio"] = clipq_ratio
 
         if weights is not None:
             critic_loss_one = (critic_loss_one * weights).mean()
@@ -229,14 +255,13 @@ class SACD(SAC):
             critic_loss_two=critic_loss_two,
             extra_info=MappingProxyType(info),
         )
-    
 
     def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
         """
         Passes the state from the action context through the actor network that returns a categorical distribution over the action space.
 
         Depending on whether evaluation mode is set, return either a sampled action (training) or the best action (eval).
-        
+
         :param action_context: Object containing state and action evaluation flag
         :type action_context: ActionContext
         :return: The selected action
@@ -255,11 +280,12 @@ class SACD(SAC):
             if evaluation:
                 _, _, action = self.actor_net(state_tensor)
             else:
-                action, (action_probs, log_action_probs), _ = self.actor_net(state_tensor)
+                action, (action_probs, log_action_probs), _ = self.actor_net(
+                    state_tensor
+                )
                 self.entropy = -torch.sum(action_probs * log_action_probs, dim=-1)
         self.actor_net.train()
         return action.cpu().numpy().flatten()
-    
 
     def get_extras(self) -> list[Any]:
         """
@@ -268,17 +294,18 @@ class SACD(SAC):
         """
         if self.entropy_penalty_beta is None:
             return []
-        
+
         if self.entropy is None:
             return [self.env_entropy]
-        
+
         return [self.entropy.item()]
 
-
-    def _get_bootstrapped_value_estimate(self, next_states: torch.Tensor, rewards: torch.Tensor, dones: torch.Tensor) -> torch.Tensor:
+    def _get_bootstrapped_value_estimate(
+        self, next_states: torch.Tensor, rewards: torch.Tensor, dones: torch.Tensor
+    ) -> torch.Tensor:
         """
         Computes the n-step bootstrapped value estimate for the next states using the target critic networks.
-        
+
         :param next_states: Batch of next states from replay buffer experiences
         :type next_states: torch.Tensor
         :param rewards: Batch of rewards from replay buffer experiences
@@ -301,13 +328,14 @@ class SACD(SAC):
             # Consolidate q-value estimates using average or minimum of two critics
             next_target = self._get_q_target(next_target_one, next_target_two)
             # Compute expected q-value of the next state across all actions and add entropy term
-            next_target = (next_target * action_probs).sum(dim=-1) + self.alpha * entropies
+            next_target = (next_target * action_probs).sum(
+                dim=-1
+            ) + self.alpha * entropies
             # Discount the q-value estimate over n-steps and add discounted rewards
-            next_target = (next_target * self.gamma ** self.n_step).unsqueeze(dim=-1)
-            next_target = (rewards * self.reward_scale + (1.0 - dones) * next_target)
+            next_target = (next_target * self.gamma**self.n_step).unsqueeze(dim=-1)
+            next_target = rewards * self.reward_scale + (1.0 - dones) * next_target
 
         return next_target
-
 
     def _update_critic(
         self,
@@ -320,7 +348,7 @@ class SACD(SAC):
     ) -> tuple[dict[str, float], np.ndarray]:
         """
         Updates the critic networks using the sampled batch of experiences.
-        
+
         :param states: Batch of states from replay buffer experiences
         :type states: torch.Tensor
         :param actions: Batch of actions from replay buffer experiences
@@ -359,8 +387,9 @@ class SACD(SAC):
 
         return critic_loss.log_info, priorities
 
-
-    def _update_actor_alpha(self, states: torch.Tensor, old_entropies: torch.Tensor = None) -> tuple[float, float]:
+    def _update_actor_alpha(
+        self, states: torch.Tensor, old_entropies: torch.Tensor = None
+    ) -> tuple[float, float]:
         info = {}
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
@@ -370,10 +399,14 @@ class SACD(SAC):
             q_target = self._get_q_target(qf1_pi, qf2_pi)
 
         entropies = -(action_probs * log_action_probs).sum(dim=-1)
-        actor_loss = - (self.alpha * entropies + (action_probs * q_target).sum(dim=-1)).mean()
+        actor_loss = -(
+            self.alpha * entropies + (action_probs * q_target).sum(dim=-1)
+        ).mean()
 
-        if hasattr(self, 'entropy_penalty_beta'):
-            entropy_penalty = self.entropy_penalty_beta * F.mse_loss(old_entropies.squeeze(), entropies)
+        if hasattr(self, "entropy_penalty_beta"):
+            entropy_penalty = self.entropy_penalty_beta * F.mse_loss(
+                old_entropies.squeeze(), entropies
+            )
             actor_loss += entropy_penalty
             info["entropy_penalty"] = entropy_penalty.item()
 
@@ -391,7 +424,6 @@ class SACD(SAC):
             info["alpha"] = self.alpha.item()
 
         return info
-    
 
     def _update_alpha(self, entropy: torch.Tensor) -> torch.Tensor:
         # update the temperature (alpha)
@@ -403,13 +435,11 @@ class SACD(SAC):
         self.log_alpha_optimizer.step()
 
         return alpha_loss
-    
 
     def _update_autoencoder(self, states: torch.Tensor) -> float:
         # Leaving this function in case this needs to be extended again in the future
         ae_loss = self.autoencoder.update_autoencoder(states)
         return ae_loss.item()
-
 
     def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
         self.learn_counter += 1
@@ -464,7 +494,7 @@ class SACD(SAC):
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor_alpha(states, old_entropies_tensor)
-            
+
             info |= actor_info
 
         if self.learn_counter % self.target_update_freq == 0:
@@ -475,21 +505,21 @@ class SACD(SAC):
 
         return info
 
-
     def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
         return 0.0
-    
 
     def _set_encoding(
-            self, 
-            config: SACDConfig, 
-        ) -> None:
+        self,
+        config: SACDConfig,
+    ) -> None:
         """Sets the encoder for the actor and critic networks."""
         encoder_type = ImageEncoderType(config.encoder_type)
         encoder_config = config.autoencoder_config
 
         if encoder_type == ImageEncoderType.CONV_NET:
-            from cares_reinforcement_learning.encoders.vanilla_autoencoder import NewEncoder
+            from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
+                NewEncoder,
+            )
 
             encoder = NewEncoder(
                 observation_size=encoder_config.observation_size,
@@ -498,9 +528,9 @@ class SACD(SAC):
                 num_filters=encoder_config.num_filters,
                 kernel_size=encoder_config.kernel_size,
                 custom_network_config=getattr(config, "conv_config", None),
-                detach_at_convs=False
+                detach_at_convs=False,
             )
-            self.actor_net.set_encoder(encoder)            
+            self.actor_net.set_encoder(encoder)
 
             if config.shared_conv_net:
                 critic_encoder = encoder
@@ -512,11 +542,14 @@ class SACD(SAC):
                     num_filters=encoder_config.num_filters,
                     kernel_size=encoder_config.kernel_size,
                     custom_network_config=getattr(config, "conv_config", None),
-                    detach_at_convs=False
+                    detach_at_convs=False,
                 )
             self.critic_net.set_encoder(critic_encoder)
         elif encoder_type == ImageEncoderType.VANILLA_AUTOENCODER:
-            from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+            from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
+                VanillaAutoencoder,
+            )
+
             detach_at_convs = getattr(config, "detach_at_convs", True)
 
             # Initialize autoencoder and set encoders for actor and critic networks
@@ -530,8 +563,12 @@ class SACD(SAC):
                 detach_at_convs=detach_at_convs,
             )
             self.autoencoder = autoencoder
-            self.actor_net.set_encoder(autoencoder.encoder.get_detached_encoder()) # Actor trains only FC layer
-            self.critic_net.set_encoder(autoencoder.encoder.get_encoder()) # Critic trains FC layer and convs
+            self.actor_net.set_encoder(
+                autoencoder.encoder.get_detached_encoder()
+            )  # Actor trains only FC layer
+            self.critic_net.set_encoder(
+                autoencoder.encoder.get_encoder()
+            )  # Critic trains FC layer and convs
 
         # Update target critic net to include encoder
         self.target_critic_net = copy.deepcopy(self.critic_net).to(hlp.get_device())
