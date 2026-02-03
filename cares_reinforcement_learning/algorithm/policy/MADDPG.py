@@ -1,7 +1,28 @@
 """
+MADDPG (Multi-Agent DDPG) implementation notes
+---------------------------------------------
+
 Original Paper: https://arxiv.org/pdf/1706.02275
 
 Original Code (TensorFlow): https://github.com/openai/maddpg/tree/master
+
+Replay sampling:
+- Each agent samples its own minibatch from the shared replay buffer.
+- This follows the original MADDPG formulation (Lowe et al., 2017) and the
+  reference TensorFlow implementation.
+- Independent minibatches yield unbiased updates and help decorrelate agent
+  learning in highly non-stationary multi-agent settings.
+
+Actor updates:
+- Policies are deterministic.
+- When updating agent i, the joint action is constructed by replacing only
+  agent i's action with the current actor output; all other agents' actions
+  are taken from the replay buffer.
+
+Rationale:
+- MADDPG does not optimize an expectation over a stochastic policy.
+- Per-agent sampling is sufficient and avoids unnecessary coupling between
+  agents' updates.
 """
 
 import logging

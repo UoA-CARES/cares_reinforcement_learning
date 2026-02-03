@@ -476,6 +476,18 @@ class SACConfig(AlgorithmConfig):
     )
 
 
+class MASACConfig(SACConfig):
+    algorithm: str = "MASAC"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+    alpha_lr: float = 1e-3
+
+    max_grad_norm: float | None = 0.5
+
+
 class SACAEConfig(SACConfig):
     algorithm: str = "SACAE"
 
@@ -1019,6 +1031,17 @@ class TD3Config(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
+
+
+class MATD3Config(TD3Config):
+    algorithm: str = "MATD3"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+
+    max_grad_norm: float | None = 0.5
 
 
 class TD3AEConfig(TD3Config):

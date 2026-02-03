@@ -48,6 +48,7 @@ class DDPG(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
+    # TODO add action noise for exploration
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
