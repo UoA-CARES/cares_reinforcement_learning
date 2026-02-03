@@ -153,12 +153,6 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
     ):
-        """
-        Paper-faithful MASAC actor update:
-        - For j ≠ agent_index: use replay-buffer actions
-        - For j == agent_index: use current actor output
-        """
-
         agent_ids = list(obs_tensors.keys())
         batch_size = global_states.shape[0]
 
@@ -320,18 +314,19 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             ]
 
         # ---------------------------------------------------------
-        # ACTOR + ALPHA UPDATES (every step)
+        # ACTOR + ALPHA UPDATES — usually every step in SAC
         # ---------------------------------------------------------
-        for agent_index, agent in enumerate(self.agent_networks):
-            actor_info = self._update_actor_alpha(
-                agent=agent,
-                agent_index=agent_index,
-                obs_tensors=agent_states,
-                global_states=global_states,
-            )
-            info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
-            info[f"alpha_loss_agent_{agent_index}"] = actor_info["alpha_loss"]
-            info[f"alpha_agent_{agent_index}"] = actor_info["alpha"]
+        if self.learn_counter % self.policy_update_freq == 0:
+            for agent_index, agent in enumerate(self.agent_networks):
+                actor_info = self._update_actor_alpha(
+                    agent=agent,
+                    agent_index=agent_index,
+                    obs_tensors=agent_states,
+                    global_states=global_states,
+                )
+                info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
+                info[f"alpha_loss_agent_{agent_index}"] = actor_info["alpha_loss"]
+                info[f"alpha_agent_{agent_index}"] = actor_info["alpha"]
 
         # ---------------------------------------------------------
         # Target critic updates (Polyak) — usually every step in SAC

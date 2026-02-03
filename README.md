@@ -250,7 +250,7 @@ Multi-Agent Reinforcement Learning algorithms (MARL).
 | QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
 | MADDPG      | Vector (MARL)              | Continuous   | [MADDPG](https://arxiv.org/pdf/1706.02275)                  |
 | M3DDPG      | Vector (MARL)              | Continuous   | [M3DDPG](https://doi.org/10.1609/aaai.v33i01.33014213)      |
-| MATD3       | Vector (MARL)              | Continuous   | [MATD3](https://doi.org/10.1609/aaai.v33i01.33014213)       |
+| MATD3       | Vector (MARL)              | Continuous   | [MATD3](https://arxiv.org/pdf/1910.01465)                   |
 | MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://doi.org/10.1609/aaai.v33i01.33014213)       |
 
 ## Unsupervised Skill Discovery
