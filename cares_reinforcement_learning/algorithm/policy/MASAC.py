@@ -126,7 +126,6 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         agent_index: int,
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        actions_tensor: torch.Tensor,  # (B, N, act_dim)
     ):
         """
         Paper-faithful MATD3 actor update:
@@ -138,19 +137,22 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         batch_size = global_states.shape[0]
 
         # ---------------------------------------------------------
-        # Step 1: Start from replay-buffer joint actions
-        #         actions_all: (B, N, A)
+        # Sample CURRENT actions for all agents (detach others)
         # ---------------------------------------------------------
-        actions_all = actions_tensor.clone()  # clone so we can overwrite
+        actions_list = []
+        logp_i: torch.Tensor
 
-        # ---------------------------------------------------------
-        # Step 2: Replace ONLY agent_i action with differentiable action
-        # ---------------------------------------------------------
-        obs_i = obs_tensors[agent_ids[agent_index]]  # (B, obs_dim_i)
-        pred_action_i, logp_i, _ = agent.actor_net(obs_i)  # differentiable
+        for j, (agent_j, agent_id_j) in enumerate(zip(self.agent_networks, agent_ids)):
+            obs_j = obs_tensors[agent_id_j]
+            a_j, logp_j, _ = agent_j.actor_net(obs_j)
 
-        actions_all[:, agent_index, :] = pred_action_i  # keep others from buffer
+            if j == agent_index:
+                logp_i = logp_j
+                actions_list.append(a_j)  # keep grads for i
+            else:
+                actions_list.append(a_j.detach())  # no grads for others
 
+        actions_all = torch.stack(actions_list, dim=1)  # (B, N, act_dim)
         joint_actions_flat = actions_all.reshape(batch_size, -1)
 
         # ---------------------------------------------------------
@@ -293,7 +295,6 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                 agent_index=agent_index,
                 obs_tensors=agent_states,
                 global_states=global_states,
-                actions_tensor=actions_tensor,  # replay actions for other agents (MADDPG-style)
             )
             info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
             info[f"alpha_loss_agent_{agent_index}"] = actor_info["alpha_loss"]
