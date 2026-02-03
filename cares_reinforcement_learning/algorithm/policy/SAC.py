@@ -281,13 +281,16 @@ class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.update_target_networks()
 
         # Update the Priorities
         if self.use_per_buffer:
             memory.update_priorities(indices, priorities)
 
         return info
+
+    def update_target_networks(self) -> None:
+        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
     def train_policy(
         self,

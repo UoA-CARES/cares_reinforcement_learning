@@ -476,6 +476,18 @@ class SACConfig(AlgorithmConfig):
     )
 
 
+class MASACConfig(SACConfig):
+    algorithm: str = "MASAC"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+    alpha_lr: float = 1e-3
+
+    max_grad_norm: float | None = 0.5
+
+
 class SACAEConfig(SACConfig):
     algorithm: str = "SACAE"
 
@@ -1028,13 +1040,6 @@ class MATD3Config(TD3Config):
 
     actor_lr: float = 1e-3
     critic_lr: float = 1e-3
-
-    gamma: float = 0.99
-    tau: float = 0.005
-
-    batch_size: int = 256
-
-    max_steps_exploration: int = 1000
 
     max_grad_norm: float | None = 0.5
 

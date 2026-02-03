@@ -175,6 +175,45 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
     return agent
 
 
+def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
+    from cares_reinforcement_learning.algorithm.policy import MASAC
+    from cares_reinforcement_learning.algorithm.policy.SAC import SAC
+    from cares_reinforcement_learning.networks.MASAC import Actor, Critic
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    device = hlp.get_device()
+
+    # KEEP THE ACTOR ORDER CONSISTENT
+    agent_ids = list(obs_shapes.keys())
+
+    for agent_name in agent_ids:
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
+
+        critic = Critic(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+        )
+
+        agent = SAC(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    masac_agent = MASAC(agents=agents, config=config, device=device)
+    return masac_agent
+
+
 def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
     from cares_reinforcement_learning.algorithm.policy import SACAE
     from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
