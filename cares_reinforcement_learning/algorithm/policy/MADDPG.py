@@ -27,7 +27,7 @@ Rationale:
 
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -63,7 +63,20 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         self.max_grad_norm = config.max_grad_norm
 
-        self.alpha = config.alpha  # adversarial perturbation scale
+        # M3DDPG adversarial perturbation scale
+        self.use_m3 = config.use_m3
+        self.m3_alpha = config.m3_alpha
+
+        # ERNIE adversarial regularization
+        self.use_ernie = config.use_ernie
+        self.ernie_lambda = config.ernie_lambda
+        self.ernie_eps = config.ernie_eps
+        self.ernie_k_steps = config.ernie_k_steps
+        self.ernie_norm = config.ernie_norm
+
+        self.ernie_step_size = (
+            self.ernie_eps / self.ernie_k_steps if self.ernie_k_steps > 0 else 0.0
+        )
 
         self.learn_counter = 0
 
@@ -94,6 +107,88 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         return ActionSample(action=actions, source="policy")
 
+    @staticmethod
+    def _project_l2_ball(delta: torch.Tensor, eps: float) -> torch.Tensor:
+        """
+        Project `delta` onto the L2 ball of radius `eps`, independently per batch element.
+
+        Args:
+            delta: (B, obs_dim)
+            eps: radius
+
+        Returns:
+            projected delta: (B, obs_dim)
+        """
+        flat = delta.view(delta.size(0), -1)  # (B, D)
+        norms = flat.norm(p=2, dim=1, keepdim=True).clamp_min(1e-12)  # (B, 1)
+        scale = (eps / norms).clamp(max=1.0)  # (B, 1)
+        return (flat * scale).view_as(delta)
+
+    def _ernie_adv_delta(
+        self,
+        actor_net: torch.nn.Module,
+        obs: torch.Tensor,
+        eps: float,
+        k_steps: int,
+        step_size: float,
+        norm: Literal["linf", "l2"] = "linf",
+    ) -> torch.Tensor:
+        """
+        ERNIE: inner maximization via PGD ascent to find delta that maximizes
+        D(pi(o+delta), pi(o)) under ||delta|| <= eps.
+
+        Args:
+            actor_net: maps obs -> action. obs: (B, obs_dim) -> (B, act_dim)
+            obs: (B, obs_dim)
+            eps: perturbation budget
+            k_steps: number of PGD steps
+            step_size: PGD step size
+            norm: "linf" or "l2"
+
+        Returns:
+            delta_adv: (B, obs_dim), detached
+        """
+        if eps <= 0.0 or k_steps <= 0 or step_size <= 0.0:
+            return torch.zeros_like(obs)
+
+        # Reference action (no gradients through this branch)
+        with torch.no_grad():
+            base_action = actor_net(obs)  # (B, act_dim)
+
+        # Random init within constraint set
+        delta = torch.empty_like(obs).uniform_(-eps, eps)
+        if norm == "l2":
+            delta = self._project_l2_ball(delta, eps)
+
+        delta.requires_grad_(True)
+
+        for _ in range(k_steps):
+            pert_action = actor_net(obs + delta)
+
+            # Maximize mean squared action deviation (stable for deterministic actors)
+            objective = (pert_action - base_action).pow(2).mean()
+
+            (grad,) = torch.autograd.grad(
+                outputs=objective,
+                inputs=delta,
+                retain_graph=False,
+                create_graph=False,
+                only_inputs=True,
+            )
+
+            with torch.no_grad():
+                if norm == "linf":
+                    delta.add_(step_size * grad.sign())
+                    delta.clamp_(-eps, eps)
+                else:  # "l2"
+                    delta.add_(step_size * grad)
+                    delta.copy_(self._project_l2_ball(delta, eps))
+
+            delta.requires_grad_(True)
+
+        return delta.detach()
+
+    # M3 DDPG methods
     def _compute_adversarial_actions(
         self,
         agent_index: int,
@@ -106,9 +201,9 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             a_j_adv = a_j + eps_j
         and eps_j is a 1-step gradient move that *decreases* Q_i.
         """
-        if self.alpha == 0.0:
+        if self.m3_alpha == 0.0:
             # Degenerates to original MADDPG
-            return actions
+            return actions.detach()
 
         # Clone and mark for gradient wrt actions only
         actions_for_grad = actions.detach().clone().requires_grad_(True)
@@ -131,7 +226,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         act_norm = actions_for_grad.norm(dim=-1, keepdim=True)
         grad_norm = grad_actions.norm(dim=-1, keepdim=True) + 1e-8
 
-        eps = -self.alpha * act_norm * grad_actions / grad_norm
+        eps = -self.m3_alpha * act_norm * grad_actions / grad_norm
 
         # Zero perturbation for the current agent i
         mask = torch.ones_like(eps)
@@ -153,7 +248,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         dones_i: torch.Tensor,
     ):
         # --- Step 1: build (possibly adversarial) next joint actions ---
-        if self.alpha != 0.0:
+        if self.use_m3:
             # M3DDPG: perturb OTHER agents' target actions for agent i
             next_actions_adv = self._compute_adversarial_actions(
                 agent_index=agent_index,
@@ -222,9 +317,9 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         actions_all[:, agent_index, :] = pred_action_i  # keep others from buffer
 
         # ---------------------------------------------------------
-        # Step 3: Apply M3DDPG adversarial perturbation (if enabled)
+        # Step 3a: Apply M3DDPG adversarial perturbation (if enabled)
         # ---------------------------------------------------------
-        if self.alpha != 0.0:
+        if self.use_m3:
             # compute perturbation on ALL actions (but this returns detached)
             actions_adv = self._compute_adversarial_actions(
                 agent_index=agent_index,
@@ -238,6 +333,22 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             actions_all = actions_adv
 
         # ---------------------------------------------------------
+        # Step 3b: Apply ERNIE adversarial perturbation (if enabled)
+        # ---------------------------------------------------------
+        ernie_reg = torch.tensor(0.0, device=obs_i.device)
+        if self.use_ernie:
+            delta_adv = self._ernie_adv_delta(
+                actor_net=agent.actor_net,
+                obs=obs_i,
+                eps=self.ernie_eps,
+                k_steps=self.ernie_k_steps,
+                step_size=self.ernie_step_size,
+                norm=self.ernie_norm,
+            )
+            pred_action_adv = agent.actor_net(obs_i + delta_adv)
+            ernie_reg = (pred_action_adv - pred_action_i).pow(2).mean()
+
+        # ---------------------------------------------------------
         # Step 4: Compute actor loss: -Q_i(x, a_1,...,a_i,...,a_N)
         # ---------------------------------------------------------
         joint_actions_flat = actions_all.reshape(batch_size, -1)
@@ -246,7 +357,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         # regularization as in TF code
         reg = (pred_action_i**2).mean() * 1e-3
 
-        actor_loss = -q_val.mean() + reg
+        actor_loss = -q_val.mean() + reg + (self.ernie_lambda * ernie_reg)
 
         # ---------------------------------------------------------
         # Step 5: Backprop
