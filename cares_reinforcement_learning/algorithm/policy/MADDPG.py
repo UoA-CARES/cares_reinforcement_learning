@@ -27,7 +27,7 @@ Rationale:
 
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -131,7 +131,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         eps: float,
         k_steps: int,
         step_size: float,
-        norm: str = "linf",
+        norm: Literal["linf", "l2"] = "linf",
     ) -> torch.Tensor:
         """
         ERNIE: inner maximization via PGD ascent to find delta that maximizes
@@ -203,7 +203,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         """
         if self.m3_alpha == 0.0:
             # Degenerates to original MADDPG
-            return actions
+            return actions.detach()
 
         # Clone and mark for gradient wrt actions only
         actions_for_grad = actions.detach().clone().requires_grad_(True)
@@ -336,7 +336,6 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         # Step 3b: Apply ERNIE adversarial perturbation (if enabled)
         # ---------------------------------------------------------
         ernie_reg = torch.tensor(0.0, device=obs_i.device)
-
         if self.use_ernie:
             delta_adv = self._ernie_adv_delta(
                 actor_net=agent.actor_net,
