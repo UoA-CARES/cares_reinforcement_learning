@@ -81,6 +81,7 @@ def populate_buffer_sarl(
             reward=10.0,
             done=False,
             truncated=False,
+            train_data={"log_prob": -0.5, "value": 0.1},
             info={},
         )
         memory_buffer.add(experience)

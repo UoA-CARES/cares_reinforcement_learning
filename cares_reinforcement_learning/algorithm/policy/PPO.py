@@ -77,6 +77,8 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.target_kl = config.target_kl
 
         self.max_grad_norm = config.max_grad_norm
+        self.min_log_std = config.log_std_bounds[0]
+        self.max_log_std = config.log_std_bounds[1]
 
         init_log_std = torch.log(torch.sqrt(torch.tensor(0.5, device=self.device)))
         self.log_std = torch.nn.Parameter(init_log_std.repeat(self.action_num))
@@ -281,8 +283,10 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 torch.nn.utils.clip_grad_norm_(
                     self.actor_net.parameters(), self.max_grad_norm
                 )
-                torch.nn.utils.clip_grad_norm_([self.log_std], self.max_grad_norm)
                 self.actor_net_optimiser.step()
+
+                with torch.no_grad():
+                    self.log_std.clamp_(self.min_log_std, self.max_log_std)
 
                 # ---- Critic ----
                 v = self.critic_net(states_mb).view(-1)

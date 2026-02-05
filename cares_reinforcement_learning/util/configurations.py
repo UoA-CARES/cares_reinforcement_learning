@@ -399,6 +399,7 @@ class PPOConfig(AlgorithmConfig):
     target_kl: float | None = 0.02
 
     max_grad_norm: float | None = 0.5
+    log_std_bounds: list[float] = [-5.0, 1.0]
 
     updates_per_iteration: int = 10
 
