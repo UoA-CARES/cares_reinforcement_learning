@@ -1,11 +1,36 @@
 """
-Original Paper:
-                https://arxiv.org/abs/1707.06347
-Good Explanation:
-                https://www.youtube.com/watch?v=5P7I-xPq8u8
-Code based on:
-                https://github.com/ericyangyu/PPO-for-Beginners
-                https://github.com/nikhilbarhate99/PPO-PyTorch
+PPO (Proximal Policy Optimization) implementation notes
+--------------------------------------------------------------
+Original Paper: https://arxiv.org/abs/1707.06347
+
+This implementation follows the clipped-surrogate PPO formulation with
+Generalized Advantage Estimation (GAE), minibatch SGD, and optional KL-based
+early stopping.
+
+Rollout collection:
+- Experience is collected strictly on-policy using the current stochastic policy.
+- For each step, the sampled action, its log-probability under the behavior
+  policy, and the critic value V(s) are stored.
+
+Advantage estimation:
+- Advantages are computed using Generalized Advantage Estimation (GAE),
+  bootstrapped from a single final value for truncated rollouts.
+- Returns for critic updates are computed as advantage + value.
+- Advantages are normalized across the batch for stability.
+
+Policy and value updates:
+- The actor is optimized using the PPO clipped surrogate objective with an
+  optional entropy bonus.
+- The critic is trained by regression onto the computed returns.
+- Updates are performed using multiple epochs of minibatch SGD over the
+  same on-policy rollout.
+- Gradient norm clipping is applied to improve numerical stability.
+
+KL control:
+- An approximate KL divergence between the old and updated policy is monitored.
+- If the KL exceeds a configured threshold, further policy updates for the
+  current iteration are stopped early, providing an additional trust-region
+  constraint beyond clipping.
 """
 
 import logging
