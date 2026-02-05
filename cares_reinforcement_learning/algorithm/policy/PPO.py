@@ -240,6 +240,24 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
+        with torch.no_grad():
+            info_adv_mean = advantages.mean()
+            info_adv_std = advantages.std()
+            info_returns_mean = returns.mean()
+            info_returns_std = returns.std()
+
+            # Critic fit quality (explained variance) on the whole batch
+            v_pred_all = self.critic_net(states).view(-1)
+            y_all = returns.view(-1)
+            explained_var = 1.0 - torch.var(y_all - v_pred_all) / (
+                torch.var(y_all) + 1e-8
+            )
+
+            # Exploration stats
+            log_std_mean = self.log_std.mean()
+            log_std_min = self.log_std.min()
+            log_std_max = self.log_std.max()
+
         mb_size = min(self.minibatch_size, batch_size)
 
         actions_tensor = actions_tensor.view(-1, self.action_num)  # [N, act_dim]
@@ -249,6 +267,13 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         for _ in range(self.updates_per_iteration):
             idx = torch.randperm(batch_size, device=self.device)
+
+            sum_kl = 0.0
+            sum_entropy = 0.0
+            sum_clip_frac = 0.0
+            sum_ratio_mean = 0.0
+            sum_ratio_std = 0.0
+            num_mbs = 0
 
             for start in range(0, batch_size, mb_size):
                 mb = idx[start : start + mb_size]
@@ -265,6 +290,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 curr_log_probs = dist.log_prob(actions_mb)
 
                 ratios = torch.exp(curr_log_probs - old_logp_mb)
+
                 unclipped_objective = ratios * advantages_mb
                 clipped_ratio = torch.clamp(
                     ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip
@@ -299,16 +325,56 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 )
                 self.critic_net_optimiser.step()
 
+                with torch.no_grad():
+                    clip_frac = (
+                        (
+                            (ratios > 1.0 + self.eps_clip)
+                            | (ratios < 1.0 - self.eps_clip)
+                        )
+                        .float()
+                        .mean()
+                    )
+                    sum_clip_frac += float(clip_frac.item())
+                    sum_ratio_mean += float(ratios.mean().item())
+                    sum_ratio_std += float(ratios.std(unbiased=False).item())
+                    sum_entropy += float(entropy.item())
+
                 # ---- Optional KL early stopping ----
                 if self.target_kl is not None:
                     with torch.no_grad():
                         approx_kl = (old_logp_mb - curr_log_probs).mean()
+                        sum_kl += float(approx_kl.item())
                     if approx_kl > self.target_kl:
                         break
 
+                num_mbs += 1
+
         info: dict[str, Any] = {}
-        info["critic_loss"] = critic_loss.item()
-        info["actor_loss"] = actor_loss.item()
+        info["critic_loss"] = float(critic_loss.item())
+        info["actor_loss"] = float(actor_loss.item())
+
+        # Batch-level stats
+        info["adv_mean"] = float(info_adv_mean.item())
+        info["adv_std"] = float(info_adv_std.item())
+        info["returns_mean"] = float(info_returns_mean.item())
+        info["returns_std"] = float(info_returns_std.item())
+        info["explained_variance"] = float(explained_var.item())
+
+        # Exploration
+        info["log_std_mean"] = float(log_std_mean.item())
+        info["log_std_min"] = float(log_std_min.item())
+        info["log_std_max"] = float(log_std_max.item())
+
+        # Update health (averaged over minibatches)
+        if num_mbs > 0:
+            info["entropy"] = sum_entropy / num_mbs
+            info["clip_frac"] = sum_clip_frac / num_mbs
+            info["ratio_mean"] = sum_ratio_mean / num_mbs
+            info["ratio_std"] = sum_ratio_std / num_mbs
+
+        # KL (only if enabled)
+        if self.target_kl is not None and num_mbs > 0:
+            info["approx_kl"] = sum_kl / num_mbs
 
         return info
 
