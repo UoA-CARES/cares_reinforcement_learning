@@ -44,8 +44,20 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.action_num = self.actor_net.num_actions
         self.device = device
 
+        self.gae_lambda = config.gae_lambda
+        self.minibatch_size = config.minibatch_size
+
+        self.gae_lambda = config.gae_lambda
+        self.entropy_coef = config.entropy_coef
+        self.target_kl = config.target_kl
+
+        self.max_grad_norm = config.max_grad_norm
+
+        init_log_std = torch.log(torch.sqrt(torch.tensor(0.5, device=self.device)))
+        self.log_std = torch.nn.Parameter(init_log_std.repeat(self.action_num))
+
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr
+            list(self.actor_net.parameters()) + [self.log_std], lr=config.actor_lr
         )
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=config.critic_lr
@@ -54,10 +66,11 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.updates_per_iteration = config.updates_per_iteration
         self.eps_clip = config.eps_clip
 
-        self.cov_var = torch.full(size=(self.action_num,), fill_value=0.5).to(
-            self.device
-        )
-        self.cov_mat = torch.diag(self.cov_var)
+    def _dist(self, mean: torch.Tensor) -> MultivariateNormal:
+        # mean: [B, act_dim] or [act_dim]
+        std = self.log_std.exp()  # [act_dim]
+        cov = torch.diag(std * std)  # [act_dim, act_dim] (broadcasts across batch)
+        return MultivariateNormal(mean, covariance_matrix=cov)
 
     def _calculate_log_prob(
         self, state: torch.Tensor, action: torch.Tensor
@@ -65,8 +78,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.actor_net.eval()
         with torch.no_grad():
             mean = self.actor_net(state)
-
-            dist = MultivariateNormal(mean, self.cov_mat)
+            dist = self._dist(mean)
             log_prob = dist.log_prob(action)
 
         self.actor_net.train()
@@ -76,23 +88,35 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
+        self.critic_net.eval()
         state = observation.vector_state
 
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-            state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = state_tensor.unsqueeze(0)  # add batch dimension
 
             mean = self.actor_net(state_tensor)
-            dist = MultivariateNormal(mean, self.cov_mat)
+            dist = self._dist(mean)
 
-            # Sample an action from the distribution and get its log prob
-            sample = dist.sample()
+            sample = mean if evaluation else dist.sample()
 
-            action = sample.cpu().data.numpy().flatten()
+            # Clamp the action you will actually execute
+            sample = sample.clamp(-1.0, 1.0)
+
+            log_prob = dist.log_prob(sample)  # store π_old(a|s) for PPO ratio
+
+            value = self.critic_net(state_tensor).squeeze(-1)  # shape [1]
+
+            action = sample.squeeze(0).cpu().numpy()
 
         self.actor_net.train()
+        self.critic_net.train()
 
-        return ActionSample(action=action, source="policy")
+        return ActionSample(
+            action=action,
+            source="policy",
+            extras={"log_prob": float(log_prob.item()), "value": float(value.item())},
+        )
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
@@ -105,27 +129,33 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         return value[0].item()
 
-    def _evaluate_policy(
-        self, state: torch.Tensor, action: torch.Tensor
+    def _calculate_gae(
+        self,
+        rewards: torch.Tensor,  # [N] or [N,1]
+        dones: torch.Tensor,  # [N] or [N,1] (1.0 if done else 0.0)
+        values: torch.Tensor,  # [N]
+        last_value: torch.Tensor,  # scalar tensor, V(s_T) for bootstrap
+        gae_lambda: float,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        v = self.critic_net(state).squeeze()  # shape 5000
-        mean = self.actor_net(state)  # shape, 5000, 1
-        dist = MultivariateNormal(mean, self.cov_mat)
-        log_prob = dist.log_prob(action)  # shape, 5000
-        return v, log_prob
+        rewards = rewards.view(-1)
+        dones = dones.view(-1)
+        values = values.view(-1)
 
-    def _calculate_rewards_to_go(
-        self, batch_rewards: torch.Tensor, batch_dones: torch.Tensor
-    ) -> torch.Tensor:
-        rtgs: list[float] = []
-        discounted_reward = 0
-        for reward, done in zip(reversed(batch_rewards), reversed(batch_dones)):
-            discounted_reward = reward + self.gamma * (1 - done) * discounted_reward
-            rtgs.insert(0, discounted_reward)
-        batch_rtgs = torch.tensor(
-            rtgs, dtype=torch.float32, device=self.device
-        )  # shape 5000
-        return batch_rtgs
+        batch_size = rewards.shape[0]
+        advantages = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
+
+        gae = 0.0
+        next_value = last_value
+
+        for t in reversed(range(batch_size)):
+            mask = 1.0 - dones[t]  # 0 if terminal else 1
+            delta = rewards[t] + self.gamma * mask * next_value - values[t]
+            gae = delta + self.gamma * gae_lambda * mask * gae
+            advantages[t] = gae
+            next_value = values[t]
+
+        returns = advantages + values
+        return advantages, returns
 
     def train_policy(
         self,
@@ -135,66 +165,119 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         # pylint: disable-next=unused-argument
 
         sample = memory_buffer.flush()
+        batch_size = len(sample.experiences)
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
         (
             observation_tensor,
             actions_tensor,
             rewards_tensor,
-            _,  # next_states not used in PPO
+            next_observation_tensor,
             dones_tensor,
             _,  # weights not needed
             _,
         ) = memory_sampler.sample_to_tensors(sample, self.device)
 
-        log_probs_tensor = self._calculate_log_prob(
-            observation_tensor.vector_state_tensor, actions_tensor
+        states = observation_tensor.vector_state_tensor  # shape [B, obs_dim]
+
+        # Old log_probs + values stored at action time
+        old_log_probs = [
+            experience.train_data["log_prob"] for experience in sample.experiences
+        ]
+        old_log_probs_tensor = torch.tensor(
+            np.asarray(old_log_probs), dtype=torch.float32, device=self.device
         )
 
-        # compute reward to go:
-        rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
-        # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
-
-        # calculate advantages
-        v, _ = self._evaluate_policy(
-            observation_tensor.vector_state_tensor, actions_tensor
+        old_values = [
+            experience.train_data["value"] for experience in sample.experiences
+        ]
+        old_values_tensor = torch.tensor(
+            np.asarray(old_values), dtype=torch.float32, device=self.device
         )
 
-        advantages = rtgs.detach() - v.detach()
+        with torch.no_grad():
+            last_next_state = next_observation_tensor.vector_state_tensor[-1].unsqueeze(
+                0
+            )  # [1, obs_dim]
+            last_value = self.critic_net(last_next_state).view(-1)[0]  # scalar
+
+        # GAE: compute advantages using GAE, which uses critic values to bootstrap:
+        advantages, returns = self._calculate_gae(
+            rewards=rewards_tensor,
+            dones=dones_tensor,
+            values=old_values_tensor,
+            last_value=last_value,
+            gae_lambda=self.gae_lambda,
+        )
 
         # Normalize advantages
-        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-10)
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
-        td_errors = torch.abs(advantages).data.cpu().numpy()
+        mb_size = min(self.minibatch_size, batch_size)
+
+        actions_tensor = actions_tensor.view(-1, self.action_num)  # [N, act_dim]
+        old_log_probs_tensor = old_log_probs_tensor.view(-1)  # [N]
+        advantages = advantages.view(-1)  # [N]
+        returns = returns.view(-1)  # [N]
 
         for _ in range(self.updates_per_iteration):
-            v, curr_log_probs = self._evaluate_policy(
-                observation_tensor.vector_state_tensor, actions_tensor
-            )
+            idx = torch.randperm(batch_size, device=self.device)
 
-            # Calculate ratios
-            ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())
+            for start in range(0, batch_size, mb_size):
+                mb = idx[start : start + mb_size]
 
-            # Finding Surrogate Loss
-            surrogate_lose_one = ratios * advantages
-            surrogate_lose_two = (
-                torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-            )
+                states_mb = states[mb]
+                actions_mb = actions_tensor[mb]
+                old_logp_mb = old_log_probs_tensor[mb].detach()
+                advantages_mb = advantages[mb]
+                returns_mb = returns[mb]
 
-            # final loss of clipped objective PPO
-            actor_loss = (-torch.minimum(surrogate_lose_one, surrogate_lose_two)).mean()
-            critic_loss = F.mse_loss(v, rtgs)
+                # ---- Actor ----
+                mean = self.actor_net(states_mb)
+                dist = self._dist(mean)
+                curr_log_probs = dist.log_prob(actions_mb)
 
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward(retain_graph=True)
-            self.actor_net_optimiser.step()
+                ratios = torch.exp(curr_log_probs - old_logp_mb)
+                unclipped_objective = ratios * advantages_mb
+                clipped_ratio = torch.clamp(
+                    ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip
+                )
+                clipped_objective = clipped_ratio * advantages_mb
 
-            self.critic_net_optimiser.zero_grad()
-            critic_loss.backward()
-            self.critic_net_optimiser.step()
+                policy_objective = torch.min(unclipped_objective, clipped_objective)
+
+                actor_loss = -policy_objective.mean()
+
+                entropy = dist.entropy().mean()
+                actor_loss = actor_loss - self.entropy_coef * entropy
+
+                self.actor_net_optimiser.zero_grad()
+                actor_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.actor_net.parameters(), self.max_grad_norm
+                )
+                torch.nn.utils.clip_grad_norm_([self.log_std], self.max_grad_norm)
+                self.actor_net_optimiser.step()
+
+                # ---- Critic ----
+                v = self.critic_net(states_mb).view(-1)
+                critic_loss = F.mse_loss(v, returns_mb)
+
+                self.critic_net_optimiser.zero_grad()
+                critic_loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    self.critic_net.parameters(), self.max_grad_norm
+                )
+                self.critic_net_optimiser.step()
+
+                # ---- Optional KL early stopping ----
+                if self.target_kl is not None:
+                    with torch.no_grad():
+                        approx_kl = (old_logp_mb - curr_log_probs).mean()
+                    if approx_kl > self.target_kl:
+                        break
 
         info: dict[str, Any] = {}
-        info["td_errors"] = td_errors
         info["critic_loss"] = critic_loss.item()
         info["actor_loss"] = actor_loss.item()
 
@@ -207,6 +290,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         checkpoint = {
             "actor": self.actor_net.state_dict(),
             "critic": self.critic_net.state_dict(),
+            "log_std": self.log_std.data.detach().cpu(),
             "actor_optimizer": self.actor_net_optimiser.state_dict(),
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
         }
@@ -217,6 +301,8 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
         self.actor_net.load_state_dict(checkpoint["actor"])
         self.critic_net.load_state_dict(checkpoint["critic"])
+
+        self.log_std.data.copy_(checkpoint["log_std"].to(self.device))
 
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])

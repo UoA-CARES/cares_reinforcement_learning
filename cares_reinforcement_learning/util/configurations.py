@@ -389,37 +389,42 @@ class QMIXConfig(DQNConfig):
 class PPOConfig(AlgorithmConfig):
     algorithm: str = "PPO"
 
-    actor_lr: float = 1e-4
+    actor_lr: float = 3e-4
     critic_lr: float = 1e-3
 
     gamma: float = 0.99
     eps_clip: float = 0.2
+    gae_lambda: float = 0.95
+    entropy_coef: float = 0.01
+    target_kl: float | None = 0.02
 
-    # TODO is this G?
+    max_grad_norm: float | None = 0.5
+
     updates_per_iteration: int = 10
 
+    minibatch_size: int = 250
     number_steps_per_train_policy: int = 5000
 
     max_steps_exploration: int = 0
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=1024),
+            TrainableLayer(layer_type="Linear", out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024),
+            TrainableLayer(layer_type="Linear", in_features=256),
             FunctionLayer(layer_type="Tanh"),
         ]
     )
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=1024),
+            TrainableLayer(layer_type="Linear", out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
 

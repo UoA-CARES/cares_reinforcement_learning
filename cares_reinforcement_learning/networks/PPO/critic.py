@@ -18,7 +18,7 @@ class BaseCritic(nn.Module):
 
 class DefaultCritic(BaseCritic):
     def __init__(self, observation_size: int):
-        hidden_sizes = [1024, 1024]
+        hidden_sizes = [256, 256]
 
         # Q1 architecture
         # pylint: disable-next=invalid-name

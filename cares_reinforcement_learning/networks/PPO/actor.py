@@ -1,3 +1,9 @@
+# PPO policy:
+# - Actor outputs tanh-bounded mean in [-1, 1]
+# - Gaussian exploration is applied directly in action space
+# - log_prob is computed on the bounded sampled action
+# This matches common PPO baselines and assumes env wrapper handles denormalisation.
+
 import torch
 from torch import nn
 
@@ -19,7 +25,7 @@ class BaseActor(nn.Module):
 
 class DefaultActor(BaseActor):
     def __init__(self, observation_size: int, num_actions: int):
-        hidden_sizes = [1024, 1024]
+        hidden_sizes = [256, 256]
 
         act_net = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),
