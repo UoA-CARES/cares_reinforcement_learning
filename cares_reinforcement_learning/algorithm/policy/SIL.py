@@ -61,6 +61,7 @@ class SIL(VectorAlgorithm):
         self.sil_d_beta  = config.sil_d_beta
         self.sil_per_alpha = config.sil_per_alpha
         self.sil_min_priority  = config.sil_min_priority
+        self.sil_buffer_max_capacity = config.sil_buffer_max_capacity
 
         self.sil_policy_update_freq = config.sil_policy_update_freq
 
@@ -134,9 +135,8 @@ class SIL(VectorAlgorithm):
 
     def _create_sil_memory(self):
         """
-        create a unique sil_memory
-        parameter priority: main_algo > SIL > default
-        Note: SIL paper high light there is no using IS(Important sampling) for per, beta=0.0, d_beta=0.0
+        Initializes a unique MemoryBuffer for SIL using specific hyperparameters.
+        Reference: SIL paper suggests small fixed beta (0.1) and high alpha (0.6 or 1.0).
         """
         # check the unique of sil_memory to avoid memory overwirte
         if hasattr(self, "sil_memory") and self.sil_memory is not None:
@@ -144,23 +144,28 @@ class SIL(VectorAlgorithm):
             logging.error(error_msg)
             raise RuntimeError(error_msg)
 
-        # buffer size
-        capacity = getattr(self.main_algo, "buffer_size", None)
-        if capacity is None:
-            capacity = getattr(self.config, "buffer_size", 1000000)
-            logging.info(f"SIL: Using buffer_size: {capacity}")
-        # sil PER Alpha
+        # SIL PER buffer configuration extraction
+
         per_alpha = self.sil_per_alpha
-        if not (0 <= per_alpha <= 1):
-            raise ValueError(f"SIL Error: Invalid per_alpha ({per_alpha}). Must be between 0 and 1.")
-        print(f"SIL: Creating unique PER Buffer [Capacity: {capacity}, Alpha: {per_alpha},  Beta: {self.sil_beta},  D_beta: {self.sil_d_beta}],")
+        max_capacity = self.sil_buffer_max_capacity
+        min_priority = self.sil_min_priority
+        beta = self.sil_beta
+        d_beta = self.sil_d_beta
+
+        print("-" * 60)
+        print(f"SIL: Initializing Unique PER Memory Buffer:")
+        print(f"    - Capacity:     {max_capacity}")
+        print(f"    - Alpha:        {per_alpha}")
+        print(f"    - Beta (Init):  {beta}")
+        print(f"    - Delta Beta:   {d_beta}")
+        print(f"    - Min Priority: {min_priority}")
         print("-" * 60)
 
-        # create sil_memory
         return MemoryBuffer(
-            max_capacity=capacity,
-            beta = self.sil_beta,
-            d_beta = self.sil_d_beta,
+            max_capacity,
+            min_priority,
+            beta,
+            d_beta,
         )
 
 
@@ -184,8 +189,9 @@ class SIL(VectorAlgorithm):
 
         print("\n" + "="*60)
         print(f" SIL MODULE INITIALIZED FOR [ {main_name} ] ")
-        print(f" SIL V0.1: experiences filter: reward > 0")
-        print(f" SIL V0.1: Only clamp on advantages: min=0; max=sil_clip")
+        print(f" SIL V1.0: experiences filter: reward > 0")
+        print(f" SIL V1.0: reward scaler openai:0.01/dmcs:1 ; sil_clip:1;")
+        print(f" SIL V1.0: sil PER alph:1, beta:0.1, size: 50000")
         print("-" * 60)
 
         all_systems_go = True

@@ -97,7 +97,6 @@ class PPO2SIL(VectorAlgorithm):
                     config=sil_config, # Correct: passing the instance
                     device=self.device
                 )
-                self.SIL.sil_n_update = 4  # set up for PPO2 for test
                 print('SIL module: Initialization successful and attached to main algorithm.')
             except Exception as e:
                 logging.error(f"SIL module failed to initialize: {e}")

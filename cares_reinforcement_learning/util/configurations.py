@@ -531,10 +531,11 @@ class SILConfig(AlgorithmConfig):
     use_per_buffer: int = 1
     sil_per_sampling_strategy: str = "stratified"
     sil_per_weight_normalisation: str = "batch"
-    sil_beta: float = 0
+    sil_beta: float = 0.1
     sil_d_beta: float = 0
-    sil_per_alpha: float = 0.6
+    sil_per_alpha: float = 1 # {0.6,1}
     sil_min_priority: float = 1e-6
+    sil_buffer_max_capacity: int = 50000 # refer to SIL source code
 
     sil_policy_update_freq: int = 1
 
