@@ -481,11 +481,14 @@ class PPO2SILConfig(PPO2Config):
 
     # SIL hyperparameter
     sil_update_interval: int = 1
-    sil_n_update: int = 1  #update times after policy train
+    sil_n_update: int = 10  #update times after policy train
+    sil_batch_size: int = 512
 
-    sil_clip: float = 100  # sil clip value, using in advanagtes
-    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
-    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
+    sil_clip: float = 1  # sil clip value, using in advanagtes
+    sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_weight_v: float = 0.01 # {0.01, 0.05}
+    sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
 
 
@@ -511,15 +514,17 @@ class SILConfig(AlgorithmConfig):
 
     # to do: hwo to find a good batch size for SIL?
     # How without IS impact the SIL batch_size?
-    batch_size: int = 128
 
     # SIL hyperparameter
     sil_update_interval: int = 1
     sil_n_update: int = 1  #update times after policy train
+    sil_batch_size: int = 512
 
-    sil_clip: float = 100  # sil clip value, using in advanagtes
-    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
-    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
+    sil_clip: float = 1  # sil clip value, using in advanagtes
+    sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_weight_v: float = 0.01 # {0.01, 0.05}
+    sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
 
     # sil PER
@@ -599,10 +604,13 @@ class SACSILConfig(SACConfig):
     # SIL hyperparameter
     sil_update_interval: int = 1
     sil_n_update: int = 1  #update times after policy train
+    sil_batch_size: int = 512
 
-    sil_clip: float = 100  # sil clip value, using in advanagtes
-    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
-    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
+    sil_clip: float = 1  # sil clip value, using in advanagtes
+    sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_weight_v: float = 0.01 # {0.01, 0.05}
+    sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
 
 
@@ -1184,10 +1192,13 @@ class TD3SILConfig(TD3Config):
     # SIL hyperparameter
     sil_update_interval: int = 1
     sil_n_update: int = 1  #update times after policy train
+    sil_batch_size: int = 512
 
-    sil_clip: float = 100  # sil clip value, using in advanagtes
-    sil_weight: float = 0.01  # refer to source code in PPO, to do: confirm for TD3 SAC
-    sil_max_nlog: float = 20  # add for sil update clamp
+    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
+    sil_clip: float = 1  # sil clip value, using in advanagtes
+    sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
+    sil_weight_v: float = 0.01 # {0.01, 0.05}
+    sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
 
 

@@ -77,10 +77,12 @@ class PPO2SIL(VectorAlgorithm):
         # SIL hyperparameter
         self.sil_update_interval = config.sil_update_interval
         self.sil_n_update = config.sil_n_update #update times after policy train
+        self.sil_scaler = config.sil_scaler # for fn_reward() temporary solution
         self.sil_clip = config.sil_clip # sil clip value, using in advanagtes
         self.sil_max_nlog = config.sil_max_nlog # to do: how to select
         self.sil_max_grad_norm = config.sil_max_grad_norm # to do: how to select
         self.sil_weight = config.sil_weight # to do: how to set for different algos
+        self.sil_weight_v = config.sil_weight_v
 
         # --- SIL module initialization ---
         self.use_SIL = config.use_SIL
@@ -359,12 +361,8 @@ class PPO2SIL(VectorAlgorithm):
             self.critic_net_optimiser.step()
 
         info: dict[str, Any] = {}
-        #info["td_errors"] = td_errors
-        # info["critic_loss"] = critic_loss.item()
-        # info["actor_loss"] = actor_loss.item()
 
         current_std = torch.exp(self.log_std).mean().item() # add std to log
-        #info["step_std"] = current_std
 
         info |= {
             "critic_loss": critic_loss.item(),

@@ -85,10 +85,12 @@ class SACSIL(VectorAlgorithm):
         # SIL hyperparameter
         self.sil_update_interval = config.sil_update_interval
         self.sil_n_update = config.sil_n_update #update times after policy train
+        self.sil_scaler = config.sil_scaler # for fn_reward() temporary solution
         self.sil_clip = config.sil_clip # sil clip value, using in advanagtes
         self.sil_max_nlog = config.sil_max_nlog # to do: how to select
         self.sil_max_grad_norm = config.sil_max_grad_norm # to do: how to select
         self.sil_weight = config.sil_weight # to do: how to set for different algos
+        self.sil_weight_v = config.sil_weight_v
 
         # --- SIL module initialization ---
         self.use_SIL = config.use_SIL

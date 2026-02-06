@@ -349,12 +349,14 @@ class PPO2(VectorAlgorithm):
             self.critic_net_optimiser.step()
 
         info: dict[str, Any] = {}
-        info["td_errors"] = td_errors
-        info["critic_loss"] = critic_loss.item()
-        info["actor_loss"] = actor_loss.item()
 
         current_std = torch.exp(self.log_std).mean().item() # add std to log
-        info["step_std"] = current_std
+
+        info |= {
+            "critic_loss": critic_loss.item(),
+            "actor_loss": actor_loss.item(),
+            "step_std": current_std,
+            }
 
         return info
 
