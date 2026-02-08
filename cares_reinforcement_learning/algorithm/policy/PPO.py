@@ -230,6 +230,9 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         sample = memory_buffer.flush()
         batch_size = len(sample.experiences)
 
+        if batch_size == 0:
+            return {}
+
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
         (
             observation_tensor,
@@ -323,6 +326,9 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         sum_ratio_mean = 0.0
         sum_ratio_std = 0.0
 
+        sum_critic_loss = 0.0
+        sum_actor_loss = 0.0
+
         num_mbs = 0
 
         for _ in range(self.updates_per_iteration):
@@ -390,6 +396,8 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 entropy = dist.entropy().sum(dim=-1).mean()
                 actor_loss = actor_loss - self.entropy_coef * entropy
 
+                sum_actor_loss += float(actor_loss.item())
+
                 self.actor_net_optimiser.zero_grad()
                 actor_loss.backward()
                 torch.nn.utils.clip_grad_norm_(
@@ -401,6 +409,8 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 # ---- Critic ----
                 v = self.critic_net(states_mb).view(-1)
                 critic_loss = F.mse_loss(v, returns_mb)
+
+                sum_critic_loss += float(critic_loss.item())
 
                 self.critic_net_optimiser.zero_grad()
                 critic_loss.backward()
@@ -427,8 +437,8 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 break
 
         info: dict[str, Any] = {}
-        info["critic_loss"] = float(critic_loss.item())
-        info["actor_loss"] = float(actor_loss.item())
+        info["critic_loss"] = sum_critic_loss / num_mbs if num_mbs > 0 else 0.0
+        info["actor_loss"] = sum_actor_loss / num_mbs if num_mbs > 0 else 0.0
 
         # Batch-level stats
         info["adv_mean"] = float(info_adv_mean.item())
