@@ -40,7 +40,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
-from torch.distributions import MultivariateNormal
+from torch.distributions import Normal
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
@@ -93,23 +93,10 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.updates_per_iteration = config.updates_per_iteration
         self.eps_clip = config.eps_clip
 
-    def _dist(self, mean: torch.Tensor) -> MultivariateNormal:
+    def _dist(self, mean: torch.Tensor) -> Normal:
         # mean: [B, act_dim] or [act_dim]
         std = self.log_std.exp()  # [act_dim]
-        cov = torch.diag(std * std)  # [act_dim, act_dim] (broadcasts across batch)
-        return MultivariateNormal(mean, covariance_matrix=cov)
-
-    def _calculate_log_prob(
-        self, state: torch.Tensor, action: torch.Tensor
-    ) -> torch.Tensor:
-        self.actor_net.eval()
-        with torch.no_grad():
-            mean = self.actor_net(state)
-            dist = self._dist(mean)
-            log_prob = dist.log_prob(action)
-
-        self.actor_net.train()
-        return log_prob
+        return Normal(mean, std)
 
     def act(
         self, observation: SARLObservation, evaluation: bool = False
@@ -125,12 +112,9 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             mean = self.actor_net(state_tensor)
             dist = self._dist(mean)
 
-            sample = mean if evaluation else dist.sample()
-
-            # Clamp the action you will actually execute
-            sample = sample.clamp(-1.0, 1.0)
-
-            log_prob = dist.log_prob(sample)  # store π_old(a|s) for PPO ratio
+            sample = mean if evaluation else dist.rsample()
+            # store π_old(a|s) for PPO ratio
+            log_prob = dist.log_prob(sample).sum(dim=-1)
 
             value = self.critic_net(state_tensor).squeeze(-1)  # shape [1]
 
@@ -265,6 +249,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         advantages = advantages.view(-1)  # [N]
         returns = returns.view(-1)  # [N]
 
+        kl_early_stop = False
         for _ in range(self.updates_per_iteration):
             idx = torch.randperm(batch_size, device=self.device)
 
@@ -287,7 +272,20 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 # ---- Actor ----
                 mean = self.actor_net(states_mb)
                 dist = self._dist(mean)
-                curr_log_probs = dist.log_prob(actions_mb)
+                curr_log_probs = dist.log_prob(actions_mb).sum(dim=-1)
+
+                assert curr_log_probs.shape == old_logp_mb.shape
+
+                # ---- Optional KL early stopping ----
+                if self.target_kl is not None:
+                    with torch.no_grad():
+                        approx_kl = (old_logp_mb - curr_log_probs).mean()
+                        sum_kl += float(approx_kl.item())
+                    if approx_kl > self.target_kl:
+                        kl_early_stop = True
+                        break
+
+                num_mbs += 1
 
                 ratios = torch.exp(curr_log_probs - old_logp_mb)
 
@@ -301,13 +299,14 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
                 actor_loss = -policy_objective.mean()
 
-                entropy = dist.entropy().mean()
+                entropy = dist.entropy().sum(dim=-1).mean()
                 actor_loss = actor_loss - self.entropy_coef * entropy
 
                 self.actor_net_optimiser.zero_grad()
                 actor_loss.backward()
                 torch.nn.utils.clip_grad_norm_(
-                    self.actor_net.parameters(), self.max_grad_norm
+                    list(self.actor_net.parameters()) + [self.log_std],
+                    self.max_grad_norm,
                 )
                 self.actor_net_optimiser.step()
 
@@ -339,15 +338,8 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                     sum_ratio_std += float(ratios.std(unbiased=False).item())
                     sum_entropy += float(entropy.item())
 
-                # ---- Optional KL early stopping ----
-                if self.target_kl is not None:
-                    with torch.no_grad():
-                        approx_kl = (old_logp_mb - curr_log_probs).mean()
-                        sum_kl += float(approx_kl.item())
-                    if approx_kl > self.target_kl:
-                        break
-
-                num_mbs += 1
+            if kl_early_stop:
+                break
 
         info: dict[str, Any] = {}
         info["critic_loss"] = float(critic_loss.item())

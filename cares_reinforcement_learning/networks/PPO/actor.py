@@ -33,7 +33,7 @@ class DefaultActor(BaseActor):
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             nn.Linear(hidden_sizes[1], num_actions),
-            nn.Tanh(),
+            # nn.Tanh(),
         )
 
         super().__init__(act_net=act_net, num_actions=num_actions)
