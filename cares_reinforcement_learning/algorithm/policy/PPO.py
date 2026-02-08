@@ -47,6 +47,18 @@ Policy and value updates:
 - Gradient norm clipping is applied to both actor (including log_std) and
   critic parameters.
 
+Exploration noise (learnable log_std):
+- The policy maintains a learnable log standard deviation parameter (log_std)
+  for each action dimension.
+- This parameter controls the scale of exploration noise in pre-squash space
+  and is optimized jointly with the actor network parameters.
+- log_std is constrained to lie within configurable bounds to prevent excessive
+  exploration or premature collapse to near-deterministic behavior.
+- During action sampling, the Gaussian standard deviation is obtained via
+  exp(log_std), and gradients are propagated through this parameter.
+- After each policy update, log_std is projected back into its valid range
+  to ensure numerical stability and consistent exploration behavior.
+
 KL control:
 - An approximate KL divergence between the old and updated policy is monitored
   using a PPO-style second-order approximation.
@@ -109,8 +121,11 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.min_log_std = config.log_std_bounds[0]
         self.max_log_std = config.log_std_bounds[1]
 
-        init_log_std = torch.log(torch.sqrt(torch.tensor(0.5, device=self.device)))
-        self.log_std = torch.nn.Parameter(init_log_std.repeat(self.action_num))
+        # Initialize log_std as a learnable parameter, starting at max_log_std for high initial exploration
+        init_log_std = torch.full(
+            (self.action_num,), self.max_log_std, device=self.device
+        )
+        self.log_std = torch.nn.Parameter(init_log_std)
 
         self.actor_net_optimiser = torch.optim.Adam(
             list(self.actor_net.parameters()) + [self.log_std], lr=config.actor_lr
@@ -321,6 +336,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         sum_log_ratio_max_abs = 0.0
 
         sum_kl = 0.0
+        max_kl_seen = 0.0
         sum_entropy = 0.0
         sum_clip_frac = 0.0
         sum_ratio_mean = 0.0
@@ -357,6 +373,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                     with torch.no_grad():
                         approx_kl = (ratios - 1 - log_ratio).mean()
                         sum_kl += float(approx_kl.item())
+                        max_kl_seen = max(max_kl_seen, float(approx_kl.item()))
 
                         if approx_kl > self.target_kl:
                             kl_early_stop = True
@@ -405,6 +422,9 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                     self.max_grad_norm,
                 )
                 self.actor_net_optimiser.step()
+
+                with torch.no_grad():
+                    self.log_std.clamp_(self.min_log_std, self.max_log_std)
 
                 # ---- Critic ----
                 v = self.critic_net(states_mb).view(-1)
@@ -471,6 +491,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         if self.target_kl is not None and num_mbs > 0:
             info["approx_kl"] = sum_kl / num_mbs
             info["kl_early_stop"] = int(kl_early_stop)
+            info["max_kl_seen"] = max_kl_seen
 
         return info
 
