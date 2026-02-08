@@ -5,32 +5,61 @@ Original Paper: https://arxiv.org/abs/1707.06347
 
 This implementation follows the clipped-surrogate PPO formulation with
 Generalized Advantage Estimation (GAE), minibatch SGD, and optional KL-based
-early stopping.
+early stopping, adapted for bounded continuous control.
+
+Policy parameterization (bounded actions):
+- The actor represents a Gaussian policy in *pre-squash* space:
+    u ~ Normal(mean(s), std)
+- Actions are obtained via a tanh squashing function:
+    a = tanh(u), ensuring actions lie in [-1, 1].
+- Log-probabilities are computed with the correct change-of-variables
+  correction for the tanh transformation.
+- The rollout buffer stores the *squashed actions* a, along with their
+  corrected log-probabilities and critic values.
+- During training, pre-squash actions are reconstructed via atanh(a).
 
 Rollout collection:
 - Experience is collected strictly on-policy using the current stochastic policy.
-- For each step, the sampled action, its log-probability under the behavior
-  policy, and the critic value V(s) are stored.
+- For each step, the following are stored:
+    - the squashed action a in [-1, 1],
+    - the corrected log-probability log π(a | s),
+    - the critic value estimate V(s).
+- No environment-side action clipping is relied upon; boundedness is enforced
+  directly by the policy.
 
 Advantage estimation:
-- Advantages are computed using Generalized Advantage Estimation (GAE),
-  bootstrapped from a single final value for truncated rollouts.
-- Returns for critic updates are computed as advantage + value.
-- Advantages are normalized across the batch for stability.
+- Advantages are computed using Generalized Advantage Estimation (GAE):
+    δ_t = r_t + γ (1 - done_t) V(s_{t+1}) - V(s_t)
+- A single bootstrap value V(s_T) is used for truncated rollouts.
+- If the final transition in the rollout is terminal, the bootstrap value
+  is masked out (set to zero).
+- Returns for critic updates are computed as:
+    return_t = advantage_t + V(s_t)
+- Advantages are normalized across the batch for numerical stability.
 
 Policy and value updates:
-- The actor is optimized using the PPO clipped surrogate objective with an
-  optional entropy bonus.
+- The actor is optimized using the PPO clipped surrogate objective.
+- An optional entropy bonus (computed from the base Gaussian) encourages
+  exploration.
 - The critic is trained by regression onto the computed returns.
-- Updates are performed using multiple epochs of minibatch SGD over the
-  same on-policy rollout.
-- Gradient norm clipping is applied to improve numerical stability.
+- Updates are performed using multiple epochs of minibatch SGD over the same
+  on-policy rollout.
+- Gradient norm clipping is applied to both actor (including log_std) and
+  critic parameters.
 
 KL control:
-- An approximate KL divergence between the old and updated policy is monitored.
-- If the KL exceeds a configured threshold, further policy updates for the
-  current iteration are stopped early, providing an additional trust-region
-  constraint beyond clipping.
+- An approximate KL divergence between the old and updated policy is monitored
+  using a PPO-style second-order approximation.
+- If the KL exceeds a configured threshold, further minibatch and epoch updates
+  for the current rollout are stopped early, providing an additional trust-region
+  constraint beyond ratio clipping.
+
+Notes:
+- This implementation assumes all actions are normalized to [-1, 1] and that
+  the environment wrapper preserves this convention.
+- The tanh-squashed Gaussian formulation ensures consistency between the
+  executed actions and the likelihoods used for policy optimization, which is
+  particularly important for bounded robotics control tasks.
 """
 
 import logging
