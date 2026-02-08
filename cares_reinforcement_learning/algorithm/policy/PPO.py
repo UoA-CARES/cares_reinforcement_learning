@@ -94,9 +94,31 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.eps_clip = config.eps_clip
 
     def _dist(self, mean: torch.Tensor) -> Normal:
+        log_std = self.log_std.clamp(self.min_log_std, self.max_log_std)
         # mean: [B, act_dim] or [act_dim]
-        std = self.log_std.exp()  # [act_dim]
+        std = log_std.exp()  # [act_dim]
         return Normal(mean, std)
+
+    def _atanh(self, a: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+        # stable inverse tanh
+        a = torch.clamp(a, -1.0 + eps, 1.0 - eps)
+        return 0.5 * (torch.log1p(a) - torch.log1p(-a))
+
+    def _squash(self, u: torch.Tensor) -> torch.Tensor:
+        return torch.tanh(u)
+
+    def _squashed_log_prob(
+        self, dist: Normal, u: torch.Tensor, eps: float = 1e-6
+    ) -> torch.Tensor:
+        """
+        Computes log π(a|s) where u ~ Normal(mean, std) and a = tanh(u).
+        Returns shape [B]
+        """
+        a = torch.tanh(u)
+        logp_u = dist.log_prob(u).sum(dim=-1)
+        # change-of-variables: log |det da/du| = sum log(1 - tanh(u)^2)
+        log_det = torch.log(1.0 - a * a + eps).sum(dim=-1)
+        return logp_u - log_det
 
     def act(
         self, observation: SARLObservation, evaluation: bool = False
@@ -112,13 +134,14 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             mean = self.actor_net(state_tensor)
             dist = self._dist(mean)
 
-            sample = mean if evaluation else dist.rsample()
-            # store π_old(a|s) for PPO ratio
-            log_prob = dist.log_prob(sample).sum(dim=-1)
+            u = mean if evaluation else dist.rsample()
 
-            value = self.critic_net(state_tensor).squeeze(-1)  # shape [1]
+            action_t = self._squash(u)  # in [-1, 1]
+            log_prob = self._squashed_log_prob(dist, u)  # consistent log π(a|s)
 
-            action = sample.squeeze(0).cpu().numpy()
+            value = self.critic_net(state_tensor).squeeze(-1)
+
+            action = action_t.squeeze(0).cpu().numpy()
 
         self.actor_net.train()
         self.critic_net.train()
@@ -155,7 +178,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         batch_size = rewards.shape[0]
         advantages = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
 
-        gae = 0.0
+        gae = torch.zeros((), dtype=torch.float32, device=self.device)
         next_value = last_value
 
         for t in reversed(range(batch_size)):
@@ -206,11 +229,16 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             np.asarray(old_values), dtype=torch.float32, device=self.device
         )
 
+        # Compute last value for GAE bootstrap (V(s_T) for truncated rollouts, 0 for terminal)
+        # Boot Strap next_value for the final step in the buffer - zero out if it is a terminal state,
+        # otherwise use critic estimate for V(s_T)
         with torch.no_grad():
             last_next_state = next_observation_tensor.vector_state_tensor[-1].unsqueeze(
                 0
             )  # [1, obs_dim]
             last_value = self.critic_net(last_next_state).view(-1)[0]  # scalar
+            last_done = dones_tensor.reshape(-1)[-1].bool()  # True if terminal
+            last_value = last_value * (~last_done).to(last_value.dtype)
 
         # GAE: compute advantages using GAE, which uses critic values to bootstrap:
         advantages, returns = self._calculate_gae(
@@ -238,9 +266,10 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             )
 
             # Exploration stats
-            log_std_mean = self.log_std.mean()
-            log_std_min = self.log_std.min()
-            log_std_max = self.log_std.max()
+            log_std_clamped = self.log_std.clamp(self.min_log_std, self.max_log_std)
+            log_std_mean = log_std_clamped.mean()
+            log_std_min = log_std_clamped.min()
+            log_std_max = log_std_clamped.max()
 
         mb_size = min(self.minibatch_size, batch_size)
 
@@ -250,15 +279,25 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         returns = returns.view(-1)  # [N]
 
         kl_early_stop = False
+        # ---- Debug accumulators (across all minibatches/epochs) ----
+        sum_sat_rate = 0.0
+        sum_u_abs_mean = 0.0
+        sum_u_abs_max = 0.0
+
+        sum_log_ratio_mean = 0.0
+        sum_log_ratio_std = 0.0
+        sum_log_ratio_max_abs = 0.0
+
+        sum_kl = 0.0
+        sum_entropy = 0.0
+        sum_clip_frac = 0.0
+        sum_ratio_mean = 0.0
+        sum_ratio_std = 0.0
+
+        num_mbs = 0
+
         for _ in range(self.updates_per_iteration):
             idx = torch.randperm(batch_size, device=self.device)
-
-            sum_kl = 0.0
-            sum_entropy = 0.0
-            sum_clip_frac = 0.0
-            sum_ratio_mean = 0.0
-            sum_ratio_std = 0.0
-            num_mbs = 0
 
             for start in range(0, batch_size, mb_size):
                 mb = idx[start : start + mb_size]
@@ -272,22 +311,42 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 # ---- Actor ----
                 mean = self.actor_net(states_mb)
                 dist = self._dist(mean)
-                curr_log_probs = dist.log_prob(actions_mb).sum(dim=-1)
+                u_mb = self._atanh(actions_mb)  # invert tanh
+                curr_log_probs = self._squashed_log_prob(dist, u_mb)
 
-                assert curr_log_probs.shape == old_logp_mb.shape
+                log_ratio = curr_log_probs - old_logp_mb
+                ratios = torch.exp(curr_log_probs - old_logp_mb)
 
                 # ---- Optional KL early stopping ----
                 if self.target_kl is not None:
                     with torch.no_grad():
-                        approx_kl = (old_logp_mb - curr_log_probs).mean()
+                        approx_kl = (ratios - 1 - log_ratio).mean()
                         sum_kl += float(approx_kl.item())
-                    if approx_kl > self.target_kl:
-                        kl_early_stop = True
-                        break
+
+                        if approx_kl > self.target_kl:
+                            kl_early_stop = True
+                            break
+
+                # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
+                with torch.no_grad():
+                    # action saturation rate
+                    sat_rate = (actions_mb.abs() > 0.99).float().mean()
+                    u_abs_mean = u_mb.abs().mean()
+                    u_abs_max = u_mb.abs().max()
+
+                    log_ratio_mean = log_ratio.mean()
+                    log_ratio_std = log_ratio.std(unbiased=False)
+                    log_ratio_max_abs = log_ratio.abs().max()
+
+                    sum_sat_rate += float(sat_rate.item())
+                    sum_u_abs_mean += float(u_abs_mean.item())
+                    sum_u_abs_max += float(u_abs_max.item())
+
+                    sum_log_ratio_mean += float(log_ratio_mean.item())
+                    sum_log_ratio_std += float(log_ratio_std.item())
+                    sum_log_ratio_max_abs += float(log_ratio_max_abs.item())
 
                 num_mbs += 1
-
-                ratios = torch.exp(curr_log_probs - old_logp_mb)
 
                 unclipped_objective = ratios * advantages_mb
                 clipped_ratio = torch.clamp(
@@ -309,9 +368,6 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                     self.max_grad_norm,
                 )
                 self.actor_net_optimiser.step()
-
-                with torch.no_grad():
-                    self.log_std.clamp_(self.min_log_std, self.max_log_std)
 
                 # ---- Critic ----
                 v = self.critic_net(states_mb).view(-1)
@@ -364,9 +420,18 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             info["ratio_mean"] = sum_ratio_mean / num_mbs
             info["ratio_std"] = sum_ratio_std / num_mbs
 
+            info["action_sat_rate"] = sum_sat_rate / num_mbs
+            info["u_abs_mean"] = sum_u_abs_mean / num_mbs
+            info["u_abs_max"] = sum_u_abs_max / num_mbs
+
+            info["log_ratio_mean"] = sum_log_ratio_mean / num_mbs
+            info["log_ratio_std"] = sum_log_ratio_std / num_mbs
+            info["log_ratio_max_abs"] = sum_log_ratio_max_abs / num_mbs
+
         # KL (only if enabled)
         if self.target_kl is not None and num_mbs > 0:
             info["approx_kl"] = sum_kl / num_mbs
+            info["kl_early_stop"] = int(kl_early_stop)
 
         return info
 

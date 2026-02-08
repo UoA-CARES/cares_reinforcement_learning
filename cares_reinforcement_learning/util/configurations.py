@@ -389,22 +389,22 @@ class QMIXConfig(DQNConfig):
 class PPOConfig(AlgorithmConfig):
     algorithm: str = "PPO"
 
-    actor_lr: float = 1e-4
+    actor_lr: float = 3e-4
     critic_lr: float = 1e-3
 
     gamma: float = 0.99
     eps_clip: float = 0.2
     gae_lambda: float = 0.95
-    entropy_coef: float = 0.01
-    target_kl: float | None = None
+    entropy_coef: float = 0.0
+    target_kl: float | None = 0.02
 
     max_grad_norm: float | None = 0.5
-    log_std_bounds: list[float] = [-5.0, 1.0]
+    log_std_bounds: list[float] = [-5.0, -0.5]
 
-    updates_per_iteration: int = 5
+    updates_per_iteration: int = 10
 
-    minibatch_size: int = 500
-    number_steps_per_train_policy: int = 5000
+    minibatch_size: int = 1000
+    number_steps_per_train_policy: int = 10000
 
     max_steps_exploration: int = 0
 
@@ -415,7 +415,6 @@ class PPOConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256),
-            # FunctionLayer(layer_type="Tanh"),
         ]
     )
 
