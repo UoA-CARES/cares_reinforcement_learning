@@ -82,34 +82,6 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             action=actions, source="policy", extras={"log_prob": log_probs}
         )
 
-    def _calculate_gae(
-        self,
-        rewards: torch.Tensor,  # [N] or [N,1]
-        dones: torch.Tensor,  # [N] or [N,1] (1.0 if done else 0.0)
-        values: torch.Tensor,  # [N]
-        last_value: torch.Tensor,  # scalar tensor, V(s_T) for bootstrap
-        gae_lambda: float,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        rewards = rewards.view(-1)
-        dones = dones.view(-1)
-        values = values.view(-1)
-
-        batch_size = rewards.shape[0]
-        advantages = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
-
-        gae = torch.zeros((), dtype=torch.float32, device=self.device)
-        next_value = last_value
-
-        for t in reversed(range(batch_size)):
-            mask = 1.0 - dones[t]  # 0 if terminal else 1
-            delta = rewards[t] + self.gamma * mask * next_value - values[t]
-            gae = delta + self.gamma * gae_lambda * mask * gae
-            advantages[t] = gae
-            next_value = values[t]
-
-        returns = advantages + values
-        return advantages, returns
-
     def train_policy(
         self,
         memory_buffer: MARLMemoryBuffer,
@@ -148,6 +120,9 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         agent_states = observation_tensor.agent_states_tensor
 
+        # IMPORTANT: dones are per-agent for generic case
+        dones = dones_tensor.squeeze(-1).float()  # [T, N]
+
         # Old log_probs + values stored at action time
         old_log_probs = [
             experience.train_data["log_prob"] for experience in sample.experiences
@@ -158,6 +133,7 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         agent_ids = list(agent_states.keys())
 
+        # ---------- Central critic values ----------
         with torch.no_grad():
             values = self.central_critic(global_states)  # [T, num_agents]
             values = values.view(batch_size, self.num_agents)
@@ -165,7 +141,7 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             last_next_state = next_global_states[-1].unsqueeze(0)  # [1, 54]
             last_value = self.central_critic(last_next_state).view(-1)
 
-            last_done = dones_tensor.reshape(-1)[-1].bool()
+            last_done = dones[-1].bool()
             last_value = last_value * (~last_done).to(last_value.dtype)
 
         rewards_tensor = rewards_tensor.view(batch_size, self.num_agents)
@@ -174,9 +150,9 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         returns_all = torch.zeros((batch_size, self.num_agents), device=self.device)
 
         for i in range(self.num_agents):
-            adv_i, ret_i = self._calculate_gae(
+            adv_i, ret_i = self.agent_networks[i]._calculate_gae(
                 rewards=rewards_tensor[:, i],
-                dones=dones_tensor,
+                dones=dones[:, i],
                 values=values[:, i],
                 last_value=last_value[i],
                 gae_lambda=self.gae_lambda,
@@ -190,84 +166,52 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         mb_size = min(self.minibatch_size, batch_size)
 
-        for agent_idx, agent in enumerate(self.agent_networks):
-            agent_name = agent_ids[agent_idx]
-            states_i = agent_states[agent_name].view(batch_size, -1)  # [T, obs_dim]
-            actions_i = actions_tensor[:, agent_idx, :].view(
-                batch_size, -1
-            )  # [T, act_dim]
-            old_logp_i = old_log_probs_tensor[:, agent_idx].detach()  # [T]
-            adv_i = advantages_all[:, agent_idx]  # [T]
+        # Track per-agent KL early-stop (actor-only)
+        agent_kl_early_stop = [False] * self.num_agents
+        agent_kl_sum = [0.0] * self.num_agents
+        agent_kl_n = [0] * self.num_agents
 
-            kl_early_stop = False
-            sum_kl = 0.0
-            num_mbs = 0
+        # Track critic loss
+        critic_loss_sum = 0.0
+        num_critic_mb = 0
 
-            for _ in range(self.updates_per_iteration):
-                idx = torch.randperm(batch_size, device=self.device)
-                for start in range(0, batch_size, mb_size):
-                    mb = idx[start : start + mb_size]
-
-                    s_mb = states_i[mb]
-                    a_mb = actions_i[mb]
-                    old_lp_mb = old_logp_i[mb]
-                    adv_mb = adv_i[mb]
-
-                    mean = agent.actor_net(s_mb)
-                    dist = agent._dist(mean)
-                    pre_tanh = agent._atanh(a_mb)
-                    curr_lp = agent._squashed_log_prob(dist, pre_tanh)
-
-                    log_ratio = curr_lp - old_lp_mb
-                    ratios = torch.exp(log_ratio)
-
-                    # KL early stop (per-agent)
-                    if self.target_kl is not None:
-                        with torch.no_grad():
-                            approx_kl = (ratios - 1 - log_ratio).mean()
-                            sum_kl += float(approx_kl.item())
-                        if approx_kl > self.target_kl:
-                            kl_early_stop = True
-                            break
-
-                    # PPO clipped objective
-                    unclipped = ratios * adv_mb
-                    clipped = (
-                        torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip)
-                        * adv_mb
-                    )
-                    policy_obj = torch.min(unclipped, clipped)
-                    actor_loss = -policy_obj.mean()
-
-                    # entropy bonus (base Gaussian)
-                    entropy = dist.entropy().sum(dim=-1).mean()
-                    actor_loss = actor_loss - self.entropy_coef * entropy
-
-                    agent.actor_net_optimiser.zero_grad()
-                    actor_loss.backward()
-                    torch.nn.utils.clip_grad_norm_(
-                        list(agent.actor_net.parameters()) + [agent.log_std],
-                        self.max_grad_norm,
-                    )
-                    agent.actor_net_optimiser.step()
-
-                    # project log_std after step
-                    with torch.no_grad():
-                        agent.log_std.clamp_(agent.min_log_std, agent.max_log_std)
-
-                    num_mbs += 1
-
-                if kl_early_stop:
-                    break
-
-        for _ in range(self.updates_per_iteration):  # or fewer, see note below
+        # ---------- Epochs / minibatches ----------
+        for _ in range(self.updates_per_iteration):
             idx = torch.randperm(batch_size, device=self.device)
+
             for start in range(0, batch_size, mb_size):
                 mb = idx[start : start + mb_size]
 
+                # ----- Actor updates (same mb across agents) -----
+                for agent_idx, agent in enumerate(self.agent_networks):
+                    if agent_kl_early_stop[agent_idx]:
+                        continue  # this agent already KL-stopped this rollout
+
+                    agent_name = agent_ids[agent_idx]
+                    states_mb = agent_states[agent_name][mb]  # [mb, obs_dim]
+                    actions_mb = actions_tensor[mb, agent_idx, :]  # [mb, act_dim]
+                    old_logp_mb = old_log_probs_tensor[mb, agent_idx]  # [mb]
+                    advantages_mb = advantages_all[mb, agent_idx]  # [mb]
+
+                    # Use the new PPO helper (includes KL pre-check + may skip update)
+                    kl_early_stop, actor_info = agent.update_actor_minibatch(
+                        states_mb=states_mb,
+                        actions_mb=actions_mb,
+                        old_logp_mb=old_logp_mb,
+                        advantages_mb=advantages_mb,
+                    )
+
+                    # Accumulate KL stats if present
+                    if self.target_kl is not None and "approx_kl" in actor_info:
+                        agent_kl_sum[agent_idx] += float(actor_info["approx_kl"])
+                        agent_kl_n[agent_idx] += 1
+
+                    # If the helper skipped the update due to KL, stop this agent for remainder
+                    agent_kl_early_stop[agent_idx] = kl_early_stop
+
+                # ----- Central critic update (same mb indices) -----
                 v_pred = self.central_critic(global_states[mb])  # [mb, N]
                 v_targ = returns_all[mb]  # [mb, N]
-
                 critic_loss = F.mse_loss(v_pred, v_targ)
 
                 self.central_critic_optimiser.zero_grad()
@@ -276,6 +220,18 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                     self.central_critic.parameters(), self.max_grad_norm
                 )
                 self.central_critic_optimiser.step()
+
+                critic_loss_sum += float(critic_loss.item())
+                num_critic_mb += 1
+
+        # ---------- Logging ----------
+        info["critic_loss"] = critic_loss_sum / max(num_critic_mb, 1)
+
+        if self.target_kl is not None:
+            for i in range(self.num_agents):
+                if agent_kl_n[i] > 0:
+                    info[f"agent{i}_approx_kl"] = agent_kl_sum[i] / agent_kl_n[i]
+                info[f"agent{i}_kl_early_stop"] = int(agent_kl_early_stop[i])
 
         return info
 

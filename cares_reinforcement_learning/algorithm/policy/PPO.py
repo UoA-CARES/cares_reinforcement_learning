@@ -427,6 +427,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         returns = returns.view(-1)  # [N]
 
         kl_early_stop = False
+
         # ---- Debug accumulators (across all minibatches/epochs) ----
         sum_sat_rate = 0.0
         sum_u_abs_mean = 0.0
@@ -446,7 +447,8 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         sum_critic_loss = 0.0
         sum_actor_loss = 0.0
 
-        num_mbs = 0
+        num_actor_mbs = 0
+        num_critic_mbs = 0
 
         for _ in range(self.updates_per_iteration):
             idx = torch.randperm(batch_size, device=self.device)
@@ -461,41 +463,39 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 returns_mb = returns[mb]
 
                 # ---- Actor ----
-                kl_early_stop, actor_info = self.update_actor_minibatch(
-                    states_mb, actions_mb, old_logp_mb, advantages_mb
-                )
+                if not kl_early_stop:
+                    kl_early_stop, actor_info = self.update_actor_minibatch(
+                        states_mb, actions_mb, old_logp_mb, advantages_mb
+                    )
 
-                if kl_early_stop:
-                    break
+                    max_kl_seen = max(max_kl_seen, actor_info.get("approx_kl", 0.0))
 
-                # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
-                sum_sat_rate += actor_info["action_sat_rate"]
-                sum_u_abs_mean += actor_info["u_abs_mean"]
-                sum_u_abs_max += actor_info["u_abs_max"]
+                    # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
+                    sum_sat_rate += actor_info["action_sat_rate"]
+                    sum_u_abs_mean += actor_info["u_abs_mean"]
+                    sum_u_abs_max += actor_info["u_abs_max"]
 
-                sum_log_ratio_mean += actor_info["log_ratio_mean"]
-                sum_log_ratio_std += actor_info["log_ratio_std"]
-                sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
+                    sum_log_ratio_mean += actor_info["log_ratio_mean"]
+                    sum_log_ratio_std += actor_info["log_ratio_std"]
+                    sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
 
-                sum_clip_frac += actor_info["clip_frac"]
-                sum_ratio_mean += actor_info["ratio_mean"]
-                sum_ratio_std += actor_info["ratio_std"]
-                sum_entropy += actor_info["entropy"]
+                    sum_clip_frac += actor_info["clip_frac"]
+                    sum_ratio_mean += actor_info["ratio_mean"]
+                    sum_ratio_std += actor_info["ratio_std"]
+                    sum_entropy += actor_info["entropy"]
 
-                sum_actor_loss += actor_info["actor_loss"]
+                    sum_actor_loss += actor_info["actor_loss"]
 
-                num_mbs += 1
+                    num_actor_mbs += 1
 
                 # ---- Critic ----
                 critic_info = self.update_critic_minibatch(states_mb, returns_mb)
                 sum_critic_loss += critic_info["critic_loss"]
-
-            if kl_early_stop:
-                break
+                num_critic_mbs += 1
 
         info: dict[str, Any] = {}
-        info["critic_loss"] = sum_critic_loss / num_mbs if num_mbs > 0 else 0.0
-        info["actor_loss"] = sum_actor_loss / num_mbs if num_mbs > 0 else 0.0
+        info["critic_loss"] = sum_critic_loss / max(num_critic_mbs, 1)
+        info["actor_loss"] = sum_actor_loss / max(num_actor_mbs, 1)
 
         # Batch-level stats
         info["adv_mean"] = float(info_adv_mean.item())
@@ -510,23 +510,23 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         info["log_std_max"] = float(log_std_max.item())
 
         # Update health (averaged over minibatches)
-        if num_mbs > 0:
-            info["entropy"] = sum_entropy / num_mbs
-            info["clip_frac"] = sum_clip_frac / num_mbs
-            info["ratio_mean"] = sum_ratio_mean / num_mbs
-            info["ratio_std"] = sum_ratio_std / num_mbs
+        if num_actor_mbs > 0:
+            info["entropy"] = sum_entropy / num_actor_mbs
+            info["clip_frac"] = sum_clip_frac / num_actor_mbs
+            info["ratio_mean"] = sum_ratio_mean / num_actor_mbs
+            info["ratio_std"] = sum_ratio_std / num_actor_mbs
 
-            info["action_sat_rate"] = sum_sat_rate / num_mbs
-            info["u_abs_mean"] = sum_u_abs_mean / num_mbs
-            info["u_abs_max"] = sum_u_abs_max / num_mbs
+            info["action_sat_rate"] = sum_sat_rate / num_actor_mbs
+            info["u_abs_mean"] = sum_u_abs_mean / num_actor_mbs
+            info["u_abs_max"] = sum_u_abs_max / num_actor_mbs
 
-            info["log_ratio_mean"] = sum_log_ratio_mean / num_mbs
-            info["log_ratio_std"] = sum_log_ratio_std / num_mbs
-            info["log_ratio_max_abs"] = sum_log_ratio_max_abs / num_mbs
+            info["log_ratio_mean"] = sum_log_ratio_mean / num_actor_mbs
+            info["log_ratio_std"] = sum_log_ratio_std / num_actor_mbs
+            info["log_ratio_max_abs"] = sum_log_ratio_max_abs / num_actor_mbs
 
         # KL (only if enabled)
-        if self.target_kl is not None and num_mbs > 0:
-            info["approx_kl"] = sum_kl / num_mbs
+        if self.target_kl is not None and num_actor_mbs > 0:
+            info["approx_kl"] = sum_kl / num_actor_mbs
             info["kl_early_stop"] = int(kl_early_stop)
             info["max_kl_seen"] = max_kl_seen
 
