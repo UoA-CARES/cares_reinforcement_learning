@@ -242,6 +242,100 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         returns = advantages + values
         return advantages, returns
 
+    def update_actor_minibatch(
+        self,
+        states_mb: torch.Tensor,  # [mb, obs_dim]
+        actions_mb: torch.Tensor,  # [mb, act_dim] (squashed)
+        old_logp_mb: torch.Tensor,  # [mb]
+        advantages_mb: torch.Tensor,  # [mb]
+    ) -> tuple[bool, dict[str, float]]:
+
+        mean = self.actor_net(states_mb)
+        dist = self._dist(mean)
+        u_mb = self._atanh(actions_mb)  # invert tanh
+        curr_log_probs = self._squashed_log_prob(dist, u_mb)
+
+        log_ratio = curr_log_probs - old_logp_mb
+        ratios = torch.exp(curr_log_probs - old_logp_mb)
+
+        # ---- Optional KL early stopping ----
+        if self.target_kl is not None:
+            with torch.no_grad():
+                approx_kl = (ratios - 1 - log_ratio).mean()
+                if approx_kl > self.target_kl:
+                    return True, {"approx_kl": float(approx_kl.item())}
+
+        unclipped_objective = ratios * advantages_mb
+        clipped_ratio = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip)
+        clipped_objective = clipped_ratio * advantages_mb
+
+        policy_objective = torch.min(unclipped_objective, clipped_objective)
+
+        actor_loss = -policy_objective.mean()
+
+        entropy = dist.entropy().sum(dim=-1).mean()
+        actor_loss = actor_loss - self.entropy_coef * entropy
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        torch.nn.utils.clip_grad_norm_(
+            list(self.actor_net.parameters()) + [self.log_std],
+            self.max_grad_norm,
+        )
+        self.actor_net_optimiser.step()
+
+        with torch.no_grad():
+            self.log_std.clamp_(self.min_log_std, self.max_log_std)
+
+        # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
+        with torch.no_grad():
+            # action saturation rate
+            clip_frac = (
+                ((ratios > 1.0 + self.eps_clip) | (ratios < 1.0 - self.eps_clip))
+                .float()
+                .mean()
+            )
+            sat_rate = (actions_mb.abs() > 0.99).float().mean()
+            u_abs_mean = u_mb.abs().mean()
+            u_abs_max = u_mb.abs().max()
+
+            log_ratio_mean = log_ratio.mean()
+            log_ratio_std = log_ratio.std(unbiased=False)
+            log_ratio_max_abs = log_ratio.abs().max()
+
+        info = {
+            "actor_loss": float(actor_loss.item()),
+            "entropy": float(entropy.item()),
+            "approx_kl": float(approx_kl.item()) if self.target_kl is not None else 0.0,
+            "clip_frac": float(clip_frac.item()),
+            "ratio_mean": float(ratios.mean().item()),
+            "ratio_std": float(ratios.std(unbiased=False).item()),
+            "action_sat_rate": float(sat_rate.item()),
+            "u_abs_mean": float(u_abs_mean.item()),
+            "u_abs_max": float(u_abs_max.item()),
+            "log_ratio_mean": float(log_ratio_mean.item()),
+            "log_ratio_std": float(log_ratio_std.item()),
+            "log_ratio_max_abs": float(log_ratio_max_abs.item()),
+        }
+
+        return False, info
+
+    def update_critic_minibatch(
+        self,
+        states_mb: torch.Tensor,  # [mb, obs_dim]
+        returns_mb: torch.Tensor,  # [mb]
+    ) -> dict[str, float]:
+
+        v = self.critic_net(states_mb).view(-1)
+        critic_loss = F.mse_loss(v, returns_mb)
+
+        self.critic_net_optimiser.zero_grad()
+        critic_loss.backward()
+        torch.nn.utils.clip_grad_norm_(self.critic_net.parameters(), self.max_grad_norm)
+        self.critic_net_optimiser.step()
+
+        return {"critic_loss": float(critic_loss.item())}
+
     def train_policy(
         self,
         memory_buffer: SARLMemoryBuffer,
@@ -367,98 +461,34 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 returns_mb = returns[mb]
 
                 # ---- Actor ----
-                mean = self.actor_net(states_mb)
-                dist = self._dist(mean)
-                u_mb = self._atanh(actions_mb)  # invert tanh
-                curr_log_probs = self._squashed_log_prob(dist, u_mb)
+                kl_early_stop, actor_info = self.update_actor_minibatch(
+                    states_mb, actions_mb, old_logp_mb, advantages_mb
+                )
 
-                log_ratio = curr_log_probs - old_logp_mb
-                ratios = torch.exp(curr_log_probs - old_logp_mb)
-
-                # ---- Optional KL early stopping ----
-                if self.target_kl is not None:
-                    with torch.no_grad():
-                        approx_kl = (ratios - 1 - log_ratio).mean()
-                        sum_kl += float(approx_kl.item())
-                        max_kl_seen = max(max_kl_seen, float(approx_kl.item()))
-
-                        if approx_kl > self.target_kl:
-                            kl_early_stop = True
-                            break
+                if kl_early_stop:
+                    break
 
                 # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
-                with torch.no_grad():
-                    # action saturation rate
-                    sat_rate = (actions_mb.abs() > 0.99).float().mean()
-                    u_abs_mean = u_mb.abs().mean()
-                    u_abs_max = u_mb.abs().max()
+                sum_sat_rate += actor_info["action_sat_rate"]
+                sum_u_abs_mean += actor_info["u_abs_mean"]
+                sum_u_abs_max += actor_info["u_abs_max"]
 
-                    log_ratio_mean = log_ratio.mean()
-                    log_ratio_std = log_ratio.std(unbiased=False)
-                    log_ratio_max_abs = log_ratio.abs().max()
+                sum_log_ratio_mean += actor_info["log_ratio_mean"]
+                sum_log_ratio_std += actor_info["log_ratio_std"]
+                sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
 
-                    sum_sat_rate += float(sat_rate.item())
-                    sum_u_abs_mean += float(u_abs_mean.item())
-                    sum_u_abs_max += float(u_abs_max.item())
+                sum_clip_frac += actor_info["clip_frac"]
+                sum_ratio_mean += actor_info["ratio_mean"]
+                sum_ratio_std += actor_info["ratio_std"]
+                sum_entropy += actor_info["entropy"]
 
-                    sum_log_ratio_mean += float(log_ratio_mean.item())
-                    sum_log_ratio_std += float(log_ratio_std.item())
-                    sum_log_ratio_max_abs += float(log_ratio_max_abs.item())
+                sum_actor_loss += actor_info["actor_loss"]
 
                 num_mbs += 1
 
-                unclipped_objective = ratios * advantages_mb
-                clipped_ratio = torch.clamp(
-                    ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip
-                )
-                clipped_objective = clipped_ratio * advantages_mb
-
-                policy_objective = torch.min(unclipped_objective, clipped_objective)
-
-                actor_loss = -policy_objective.mean()
-
-                entropy = dist.entropy().sum(dim=-1).mean()
-                actor_loss = actor_loss - self.entropy_coef * entropy
-
-                sum_actor_loss += float(actor_loss.item())
-
-                self.actor_net_optimiser.zero_grad()
-                actor_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    list(self.actor_net.parameters()) + [self.log_std],
-                    self.max_grad_norm,
-                )
-                self.actor_net_optimiser.step()
-
-                with torch.no_grad():
-                    self.log_std.clamp_(self.min_log_std, self.max_log_std)
-
                 # ---- Critic ----
-                v = self.critic_net(states_mb).view(-1)
-                critic_loss = F.mse_loss(v, returns_mb)
-
-                sum_critic_loss += float(critic_loss.item())
-
-                self.critic_net_optimiser.zero_grad()
-                critic_loss.backward()
-                torch.nn.utils.clip_grad_norm_(
-                    self.critic_net.parameters(), self.max_grad_norm
-                )
-                self.critic_net_optimiser.step()
-
-                with torch.no_grad():
-                    clip_frac = (
-                        (
-                            (ratios > 1.0 + self.eps_clip)
-                            | (ratios < 1.0 - self.eps_clip)
-                        )
-                        .float()
-                        .mean()
-                    )
-                    sum_clip_frac += float(clip_frac.item())
-                    sum_ratio_mean += float(ratios.mean().item())
-                    sum_ratio_std += float(ratios.std(unbiased=False).item())
-                    sum_entropy += float(entropy.item())
+                critic_info = self.update_critic_minibatch(states_mb, returns_mb)
+                sum_critic_loss += critic_info["critic_loss"]
 
             if kl_early_stop:
                 break
