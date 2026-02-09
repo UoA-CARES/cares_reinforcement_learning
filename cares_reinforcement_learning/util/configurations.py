@@ -433,8 +433,8 @@ class PPOConfig(AlgorithmConfig):
 class PPO2Config(AlgorithmConfig):
     algorithm: str = "PPO2"
 
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
 
     gamma: float = 0.99
     lambda_gae: float = 0.95 # GAE-lambda
@@ -443,7 +443,8 @@ class PPO2Config(AlgorithmConfig):
     # TODO is this G?
     updates_per_iteration: int = 10
 
-    number_steps_per_train_policy: int = 5000
+    number_steps_per_train_policy: int = 2048
+    minibatch_size: int = 64 # add for minibatch update
 
     max_steps_exploration: int = 0
 
@@ -500,20 +501,11 @@ class PPO2SILConfig(PPO2Config):
 class SILConfig(AlgorithmConfig):
     algorithm: str = "SIL"
     # to do: should SIL have individual lr ?
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
 
     gamma: float = 0.99
     eps_clip: float = 0.2
-
-    # what for this 
-
-    # number_steps_per_train_policy: int = 5000    # algo default is 1
-
-    # max_steps_exploration: int = 0
-
-    # to do: hwo to find a good batch size for SIL?
-    # How without IS impact the SIL batch_size?
 
     # SIL hyperparameter
     sil_update_interval: int = 1
@@ -533,7 +525,7 @@ class SILConfig(AlgorithmConfig):
     sil_per_weight_normalisation: str = "batch"
     sil_beta: float = 0.1
     sil_d_beta: float = 0
-    sil_per_alpha: float = 1 # {0.6,1}
+    sil_per_alpha: float = 0.6 # {0.6,1}
     sil_min_priority: float = 1e-6
     sil_buffer_max_capacity: int = 50000 # refer to SIL source code
 

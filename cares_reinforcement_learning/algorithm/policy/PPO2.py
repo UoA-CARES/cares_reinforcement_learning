@@ -73,6 +73,7 @@ class PPO2(VectorAlgorithm):
 
         self.updates_per_iteration = config.updates_per_iteration
         self.eps_clip = config.eps_clip
+        self.minibatch_size = config.minibatch_size
 
         # remove MultivariateNormal
         # self.cov_var = torch.full(size=(self.action_num,), fill_value=0.5).to(
@@ -247,6 +248,8 @@ class PPO2(VectorAlgorithm):
 
         memory = training_context.memory
         batch_size = training_context.batch_size
+        all_actor_losses = []
+        all_critic_losses = []
 
         experiences = memory.flush()
         #states, actions, rewards, next_states, dones = experiences
@@ -275,15 +278,8 @@ class PPO2(VectorAlgorithm):
             np.asarray(episode_ends),
             self.device,
         )
-        # Convert episode_end to tensors -> intergraed to batch to batch_to_tensors function
-        # episode_ends_tensor = torch.tensor(np.asarray(episode_ends), dtype=torch.long, device=self.device)
-        # episode_ends_tensor = episode_ends_tensor.reshape(len(episode_ends_tensor), 1)
 
         log_probs_tensor = self._calculate_log_prob(states_tensor, actions_tensor)
-
-        # compute reward to go:
-        #rtgs = self._calculate_rewards_to_go(rewards_tensor, dones_tensor)
-        # rtgs = (rtgs - rtgs.mean()) / (rtgs.std() + 1e-7)
 
         # new rtgs to covert dones and truncated and calculate in differnt methods
         # dones: task fail, reward = last_reward, 0 or -100, depends on tasks
@@ -317,46 +313,65 @@ class PPO2(VectorAlgorithm):
 
         td_errors = torch.abs(advantages).data.cpu().numpy()
 
+        # add minibatch loop
+        num_samples = states_tensor.size(0)
+        indices = np.arange(num_samples)
+
         for _ in range(self.updates_per_iteration):
-            v, curr_log_probs = self._evaluate_policy(states_tensor, actions_tensor)
+            np.random.shuffle(indices)
+            for start in range(0, num_samples, self.minibatch_size):
+                end = start + self.minibatch_size
+                # print(f'PPO2 minibatch start:{start} end: {end}')
+                mb_idx = indices[start:end]
 
-            # Calculate ratios
-            ratios = torch.exp(curr_log_probs - log_probs_tensor.detach())
+                mb_states = states_tensor[mb_idx]
+                mb_actions = actions_tensor[mb_idx]
+                mb_adv = advantages[mb_idx]
+                mb_rtgs = rtgs_episode_end[mb_idx]
+                mb_old_logp = log_probs_tensor[mb_idx]
 
-            # Finding Surrogate Loss
-            surrogate_lose_one = ratios * advantages
-            surrogate_lose_two = (
-                torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * advantages
-            )
+                # start mb update
+                v, curr_log_probs = self._evaluate_policy(mb_states, mb_actions)
 
-            # final loss of clipped objective PPO
-            actor_loss = (-torch.minimum(surrogate_lose_one, surrogate_lose_two)).mean()
-            #critic_loss = F.mse_loss(v, rtgs)
+                # Calculate ratios
+                ratios = torch.exp(curr_log_probs - mb_old_logp.detach())
 
-            # for shape verfication
-            if rtgs_episode_end.shape != v.shape:
-                logging.warning(f"check 2: rtgs_episode_end Shape Mismatch! rtgs: {rtgs_episode_end.shape}, v: {v.shape}")
-                rtgs_episode_end = rtgs_episode_end.view_as(v)
+                # Finding Surrogate Loss
+                surrogate_lose_one = ratios * mb_adv
+                surrogate_lose_two = (
+                    torch.clamp(ratios, 1 - self.eps_clip, 1 + self.eps_clip) * mb_adv
+                )
 
-            critic_loss = F.mse_loss(v, rtgs_episode_end) # use rtgs_episode_end
+                # final loss of clipped objective PPO
+                actor_loss = (-torch.minimum(surrogate_lose_one, surrogate_lose_two)).mean()
 
-            self.actor_net_optimiser.zero_grad()
-            actor_loss.backward(retain_graph=True)
-            self.actor_net_optimiser.step()
+                # for shape verfication
+                if mb_rtgs.shape != v.shape:
+                    logging.warning(f"check 2: rtgs_episode_end Shape Mismatch! rtgs: {mb_rtgs.shape}, v: {v.shape}")
+                    mb_rtgs = mb_rtgs.view_as(v)
 
-            self.critic_net_optimiser.zero_grad()
-            critic_loss.backward()
-            self.critic_net_optimiser.step()
+                critic_loss = F.mse_loss(v, mb_rtgs) # use rtgs_episode_end
 
-        info: dict[str, Any] = {}
+                self.actor_net_optimiser.zero_grad()
+                actor_loss.backward(retain_graph=True)
+                self.actor_net_optimiser.step()
 
-        current_std = torch.exp(self.log_std).mean().item() # add std to log
+                self.critic_net_optimiser.zero_grad()
+                critic_loss.backward()
+                self.critic_net_optimiser.step()
 
-        info |= {
-            "critic_loss": critic_loss.item(),
-            "actor_loss": actor_loss.item(),
-            "step_std": current_std,
-            }
+                all_actor_losses.append(actor_loss.item())
+                all_critic_losses.append(critic_loss.item())
+
+            info: dict[str, Any] = {}
+
+            current_std = torch.exp(self.log_std).mean().item() # add std to log
+
+            info |= {
+                "critic_loss": np.mean(all_critic_losses),
+                "actor_loss": np.mean(all_actor_losses),
+                "step_std": current_std,
+                }
 
         return info
 
