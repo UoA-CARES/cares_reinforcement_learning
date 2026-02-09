@@ -9,8 +9,8 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.policy.PPO import PPO
-from cares_reinforcement_learning.networks.MAPPO import Critic
 from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
+from cares_reinforcement_learning.networks.MAPPO import Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
@@ -168,12 +168,34 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         # Track per-agent KL early-stop (actor-only)
         agent_kl_early_stop = [False] * self.num_agents
-        agent_kl_sum = [0.0] * self.num_agents
-        agent_kl_n = [0] * self.num_agents
 
         # Track critic loss
         critic_loss_sum = 0.0
         num_critic_mb = 0
+
+        agent_sums = [
+            {
+                k: 0.0
+                for k in [
+                    "actor_loss",
+                    "entropy",
+                    "approx_kl",
+                    "clip_frac",
+                    "ratio_mean",
+                    "ratio_std",
+                    "action_sat_rate",
+                    "u_abs_mean",
+                    "u_abs_max",
+                    "log_ratio_mean",
+                    "log_ratio_std",
+                    "log_ratio_max_abs",
+                ]
+            }
+            for _ in range(self.num_agents)
+        ]
+        agent_max_kl = [0.0 for _ in range(self.num_agents)]
+        # minibatches that actually updated (for averaging stats)
+        agent_updates = [0 for _ in range(self.num_agents)]
 
         # ---------- Epochs / minibatches ----------
         for _ in range(self.updates_per_iteration):
@@ -201,10 +223,17 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                         advantages_mb=advantages_mb,
                     )
 
-                    # Accumulate KL stats if present
-                    if self.target_kl is not None and "approx_kl" in actor_info:
-                        agent_kl_sum[agent_idx] += float(actor_info["approx_kl"])
-                        agent_kl_n[agent_idx] += 1
+                    # Accumulate only if update happened
+                    if not kl_early_stop:
+                        agent_updates[agent_idx] += 1
+                        for k in agent_sums[agent_idx].keys():
+                            agent_sums[agent_idx][k] += float(actor_info[k])
+
+                    # Track max KL seen regardless (if target_kl is enabled, approx_kl is meaningful)
+                    if self.target_kl is not None:
+                        agent_max_kl[agent_idx] = max(
+                            agent_max_kl[agent_idx], float(actor_info["approx_kl"])
+                        )
 
                     # If the helper skipped the update due to KL, stop this agent for remainder
                     agent_kl_early_stop[agent_idx] = kl_early_stop
@@ -227,11 +256,51 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         # ---------- Logging ----------
         info["critic_loss"] = critic_loss_sum / max(num_critic_mb, 1)
 
-        if self.target_kl is not None:
+        with torch.no_grad():
+            # returns vs values
+            td_err = returns_all - values  # [T, N]
+
             for i in range(self.num_agents):
-                if agent_kl_n[i] > 0:
-                    info[f"agent{i}_approx_kl"] = agent_kl_sum[i] / agent_kl_n[i]
+                info[f"agent{i}_adv_mean"] = float(advantages_all[:, i].mean().item())
+                info[f"agent{i}_adv_std"] = float(
+                    advantages_all[:, i].std(unbiased=False).item()
+                )
+
+                info[f"agent{i}_ret_mean"] = float(returns_all[:, i].mean().item())
+                info[f"agent{i}_ret_std"] = float(
+                    returns_all[:, i].std(unbiased=False).item()
+                )
+
+                info[f"agent{i}_v_mean"] = float(values[:, i].mean().item())
+                info[f"agent{i}_v_std"] = float(values[:, i].std(unbiased=False).item())
+
+                info[f"agent{i}_td_mean"] = float(td_err[:, i].mean().item())
+                info[f"agent{i}_td_std"] = float(
+                    td_err[:, i].std(unbiased=False).item()
+                )
+                info[f"agent{i}_td_mae"] = float(td_err[:, i].abs().mean().item())
+
+                y = returns_all[:, i]
+                yhat = values[:, i]
+                var_y = torch.var(y, unbiased=False)
+                ev = 1.0 - torch.var(y - yhat, unbiased=False) / (var_y + 1e-8)
+                info[f"agent{i}_explained_var"] = float(ev.item())
+
+                denom = max(agent_updates[i], 1)
+
+                info[f"agent{i}_actor_updates"] = int(agent_updates[i])
                 info[f"agent{i}_kl_early_stop"] = int(agent_kl_early_stop[i])
+
+                for k, v in agent_sums[i].items():
+                    info[f"agent{i}_{k}"] = v / denom
+
+                if self.target_kl is not None:
+                    info[f"agent{i}_max_kl_seen"] = agent_max_kl[i]
+
+        stopped = sum(int(x) for x in agent_kl_early_stop)
+        info["num_agents_kl_stopped"] = stopped
+        info["any_agent_kl_stopped"] = int(stopped > 0)
+        info["all_agents_kl_stopped"] = int(stopped == self.num_agents)
 
         return info
 

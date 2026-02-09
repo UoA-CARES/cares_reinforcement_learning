@@ -471,22 +471,23 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                     max_kl_seen = max(max_kl_seen, actor_info.get("approx_kl", 0.0))
 
                     # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
-                    sum_sat_rate += actor_info["action_sat_rate"]
-                    sum_u_abs_mean += actor_info["u_abs_mean"]
-                    sum_u_abs_max += actor_info["u_abs_max"]
+                    if not kl_early_stop:
+                        sum_sat_rate += actor_info["action_sat_rate"]
+                        sum_u_abs_mean += actor_info["u_abs_mean"]
+                        sum_u_abs_max += actor_info["u_abs_max"]
 
-                    sum_log_ratio_mean += actor_info["log_ratio_mean"]
-                    sum_log_ratio_std += actor_info["log_ratio_std"]
-                    sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
+                        sum_log_ratio_mean += actor_info["log_ratio_mean"]
+                        sum_log_ratio_std += actor_info["log_ratio_std"]
+                        sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
 
-                    sum_clip_frac += actor_info["clip_frac"]
-                    sum_ratio_mean += actor_info["ratio_mean"]
-                    sum_ratio_std += actor_info["ratio_std"]
-                    sum_entropy += actor_info["entropy"]
+                        sum_clip_frac += actor_info["clip_frac"]
+                        sum_ratio_mean += actor_info["ratio_mean"]
+                        sum_ratio_std += actor_info["ratio_std"]
+                        sum_entropy += actor_info["entropy"]
 
-                    sum_actor_loss += actor_info["actor_loss"]
+                        sum_actor_loss += actor_info["actor_loss"]
 
-                    num_actor_mbs += 1
+                        num_actor_mbs += 1
 
                 # ---- Critic ----
                 critic_info = self.update_critic_minibatch(states_mb, returns_mb)

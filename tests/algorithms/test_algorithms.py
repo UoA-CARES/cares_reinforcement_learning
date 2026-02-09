@@ -118,6 +118,7 @@ def populate_buffer_marl(
             reward=[10.0] * num_agents,
             done=[False] * num_agents,
             truncated=[False] * num_agents,
+            train_data={"log_prob": [-0.5] * num_agents, "value": [0.1] * num_agents},
             info={},
         )
         memory_buffer.add(experience)

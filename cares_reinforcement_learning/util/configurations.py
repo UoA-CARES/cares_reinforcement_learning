@@ -406,7 +406,7 @@ class PPOConfig(AlgorithmConfig):
     minibatch_size: int = 1000
     number_steps_per_train_policy: int = 10000
 
-    max_steps_exploration: int = 0
+    max_steps_exploration: Literal[0] = Field(default=0)
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -434,10 +434,22 @@ class MAPPOConfig(PPOConfig):
 
     marl_observation: Literal[1] = Field(default=1)
 
-    actor_lr: float = 1e-3
+    actor_lr: float = 3e-4
     critic_lr: float = 1e-3
 
+    gamma: float = 0.99
+    eps_clip: float = 0.2
+    gae_lambda: float = 0.95
+    entropy_coef: float = 0.01
+    target_kl: float | None = 0.05
+
     max_grad_norm: float | None = 0.5
+    log_std_bounds: list[float] = [-5.0, -0.5]
+
+    updates_per_iteration: int = 4
+
+    minibatch_size: int = 1000
+    number_steps_per_train_policy: int = 10000
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
