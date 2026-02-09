@@ -1,3 +1,54 @@
+"""
+MAPPO (Multi-Agent Proximal Policy Optimization) implementation notes
+--------------------------------------------------------------------
+
+This algorithm extends PPO to the multi-agent setting using decentralized actors
+and a centralized value function (critic). Policies are executed per-agent from
+local observations, while value estimation can condition on global state.
+
+Data collection (on-policy):
+- Rollouts are collected on-policy using the current actor parameters.
+- For each timestep, we store per-agent: observation, action (network action space),
+  reward, done, and the log-probability under the behavior policy (old_logp).
+- PPO assumes the batch is on-policy; mixing data from multiple policy versions
+  in the same update can inflate KL and stall learning.
+
+Replay / sampling:
+- MAPPO is on-policy: we "flush" the rollout buffer once per iteration.
+- A single permutation of indices is generated per epoch and reused across agents
+  so all agents update on aligned joint transitions (important for centralized critics).
+
+Central critic (value) updates:
+- The centralized critic takes the global state and outputs V(s) for each agent
+  (shape [T, num_agents]) or equivalent multi-head value estimates.
+- Targets are computed using Generalized Advantage Estimation (GAE) per agent:
+    delta_t = r_t + gamma * V(s_{t+1}) * (1 - done) - V(s_t)
+    A_t = discounted sum of deltas with gae_lambda
+    R_t = A_t + V(s_t)
+- The critic is trained with an MSE loss between V(s_t) and returns R_t.
+
+Actor updates (decentralized PPO):
+- Each agent has its own stochastic policy pi_i(a_i | o_i) with tanh-squashed actions.
+- PPO updates use importance sampling ratios computed from stored old log-probs:
+    ratio = exp(logp_curr - logp_old)
+- The clipped surrogate objective is optimized per agent:
+    L = -E[min(ratio * A, clip(ratio, 1-eps, 1+eps) * A)] - entropy_coef * entropy
+- Only agent i's actor parameters receive gradients during agent i's update.
+
+KL monitoring / early stopping:
+- We optionally track approximate KL divergence per minibatch and can stop further
+  actor updates for an agent if KL exceeds target_kl (stability safeguard).
+- If KL spikes immediately at the start of an epoch, it typically indicates an
+  on-policy violation or a mismatch between stored actions/log-probs and the
+  update-time log-prob computation.
+
+Rationale:
+- PPO is on-policy and relies on per-sample log-probs from the behavior policy;
+  MAPPO preserves this while enabling coordination via a centralized value function.
+- Using a centralized critic reduces variance and improves credit assignment in
+  cooperative tasks like MPE simple_spread, while keeping execution decentralized.
+"""
+
 import logging
 import os
 from typing import Any
