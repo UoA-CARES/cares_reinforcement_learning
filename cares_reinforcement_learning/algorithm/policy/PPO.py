@@ -165,7 +165,10 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         return logp_u - log_det
 
     def act(
-        self, observation: SARLObservation, evaluation: bool = False
+        self,
+        observation: SARLObservation,
+        evaluation: bool = False,
+        calculate_value: bool = True,
     ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
         self.critic_net.eval()
@@ -183,7 +186,11 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             action_t = self._squash(u)  # in [-1, 1]
             log_prob = self._squashed_log_prob(dist, u)  # consistent log π(a|s)
 
-            value = self.critic_net(state_tensor).squeeze(-1)
+            value = (
+                self.critic_net(state_tensor).squeeze(-1)
+                if calculate_value
+                else torch.tensor(0.0, device=self.device)
+            )
 
             action = action_t.squeeze(0).cpu().numpy()
 

@@ -429,6 +429,27 @@ class PPOConfig(AlgorithmConfig):
     )
 
 
+class MAPPOConfig(PPOConfig):
+    algorithm: str = "MAPPO"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+
+    max_grad_norm: float | None = 0.5
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
 ###################################
 #         SAC Algorithms          #
 ###################################

@@ -153,6 +153,50 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
     return agent
 
 
+def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
+    from cares_reinforcement_learning.algorithm.policy import MAPPO
+    from cares_reinforcement_learning.algorithm.policy.PPO import PPO
+    from cares_reinforcement_learning.networks.MAPPO import Actor, Critic
+    from cares_reinforcement_learning.networks.PPO import Critic as PPOCritic
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    device = hlp.get_device()
+
+    # KEEP THE ACTOR ORDER CONSISTENT
+    agent_ids = list(obs_shapes.keys())
+
+    for agent_name in agent_ids:
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=agent_name,
+        )
+
+        # Not actually used just created to fill in PPO agent's
+        critic = PPOCritic(
+            observation_size=observation_size["obs"][agent_name],
+            config=config,
+        )
+
+        agent = PPO(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+        agents.append(agent)
+
+    central_critic = Critic(observation_size=observation_size, config=config)
+
+    mappo_agent = MAPPO(
+        agents=agents, central_critic=central_critic, config=config, device=device
+    )
+    return mappo_agent
+
+
 ###################################
 #         SAC Algorithms          #
 ###################################
