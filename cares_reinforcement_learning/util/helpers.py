@@ -250,6 +250,9 @@ def denormalize(
         action_denorm: np.ndarray = (action - min_value_in) * (
             max_range_value - min_range_value
         ) / (max_value_in - min_value_in) + min_range_value
+
+        action_denorm = np.clip(action_denorm, min_action_value, max_action_value)
+
         return action_denorm
 
     if isinstance(action, list):

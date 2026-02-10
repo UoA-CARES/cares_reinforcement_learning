@@ -152,31 +152,21 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         agent_index: int,
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
+        current_actions_tensor: torch.Tensor,  # (B, N, act_dim) sampled under no_grad
     ):
         agent_ids = list(obs_tensors.keys())
         batch_size = global_states.shape[0]
 
+        actions_all = current_actions_tensor.clone()  # no graphs carried
+
         # ---------------------------------------------------------
         # Sample CURRENT actions for all agents (detach others)
-        # For MASAC, we sample current actions from all agents when
-        # computing each agent’s actor loss, detaching other agents’ samples.
-        # This aligns the update with SAC’s maximum-entropy objective,
-        # which is an expectation over actions drawn from the current stochastic policy.
         # ---------------------------------------------------------
-        actions_list = []
-        logp_i: torch.Tensor
+        obs_i = obs_tensors[agent_ids[agent_index]]
+        action_i, logp_i, _ = agent.actor_net(obs_i)  # grads for i only
 
-        for j, (agent_j, agent_id_j) in enumerate(zip(self.agent_networks, agent_ids)):
-            obs_j = obs_tensors[agent_id_j]
-            a_j, logp_j, _ = agent_j.actor_net(obs_j)
+        actions_all[:, agent_index, :] = action_i  # only i is live
 
-            if j == agent_index:
-                logp_i = logp_j
-                actions_list.append(a_j)  # keep grads for i
-            else:
-                actions_list.append(a_j.detach())  # no grads for others
-
-        actions_all = torch.stack(actions_list, dim=1)  # (B, N, act_dim)
         joint_actions_flat = actions_all.reshape(batch_size, -1)
 
         # ---------------------------------------------------------
@@ -317,12 +307,28 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         # ACTOR + ALPHA UPDATES — usually every step in SAC
         # ---------------------------------------------------------
         if self.learn_counter % self.policy_update_freq == 0:
+            # ---------------------------------------------------------
+            # For MASAC, we sample current actions from all agents when
+            # computing each agent’s actor loss, detaching other agents’ samples.
+            # This aligns the update with SAC’s maximum-entropy objective,
+            # which is an expectation over actions drawn from the current stochastic policy.
+            # ---------------------------------------------------------
+            with torch.no_grad():
+                current_actions = []
+                for agent_j, agent_id_j in zip(self.agent_networks, agent_ids):
+                    obs_j = agent_states[agent_id_j]
+                    a_j, _, _ = agent_j.actor_net(obs_j)
+                    current_actions.append(a_j)
+                # (B, N, act_dim)
+                current_actions_tensor = torch.stack(current_actions, dim=1)
+
             for agent_index, agent in enumerate(self.agent_networks):
                 actor_info = self._update_actor_alpha(
                     agent=agent,
                     agent_index=agent_index,
                     obs_tensors=agent_states,
                     global_states=global_states,
+                    current_actions_tensor=current_actions_tensor,
                 )
                 info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
                 info[f"alpha_loss_agent_{agent_index}"] = actor_info["alpha_loss"]

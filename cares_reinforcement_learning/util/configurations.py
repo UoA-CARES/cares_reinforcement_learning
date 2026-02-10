@@ -389,37 +389,82 @@ class QMIXConfig(DQNConfig):
 class PPOConfig(AlgorithmConfig):
     algorithm: str = "PPO"
 
-    actor_lr: float = 1e-4
+    actor_lr: float = 3e-4
     critic_lr: float = 1e-3
 
     gamma: float = 0.99
     eps_clip: float = 0.2
+    gae_lambda: float = 0.95
 
-    # TODO is this G?
+    entropy_start: float = 0.0
+    entropy_end: float = 0.0
+    entropy_decay: int = 0
+
+    target_kl: float | None = 0.02
+
+    max_grad_norm: float | None = 0.5
+    log_std_bounds: list[float] = [-5.0, -0.5]
+
     updates_per_iteration: int = 10
 
-    number_steps_per_train_policy: int = 5000
+    minibatch_size: int = 1000
+    number_steps_per_train_policy: int = 10000
 
-    max_steps_exploration: int = 0
+    max_steps_exploration: Literal[0] = Field(default=0)
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=1024),
+            TrainableLayer(layer_type="Linear", out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024),
-            FunctionLayer(layer_type="Tanh"),
+            TrainableLayer(layer_type="Linear", in_features=256),
         ]
     )
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=1024),
+            TrainableLayer(layer_type="Linear", out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
+
+
+class MAPPOConfig(PPOConfig):
+    algorithm: str = "MAPPO"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.99
+    eps_clip: float = 0.2
+    gae_lambda: float = 0.95
+    target_kl: float | None = 0.05
+
+    entropy_start: float = 0.01
+    entropy_end: float = 0.0
+    entropy_decay: int = 500000
+
+    max_grad_norm: float | None = 0.5
+    log_std_bounds: list[float] = [-5.0, -1.0]
+
+    updates_per_iteration: int = 6
+
+    minibatch_size: int = 1000
+    number_steps_per_train_policy: int = 10000
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
         ]
     )
 
