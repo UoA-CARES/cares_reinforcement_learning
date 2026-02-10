@@ -316,6 +316,7 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         # ---------- Logging ----------
         info["critic_loss"] = critic_loss_sum / max(num_critic_mb, 1)
+        info["entropy_coef"] = self.entropy_coef
 
         with torch.no_grad():
             # returns vs values

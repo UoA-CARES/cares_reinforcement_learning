@@ -525,6 +525,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         info["returns_mean"] = float(info_returns_mean.item())
         info["returns_std"] = float(info_returns_std.item())
         info["explained_variance"] = float(explained_var.item())
+        info["entropy_coef"] = self.entropy_coef
 
         # Exploration
         info["log_std_mean"] = float(log_std_mean.item())
