@@ -395,7 +395,11 @@ class PPOConfig(AlgorithmConfig):
     gamma: float = 0.99
     eps_clip: float = 0.2
     gae_lambda: float = 0.95
-    entropy_coef: float = 0.0
+
+    entropy_start: float = 0.0
+    entropy_end: float = 0.0
+    entropy_decay: int = 0
+
     target_kl: float | None = 0.02
 
     max_grad_norm: float | None = 0.5
@@ -440,13 +444,16 @@ class MAPPOConfig(PPOConfig):
     gamma: float = 0.99
     eps_clip: float = 0.2
     gae_lambda: float = 0.95
-    entropy_coef: float = 0.01
     target_kl: float | None = 0.05
 
-    max_grad_norm: float | None = 0.5
-    log_std_bounds: list[float] = [-5.0, -0.5]
+    entropy_start: float = 0.01
+    entropy_end: float = 0.0
+    entropy_decay: int = 500000
 
-    updates_per_iteration: int = 4
+    max_grad_norm: float | None = 0.5
+    log_std_bounds: list[float] = [-5.0, -1.0]
+
+    updates_per_iteration: int = 6
 
     minibatch_size: int = 1000
     number_steps_per_train_policy: int = 10000

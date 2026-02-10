@@ -87,10 +87,11 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import PPOConfig
-from cares_reinforcement_learning.types.action import ActionSample
+from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
 class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
@@ -113,9 +114,15 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.gae_lambda = config.gae_lambda
         self.minibatch_size = config.minibatch_size
 
-        self.gae_lambda = config.gae_lambda
-        self.entropy_coef = config.entropy_coef
         self.target_kl = config.target_kl
+
+        self.epsilon_scheduler = EpsilonScheduler(
+            start_epsilon=config.entropy_start,
+            end_epsilon=config.entropy_end,
+            decay_steps=config.entropy_decay,
+        )
+        # initial entropy coefficient
+        self.entropy_coef = self.epsilon_scheduler.get_epsilon(0)
 
         self.max_grad_norm = config.max_grad_norm
         self.min_log_std = config.log_std_bounds[0]
@@ -248,6 +255,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         actions_mb: torch.Tensor,  # [mb, act_dim] (squashed)
         old_logp_mb: torch.Tensor,  # [mb]
         advantages_mb: torch.Tensor,  # [mb]
+        entropy_coef: float,
     ) -> tuple[bool, dict[str, float]]:
 
         mean = self.actor_net(states_mb)
@@ -274,14 +282,15 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         actor_loss = -policy_objective.mean()
 
         entropy = dist.entropy().sum(dim=-1).mean()
-        actor_loss = actor_loss - self.entropy_coef * entropy
+        actor_loss = actor_loss - entropy_coef * entropy
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
-        torch.nn.utils.clip_grad_norm_(
-            list(self.actor_net.parameters()) + [self.log_std],
-            self.max_grad_norm,
-        )
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                list(self.actor_net.parameters()) + [self.log_std],
+                self.max_grad_norm,
+            )
         self.actor_net_optimiser.step()
 
         with torch.no_grad():
@@ -331,7 +340,10 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         self.critic_net_optimiser.zero_grad()
         critic_loss.backward()
-        torch.nn.utils.clip_grad_norm_(self.critic_net.parameters(), self.max_grad_norm)
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                self.critic_net.parameters(), self.max_grad_norm
+            )
         self.critic_net_optimiser.step()
 
         return {"critic_loss": float(critic_loss.item())}
@@ -345,6 +357,10 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         sample = memory_buffer.flush()
         batch_size = len(sample.experiences)
+
+        self.entropy_coef = self.epsilon_scheduler.get_epsilon(
+            episode_context.training_step
+        )
 
         if batch_size == 0:
             return {}
@@ -465,13 +481,18 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
                 # ---- Actor ----
                 if not kl_early_stop:
                     kl_early_stop, actor_info = self.update_actor_minibatch(
-                        states_mb, actions_mb, old_logp_mb, advantages_mb
+                        states_mb,
+                        actions_mb,
+                        old_logp_mb,
+                        advantages_mb,
+                        self.entropy_coef,
                     )
 
                     max_kl_seen = max(max_kl_seen, actor_info.get("approx_kl", 0.0))
 
                     # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
                     if not kl_early_stop:
+                        sum_kl += actor_info["approx_kl"]
                         sum_sat_rate += actor_info["action_sat_rate"]
                         sum_u_abs_mean += actor_info["u_abs_mean"]
                         sum_u_abs_max += actor_info["u_abs_max"]

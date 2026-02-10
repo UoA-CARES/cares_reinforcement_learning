@@ -69,6 +69,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
 )
 from cares_reinforcement_learning.util.configurations import MAPPOConfig
+from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
 class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
@@ -86,9 +87,17 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         self.minibatch_size = config.minibatch_size
         self.updates_per_iteration = config.updates_per_iteration
-        self.eps_clip = config.eps_clip
+
+        self.epsilon_scheduler = EpsilonScheduler(
+            start_epsilon=config.entropy_start,
+            end_epsilon=config.entropy_end,
+            decay_steps=config.entropy_decay,
+        )
+        # initial entropy coefficient
+        self.entropy_coef = self.epsilon_scheduler.get_epsilon(0)
+
         self.target_kl = config.target_kl
-        self.entropy_coef = config.entropy_coef
+
         self.max_grad_norm = config.max_grad_norm
 
         self.gae_lambda = config.gae_lambda
@@ -98,8 +107,6 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         self.central_critic_optimiser = torch.optim.Adam(
             self.central_critic.parameters(), lr=config.critic_lr
         )
-
-        self.learn_counter = 0
 
     def act(
         self,
@@ -139,9 +146,11 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
 
-        self.learn_counter += 1
-
         info: dict[str, Any] = {}
+
+        self.entropy_coef = self.epsilon_scheduler.get_epsilon(
+            episode_context.training_step
+        )
 
         # ---------------------------------------------------------
         # Sample ONCE for all agents (recommended for TD3/SAC)
@@ -272,6 +281,7 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                         actions_mb=actions_mb,
                         old_logp_mb=old_logp_mb,
                         advantages_mb=advantages_mb,
+                        entropy_coef=self.entropy_coef,
                     )
 
                     # Accumulate only if update happened
@@ -364,6 +374,19 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             agent_filename = f"{filename}_agent_{i}_checkpoint"
             agent.save_models(agent_filepath, agent_filename)
 
+        # Save central critic
+        critic_filepath = os.path.join(filepath, "central_critic")
+        if not os.path.exists(critic_filepath):
+            os.makedirs(critic_filepath)
+        critic_checkpoint = {
+            "critic_state_dict": self.central_critic.state_dict(),
+            "critic_optimizer_state_dict": self.central_critic_optimiser.state_dict(),
+        }
+        torch.save(
+            critic_checkpoint,
+            os.path.join(critic_filepath, f"{filename}_central_critic_checkpoint.pt"),
+        )
+
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
@@ -371,5 +394,15 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             agent_filepath = os.path.join(filepath, f"agent_{i}")
             agent_filename = f"{filename}_agent_{i}_checkpoint"
             agent.load_models(agent_filepath, agent_filename)
+
+        # Load central critic
+        critic_filepath = os.path.join(filepath, "central_critic")
+        critic_checkpoint = torch.load(
+            os.path.join(critic_filepath, f"{filename}_central_critic_checkpoint.pt")
+        )
+        self.central_critic.load_state_dict(critic_checkpoint["critic_state_dict"])
+        self.central_critic_optimiser.load_state_dict(
+            critic_checkpoint["critic_optimizer_state_dict"]
+        )
 
         logging.info("models and optimisers have been loaded...")
