@@ -2,6 +2,7 @@
 DADS (Dynamics-Aware Discovery of Skills)
 ------------------------------------------
 
+Original Paper: https://arxiv.org/abs/1907.01657
 Original Code: https://github.com/google-research/dads
 
 DADS is an unsupervised skill discovery method that learns a
