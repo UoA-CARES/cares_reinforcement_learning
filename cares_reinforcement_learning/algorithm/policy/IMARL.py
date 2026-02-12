@@ -131,16 +131,15 @@ class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
             agent_train_data.append(train_data_i)
 
         for i, agent in enumerate(self.agent_networks):
+            agent_name = agent_ids[i]
             states_i = SARLObservationTensors(
-                vector_state_tensor=observation_tensor.agent_states_tensor[
-                    "agent_" + str(i)
-                ],
+                vector_state_tensor=observation_tensor.agent_states_tensor[agent_name],
             )
             actions_i = actions_tensor[:, i, :]
             rewards_i = rewards_tensor[:, i]
             next_states_i = SARLObservationTensors(
                 vector_state_tensor=next_observation_tensor.agent_states_tensor[
-                    "agent_" + str(i)
+                    agent_name
                 ],
             )
             dones_i = dones_tensor[:, i]
@@ -159,7 +158,7 @@ class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
                 indices=indices,
             )
             for key, value in agent_i_info.items():
-                info[f"agent_{i}_{key}"] = value
+                info[f"{agent_name}_{key}"] = value
 
         return info
 
