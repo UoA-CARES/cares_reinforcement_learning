@@ -171,11 +171,6 @@ class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
             agent_filename = f"{filename}_agent_{i}_checkpoint"
             agent.save_models(agent_filepath, agent_filename)
 
-        # Save central critic
-        critic_filepath = os.path.join(filepath, "central_critic")
-        if not os.path.exists(critic_filepath):
-            os.makedirs(critic_filepath)
-
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
