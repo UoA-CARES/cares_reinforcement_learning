@@ -147,7 +147,7 @@ class DQN(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
 
         return elementwise_loss
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,

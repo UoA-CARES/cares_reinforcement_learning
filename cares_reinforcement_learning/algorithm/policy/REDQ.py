@@ -150,7 +150,7 @@ class REDQ(SAC):
 
         return info
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,

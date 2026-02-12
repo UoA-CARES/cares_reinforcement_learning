@@ -5,10 +5,18 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.memory.memory_buffer import Memory
+from cares_reinforcement_learning.memory.memory_buffer import (
+    MARLMemoryBuffer,
+    Memory,
+    SARLMemoryBuffer,
+)
 from cares_reinforcement_learning.types.action import ActionSample, ActType
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import Observation
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    Observation,
+    SARLObservation,
+)
 from cares_reinforcement_learning.util.configurations import AlgorithmConfig
 
 # Type variable for observation types (SARL or MARL)
@@ -132,8 +140,11 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         }
         return info
 
+    # @abstractmethod
+    # def update_policy(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
+
     @abstractmethod
-    def train_policy(
+    def train(
         self, memory_buffer: MemType, episode_context: EpisodeContext
     ) -> dict[str, Any]: ...
 
@@ -162,3 +173,13 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         It can be overridden in subclasses to perform any necessary cleanup or logging.
         """
         pass
+
+
+class SARLAlgorithm(
+    Algorithm[SARLObservation, ActType, SARLMemoryBuffer], Generic[ActType]
+): ...
+
+
+class MARLAlgorithm(
+    Algorithm[MARLObservation, ActType, MARLMemoryBuffer], Generic[ActType]
+): ...

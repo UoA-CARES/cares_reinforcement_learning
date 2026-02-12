@@ -123,6 +123,9 @@ def _import_modules_from_folder(folder_path: str):
     modules = {}
 
     # Iterate through files in the folder
+    if not os.path.exists(folder_path):
+        return modules
+
     for file_name in os.listdir(folder_path):
         # Check for Python files (excluding __init__.py)
         if file_name.endswith(".py") and file_name != "__init__.py":
@@ -220,7 +223,6 @@ def test_actor_critics():
         model_equal = True
 
         for name, module in modules.items():
-
             module_equal = False
 
             defined_classes = _get_defined_classes(module)

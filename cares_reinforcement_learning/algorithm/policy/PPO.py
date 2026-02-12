@@ -84,17 +84,20 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
+)
 from cares_reinforcement_learning.util.configurations import PPOConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class PPO(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: Actor,
@@ -229,6 +232,7 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         last_value: torch.Tensor,  # scalar tensor, V(s_T) for bootstrap
         gae_lambda: float,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+
         rewards = rewards.view(-1)
         dones = dones.view(-1)
         values = values.view(-1)
@@ -348,47 +352,32 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         return {"critic_loss": float(critic_loss.item())}
 
-    def train_policy(
+    def update_from_batch(
         self,
-        memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
+        observation_tensor: SARLObservationTensors,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_observation_tensor: SARLObservationTensors,
+        dones_tensor: torch.Tensor,
+        train_data: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        # pylint: disable-next=unused-argument
 
-        sample = memory_buffer.flush()
-        batch_size = len(sample.experiences)
+        batch_size = len(observation_tensor.vector_state_tensor)
 
         self.entropy_coef = self.epsilon_scheduler.get_epsilon(
             episode_context.training_step
         )
 
-        if batch_size == 0:
-            return {}
-
-        # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,  # weights not needed
-            _,
-        ) = memory_sampler.sample_to_tensors(sample, self.device)
-
         states = observation_tensor.vector_state_tensor  # shape [B, obs_dim]
 
         # Old log_probs + values stored at action time
-        old_log_probs = [
-            experience.train_data["log_prob"] for experience in sample.experiences
-        ]
+        old_log_probs = [data["log_prob"] for data in train_data]
         old_log_probs_tensor = torch.tensor(
             np.asarray(old_log_probs), dtype=torch.float32, device=self.device
         )
 
-        old_values = [
-            experience.train_data["value"] for experience in sample.experiences
-        ]
+        old_values = [data["value"] for data in train_data]
         old_values_tensor = torch.tensor(
             np.asarray(old_values), dtype=torch.float32, device=self.device
         )
@@ -552,6 +541,42 @@ class PPO(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             info["approx_kl"] = sum_kl / num_actor_mbs
             info["kl_early_stop"] = int(kl_early_stop)
             info["max_kl_seen"] = max_kl_seen
+
+        return info
+
+    def train(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
+        # pylint: disable-next=unused-argument
+
+        sample = memory_buffer.flush()
+        batch_size = len(sample.experiences)
+
+        if batch_size == 0:
+            return {}
+
+        # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
+        (
+            observation_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_observation_tensor,
+            dones_tensor,
+            _,
+            train_data,
+        ) = memory_sampler.sample_to_tensors(sample, self.device)
+
+        info = self.update_from_batch(
+            episode_context=episode_context,
+            observation_tensor=observation_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_tensor,
+            dones_tensor=dones_tensor,
+            train_data=train_data,
+        )
 
         return info
 

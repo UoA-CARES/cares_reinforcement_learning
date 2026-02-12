@@ -13,16 +13,19 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
+)
 from cares_reinforcement_learning.util.configurations import DDPGConfig
 
 
-class DDPG(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class DDPG(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: Actor,
@@ -108,7 +111,38 @@ class DDPG(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         info = {"actor_loss": actor_loss.item()}
         return info
 
-    def train_policy(
+    def update_from_batch(
+        self,
+        episode_context: EpisodeContext,
+        observation_tensor: SARLObservationTensors,
+        actions_tensor: torch.Tensor,
+        rewards_tensor: torch.Tensor,
+        next_observation_tensor: SARLObservationTensors,
+        dones_tensor: torch.Tensor,
+    ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
+        # TODO add the action noise for exploration with episode context and some decay mechanism
+
+        # Update Critic
+        critic_info = self._update_critic(
+            observation_tensor.vector_state_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_observation_tensor.vector_state_tensor,
+            dones_tensor,
+        )
+        info |= critic_info
+
+        # Update Actor
+        actor_info = self._update_actor(observation_tensor.vector_state_tensor)
+        info |= actor_info
+
+        self.update_target_networks()
+
+        return info
+
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
@@ -131,23 +165,14 @@ class DDPG(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             use_per_buffer=0,  # DDPG uses uniform sampling
         )
 
-        info: dict[str, Any] = {}
-
-        # Update Critic
-        critic_info = self._update_critic(
-            observation_tensor.vector_state_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
-            dones_tensor,
+        info = self.update_from_batch(
+            episode_context=episode_context,
+            observation_tensor=observation_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_tensor,
+            dones_tensor=dones_tensor,
         )
-        info |= critic_info
-
-        # Update Actor
-        actor_info = self._update_actor(observation_tensor.vector_state_tensor)
-        info |= actor_info
-
-        self.update_target_networks()
 
         return info
 

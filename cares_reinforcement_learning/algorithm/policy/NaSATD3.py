@@ -242,7 +242,7 @@ class NaSATD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         return pred_losses
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,

@@ -140,7 +140,7 @@ class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             action=actions, source="policy", extras={"log_prob": log_probs}
         )
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,

@@ -168,7 +168,7 @@ class SACD(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
 
         return actor_loss.item(), alpha_loss.item()
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
@@ -182,7 +182,7 @@ class SACD(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             _,
-            _,  # extras ignored
+            _,
             _,
         ) = memory_sampler.sample(
             memory=memory_buffer,

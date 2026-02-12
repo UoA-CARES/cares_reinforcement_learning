@@ -374,7 +374,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         return {"actor_loss": actor_loss.item()}
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,

@@ -1421,6 +1421,38 @@ class TD7Config(TD3Config):
 
 
 ###################################
+#         IMARL Algorithms        #
+###################################
+
+
+class IDDPGConfig(DDPGConfig):
+    algorithm: str = "IDDPG"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+
+class ITD3Config(TD3Config):
+    algorithm: str = "ITD3"
+
+    marl_observation: Literal[1] = Field(default=1)
+    use_per_buffer: Literal[0] = Field(default=0)
+
+
+class ISACConfig(SACConfig):
+    algorithm: str = "ISAC"
+
+    marl_observation: Literal[1] = Field(default=1)
+    use_per_buffer: Literal[0] = Field(default=0)
+
+
+class IPPOConfig(PPOConfig):
+    algorithm: str = "IPPO"
+
+    marl_observation: Literal[1] = Field(default=1)
+    use_per_buffer: Literal[0] = Field(default=0)
+
+
+###################################
 #         USD Algorithms          #
 ###################################
 

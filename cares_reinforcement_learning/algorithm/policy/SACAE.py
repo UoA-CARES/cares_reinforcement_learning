@@ -236,7 +236,7 @@ class SACAE(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         }
         return info
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,

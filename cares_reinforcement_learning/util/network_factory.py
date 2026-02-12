@@ -869,11 +869,85 @@ def create_TD7(observation_size, action_num, config: acf.TD7Config):
     return agent
 
 
+###################################
+#         IMARL Algorithms        #
+###################################
+
+
+def _create_independant_agents(
+    observation_size, action_num, create_network, config: acf.AlgorithmConfig
+):
+    network_factory = NetworkFactory()
+
+    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+
+    agents = []
+    for agent_name in obs_shapes.keys():
+        agent_obs = {}
+        agent_obs["vector"] = obs_shapes[agent_name]
+        network = create_network(
+            observation_size=agent_obs,
+            action_num=action_num,
+            config=config,
+        )
+        agents.append(network)
+
+    return agents
+
+
+def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
+    from cares_reinforcement_learning.algorithm.policy import IDDPG
+
+    device = hlp.get_device()
+    agents = _create_independant_agents(
+        observation_size, action_num, create_DDPG, config
+    )
+
+    iddpg_agent = IDDPG(agents=agents, config=config, device=device)
+    return iddpg_agent
+
+
+def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
+    from cares_reinforcement_learning.algorithm.policy import ITD3
+
+    device = hlp.get_device()
+    agents = _create_independant_agents(
+        observation_size, action_num, create_TD3, config
+    )
+
+    itd3_agent = ITD3(agents=agents, config=config, device=device)
+    return itd3_agent
+
+
+def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
+    from cares_reinforcement_learning.algorithm.policy import ISAC
+
+    device = hlp.get_device()
+    agents = _create_independant_agents(
+        observation_size, action_num, create_SAC, config
+    )
+
+    isac_agent = ISAC(agents=agents, config=config, device=device)
+    return isac_agent
+
+
+def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
+    from cares_reinforcement_learning.algorithm.policy import IPPO
+
+    device = hlp.get_device()
+    agents = _create_independant_agents(
+        observation_size, action_num, create_PPO, config
+    )
+
+    ippo_agent = IPPO(agents=agents, config=config, device=device)
+    return ippo_agent
+
+
 def _compare_mlp_parts(obj1: acf.AlgorithmConfig, obj2: acf.AlgorithmConfig) -> bool:
     # Extract fields where the value is of type mlp_type
     def get_mlp_fields(obj):
         return {
-            name: value.dict()
+            name: value.model_dump()
             for name, value in obj.__dict__.items()
             if isinstance(value, acf.MLPConfig)
         }

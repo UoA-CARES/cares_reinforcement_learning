@@ -129,7 +129,7 @@ class LA3PTD3(TD3):
 
         return info, priorities
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
