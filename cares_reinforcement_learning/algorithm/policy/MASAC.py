@@ -208,7 +208,7 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
             "alpha": agent.alpha.item(),
         }
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,
@@ -299,9 +299,8 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                 dones_i=dones_i,
             )
 
-            info[f"critic_loss_total_agent_{agent_index}"] = critic_info[
-                "critic_loss_total"
-            ]
+            for key, value in critic_info.items():
+                info[f"agent_{agent_index}_{key}"] = value
 
         # ---------------------------------------------------------
         # ACTOR + ALPHA UPDATES — usually every step in SAC
@@ -330,9 +329,8 @@ class MASAC(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                     global_states=global_states,
                     current_actions_tensor=current_actions_tensor,
                 )
-                info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
-                info[f"alpha_loss_agent_{agent_index}"] = actor_info["alpha_loss"]
-                info[f"alpha_agent_{agent_index}"] = actor_info["alpha"]
+                for key, value in actor_info.items():
+                    info[f"agent_{agent_index}_{key}"] = value
 
         # ---------------------------------------------------------
         # Target critic updates (Polyak) — usually every step in SAC

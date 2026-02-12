@@ -203,7 +203,7 @@ class MATD3(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         return {"actor_loss": actor_loss.item()}
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,
@@ -285,10 +285,8 @@ class MATD3(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                 next_actions_tensor=next_actions_noisy,  # <-- noisy version
                 dones_i=dones_i,
             )
-
-            info[f"critic_loss_total_agent_{agent_index}"] = critic_info[
-                "critic_loss_total"
-            ]
+            for key, value in critic_info.items():
+                info[f"agent_{agent_index}_{key}"] = value
 
         # ---------------------------------------------------------
         # ACTOR + TARGET UPDATES (DELAYED — TD3)
@@ -302,7 +300,8 @@ class MATD3(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
                     global_states=global_states,
                     actions_tensor=actions_tensor,
                 )
-                info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
+                for key, value in actor_info.items():
+                    info[f"agent_{agent_index}_{key}"] = value
 
             # TD3: target networks updated on SAME cadence as actor
             for agent in self.agent_networks:

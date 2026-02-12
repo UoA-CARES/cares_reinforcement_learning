@@ -16,7 +16,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
@@ -25,11 +25,14 @@ from cares_reinforcement_learning.networks.common import (
 )
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
+)
 from cares_reinforcement_learning.util.configurations import SACConfig
 
 
-class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class SAC(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: TanhGaussianPolicy,
@@ -82,41 +85,6 @@ class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
     @property
     def alpha(self) -> torch.Tensor:
         return self.log_alpha.exp().detach()
-
-    def save_models(self, filepath: str, filename: str) -> None:
-        if not os.path.exists(filepath):
-            os.makedirs(filepath)
-
-        checkpoint = {
-            "actor": self.actor_net.state_dict(),
-            "critic": self.critic_net.state_dict(),
-            "target_critic": self.target_critic_net.state_dict(),
-            "actor_optimizer": self.actor_net_optimiser.state_dict(),
-            "critic_optimizer": self.critic_net_optimiser.state_dict(),
-            # Save log_alpha as a float, not a numpy array
-            "log_alpha": float(self.log_alpha.detach().cpu().item()),
-            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
-            "learn_counter": int(self.learn_counter),
-        }
-        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
-        logging.info("models, optimisers, and training state have been saved...")
-
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
-
-        self.actor_net.load_state_dict(checkpoint["actor"])
-        self.critic_net.load_state_dict(checkpoint["critic"])
-
-        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
-        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
-        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
-
-        # Restore log_alpha from float
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
-        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
-        self.learn_counter = checkpoint.get("learn_counter", 0)
-
-        logging.info("models, optimisers, and training state have been loaded...")
 
     def act(
         self, observation: SARLObservation, evaluation: bool = False
@@ -249,26 +217,25 @@ class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         return info
 
-    def update_networks(
+    def update_from_batch(
         self,
-        memory: SARLMemoryBuffer,
-        indices: np.ndarray,
-        states_tensor: torch.Tensor,
+        observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
+        self.learn_counter += 1
 
         info: dict[str, Any] = {}
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -276,29 +243,25 @@ class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_info = self._update_actor_alpha(states_tensor, weights_tensor)
+            actor_info = self._update_actor_alpha(
+                observation_tensor.vector_state_tensor, weights_tensor
+            )
             info |= actor_info
             info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             self.update_target_networks()
 
-        # Update the Priorities
-        if self.use_per_buffer:
-            memory.update_priorities(indices, priorities)
-
-        return info
+        return info, priorities
 
     def update_target_networks(self) -> None:
         hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
-        self.learn_counter += 1
-
         (
             observation_tensor,
             actions_tensor,
@@ -306,7 +269,7 @@ class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
-            _,  # extras ignored
+            _,
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,
@@ -317,15 +280,52 @@ class SAC(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        info = self.update_networks(
-            memory_buffer,
-            indices,
-            observation_tensor.vector_state_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
-            dones_tensor,
-            weights_tensor,
+        info, priorities = self.update_from_batch(
+            observation_tensor=observation_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_tensor,
+            dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor,
         )
 
+        # Update the Priorities
+        if self.use_per_buffer:
+            memory_buffer.update_priorities(indices, priorities)
+
         return info
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        if not os.path.exists(filepath):
+            os.makedirs(filepath)
+
+        checkpoint = {
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
+            "actor_optimizer": self.actor_net_optimiser.state_dict(),
+            "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            # Save log_alpha as a float, not a numpy array
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
+            "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
+            "learn_counter": int(self.learn_counter),
+        }
+        torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
+        logging.info("models, optimisers, and training state have been saved...")
+
+    def load_models(self, filepath: str, filename: str) -> None:
+        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.critic_net.load_state_dict(checkpoint["critic"])
+
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+        self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
+        self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        # Restore log_alpha from float
+        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
+        self.learn_counter = checkpoint.get("learn_counter", 0)
+
+        logging.info("models, optimisers, and training state have been loaded...")

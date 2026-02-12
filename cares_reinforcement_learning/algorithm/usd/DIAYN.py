@@ -82,11 +82,13 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
+
+        info: dict[str, Any] = {}
 
         if len(memory_buffer) < self.batch_size:
             return {}
@@ -118,11 +120,11 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             observation_tensor.vector_state_tensor.dtype
         )
 
-        states_zs_tensor = torch.cat(
+        states_z_tensor = torch.cat(
             [observation_tensor.vector_state_tensor, zs_one_hot], dim=1
         )
 
-        next_states_zs_tensor = torch.cat(
+        next_states_z_tensor = torch.cat(
             [next_observation_tensor.vector_state_tensor, zs_one_hot], dim=1
         )
 
@@ -164,16 +166,24 @@ class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             z_unique = zs_tensor.unique().numel()
         # -----------------------------------------------
 
-        info = self.skills_agent.update_networks(
-            memory_buffer,
-            indices,
-            states_zs_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_zs_tensor,
-            dones_tensor,
-            weights_tensor,
+        observation_z_tensor = replace(
+            observation_tensor,
+            vector_state_tensor=states_z_tensor,
         )
+        next_observation_z_tensor = replace(
+            next_observation_tensor,
+            vector_state_tensor=next_states_z_tensor,
+        )
+
+        agent_info, _ = self.skills_agent.update_from_batch(
+            observation_tensor=observation_z_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_z_tensor,
+            dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor,
+        )
+        info |= agent_info
 
         # Add DIAYN diagnostics to info dict (numbers only)
         info.update(

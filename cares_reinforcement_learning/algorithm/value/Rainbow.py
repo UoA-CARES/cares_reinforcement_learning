@@ -29,11 +29,11 @@ class Rainbow(C51):
         self.network.reset_noise()
         self.target_network.reset_noise()
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
-        info = super().train_policy(memory_buffer, episode_context)
+        info = super().train(memory_buffer, episode_context)
         self._reset_noise()
         return info

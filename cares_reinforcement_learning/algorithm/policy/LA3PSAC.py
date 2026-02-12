@@ -122,7 +122,7 @@ class LA3PSAC(SAC):
 
         return info, priorities
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,

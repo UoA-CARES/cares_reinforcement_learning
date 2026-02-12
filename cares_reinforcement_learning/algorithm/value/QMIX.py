@@ -202,7 +202,7 @@ class QMIX(Algorithm[MARLObservation, list[int], MARLMemoryBuffer]):
 
         return elementwise_loss, loss_info
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,

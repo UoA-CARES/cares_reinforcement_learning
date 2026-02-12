@@ -14,7 +14,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
@@ -23,11 +23,15 @@ from cares_reinforcement_learning.networks.common import (
 )
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
+)
+
 from cares_reinforcement_learning.util.configurations import TD3Config
 
 
-class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class TD3(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: DeterministicPolicy,
@@ -205,51 +209,16 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
 
         return actor_info
 
-    def update_networks(
+    def update_from_batch(
         self,
-        memory: SARLMemoryBuffer,
-        indices: np.ndarray,
-        states_tensor: torch.Tensor,
+        episode_context: EpisodeContext,
+        observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
-    ) -> dict[str, Any]:
-
-        info: dict[str, Any] = {}
-
-        # Update the Critic
-        critic_info, priorities = self._update_critic(
-            states_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_tensor,
-            dones_tensor,
-            weights_tensor,
-        )
-        info |= critic_info
-
-        if self.learn_counter % self.policy_update_freq == 0:
-            # Update the Actor and Alpha
-            actor_info = self._update_actor(states_tensor, weights_tensor)
-            info |= actor_info
-
-            # Update target network params
-            self.update_target_networks()
-
-        # Update the Priorities
-        if self.use_per_buffer:
-            memory.update_priorities(indices, priorities)
-
-        return info
-
-    # TODO use training_step with decay rates
-    def train_policy(
-        self,
-        memory_buffer: SARLMemoryBuffer,
-        episode_context: EpisodeContext,
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], np.ndarray]:
         self.learn_counter += 1
 
         # TODO replace with training_step based approach to avoid having to save this value
@@ -260,6 +229,38 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         self.action_noise *= self.action_noise_decay
         self.action_noise = max(self.min_action_noise, self.action_noise)
 
+        info: dict[str, Any] = {}
+
+        # Update the Critic
+        critic_info, priorities = self._update_critic(
+            observation_tensor.vector_state_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_observation_tensor.vector_state_tensor,
+            dones_tensor,
+            weights_tensor,
+        )
+        info |= critic_info
+
+        if self.learn_counter % self.policy_update_freq == 0:
+            # Update the Actor and Alpha
+            actor_info = self._update_actor(
+                observation_tensor.vector_state_tensor, weights_tensor
+            )
+            info |= actor_info
+
+            # Update target network params
+            self.update_target_networks()
+
+        return info, priorities
+
+    # TODO use training_step with decay rates
+    def train(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
+
         # Use the helper to sample and prepare tensors in one step
         (
             observation_tensor,
@@ -268,7 +269,7 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             next_observation_tensor,
             dones_tensor,
             weights_tensor,
-            _,  # extras ignored
+            _,
             indices,
         ) = memory_sampler.sample(
             memory=memory_buffer,
@@ -279,16 +280,19 @@ class TD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        info = self.update_networks(
-            memory_buffer,
-            indices,
-            observation_tensor.vector_state_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
-            dones_tensor,
-            weights_tensor,
+        info, priorities = self.update_from_batch(
+            episode_context=episode_context,
+            observation_tensor=observation_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_tensor,
+            dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor,
         )
+
+        # Update the Priorities
+        if self.use_per_buffer:
+            memory_buffer.update_priorities(indices, priorities)
 
         return info
 

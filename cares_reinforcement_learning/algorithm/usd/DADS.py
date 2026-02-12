@@ -103,7 +103,7 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         )
         return log_likelihood.sum(dim=-1)  # [B]
 
-    def train_policy(
+    def train(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
@@ -225,16 +225,24 @@ class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
         weights_tensor = weights_tensor.reshape(batch_size, 1)
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
 
-        info |= self.skills_agent.update_networks(
-            memory_buffer,
-            indices,
-            states_z_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_z_tensor,
-            dones_tensor,
-            weights_tensor,
+        observation_z_tensor = replace(
+            observation_tensor,
+            vector_state_tensor=states_z_tensor,
         )
+        next_observation_z_tensor = replace(
+            next_observation_tensor,
+            vector_state_tensor=next_states_z_tensor,
+        )
+
+        agent_info, _ = self.skills_agent.update_from_batch(
+            observation_tensor=observation_z_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_z_tensor,
+            dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor,
+        )
+        info |= agent_info
 
         # Update the Discriminator
         discriminator_loss = -log_q_true.mean()
