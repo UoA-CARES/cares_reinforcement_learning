@@ -373,6 +373,14 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
+        "-f",
+        "--file_name",
+        type=str,
+        default=None,
+        help="Name of the file to save too - default is title",
+    )
+
+    parser.add_argument(
         "--x_train",
         type=str,
         default="total_steps",
@@ -522,6 +530,8 @@ def _read_data(
 def plot_evaluations():
     args = parse_args()
 
+    file_name = args["file_name"] if args["file_name"] is not None else args["title"]
+
     x_train = args["x_train"]
     y_train = args["y_train"]
     y_train_two = args["y_train_two"]
@@ -657,7 +667,7 @@ def plot_evaluations():
                 x_label_train,
                 y_label_train,
                 save_directory,
-                f"{title}-{algorithm}-train",
+                f"{file_name}-{algorithm}-train",
                 label_fontsize=args["label_fontsize"],
                 title_fontsize=args["title_fontsize"],
                 ticks_fontsize=args["ticks_fontsize"],
@@ -671,7 +681,7 @@ def plot_evaluations():
                 x_label_eval,
                 y_label_eval,
                 save_directory,
-                f"{title}-{algorithm}-eval",
+                f"{file_name}-{algorithm}-eval",
                 label_fontsize=args["label_fontsize"],
                 title_fontsize=args["title_fontsize"],
                 ticks_fontsize=args["ticks_fontsize"],
@@ -701,7 +711,7 @@ def plot_evaluations():
         x_label_train,
         y_label_train,
         save_directory,
-        f"{title}-compare-train",
+        f"{file_name}-compare-train",
         label_fontsize=args["label_fontsize"],
         title_fontsize=args["title_fontsize"],
         ticks_fontsize=args["ticks_fontsize"],
@@ -717,7 +727,7 @@ def plot_evaluations():
         x_label_eval,
         y_label_eval,
         save_directory,
-        f"{title}-compare-eval",
+        f"{file_name}-compare-eval",
         label_fontsize=args["label_fontsize"],
         title_fontsize=args["title_fontsize"],
         ticks_fontsize=args["ticks_fontsize"],
