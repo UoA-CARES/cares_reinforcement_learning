@@ -877,8 +877,6 @@ def create_TD7(observation_size, action_num, config: acf.TD7Config):
 def _create_independant_agents(
     observation_size, action_num, create_network, config: acf.AlgorithmConfig
 ):
-    network_factory = NetworkFactory()
-
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
     agents = []
