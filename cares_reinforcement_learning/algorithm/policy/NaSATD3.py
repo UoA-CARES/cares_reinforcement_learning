@@ -4,11 +4,6 @@ NaSA-TD3 (Novelty and Surprise Autoencoder TD3)
 
 Original Paper: https://arxiv.org/pdf/2407.21338
 
-Reference:
-    Image-Based Deep Reinforcement Learning with
-    Intrinsically Motivated Stimuli:
-    On the Execution of Complex Robotic Tasks :contentReference[oaicite:1]{index=1}
-
 NaSA-TD3 extends TD3 to learn directly from raw images
 while incorporating intrinsic motivation signals based on
 novelty and surprise.

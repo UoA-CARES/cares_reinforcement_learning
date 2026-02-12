@@ -4,7 +4,7 @@ LA3P (Loss-Adjusted Approximate Actor Prioritized Experience Replay)
 
 Original Paper: https://arxiv.org/abs/2209.00532
 
-Original Code: https://github.com/h-yamani/RD-PER-baselines/blob/main/LA3P/LA3P/Code/SAC/LA3P_SAC.py
+Original Code: https://github.com/h-yamani/RD-PER-baselines
 
 LA3P adapts Prioritized Experience Replay (PER) to
 off-policy actor-critic algorithms in continuous control.

@@ -2,7 +2,7 @@
 PER-DQN (Prioritized Experience Replay DQN)
 --------------------------------------------
 
-Original Paper: https://arxiv.org/abs/1706.10295
+Original Paper: https://arxiv.org/abs/1511.05952
 
 PER-DQN extends DQN by sampling replay transitions
 non-uniformly based on their learning importance.

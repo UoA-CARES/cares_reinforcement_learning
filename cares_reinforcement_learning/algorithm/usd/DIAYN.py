@@ -4,7 +4,7 @@ DIAYN (Diversity Is All You Need)
 
 Original Paper: https://arxiv.org/pdf/1802.06070
 
-Original Code: Code: https://github.com/alirezakazemipour/DIAYN-PyTorch/tree/main
+Original Code: https://github.com/alirezakazemipour/DIAYN-PyTorch/tree/main
 
 DIAYN is an unsupervised skill discovery method that learns a
 diverse set of behaviors without using external rewards.
