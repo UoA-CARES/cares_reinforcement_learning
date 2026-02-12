@@ -1,5 +1,57 @@
 """
+REDQ (Randomized Ensembled Double Q-Learning)
+----------------------------------------------
+
 Original Paper: https://arxiv.org/pdf/2101.05982.pdf
+
+REDQ is an off-policy actor-critic algorithm designed to
+improve sample efficiency in continuous control by using
+a large ensemble of Q-networks.
+
+Core Problem:
+- Standard SAC / TD3 use two critics (clipped double Q).
+- Larger ensembles improve bias reduction but increase cost.
+- Frequent updates improve sample efficiency but can
+  amplify overestimation bias.
+
+Core Idea:
+- Maintain N Q-networks (N >> 2).
+- For each target computation, randomly select M critics
+  (M < N) and take the minimum over the subset.
+- Perform multiple gradient updates per environment step.
+
+Critic Target:
+    Sample M critics from N
+    y = r + γ ( min_j Q_target_j(s', a') - α log π(a'|s') )
+
+This stochastic subset minimization:
+- Reduces overestimation bias
+- Preserves diversity across critics
+- Avoids always taking the global minimum
+
+Actor Update:
+- Same as SAC:
+      maximize E[ min_j Q_j(s, π(s)) - α log π ]
+- Typically uses full ensemble mean or subset min.
+
+Update-to-Data Ratio (UTD):
+- REDQ increases the number of gradient steps per
+  environment interaction.
+- High UTD improves sample efficiency without
+  requiring model-based components.
+
+Key Behaviour:
+- Ensemble size N improves bias reduction.
+- Subsample size M controls conservativeness.
+- High UTD enables fast learning from limited data.
+
+Advantages:
+- Strong sample efficiency in continuous control.
+- Simple extension of SAC.
+- No model learning required.
+
+REDQ = SAC + Large Q-ensemble + Randomized subset
+        minimization + High update-to-data ratio.
 """
 
 from typing import Any

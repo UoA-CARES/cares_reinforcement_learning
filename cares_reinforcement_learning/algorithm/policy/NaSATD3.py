@@ -1,3 +1,86 @@
+"""
+NaSA-TD3 (Novelty and Surprise Autoencoder TD3)
+------------------------------------------------
+
+Original Paper: https://arxiv.org/pdf/2407.21338
+
+Reference:
+    Image-Based Deep Reinforcement Learning with
+    Intrinsically Motivated Stimuli:
+    On the Execution of Complex Robotic Tasks :contentReference[oaicite:1]{index=1}
+
+NaSA-TD3 extends TD3 to learn directly from raw images
+while incorporating intrinsic motivation signals based on
+novelty and surprise.
+
+Core Motivation:
+- Sparse or poorly defined extrinsic rewards hinder exploration.
+- Learning directly from pixels is sample-inefficient.
+- Intrinsic stimuli (novelty and surprise) can guide exploration.
+
+Total Reward:
+    R_total = R_ext + R_int
+    R_int = α * R_novel + β * R_surprise
+
+where novelty and surprise are computed separately.
+
+------------------------------------------------------------
+1) Novelty (Reconstruction-Based)
+------------------------------------------------------------
+Inspired by familiarity detection in humans.
+
+- An autoencoder (AE) encodes observation s → z.
+- Decoder reconstructs image: ŝ = Dec(Enc(s)).
+- Novelty measured via Structural Similarity (SSIM):
+
+    R_novel = 1 - SSIM(s, ŝ)
+
+If reconstruction deviates significantly,
+the observation is considered novel.
+
+------------------------------------------------------------
+2) Surprise (Prediction-Based)
+------------------------------------------------------------
+Measures discrepancy between predicted and actual dynamics.
+
+- Predict next latent state using predictive model:
+      z'_{t+1} = P(z_t, a_t)
+- Compare with true next latent:
+      z_{t+1} = Enc(s_{t+1})
+
+Surprise reward:
+    R_surprise = MSE(z_{t+1}, z'_{t+1})
+
+An ensemble of predictive models is used
+to improve robustness and stability.
+
+------------------------------------------------------------
+3) Image-Based TD3
+------------------------------------------------------------
+- Encoder maps image → latent vector z.
+- Actor and twin critics operate on z instead of raw pixels.
+- AE reconstruction loss:
+      L_AE = || s - Dec(Enc(s)) ||²
+- Encoder shared across:
+      policy learning
+      novelty detection
+      surprise prediction
+
+Actor gradients do NOT update encoder.
+Critic gradients update encoder.
+
+------------------------------------------------------------
+Key Behaviour:
+- Intrinsic rewards encourage exploration in sparse tasks.
+- AE provides compact state representation.
+
+Advantages:
+- Learns directly from raw pixels.
+- Improved sample efficiency in complex tasks.
+
+NaSA-TD3 = TD3 + Autoencoder + Novelty bonus + Surprise bonus.
+"""
+
 import copy
 import logging
 import os

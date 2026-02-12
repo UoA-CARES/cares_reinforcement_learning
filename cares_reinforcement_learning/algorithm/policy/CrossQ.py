@@ -1,8 +1,58 @@
 """
+CrossQ (Cross-Normalized Q-Learning)
+-------------------------------------
+
 Original Paper: https://arxiv.org/pdf/1902.05605
 Code based on: https://github.com/modelbased/minirllab/blob/main/agents/sac_crossq.py
 
-This code runs automatic entropy tuning
+CrossQ is an off-policy actor-critic method that improves
+sample efficiency by stabilizing critic training through
+cross-normalization of features across current and target
+Q-networks.
+
+Core Problem:
+- SAC / TD3 often avoid BatchNorm in critics because
+  target networks and bootstrapping make statistics unstable.
+- Poor feature scaling limits update-to-data ratio (UTD).
+- High UTD typically requires ensembles (e.g., REDQ).
+
+Core Idea:
+- Use Batch Normalization in Q-networks.
+- Compute normalization statistics jointly across:
+      • current Q forward pass
+      • target Q forward pass
+- This “cross” normalization aligns feature distributions
+  and stabilizes bootstrapped targets.
+
+Critic Target (SAC-style):
+    a' ~ π(s')
+    y = r + γ ( min(Q1', Q2') - α log π(a'|s') )
+
+But during forward passes:
+    - Concatenate inputs for Q and Q'
+    - Apply shared BatchNorm statistics
+    - Split outputs afterward
+
+This removes the distribution mismatch that normally
+destabilizes BatchNorm in RL.
+
+Actor Update:
+    Same as SAC:
+        maximize E[ min(Q1, Q2) - α log π ]
+
+Key Behaviour:
+- Enables high update-to-data ratios without ensembles.
+- Improves sample efficiency.
+- Requires only twin critics (no large ensembles).
+- Minimal architectural overhead.
+
+Advantages:
+- Strong performance with simple modifications.
+- No need for REDQ-style large critic sets.
+- Maintains SAC stability while improving data usage.
+
+CrossQ = SAC + cross-normalized critics
+         enabling stable high-UTD training.
 """
 
 from typing import Any

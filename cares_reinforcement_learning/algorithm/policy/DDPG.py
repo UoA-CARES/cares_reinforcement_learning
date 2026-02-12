@@ -1,5 +1,49 @@
 """
+DDPG (Deep Deterministic Policy Gradient)
+------------------------------------------
+
 Original Paper: https://arxiv.org/pdf/1509.02971v5.pdf
+
+DDPG is an off-policy actor-critic algorithm for continuous
+action spaces. It combines deterministic policy gradients
+with deep function approximation and target networks.
+
+Architecture:
+- Actor: deterministic policy π(s) → a
+- Critic: Q(s, a) estimating expected return
+- Target actor and critic networks for stability
+
+Data / Training (off-policy):
+- Transitions are sampled uniformly from a replay buffer.
+- Uses one critic (unlike TD3 which uses two).
+- Target networks are softly updated using:
+      θ_target ← τ θ + (1 - τ) θ_target
+
+Critic update:
+- Target action from target actor:
+      a' = π_target(s')
+- Bellman target:
+      y = r + γ (1 - done) Q_target(s', a')
+- Minimize MSE:
+      L = (Q(s, a) - y)²
+
+Actor update:
+- Deterministic policy gradient:
+      ∇θ J ≈ E[ ∇a Q(s, a) ∇θ π(s) ]
+- Implemented by maximizing Q(s, π(s))
+  (minimizing -Q.mean()).
+
+Exploration:
+- Exploration noise is typically added externally to actions.
+- This implementation leaves noise handling to higher-level logic.
+
+Rationale:
+- Enables stable continuous control via replay buffers and
+  target networks.
+- Deterministic policy reduces variance compared to
+  stochastic policy gradients.
+
+DDPG = Deterministic Actor-Critic + Replay Buffer + Target Networks.
 """
 
 import copy

@@ -2,6 +2,8 @@
 MAPPO (Multi-Agent Proximal Policy Optimization) implementation notes
 --------------------------------------------------------------------
 
+Original Paper: https://arxiv.org/abs/2103.01955
+
 This algorithm extends PPO to the multi-agent setting using decentralized actors
 and a centralized value function (critic). Policies are executed per-agent from
 local observations, while value estimation can condition on global state.

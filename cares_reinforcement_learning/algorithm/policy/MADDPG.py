@@ -13,6 +13,11 @@ Replay sampling:
 - Independent minibatches yield unbiased updates and help decorrelate agent
   learning in highly non-stationary multi-agent settings.
 
+Critic updates:
+- Each agent's critic is updated using the joint actions from the replay buffer
+  and the target actions from the target actors.
+- This is consistent with the original MADDPG and allows for stable critic learning.
+
 Actor updates:
 - Policies are deterministic.
 - When updating agent i, the joint action is constructed by replacing only
@@ -124,6 +129,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
         scale = (eps / norms).clamp(max=1.0)  # (B, 1)
         return (flat * scale).view_as(delta)
 
+    # ERNIE methods
     def _ernie_adv_delta(
         self,
         actor_net: torch.nn.Module,
@@ -188,7 +194,7 @@ class MADDPG(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
 
         return delta.detach()
 
-    # M3 DDPG methods
+    # M3DDPG methods
     def _compute_adversarial_actions(
         self,
         agent_index: int,

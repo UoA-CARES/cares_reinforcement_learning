@@ -1,5 +1,50 @@
 """
+QMIX (Monotonic Value Function Factorisation)
+----------------------------------------------
+
 Original Paper: https://arxiv.org/pdf/1803.11485
+
+QMIX is a value-based multi-agent RL algorithm for cooperative
+tasks with a shared team reward. It enables centralized training
+with decentralized execution by factorizing the joint action-value.
+
+Core Idea:
+- Learn per-agent utility functions:
+      Q_i(o_i, a_i)
+- Combine them into a joint action-value:
+      Q_tot(s, a_1..a_n)
+  using a mixing network that enforces a monotonic constraint:
+      ∂Q_tot / ∂Q_i >= 0  for all agents i
+
+This guarantees that maximizing each agent's Q_i independently
+also maximizes Q_tot, enabling decentralized greedy action
+selection at execution time.
+
+Architecture:
+- Agent networks: estimate Q_i from local observation/history.
+- Mixing network: produces Q_tot from {Q_i} and global state s.
+- Hypernetworks: generate mixing weights conditioned on s,
+  allowing state-dependent coordination while keeping monotonicity.
+
+Training (centralized):
+- Use TD-learning on Q_tot with a team reward:
+      y = r + γ max_{a'} Q_tot(s', a')
+- Loss:
+      L = (Q_tot(s, a) - y)^2
+- Typically uses target networks and replay buffer (DQN-style).
+
+Execution (decentralized):
+- Each agent selects action greedily from its own utility:
+      a_i = argmax_a Q_i(o_i, a)
+
+Rationale:
+- Pure independent Q-learning fails due to non-stationarity.
+- Full joint Q(s, a_1..a_n) is intractable as agents scale.
+- QMIX captures coordination via state-conditioned mixing while
+  preserving decentralizable argmax through monotonicity.
+
+QMIX = per-agent Q-learning + centralized monotonic mixing
+       for cooperative MARL.
 """
 
 import copy

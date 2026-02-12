@@ -1,8 +1,57 @@
 """
-Original Paper: https://arxiv.org/abs/1812.05905
-Code based on: https://github.com/SamsungLabs/tqc_pytorch
+TQC (Truncated Quantile Critics)
+---------------------------------
 
-This code runs automatic entropy tuning
+Original Paper: https://arxiv.org/abs/1812.05905
+Original Code: https://github.com/SamsungLabs/tqc_pytorch
+
+TQC extends Soft Actor-Critic (SAC) using distributional
+critics and quantile truncation to reduce overestimation bias.
+
+Core Problem:
+- Clipped double Q (min of two critics) reduces
+  overestimation but may still be insufficient.
+- Distributional RL provides richer return estimates,
+  but naive use can still overestimate.
+
+Core Idea:
+- Use N distributional critics.
+- Each critic outputs K quantiles of the return distribution.
+- When forming the target, drop the top quantiles
+  (highest return estimates).
+- This truncation makes the target more conservative.
+
+Critic Output:
+    Z_i(s,a) = { q_i^1, q_i^2, ..., q_i^K }
+
+Target Construction:
+    - Sample next action from current policy.
+    - Collect all quantiles from all target critics.
+    - Sort quantiles.
+    - Remove the highest M quantiles.
+    - Use remaining quantiles to compute target.
+
+Critic Loss:
+    - Quantile regression loss (Huber quantile loss)
+      between predicted and truncated target quantiles.
+
+Actor Update:
+    - Same structure as SAC:
+        maximize expected Q under policy
+    - Uses mean of quantile estimates.
+
+Key Behaviour:
+- Truncation reduces optimistic bias.
+- Larger ensembles increase stability.
+- Maintains entropy-regularized SAC objective.
+
+Advantages:
+- Stronger bias control than clipped double Q.
+- High sample efficiency.
+- Minimal change to SAC structure.
+
+TQC = SAC + distributional critics +
+      quantile truncation for conservative targets.
 """
 
 from typing import Any

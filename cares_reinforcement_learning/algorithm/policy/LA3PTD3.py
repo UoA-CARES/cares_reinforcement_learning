@@ -1,7 +1,59 @@
 """
+LA3P (Loss-Adjusted Approximate Actor Prioritized Experience Replay)
+----------------------------------------------------------------------
+
 Original Paper: https://arxiv.org/abs/2209.00532
 
-https://github.com/h-yamani/RD-PER-baselines/blob/main/LA3P/LA3P/Code/TD3/LA3P_TD3.py
+Original Code: https://github.com/h-yamani/RD-PER-baselines/blob/main/LA3P/LA3P/Code/SAC/LA3P_SAC.py
+
+LA3P adapts Prioritized Experience Replay (PER) to
+off-policy actor-critic algorithms in continuous control.
+
+Core Insight:
+- Large TD-error transitions imply large Q-estimation error.
+- Training the actor on high TD-error samples can cause
+  the approximate policy gradient to diverge from the
+  true gradient under the optimal Q-function.
+- Therefore, actor and critic should not be trained on
+  the same prioritized distribution.
+
+Key Modifications to PER:
+
+1) Inverse Sampling for the Actor
+   - Critic: prioritized sampling (high TD error).
+   - Actor: inverse-prioritized sampling (low TD error).
+   - Ensures actor is trained on transitions where the
+     critic has reliable estimates.
+
+2) Shared Uniform Fraction (λ)
+   - A fraction λ of each batch is sampled uniformly.
+   - Both actor and critic update on these shared transitions.
+   - Prevents instability from completely disjoint updates
+     (actor-critic theory requirement).
+
+3) Loss Corrections
+   - Critic uses Huber loss (κ = 1) with LAP-style clipping:
+         p_i = max(|δ_i|^α, 1)
+   - Uniform portion uses PAL (Prioritized Approximate Loss),
+     which matches the expected gradient of prioritized sampling.
+   - Prevents outlier bias from MSE + PER interaction.
+
+Training Structure (per update):
+- λ·N transitions sampled uniformly:
+      Critic updated with PAL
+      Actor updated normally
+- (1−λ)·N transitions:
+      Critic updated with prioritized sampling (Huber)
+      Actor updated with inverse-prioritized sampling
+- Priorities updated after critic steps.
+
+Rationale:
+- PER works well for critics.
+- PER harms actor learning in continuous control.
+- LA3P decouples actor/critic sampling while preserving
+  theoretical consistency.
+
+LA3P = PER + Inverse Actor Sampling + Uniform Sharing + Loss Adjustment.
 """
 
 from typing import Any

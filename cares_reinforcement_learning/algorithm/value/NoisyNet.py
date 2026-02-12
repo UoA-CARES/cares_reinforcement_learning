@@ -1,5 +1,56 @@
 """
+NoisyNet (Noisy Networks for Exploration)
+------------------------------------------
+
 Original Paper: https://arxiv.org/abs/1706.10295
+
+NoisyNet replaces deterministic linear layers with
+parameterized stochastic layers to enable learned exploration.
+
+Core Problem:
+- ε-greedy exploration is:
+      • State-independent
+      • Manually scheduled
+      • Inefficient in sparse-reward settings
+- Exploration should adapt to learning progress.
+
+Core Idea:
+- Inject trainable, factorized Gaussian noise directly
+  into network weights:
+
+      w = μ + σ ⊙ ε
+
+  where:
+      μ = learned mean parameters
+      σ = learned noise scale parameters
+      ε = random noise
+
+- Both μ and σ are optimized via gradient descent.
+- Exploration emerges from learned stochasticity.
+
+Noisy Linear Layer:
+    y = (μ_w + σ_w ⊙ ε_w) x
+        + (μ_b + σ_b ⊙ ε_b)
+
+Factorized Gaussian noise reduces computation cost.
+
+Training:
+- Noise is resampled at each forward pass.
+- Gradients flow through μ and σ.
+- No separate ε-greedy policy needed.
+
+Key Behaviour:
+- Exploration becomes state-dependent.
+- Noise magnitude shrinks as learning converges.
+- Often removes need for ε scheduling entirely.
+
+Advantages:
+- More structured exploration than ε-greedy.
+- Improved performance in Atari and sparse tasks.
+- Simple architectural modification.
+
+NoisyNet = neural networks with learnable parameter noise
+           for adaptive exploration.
 """
 
 import torch

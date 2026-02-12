@@ -1,8 +1,60 @@
 """
-Original Paper: https://arxiv.org/abs/1910.01741
-Code based on: https://github.com/denisyarats/pytorch_sac_ae/tree/master
+SAC-AE (Soft Actor-Critic with AutoEncoder)
+--------------------------------------------
 
-This code runs automatic entropy tuning
+Original Paper: https://arxiv.org/abs/1910.01741
+
+Original Code: https://github.com/denisyarats/pytorch_sac_ae/tree/master
+
+SAC-AE extends Soft Actor-Critic (SAC) to learn directly
+from high-dimensional image observations by jointly
+learning a latent state representation.
+
+Core Problem:
+- Standard SAC assumes low-dimensional state inputs.
+- Learning directly from raw pixels is unstable and
+  sample-inefficient.
+- Representation learning must be integrated with
+  value learning.
+
+Core Idea:
+- Add a convolutional encoder to map images → latent vector z.
+- Train a decoder to reconstruct the input (autoencoder loss).
+- Use the shared encoder for actor and critic updates.
+
+Architecture:
+    Image → Encoder → latent z
+    z → Actor π(a|z)
+    z → Twin Critics Q1(z,a), Q2(z,a)
+    z → Decoder → reconstructed image
+
+Training Components:
+
+1) RL Loss (standard SAC):
+    - Critic TD loss
+    - Actor entropy-regularized objective
+    - Temperature tuning
+
+2) Reconstruction Loss:
+    L_rec = || x - x̂ ||²
+
+Encoder Update:
+- Critic gradients update encoder.
+- Reconstruction loss also updates encoder.
+- Actor does NOT update encoder (to stabilize learning).
+
+Key Behaviour:
+- Encoder learns compact state representation.
+- Reconstruction stabilizes latent features.
+- Critic drives representation toward task-relevant signals.
+
+Advantages:
+- Enables SAC to operate from raw pixels.
+- Improves sample efficiency vs naïve pixel SAC.
+- Simple integration without model-based rollouts.
+
+SAC-AE = SAC + shared convolutional encoder +
+         auxiliary reconstruction objective.
 """
 
 import copy

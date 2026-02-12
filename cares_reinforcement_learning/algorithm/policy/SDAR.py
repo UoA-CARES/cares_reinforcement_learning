@@ -1,5 +1,57 @@
 """
-https://openreview.net/pdf?id=PDgZ3rvqHn
+SDAR (Spatially Decoupled Action Repetition)
+---------------------------------------------
+
+Original Paper: https://openreview.net/pdf?id=PDgZ3rvqHn
+
+SDAR is a closed-loop action repetition framework for
+continuous control that performs act-or-repeat selection
+independently for each action dimension.
+
+Core Problem:
+- Standard RL selects actions at every timestep.
+- Existing repetition methods treat the entire action vector
+  as a whole when deciding to act or repeat.
+- Different actuators often require different repetition
+  frequencies, making joint repetition inflexible.
+
+Core Idea:
+- Decouple repetition decisions across action dimensions.
+- For each dimension i, decide:
+      repeat previous action  (b_i = 0)
+      or generate new action  (b_i = 1)
+
+Two-Stage Policy:
+
+1) Selection Policy β(b | s, a_prev)
+   - Outputs Bernoulli probabilities per dimension.
+   - Produces repetition mask:
+         b ∈ {0,1}^{|A|}
+
+2) Action Policy π(â | s, a_prev, b)
+   - Generates new actions only where b_i = 1.
+   - Final action is mixed as:
+         a = (1 - b) ⊙ a_prev + b ⊙ â
+
+This guarantees exact repetition where selected.
+
+Learning:
+- Off-policy training with replay buffer.
+- Twin Q-functions (clipped double-Q).
+- Joint entropy-regularized objective for:
+      • selection policy β
+      • action policy π
+- Separate temperature terms for β and π.
+
+Key Behaviour:
+- Higher action persistence without sacrificing agility.
+- Improved balance between repetition and diversity.
+- Reduced action fluctuation.
+- Higher sample efficiency vs SAC, open-loop,
+  and prior closed-loop repetition methods.
+
+SDAR = closed-loop, per-dimension action repetition
+        with joint entropy-regularized training.
 """
 
 import copy

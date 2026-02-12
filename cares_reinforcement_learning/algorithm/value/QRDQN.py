@@ -1,5 +1,48 @@
 """
+QR-DQN (Quantile Regression DQN)
+----------------------------------
+
 Original Paper: https://arxiv.org/pdf/1710.10044
+
+QR-DQN extends DQN by learning a full return distribution
+instead of a single expected Q-value.
+
+Core Problem:
+- Standard DQN estimates:
+      Q(s,a) = E[Z(s,a)]
+- The Bellman target contains uncertainty, but DQN collapses
+  it to a scalar expectation.
+- Modeling the distribution can improve stability and learning.
+
+Core Idea:
+- Represent the return distribution Z(s,a) using N quantiles.
+- The network outputs:
+      Zθ(s,a) = {θ₁, θ₂, ..., θ_N}
+  corresponding to fixed quantile fractions τ_i.
+
+Expected Q-value:
+      Q(s,a) = mean_i θ_i
+
+Target Construction:
+- Sample next action via greedy selection on mean value.
+- Target quantiles:
+      y_i = r + γ (1 - done) θ'_j(s', a*)
+- No projection step required (unlike C51).
+
+Loss (Quantile Regression):
+- Minimize quantile Huber loss between predicted
+  and target quantiles:
+
+      L = ρ_τ^κ ( y_j - θ_i )
+
+where ρ is the quantile regression loss.
+
+Key Behaviour:
+- Captures uncertainty in return estimates.
+- Reduces variance and improves learning stability.
+- Often improves performance over scalar DQN.
+
+QR-DQN = DQN + quantile-based distributional value learning.
 """
 
 import torch

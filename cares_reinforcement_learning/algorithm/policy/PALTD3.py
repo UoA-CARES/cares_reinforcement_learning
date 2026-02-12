@@ -1,5 +1,51 @@
 """
+PAL-TD3 (Prioritized Approximate Loss for TD3)
+-----------------------------------------------
+
 Original Paper: https://arxiv.org/abs/2007.06049
+
+PAL replaces the standard critic loss when using
+Prioritized Experience Replay (PER).
+
+Core Problem:
+- PER samples transitions with probability ∝ |TD-error|^α.
+- Combining PER with standard MSE critic loss changes
+  the expected gradient.
+- This introduces bias and can amplify outliers,
+  especially in continuous control.
+
+Core Idea:
+- Instead of reweighting MSE with importance sampling,
+  modify the loss so that prioritized sampling produces
+  the same expected gradient as uniform sampling.
+- This yields the Prioritized Approximate Loss (PAL).
+
+Prioritized Approximate Loss:
+For TD-error δ:
+
+    L_PAL(δ) ≈ |δ|^(1+α)
+
+with clipping at a minimum priority to prevent
+degenerate scaling.
+
+In practice:
+- Compute TD-error per critic.
+- Apply PAL transformation.
+- Normalize by average priority magnitude.
+- Update critics without explicit importance weights.
+
+Effect:
+- Removes bias introduced by PER + MSE interaction.
+- Prevents domination by extreme TD-errors.
+- Retains sample-efficiency benefits of PER.
+
+Scope:
+- Applies to any off-policy Q-learning method.
+- Only modifies critic loss.
+- Actor update remains unchanged.
+
+PAL = PER-compatible loss that preserves
+uniform-gradient expectation.
 """
 
 from typing import Any

@@ -1,8 +1,57 @@
 """
-Original Paper: https://arxiv.org/abs/1812.05905
-Code based on: https://github.com/pranz24/pytorch-soft-actor-critic/blob/master/sac.py.
+SAC (Soft Actor-Critic)
+------------------------
 
-This code runs automatic entropy tuning
+Original Paper: https://arxiv.org/abs/1812.05905
+
+SAC is an off-policy actor-critic algorithm for continuous
+control that augments the reward objective with an entropy
+term to encourage exploration.
+
+Core Idea:
+- Maximize expected return while also maximizing policy entropy.
+- Learn a stochastic Gaussian policy.
+- Use clipped double Q-learning for stability.
+
+Objective:
+    J(π) = E[ Σ ( r_t + α H(π(·|s_t)) ) ]
+
+where:
+    α controls the entropy temperature.
+
+Architecture:
+- Actor: stochastic policy π(a|s) (Gaussian, tanh-squashed)
+- Twin critics: Q1(s,a), Q2(s,a)
+- Target critics for stable bootstrapping
+- Automatic temperature tuning
+
+Critic Target:
+    a' ~ π(s')
+    y = r + γ ( min(Q1', Q2') - α log π(a'|s') )
+
+Critic Loss:
+    MSE between Q(s,a) and y
+    (applied independently to both critics)
+
+Actor Update:
+    Minimize:
+        J_actor = E[ α log π(a|s) - min(Q1, Q2) ]
+
+Temperature Update:
+    Adjust α to match target entropy:
+        J_α = E[ -α (log π(a|s) + H_target) ]
+
+Key Behaviour:
+- Entropy term encourages broader exploration.
+- Twin critics reduce overestimation bias.
+- Off-policy replay improves sample efficiency.
+
+Advantages:
+- Stable training in continuous control.
+- Robust to hyperparameters compared to DDPG.
+- Strong empirical performance across MuJoCo tasks.
+
+SAC = Maximum-Entropy RL + Twin Q Critics + Replay Buffer.
 """
 
 import copy

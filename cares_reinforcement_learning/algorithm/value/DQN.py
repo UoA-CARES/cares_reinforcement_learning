@@ -1,5 +1,49 @@
 """
+DQN (Deep Q-Network)
+---------------------
+
 Original Paper: https://arxiv.org/abs/1312.5602
+
+DQN is an off-policy, value-based reinforcement learning algorithm
+for discrete action spaces. It learns an action-value function
+Q(s, a) with a neural network and selects actions via ε-greedy
+exploration.
+
+Core Idea:
+- Approximate Q*(s,a) with Qθ(s,a).
+- Train with TD-learning using replay and a target network
+  to stabilize the moving Bellman target.
+
+Data / Replay:
+- Transitions are stored in a replay buffer:
+      (s, a, r, s', done)
+- Minibatches are sampled uniformly (PER is an optional extension).
+- Replay breaks temporal correlations and improves data efficiency.
+
+Critic (Q-network) update:
+- Bootstrapped target:
+      y = r + γ (1 - done) max_{a'} Qθ¯(s', a')
+  where Qθ¯ is a slowly-updated target network.
+- Loss (typically MSE or Huber):
+      L = (Qθ(s,a) - y)^2
+
+Target Network:
+- Updated periodically (hard update) or via Polyak averaging.
+- Reduces instability from chasing a rapidly-changing target.
+
+Exploration:
+- ε-greedy:
+      with prob ε: random action
+      else: a = argmax_a Qθ(s,a)
+
+Key Behaviour:
+- Learns from off-policy data via replay.
+- Bootstrapping enables efficient credit assignment.
+- Most effective in discrete actions; continuous control
+  typically requires actor-critic methods.
+
+DQN = Q-learning + neural function approximation
+      + replay buffer + target network.
 """
 
 import copy
