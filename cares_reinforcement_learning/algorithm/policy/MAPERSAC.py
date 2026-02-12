@@ -1,7 +1,66 @@
 """
+MaPER (Model-augmented Prioritized Experience Replay)
+------------------------------------------------------
+
 Original Paper: https://openreview.net/pdf?id=WuEiafqdy9H
 
-https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithms/sac/masac.py
+Original Implementation: https://github.com/h-yamani/RD-PER-baselines/blob/main/MAPER/MfRL_Cont/algorithms/sac/masac.py
+
+MaPER extends Prioritized Experience Replay (PER) by
+incorporating model-estimation errors into the priority
+computation.
+
+Core Problem:
+- Standard PER prioritizes transitions using TD-error only.
+- TD-error alone can be noisy due to Q-value under/overestimation.
+- Early in training, Q-values are inaccurate, making TD-error
+  an unreliable prioritization signal.
+
+Core Idea:
+- Augment the critic to also predict environment dynamics:
+      • reward model Rθ(s, a)
+      • transition model Tθ(s, a)
+- Compute priority using both:
+      TD-error  +  model-estimation errors
+
+Model-Augmented Critic (MaCN):
+    Cθ(s, a) = (Qθ, Rθ, Tθ)
+
+Loss:
+    LC = ξ1 LQ + ξ2 LR + ξ3 LT
+    where:
+        LQ = Q-value TD loss
+        LR = reward prediction loss
+        LT = next-state prediction loss
+
+Priority Computation:
+    σ_i = ξ1 ||δ_Q||²
+        + ξ2 ||δ_R||²
+        + ξ3 ||δ_T||²
+
+Sampling probability:
+    p_i ∝ σ_i^α
+
+Key Effect:
+- Early training: high model errors dominate sampling.
+  → Encourages learning environment structure.
+- Later training: TD-error dominates.
+  → Focuses on Q-value refinement.
+
+This induces a curriculum-like effect for critic learning.
+
+Advantages:
+- Improves sample efficiency in off-policy RL.
+- Seamlessly integrates into model-free and model-based methods.
+- Minimal computational overhead (shared parameters).
+
+Scope:
+- Applicable to any off-policy algorithm with Q-networks.
+- Modifies critic architecture and replay priority only.
+- Actor update remains unchanged.
+
+MaPER = PER + model-error-aware prioritization
+         via shared environment prediction.
 """
 
 from typing import Any

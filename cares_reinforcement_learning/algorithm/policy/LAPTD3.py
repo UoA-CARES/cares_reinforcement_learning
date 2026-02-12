@@ -1,5 +1,52 @@
 """
+LAP (Loss-Adjusted Prioritized Experience Replay)
+--------------------------------------------------
+
 Original Paper: https://arxiv.org/abs/2007.06049
+
+LAP modifies Prioritized Experience Replay (PER) to remove
+bias introduced by combining TD-error-based sampling with
+mean-squared error (MSE) critic losses.
+
+Core Problem:
+- PER samples transitions with probability ∝ |TD error|^α.
+- When combined with MSE, this induces a biased objective.
+- High-error outliers can dominate updates and destabilize
+  off-policy learning, especially in continuous control.
+
+Core Idea:
+- Adjust the critic loss so that prioritized sampling and
+  uniform sampling produce the same expected gradient.
+- Prevent outlier bias leakage while preserving PER's
+  sample-efficiency benefits.
+
+Key Modifications:
+
+1) Clipped Priorities
+   p_i = max(|δ_i|^α, 1)
+   - Prevents very small priorities.
+   - Removes need for ε-offset.
+
+2) Huber Loss (κ = 1)
+   - Replaces MSE in critic updates.
+   - Behaves like MSE near zero.
+   - Behaves like L1 for large TD errors.
+   - Limits influence of outliers.
+
+Result:
+- Prioritized sampling remains proportional to TD error.
+- Critic updates are no longer biased by the interaction
+  between MSE and non-uniform sampling.
+- Empirically improves stability over vanilla PER in
+  off-policy actor-critic methods.
+
+Scope:
+- Applies to any off-policy algorithm using PER
+  (e.g., DQN, TD3, SAC).
+- Only modifies critic loss and priority calculation.
+- Actor updates remain unchanged.
+
+LAP = PER + Huber critic loss + clipped priorities.
 """
 
 from typing import Any

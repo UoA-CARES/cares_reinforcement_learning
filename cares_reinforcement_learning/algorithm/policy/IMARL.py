@@ -1,3 +1,60 @@
+"""
+IMARL (Independent Multi-Agent Reinforcement Learning)
+-------------------------------------------------------
+
+IMARL provides a general framework for Independent Multi-Agent
+Reinforcement Learning, where each agent is trained as a
+separate single-agent learner using its own policy and value
+functions.
+
+Core Idea:
+- Each agent treats other agents as part of the environment.
+- No centralized critic or parameter sharing is enforced.
+- Learning is fully decentralized.
+
+Execution:
+- At each timestep, the joint observation is split into
+per-agent observations.
+- Each agent independently selects its action:
+      a_i = π_i(o_i)
+- Joint action is returned to the environment.
+
+Training:
+- A shared multi-agent replay buffer stores joint transitions.
+- During training, batches are sampled and split per agent.
+- Each agent updates only using:
+      (s_i, a_i, r_i, s'_i, done_i)
+- No gradients or value targets depend on other agents'
+  networks.
+
+Non-Stationarity:
+- Since all agents learn simultaneously, from each agent's
+  perspective the environment is non-stationary.
+- IMARL does not correct for this (unlike centralized training
+  approaches such as MADDPG or MAPPO).
+
+Algorithm-Agnostic:
+- Works with any single-agent algorithm:
+      DDPG, TD3, SAC (off-policy)
+      PPO (on-policy)
+- Algorithm-specific subclasses simply forward batches
+  to the corresponding single-agent update logic.
+
+Replay / Sampling:
+- Off-policy methods use uniform replay sampling.
+- On-policy methods (e.g., PPO) override sampling to
+  flush trajectories per update.
+
+Rationale:
+- Simple and scalable.
+- No need for centralized state or joint action critics.
+- Useful baseline for MARL comparison.
+- Easily extensible to new single-agent algorithms.
+
+IMARL = N independent single-agent learners interacting
+through a shared environment.
+"""
+
 import logging
 import os
 from abc import abstractmethod

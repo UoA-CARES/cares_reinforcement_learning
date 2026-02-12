@@ -1,10 +1,52 @@
 """
+CTD4 (Continuous Twin Delayed Distributional Deterministic Policy Gradient)
+----------------------------------------------------------------------------
+
 Original Paper: https://arxiv.org/abs/2405.02576
 
-Continues Distributed TD3
-Each Critic outputs a normal distribution
+Original Code: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/1fce6fcde5183bafe4efce0aa30fc59f630a8429/cares_reinforcement_learning/algorithm/policy/CTD4.py
 
-Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/1fce6fcde5183bafe4efce0aa30fc59f630a8429/cares_reinforcement_learning/algorithm/policy/CTD4.py
+This algorithm extends TD3 by replacing scalar Q-value critics
+with continuous distributional critics. Each critic outputs a
+Gaussian return distribution parameterized by (μ, σ).
+
+Data / Training (off-policy):
+- Uses standard TD3 replay buffer and target networks.
+- Each critic predicts Z(s, a) ~ Normal(μ, σ).
+- Actor remains deterministic.
+
+Distributional Bellman update:
+- Target critics produce multiple distributions for next state.
+- Critic outputs are fused (Kalman / average / minimum).
+- Target distribution is constructed analytically:
+      μ_target  = r + γ μ_fused (1 - done)
+      σ_target  = γ σ_fused
+- No categorical projection step is required.
+
+Critic updates:
+- Each critic minimizes KL divergence between:
+      Z_current  and  Z_target
+- Critics are optimized independently (ensemble).
+
+Actor updates:
+- Actor maximizes fused mean return:
+      J ≈ E[ μ_fused(s, π(s)) ]
+- Implemented as minimizing -μ_fused.mean().
+
+Ensemble fusion:
+- Default: Kalman fusion (uncertainty-weighted Gaussian fusion).
+- Alternatives: average or minimum.
+- Kalman fusion mitigates overestimation without discarding
+  ensemble information.
+
+Rationale:
+- Continuous distributions avoid categorical support tuning
+  and projection steps.
+- KL between Gaussians is analytic and stable.
+- Ensemble fusion reduces overestimation bias while preserving
+  uncertainty information.
+
+CTD4 = TD3 + Gaussian distributional critics + Kalman fusion.
 """
 
 from typing import Any

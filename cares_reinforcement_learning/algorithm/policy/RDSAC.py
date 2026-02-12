@@ -1,3 +1,70 @@
+"""
+RD-PER (Reward Discrepancy / Reward Prediction Error Prioritization)
+---------------------------------------------------------------------
+
+Original Paper: https://arxiv.org/pdf/2501.18093
+
+RD methods replace TD-error-based prioritisation with
+Reward Prediction Error (RPE) as the sampling signal.
+
+Core Problem:
+- Standard PER prioritises transitions using TD-error.
+- In continuous control, TD-error can be noisy due to:
+      • bootstrapping
+      • Q-value over/underestimation
+      • function approximation error
+- TD-error may not reliably reflect learning progress.
+
+Core Idea:
+- Use reward prediction discrepancy instead of TD-error.
+- Prioritise experiences where predicted rewards differ
+  most from actual rewards.
+
+Enhanced Critic (EMCN-style):
+The critic predicts:
+    Q(s, a)
+    R(s, a)          (reward model)
+    T(s, a)          (next-state model)
+
+Reward Prediction Error:
+    RPE_i = || Rθ(s_i, a_i) - r_i ||²
+
+Priority:
+    p_i = (RPE_i + ε)^α
+
+Sampling probability:
+    P(i) ∝ p_i
+
+Key Behaviour:
+- Early training:
+      Reward prediction error is large → focus on learning
+      environment structure.
+- Later training:
+      RPE shrinks → sampling becomes more uniform.
+- Decouples prioritisation from bootstrapped Q-targets.
+
+Critic Training:
+- Standard TD loss for Q-values.
+- Auxiliary losses for:
+      reward prediction
+      next-state prediction
+- Combined loss:
+      L = ξ1 L_Q + ξ2 L_R + ξ3 L_T
+
+Advantages:
+- More stable than TD-error prioritisation in continuous control.
+- Avoids over-prioritising noisy Q-target spikes.
+- Biologically inspired (dopaminergic RPE hypothesis).
+
+Scope:
+- Plug-in replacement for PER in off-policy actor-critic methods.
+- Modifies priority computation and critic architecture.
+- Actor update remains unchanged.
+
+RD-PER = PER with Reward Prediction Error
+         replacing TD-error as the priority signal.
+"""
+
 from typing import Any
 
 import numpy as np

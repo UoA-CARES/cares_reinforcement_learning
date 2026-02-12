@@ -248,10 +248,16 @@ Multi-Agent Reinforcement Learning algorithms (MARL).
 | Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
+| IDDPG       | Vector (MARL)              | Continuous   | N/A                                                         |
 | MADDPG      | Vector (MARL)              | Continuous   | [MADDPG](https://arxiv.org/pdf/1706.02275)                  |
 | M3DDPG      | Vector (MARL)              | Continuous   | [M3DDPG](https://doi.org/10.1609/aaai.v33i01.33014213)      |
+| ITD3        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MATD3       | Vector (MARL)              | Continuous   | [MATD3](https://arxiv.org/pdf/1910.01465)                   |
+| ISAC        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://doi.org/10.1609/aaai.v33i01.33014213)       |
+| IPPO        | Vector (MARL)              | Continuous   | N/A                                                         |
+| MAPPO       | Vector (MARL)              | Continuous   | [MAPPO](https://arxiv.org/abs/2103.01955)                   |
+
 
 ## Unsupervised Skill Discovery
 Implementation of Unsupervised Skill discovery methods

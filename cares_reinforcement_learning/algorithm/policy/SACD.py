@@ -1,8 +1,65 @@
 """
-Original Paper: https://arxiv.org/pdf/1910.07207
-Code based on: https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py
+SACD (Soft Actor-Critic for Discrete Action Settings)
+------------------------------------------------------
 
-This code runs automatic entropy tuning
+Original Paper: https://arxiv.org/pdf/1910.07207
+Original Code: https://github.com/p-christ/Deep-Reinforcement-Learning-Algorithms-with-PyTorch/blob/master/agents/actor_critic_agents/SAC_Discrete.py
+
+SACD adapts Soft Actor-Critic (SAC) to discrete action
+spaces while preserving the maximum-entropy objective.
+
+Core Idea:
+- Maximize expected return + entropy bonus.
+- Replace continuous policy with a categorical distribution.
+- Compute expectations exactly over discrete actions
+  (no reparameterization trick required).
+
+Objective:
+    J(π) = E[ r(s,a) + γ V(s') ]
+    with entropy regularization:
+    + α H(π(·|s))
+
+Architecture Changes vs Continuous SAC:
+
+1) Q-Network:
+   - Outputs Q(s) ∈ R^{|A|}
+   - One value per discrete action.
+
+2) Policy:
+   - Outputs π(a|s) via softmax.
+   - Direct probability vector over actions.
+
+Critic Target:
+    V(s) = Σ_a π(a|s) [ Q(s,a) - α log π(a|s) ]
+
+    y = r + γ V_target(s')
+
+Twin Q-networks are used and the minimum is applied
+for stability (clipped double Q-learning).
+
+Actor Update:
+    J_actor = E_s [ Σ_a π(a|s)
+                    ( α log π(a|s) - Q(s,a) ) ]
+
+The expectation over actions is computed exactly,
+reducing variance compared to sampling-based updates.
+
+Temperature Update:
+    J(α) = E_s [ Σ_a π(a|s)
+                 ( -α (log π(a|s) + H_target) ) ]
+
+Key Behaviour:
+- No action sampling required for expectation terms.
+- Lower variance policy and temperature updates.
+- Maintains entropy-regularized exploration.
+
+Advantages:
+- Extends SAC to discrete domains (e.g., Atari).
+- Competitive sample efficiency without tuning.
+- Simple modification of SAC structure.
+
+SACD = SAC with categorical policy +
+        exact expectation over discrete actions.
 """
 
 import copy
@@ -16,7 +73,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
@@ -25,7 +82,7 @@ from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import SACDConfig
 
 
-class SACD(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
+class SACD(SARLAlgorithm[int]):
     def __init__(
         self,
         actor_network: Actor,

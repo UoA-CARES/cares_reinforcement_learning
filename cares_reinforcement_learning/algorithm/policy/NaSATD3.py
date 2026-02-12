@@ -1,3 +1,81 @@
+"""
+NaSA-TD3 (Novelty and Surprise Autoencoder TD3)
+------------------------------------------------
+
+Original Paper: https://arxiv.org/pdf/2407.21338
+
+NaSA-TD3 extends TD3 to learn directly from raw images
+while incorporating intrinsic motivation signals based on
+novelty and surprise.
+
+Core Motivation:
+- Sparse or poorly defined extrinsic rewards hinder exploration.
+- Learning directly from pixels is sample-inefficient.
+- Intrinsic stimuli (novelty and surprise) can guide exploration.
+
+Total Reward:
+    R_total = R_ext + R_int
+    R_int = α * R_novel + β * R_surprise
+
+where novelty and surprise are computed separately.
+
+------------------------------------------------------------
+1) Novelty (Reconstruction-Based)
+------------------------------------------------------------
+Inspired by familiarity detection in humans.
+
+- An autoencoder (AE) encodes observation s → z.
+- Decoder reconstructs image: ŝ = Dec(Enc(s)).
+- Novelty measured via Structural Similarity (SSIM):
+
+    R_novel = 1 - SSIM(s, ŝ)
+
+If reconstruction deviates significantly,
+the observation is considered novel.
+
+------------------------------------------------------------
+2) Surprise (Prediction-Based)
+------------------------------------------------------------
+Measures discrepancy between predicted and actual dynamics.
+
+- Predict next latent state using predictive model:
+      z'_{t+1} = P(z_t, a_t)
+- Compare with true next latent:
+      z_{t+1} = Enc(s_{t+1})
+
+Surprise reward:
+    R_surprise = MSE(z_{t+1}, z'_{t+1})
+
+An ensemble of predictive models is used
+to improve robustness and stability.
+
+------------------------------------------------------------
+3) Image-Based TD3
+------------------------------------------------------------
+- Encoder maps image → latent vector z.
+- Actor and twin critics operate on z instead of raw pixels.
+- AE reconstruction loss:
+      L_AE = || s - Dec(Enc(s)) ||²
+- Encoder shared across:
+      policy learning
+      novelty detection
+      surprise prediction
+
+Actor gradients do NOT update encoder.
+Critic gradients update encoder.
+
+------------------------------------------------------------
+Key Behaviour:
+- Intrinsic rewards encourage exploration in sparse tasks.
+- AE provides compact state representation.
+
+Advantages:
+- Learns directly from raw pixels.
+- Improved sample efficiency in complex tasks.
+
+NaSA-TD3 = TD3 + Autoencoder + Novelty bonus + Surprise bonus.
+"""
+
 import copy
 import logging
 import os
@@ -14,23 +92,23 @@ from torch import nn
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
+from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.util.configurations import NaSATD3Config
-from cares_reinforcement_learning.types.action import ActionSample
 
 
-class NaSATD3(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class NaSATD3(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: Actor,

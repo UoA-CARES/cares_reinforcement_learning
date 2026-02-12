@@ -1,6 +1,59 @@
 """
-Original Paper: https://arxiv.org/abs/1910.01741 - SAC based but followed same concept here
-Code based on: https://github.com/denisyarats/pytorch_sac_ae/tree/master
+TD3-AE (Twin Delayed Deep Deterministic Policy Gradient with AutoEncoder)
+------------------------------------------------------------------------
+
+Original Paper: https://arxiv.org/abs/1910.01741
+
+Original Code: https://github.com/denisyarats/pytorch_sac_ae/tree/master
+
+TD3-AE extends Twin Delayed Deep Deterministic Policy Gradient (TD3) to learn directly
+from high-dimensional image observations by jointly
+learning a latent state representation.
+
+Core Problem:
+- Standard TD3 assumes low-dimensional state inputs.
+- Learning directly from raw pixels is unstable and
+  sample-inefficient.
+- Representation learning must be integrated with
+  value learning.
+
+Core Idea:
+- Add a convolutional encoder to map images → latent vector z.
+- Train a decoder to reconstruct the input (autoencoder loss).
+- Use the shared encoder for actor and critic updates.
+
+Architecture:
+    Image → Encoder → latent z
+    z → Actor π(a|z)
+    z → Twin Critics Q1(z,a), Q2(z,a)
+    z → Decoder → reconstructed image
+
+Training Components:
+
+1) RL Loss (standard TD3):
+    - Critic TD loss
+    - Actor deterministic policy gradient
+
+2) Reconstruction Loss:
+    L_rec = || x - x̂ ||²
+
+Encoder Update:
+- Critic gradients update encoder.
+- Reconstruction loss also updates encoder.
+- Actor does NOT update encoder (to stabilize learning).
+
+Key Behaviour:
+- Encoder learns compact state representation.
+- Reconstruction stabilizes latent features.
+- Critic drives representation toward task-relevant signals.
+
+Advantages:
+- Enables TD3 to operate from raw pixels.
+- Improves sample efficiency vs naïve pixel TD3.
+- Simple integration without model-based rollouts.
+
+TD3-AE = TD3 + shared convolutional encoder +
+         auxiliary reconstruction objective.
 """
 
 import copy
@@ -14,7 +67,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
@@ -28,7 +81,7 @@ from cares_reinforcement_learning.types.observation import (
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
 
 
-class TD3AE(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class TD3AE(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: Actor,

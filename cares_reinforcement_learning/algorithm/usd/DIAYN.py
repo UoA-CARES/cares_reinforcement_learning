@@ -1,7 +1,56 @@
 """
-DIAYN (Diversity Is All You Need) implementation: https://arxiv.org/pdf/1802.06070
+DIAYN (Diversity Is All You Need)
+----------------------------------
 
-Code: https://github.com/alirezakazemipour/DIAYN-PyTorch/tree/main
+Original Paper: https://arxiv.org/pdf/1802.06070
+
+Original Code: https://github.com/alirezakazemipour/DIAYN-PyTorch/tree/main
+
+DIAYN is an unsupervised skill discovery method that learns a
+diverse set of behaviors without using external rewards.
+
+Core Idea:
+- Introduce a latent skill variable z.
+- Train a skill-conditioned policy:
+      π(a | s, z)
+- Encourage skills to visit distinct states.
+
+Objective:
+    max  I(z ; s)
+
+Mutual information between skill z and visited state s is
+maximized while keeping the policy high-entropy.
+
+Variational Formulation:
+- Introduce a discriminator q_φ(z | s).
+- Intrinsic reward:
+      r(s, z) = log q_φ(z | s) - log p(z)
+
+The policy is rewarded when the discriminator can correctly
+infer which skill generated the state.
+
+Training:
+- Skills z sampled from a fixed prior (typically uniform).
+- Off-policy RL (commonly SAC) optimizes the policy.
+- Discriminator trained via cross-entropy classification.
+
+Key Behaviour:
+- Skills become distinguishable in state space.
+- No task reward required.
+- Encourages diverse, steady-state behaviors.
+
+Differences from Dynamics-Aware Methods (e.g., DADS):
+- DIAYN maximizes I(z; s).
+- Does not explicitly model environment dynamics.
+- Diversity is state-based rather than transition-based.
+
+Advantages:
+- Simple and scalable.
+- Produces reusable skill primitives.
+- Useful for pretraining and hierarchical RL.
+
+DIAYN = unsupervised skill learning via
+        mutual information between skill and state.
 """
 
 import logging
@@ -14,7 +63,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
@@ -24,7 +73,7 @@ from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
 
 
-class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class DIAYN(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         skills_agent: SAC,

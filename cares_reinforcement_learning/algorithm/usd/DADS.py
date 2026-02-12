@@ -1,7 +1,71 @@
 """
-DADS DYNAMICS-AWARE DISCOVERY OF SKILLS https://arxiv.org/pdf/1907.01657
+DADS (Dynamics-Aware Discovery of Skills)
+------------------------------------------
 
-Code: https://github.com/google-research/dads
+Original Paper: https://arxiv.org/abs/1907.01657
+Original Code: https://github.com/google-research/dads
+
+DADS is an unsupervised skill discovery method that learns a
+diverse set of latent-conditioned policies by maximizing how
+distinctly each skill influences environment dynamics.
+
+Core Problem:
+- Many skill discovery methods maximize diversity in state space,
+  but ignore whether differences are controllable or predictable.
+- Pure state-entropy objectives can encourage noisy or unstable
+  behaviors.
+
+Core Idea:
+- Learn skills that induce distinguishable transitions in dynamics.
+- Maximize mutual information between:
+      latent skill z
+      next state s'
+  conditioned on current state s.
+
+Objective:
+    max  I(z ; s' | s)
+
+This encourages each skill to produce transitions that are
+predictable and uniquely attributable to that skill.
+
+Architecture:
+
+1) Skill-Conditioned Policy:
+      π(a | s, z)
+
+2) Dynamics Model:
+      p_φ(s' | s, z)
+
+The dynamics model predicts next state conditioned on skill.
+The policy is trained so that:
+
+      s' under skill z
+      is more likely under p_φ(· | s, z)
+      than under other skills z'.
+
+Reward Signal:
+    r(s, z, s') ≈ log p_φ(s' | s, z)
+                  - log Σ_{z'} p_φ(s' | s, z')
+
+This is a variational lower bound on the mutual information.
+
+Training:
+- Off-policy RL (often SAC) used to optimize the policy.
+- Skills are sampled from a fixed prior (e.g., uniform categorical).
+- No extrinsic reward required.
+
+Key Behaviour:
+- Learns diverse, temporally extended behaviors.
+- Skills correspond to distinct, predictable dynamics.
+- Enables hierarchical RL by treating skills as high-level actions.
+
+Advantages:
+- Dynamics-aware diversity (not just state coverage).
+- Produces reusable and controllable skills.
+- Improves downstream task learning via pretraining.
+
+DADS = skill discovery via maximizing
+       mutual information between skill and dynamics.
 """
 
 import logging
@@ -13,7 +77,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import memory_sampler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
@@ -24,7 +88,7 @@ from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DADSConfig
 
 
-class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class DADS(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         skills_agent: SAC,

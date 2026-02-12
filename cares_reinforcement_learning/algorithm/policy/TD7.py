@@ -1,6 +1,102 @@
 """
-Original Paper: https://arxiv.org/pdf/2306.02451
+TD7 (TD3 + SALE + Checkpoints + LAP + BC)
+-------------------------------------------
 
+Original Paper: https://arxiv.org/pdf/2306.02451
+Original Code: https://github.com/sfujim/TD7
+
+TD7 extends TD3 by integrating state-action representation
+learning (SALE), policy checkpoints, prioritized replay (LAP),
+and an optional behavior cloning term (offline RL).
+
+Core Motivation:
+- Value learning from the Bellman equation is a weak and
+  non-stationary learning signal.
+- Even low-dimensional state spaces can benefit from
+  representation learning.
+- Actor-critic methods are unstable and prone to
+  extrapolation error.
+
+Key Component 1 — SALE (State-Action Learned Embeddings)
+---------------------------------------------------------
+Learn joint embeddings of state and action by modeling
+latent dynamics:
+
+    z_s  = f(s)
+    z_sa = g(z_s, a)
+
+Encoders are trained via next-state prediction:
+
+    L = || g(f(s), a) - stopgrad(f(s')) ||^2
+
+Embeddings are:
+    • Decoupled from value/policy gradients
+    • Normalized (AvgL1Norm)
+    • Used as additional inputs to Q and π
+
+Value input:
+    Q(z_sa, z_s, s, a)
+
+Policy input:
+    π(z_s, s)
+
+This improves feature learning even in low-dimensional control.
+
+Key Component 2 — Clipped Value Targets
+----------------------------------------
+Expanding state-action inputs can cause extrapolation error.
+TD7 clips Bellman targets to the observed value range:
+
+    target = r + γ clip(min(Q1', Q2'), Q_min, Q_max)
+
+This stabilizes value estimates during online learning.
+
+Key Component 3 — Policy Checkpoints
+-------------------------------------
+Instead of always deploying the latest policy,
+TD7 maintains the best-performing checkpoint policy
+(measured over evaluation episodes).
+
+Training is batched over assessment episodes:
+    collect N steps → train N updates
+
+Evaluation uses the checkpoint policy,
+improving robustness to instability.
+
+Key Component 4 — LAP Replay
+-----------------------------
+Uses Loss-Adjusted Prioritized replay (LAP):
+
+    p(i) ∝ max(|δ_i|^α, 1)
+
+Critic loss uses Huber loss.
+Improves sample efficiency and stability.
+
+Key Component 5 — Offline Extension
+------------------------------------
+For offline RL, adds TD3+BC-style behavior cloning:
+
+    maximize Q(s, π(s)) - λ ||π(s) - a||^2
+
+(λ = 0 in online setting)
+
+Algorithm Summary:
+------------------
+TD7 = TD3
+      + state-action representation learning (SALE)
+      + clipped Bellman targets
+      + prioritized replay (LAP)
+      + policy checkpoints
+      + optional behavior cloning (offline)
+
+Key Behaviour:
+- Significant sample efficiency gains.
+- Strong early performance (300k steps).
+- Robust to instability and value overestimation.
+- Works in both online and offline regimes.
+
+TD7 is not a minor TD3 tweak — it is a
+stability- and representation-focused redesign.
 """
 
 import copy
@@ -14,7 +110,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.types.action import ActionSample
@@ -23,7 +119,7 @@ from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import TD7Config
 
 
-class TD7(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class TD7(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: Actor,

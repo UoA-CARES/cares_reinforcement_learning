@@ -1,5 +1,52 @@
 """
-Original Paper:
+C51 (Categorical Distributional DQN)
+--------------------------------------
+
+Original Paper: https://arxiv.org/pdf/1707.06887
+
+C51 extends DQN by modeling the full return distribution
+using a categorical representation over a fixed discrete support.
+
+Core Problem:
+- Standard DQN learns only the expected return:
+      Q(s,a) = E[Z(s,a)]
+- The Bellman target is a distribution, but DQN collapses
+  it to a scalar, losing information.
+
+Core Idea:
+- Represent the return distribution Z(s,a) using
+  a categorical distribution over N fixed atoms:
+
+      z_i ∈ [V_min, V_max]
+
+- The network outputs probabilities:
+      p_i(s,a)
+
+Expected Q-value:
+      Q(s,a) = Σ_i z_i p_i(s,a)
+
+Bellman Target (Distributional):
+- Compute target distribution:
+      Tz = r + γ (1 - done) z_i
+- Because Tz may not align with fixed atoms,
+  project the shifted distribution back onto
+  the fixed support using a projection operator.
+
+Loss:
+- Cross-entropy between projected target
+  distribution and predicted distribution.
+
+Key Behaviour:
+- Models full return distribution.
+- More stable value learning.
+- Improves performance over scalar DQN.
+
+Limitations:
+- Fixed support must be chosen carefully.
+- Projection step adds implementation complexity.
+
+C51 = DQN + categorical distributional value learning
+      with fixed support and projection.
 """
 
 import torch
@@ -37,7 +84,6 @@ class C51(DQN):
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> torch.Tensor:
-        """Computes the C51 loss. If use_double_dqn=True, applies Double DQN logic."""
         with torch.no_grad():
             if self.use_double_dqn:
                 # Double DQN
