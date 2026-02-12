@@ -63,7 +63,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
@@ -73,7 +73,7 @@ from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DIAYNConfig
 
 
-class DIAYN(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class DIAYN(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         skills_agent: SAC,

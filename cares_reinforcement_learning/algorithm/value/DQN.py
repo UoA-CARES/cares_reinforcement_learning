@@ -58,7 +58,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.types.action import ActionSample
@@ -68,7 +68,7 @@ from cares_reinforcement_learning.util.configurations import DQNConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class DQN(Algorithm[SARLObservation, int, SARLMemoryBuffer]):
+class DQN(SARLAlgorithm[int]):
     def __init__(
         self,
         network: BaseNetwork,

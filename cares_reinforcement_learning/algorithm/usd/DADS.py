@@ -76,7 +76,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import memory_sampler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
@@ -87,7 +87,7 @@ from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DADSConfig
 
 
-class DADS(Algorithm[SARLObservation, np.ndarray, SARLMemoryBuffer]):
+class DADS(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         skills_agent: SAC,

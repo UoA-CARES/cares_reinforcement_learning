@@ -60,7 +60,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import Algorithm
+from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy.PPO import PPO
 from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 from cares_reinforcement_learning.networks.MAPPO import Critic
@@ -74,7 +74,7 @@ from cares_reinforcement_learning.util.configurations import MAPPOConfig
 from cares_reinforcement_learning.util.helpers import EpsilonScheduler
 
 
-class MAPPO(Algorithm[MARLObservation, list[np.ndarray], MARLMemoryBuffer]):
+class MAPPO(MARLAlgorithm[list[np.ndarray]]):
     def __init__(
         self,
         agents: list[PPO],

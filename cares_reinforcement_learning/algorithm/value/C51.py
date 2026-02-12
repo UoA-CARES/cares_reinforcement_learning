@@ -84,7 +84,6 @@ class C51(DQN):
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> torch.Tensor:
-        """Computes the C51 loss. If use_double_dqn=True, applies Double DQN logic."""
         with torch.no_grad():
             if self.use_double_dqn:
                 # Double DQN

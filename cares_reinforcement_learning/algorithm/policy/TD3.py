@@ -1,6 +1,49 @@
 """
+TD3 (Twin Delayed Deep Deterministic Policy Gradient)
+----------------------------------------------------
+
 Original Paper: https://arxiv.org/abs/1802.09477v3
 
+TD3 is an off-policy, actor-critic algorithm for continuous control that improves
+DDPG-style learning stability by addressing value overestimation and brittle policy updates.
+
+Core Problem:
+- Deterministic actor-critic methods (e.g., DDPG) often overestimate Q-values.
+- Overestimated Q-values can push the actor toward bad actions (feedback loop).
+- Updating the actor too frequently can exploit critic errors and destabilize learning.
+
+Core Idea:
+- Use two critics and take the minimum to reduce overestimation.
+- Add noise to target actions (policy smoothing) to avoid exploiting sharp Q-errors.
+- Delay actor (and target) updates so the critic can become more accurate first.
+
+Key Mechanisms:
+
+1) Clipped Double Q (Twin Critics):
+    - Learn two independent critics: Q1(s,a), Q2(s,a)
+    - Target uses the conservative estimate:
+        y = r + γ * min(Q1'(s', a'), Q2'(s', a'))
+
+2) Target Policy Smoothing:
+    - Compute target action with clipped noise:
+        a' = π'(s') + clip(ε, -c, c),   ε ~ N(0, σ)
+    - Prevents the critic from learning unrealistically optimistic peaks around π'(s').
+
+3) Delayed Policy Updates:
+    - Update critics every step (or more often),
+      but update actor less frequently (e.g., every d steps).
+    - Also update target networks only when actor updates.
+
+Key Behaviour:
+- Min over twin critics reduces optimistic bias in targets.
+- Smoothing noise regularizes Q around the target action.
+- Delayed actor updates reduce chasing transient critic errors.
+
+Advantages:
+- Much more stable than DDPG in many continuous-control settings.
+- Typically improves final performance and robustness with minimal complexity.
+
+TD3 = DDPG + twin critics + target action smoothing + delayed actor/target updates.
 """
 
 import copy
