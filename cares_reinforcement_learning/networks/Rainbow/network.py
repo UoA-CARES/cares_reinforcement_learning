@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torch import nn
 
@@ -61,16 +63,25 @@ class BaseRainbowNetwork(BaseNetwork):
 
     def reset_noise(self):
         for module in self.feature_layer.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
 
         for module in self.value_stream.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
 
         for module in self.advantage_stream.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
+
+    def noise_stats(self) -> dict[str, Any]:
+        stats = {}
+        stats.update(self._module_noise_stats("feature_layer", self.feature_layer))
+        stats.update(self._module_noise_stats("value_stream", self.value_stream))
+        stats.update(
+            self._module_noise_stats("advantage_stream", self.advantage_stream)
+        )
+        return stats
 
 
 # This is the default base network for DQN for reference and testing of default network configurations

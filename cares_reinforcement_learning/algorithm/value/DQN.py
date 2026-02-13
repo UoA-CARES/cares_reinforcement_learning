@@ -190,7 +190,9 @@ class DQN(SARLAlgorithm[int]):
         )
         elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
 
-        # Below here is for logging and analysis purposes, not used in loss calculation
+        # -----------------------
+        # Logging / diagnostics (DQN)
+        # -----------------------
         with torch.no_grad():
             # Action histogram (batch-based)
             greedy_actions = q_values.argmax(dim=1)  # [B]

@@ -93,5 +93,6 @@ class Rainbow(C51):
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         info = super().train(memory_buffer, episode_context)
+        info.update(self.network.noise_stats())
         self._reset_noise()
         return info

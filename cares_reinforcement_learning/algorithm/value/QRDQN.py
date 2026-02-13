@@ -190,6 +190,17 @@ class QRDQN(DQN):
             pred_mean = pred_quantiles.mean(dim=1)  # [B]
             targ_mean = targ_quantiles.mean(dim=1)  # [B]
 
+            # Scalar Q estimate from QR (mean over quantiles)
+            info["pred_mean"] = pred_mean.mean().item()
+            info["pred_mean_std"] = pred_mean.std().item()
+            info["pred_mean_max"] = pred_mean.max().item()
+            info["pred_mean_min"] = pred_mean.min().item()
+
+            info["target_mean"] = targ_mean.mean().item()
+            info["target_mean_std"] = targ_mean.std().item()
+            info["target_mean_max"] = targ_mean.max().item()
+            info["target_mean_min"] = targ_mean.min().item()
+
             # Scalar TD error (mean-return TD)
             td_mean = pred_mean - targ_mean  # [B]
             info["td_mean"] = td_mean.mean().item()
@@ -210,6 +221,7 @@ class QRDQN(DQN):
             info["pred_quantile_std_mean"] = pred_spread.mean().item()
             info["pred_quantile_std_p95"] = pred_spread.quantile(0.95).item()
             info["targ_quantile_std_mean"] = targ_spread.mean().item()
+            info["targ_quantile_std_p95"] = targ_spread.quantile(0.95).item()
 
             # IQR (more robust than std)
             q25 = pred_quantiles.quantile(0.25, dim=1)

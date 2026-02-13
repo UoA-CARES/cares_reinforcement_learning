@@ -173,16 +173,6 @@ class QMIX(MARLAlgorithm[list[int]]):
 
         return ActionSample(action=actions, source="policy")
 
-    # def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-    #     state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-    #     state_tensor = state_tensor.unsqueeze(0)
-
-    #     with torch.no_grad():
-    #         q_values = self.network(state_tensor)
-    #         q_value = q_values[0][action].item()
-
-    #     return q_value
-
     def _compute_loss(
         self,
         obs_tensors: torch.Tensor,
