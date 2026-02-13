@@ -180,13 +180,12 @@ class QMIX(MARLAlgorithm[list[int]]):
         states_tensors: torch.Tensor,
         next_states_tensors: torch.Tensor,
         actions_tensors: torch.Tensor,
+        avail_actions: torch.Tensor,
         next_avail_actions_tensors: torch.Tensor,
         rewards_tensors: torch.Tensor,
         dones_tensors: torch.Tensor,
     ) -> tuple[torch.Tensor, dict[str, float]]:
         """Computes the elementwise loss for QMIX. If use_double_dqn=True, applies Double DQN logic."""
-
-        loss_info: dict[str, float] = {}
 
         q_values = self.network(obs_tensors)
         next_q_values_target = self.target_network(next_obs_tensors)
@@ -229,11 +228,82 @@ class QMIX(MARLAlgorithm[list[int]]):
 
         elementwise_loss = F.mse_loss(q_total, q_target, reduction="none")
 
-        loss_info["td_error_mean"] = elementwise_loss.mean().item()
-        loss_info["td_error_std"] = elementwise_loss.std().item()
-        loss_info["q_total_mean"] = q_total.mean().item()
-        loss_info["q_target_mean"] = q_target.mean().item()
-        loss_info["q_next_mean"] = best_next_q_values.mean().item()
+        # -----------------------
+        # Logging / diagnostics (QMIX)
+        # -----------------------
+        loss_info: dict[str, float] = {}
+        with torch.no_grad():
+            td_total = (q_total - q_target).view(-1)  # [B]
+
+            loss_info["td_total_mean"] = td_total.mean().item()
+            loss_info["td_total_std"] = td_total.std().item()
+            loss_info["td_total_abs_mean"] = td_total.abs().mean().item()
+            loss_info["mse_total_mean"] = elementwise_loss.mean().item()
+
+            loss_info["q_total_mean"] = q_total.mean().item()
+            loss_info["q_target_mean"] = q_target.mean().item()
+
+            # Per-agent utilities (chosen + bootstrap)
+            loss_info["q_i_chosen_mean"] = best_q_values.mean().item()
+            loss_info["q_i_chosen_std"] = best_q_values.std().item()
+            loss_info["q_i_next_mean"] = best_next_q_values.mean().item()
+            loss_info["q_i_next_std"] = best_next_q_values.std().item()
+
+            # --- Current-state action masking for meaningful greedy/diversity metrics ---
+            avail = avail_actions.to(q_values.device)  # [B, n_agents, n_actions]
+            masked_q_values = q_values.masked_fill(avail == 0, -1e9)
+
+            # Max feasible utility per agent
+            q_i_max = masked_q_values.max(dim=2).values  # [B, n_agents]
+            loss_info["q_i_max_mean"] = q_i_max.mean().item()
+            loss_info["q_i_max_std"] = q_i_max.std().item()
+
+            # Mixer vs sum baseline
+            sum_q_i = best_q_values.sum(dim=1, keepdim=True)
+            loss_info["sum_q_i_mean"] = sum_q_i.mean().item()
+            loss_info["q_total_minus_sum_q_i_mean"] = (q_total - sum_q_i).mean().item()
+            loss_info["q_total_minus_sum_q_i_std"] = (q_total - sum_q_i).std().item()
+            loss_info["q_total_over_sum_q_i_mean"] = (
+                (q_total / sum_q_i.clamp(min=1e-6)).mean().item()
+            )
+
+            # Availability constraints (next-state)
+            loss_info["next_avail_action_frac"] = (
+                next_avail_actions_tensors.float().mean().item()
+            )
+            loss_info["next_avail_actions_per_agent"] = (
+                next_avail_actions_tensors.float().sum(dim=2).mean().item()
+            )
+
+            # Sanity: are actions in replay valid under current avail_actions?
+            chosen_is_valid = avail.gather(2, actions_tensors.unsqueeze(-1)).squeeze(
+                -1
+            )  # [B, n_agents]
+            loss_info["invalid_action_frac"] = (
+                (chosen_is_valid == 0).float().mean().item()
+            )
+            loss_info["no_action_available_frac"] = (
+                (avail.float().sum(dim=2) == 0).float().mean().item()
+            )
+
+            # Greedy action diversity (MASKED, feasible actions only)
+            greedy_actions = masked_q_values.argmax(dim=2)  # [B, n_agents]
+            entropies = []
+            max_probs = []
+            for ag in range(self.num_agents):
+                counts = torch.bincount(
+                    greedy_actions[:, ag], minlength=self.num_actions
+                ).float()
+                probs = counts / counts.sum().clamp(min=1.0)
+                entropies.append(-(probs * (probs + 1e-12).log()).sum())
+                max_probs.append(probs.max())
+
+            loss_info["greedy_action_entropy_mean_agents"] = (
+                torch.stack(entropies).mean().item()
+            )
+            loss_info["greedy_action_max_prob_mean_agents"] = (
+                torch.stack(max_probs).mean().item()
+            )
 
         return elementwise_loss, loss_info
 
@@ -293,6 +363,7 @@ class QMIX(MARLAlgorithm[list[int]]):
             next_states_tensors=next_observation_tensor.global_state_tensor,
             actions_tensors=actions_tensor,
             rewards_tensors=rewards_tensor,
+            avail_actions=observation_tensor.avail_actions_tensor,
             next_avail_actions_tensors=next_observation_tensor.avail_actions_tensor,
             dones_tensors=dones_tensor,
         )
