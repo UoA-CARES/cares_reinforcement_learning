@@ -191,44 +191,43 @@ class DQN(SARLAlgorithm[int]):
         elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
 
         # Below here is for logging and analysis purposes, not used in loss calculation
+        with torch.no_grad():
+            # Action histogram (batch-based)
+            greedy_actions = q_values.argmax(dim=1)  # [B]
+            num_actions = self.network.num_actions
+            counts = torch.bincount(greedy_actions, minlength=num_actions).float()
+            probs = counts / counts.sum().clamp(min=1.0)
 
-        greedy_actions = q_values.argmax(dim=1)  # [B]
+            # Entropy: 0 = totally collapsed, higher = more spread
+            entropy = -(probs * (probs + 1e-12).log()).sum()
 
-        # Action histogram (batch-based)
-        num_actions = self.network.num_actions
-        counts = torch.bincount(greedy_actions, minlength=num_actions).float()
-        probs = counts / counts.sum().clamp(min=1.0)
+            td_error = best_q_values - q_target  # signed, shape [B]
 
-        # Entropy: 0 = totally collapsed, higher = more spread
-        entropy = -(probs * (probs + 1e-12).log()).sum()
+            # Logging Statistics
+            info: dict[str, Any] = {}
+            info["greedy_action_entropy"] = entropy.item()
+            info["greedy_action_max_prob"] = probs.max().item()
+            # Optional: full distribution (can be logged as list)
+            info["greedy_action_probs"] = probs.cpu().tolist()
 
-        td_error = best_q_values - q_target  # signed, shape [B]
+            info["td_error_mean"] = td_error.mean().item()
+            info["td_error_std"] = td_error.std().item()
+            info["td_error_abs_mean"] = td_error.abs().mean().item()
 
-        # Logging Statistics
-        info: dict[str, Any] = {}
-        info["greedy_action_entropy"] = entropy.item()
-        info["greedy_action_max_prob"] = probs.max().item()
-        # Optional: full distribution (can be logged as list)
-        info["greedy_action_probs"] = probs.cpu().tolist()
-
-        info["td_error_mean"] = td_error.mean().item()
-        info["td_error_std"] = td_error.std().item()
-        info["td_error_abs_mean"] = td_error.abs().mean().item()
-
-        info["q_value_mean"] = best_q_values.mean().item()
-        info["q_value_max"] = best_q_values.max().item()
-        info["q_value_std"] = best_q_values.std().item()
-        info["q_value_next_mean"] = best_next_q_values.mean().item()
-        info["q_value_next_max"] = best_next_q_values.max().item()
-        info["q_value_next_std"] = best_next_q_values.std().item()
-        info["q_target_mean"] = q_target.mean().item()
-        info["q_target_max"] = q_target.max().item()
-        info["q_target_std"] = q_target.std().item()
-        info["reward_mean"] = rewards_tensor.mean().item()
-        info["reward_std"] = rewards_tensor.std().item()
-        info["overestimation_gap"] = (
-            (q_values.max(dim=1).values - best_next_q_values).mean().item()
-        )
+            info["q_value_mean"] = best_q_values.mean().item()
+            info["q_value_max"] = best_q_values.max().item()
+            info["q_value_std"] = best_q_values.std().item()
+            info["q_value_next_mean"] = best_next_q_values.mean().item()
+            info["q_value_next_max"] = best_next_q_values.max().item()
+            info["q_value_next_std"] = best_next_q_values.std().item()
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_max"] = q_target.max().item()
+            info["q_target_std"] = q_target.std().item()
+            info["reward_mean"] = rewards_tensor.mean().item()
+            info["reward_std"] = rewards_tensor.std().item()
+            info["overestimation_gap"] = (
+                (q_values.max(dim=1).values - best_next_q_values).mean().item()
+            )
 
         return elementwise_loss, info
 
