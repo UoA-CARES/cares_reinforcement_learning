@@ -259,13 +259,30 @@ class QMIX(MARLAlgorithm[list[int]]):
             loss_info["q_i_max_std"] = q_i_max.std().item()
 
             # Mixer vs sum baseline
-            sum_q_i = best_q_values.sum(dim=1, keepdim=True)
+            sum_q_i = best_q_values.sum(dim=1, keepdim=True)  # [B, 1]
+            diff = q_total - sum_q_i  # [B, 1]
+
             loss_info["sum_q_i_mean"] = sum_q_i.mean().item()
-            loss_info["q_total_minus_sum_q_i_mean"] = (q_total - sum_q_i).mean().item()
-            loss_info["q_total_minus_sum_q_i_std"] = (q_total - sum_q_i).std().item()
-            loss_info["q_total_over_sum_q_i_mean"] = (
-                (q_total / sum_q_i.clamp(min=1e-6)).mean().item()
+            loss_info["sum_q_i_abs_mean"] = sum_q_i.abs().mean().item()
+
+            loss_info["q_total_minus_sum_q_i_mean"] = diff.mean().item()
+            loss_info["q_total_minus_sum_q_i_std"] = diff.std().item()
+            loss_info["q_total_minus_sum_q_i_abs_mean"] = diff.abs().mean().item()
+
+            # Scale-stable "how big is mixer output vs sum" using absolute means
+            loss_info["q_total_abs_mean"] = q_total.abs().mean().item()
+            loss_info["q_total_abs_over_sum_q_i_abs_mean"] = (
+                q_total.abs().mean() / (sum_q_i.abs().mean() + 1e-6)
+            ).item()
+
+            # Correlation between q_total and sum_q_i (are they at least monotonic-ish?)
+            sum_centered = sum_q_i - sum_q_i.mean()
+            qt_centered = q_total - q_total.mean()
+            corr = (sum_centered * qt_centered).mean() / (
+                (sum_centered.pow(2).mean().sqrt() * qt_centered.pow(2).mean().sqrt())
+                + 1e-6
             )
+            loss_info["q_total_sum_q_i_corr"] = corr.item()
 
             # Availability constraints (next-state)
             loss_info["next_avail_action_frac"] = (
@@ -378,6 +395,11 @@ class QMIX(MARLAlgorithm[list[int]]):
                 .data.numpy()
                 .flatten()
             )
+
+            info["per_priority_mean"] = priorities.mean()
+            info["per_priority_max"] = priorities.max()
+            info["per_priority_min"] = priorities.min()
+            info["per_priority_std"] = priorities.std()
 
             memory_buffer.update_priorities(indices, priorities)
 
