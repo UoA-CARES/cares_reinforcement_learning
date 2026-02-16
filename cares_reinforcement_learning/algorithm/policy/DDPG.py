@@ -95,6 +95,8 @@ class DDPG(SARLAlgorithm[np.ndarray]):
             self.critic_net.parameters(), lr=config.critic_lr
         )
 
+        self.learn_counter = 0
+
     # TODO add action noise for exploration
     def act(
         self, observation: SARLObservation, evaluation: bool = False
@@ -134,13 +136,27 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         critic_loss.backward()
         self.critic_net_optimiser.step()
 
+        td = (q_values - q_target).detach()
+
         info = {
             "critic_loss": critic_loss.item(),
+            "q_mean": q_values.detach().mean().item(),
+            "q_std": q_values.detach().std().item(),
+            "q_target_mean": q_target.detach().mean().item(),
+            "q_target_std": q_target.detach().std().item(),
+            "td_mean": td.mean().item(),
+            "td_std": td.std().item(),
+            "td_abs_mean": td.abs().mean().item(),
+            "reward_mean": rewards.mean().item(),
+            "reward_std": rewards.std().item(),
+            "done_rate": dones.float().mean().item(),
         }
 
         return info
 
     def _update_actor(self, states: torch.Tensor) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         self.critic_net.eval()
         actions_pred = self.actor_net(states)
         actor_q = self.critic_net(states, actions_pred)
@@ -148,11 +164,41 @@ class DDPG(SARLAlgorithm[np.ndarray]):
 
         actor_loss = -actor_q.mean()
 
+        with torch.no_grad():
+            # helps avoid any potential side effects of the backward pass
+            # on the actor network when we compute the DPG metrics below
+            # Avoids accidently saving the network graph if missing .item()
+            actions = actions_pred.detach()
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+        # --- Deterministic policy gradient strength (every N updates) ---
+        # Gradient of the critic Q-value with respect to the action ∇_a Q(s, a)
+        dq_da = torch.autograd.grad(
+            outputs=-actor_q.mean(),  # NOTE: uses Q-term only, excludes regularizers
+            inputs=actions_pred,
+            retain_graph=True,  # needed because we will backward (actor_loss) next
+            create_graph=False,  # diagnostic only
+            allow_unused=False,
+        )[0]
+        with torch.no_grad():
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
+
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        info = {"actor_loss": actor_loss.item()}
+        info |= {
+            "actor_loss": actor_loss.item(),
+            "actor_q_mean": actor_q.detach().mean().item(),
+            "actor_q_std": actor_q.detach().std().item(),
+        }
         return info
 
     def update_from_batch(
@@ -164,6 +210,8 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
     ) -> dict[str, Any]:
+        self.learn_counter += 1
+
         info: dict[str, Any] = {}
 
         # TODO add the action noise for exploration with episode context and some decay mechanism

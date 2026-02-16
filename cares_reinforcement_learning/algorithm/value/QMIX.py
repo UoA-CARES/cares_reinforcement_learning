@@ -228,9 +228,9 @@ class QMIX(MARLAlgorithm[list[int]]):
 
         elementwise_loss = F.mse_loss(q_total, q_target, reduction="none")
 
-        # -----------------------
+        # ----------------------------
         # Logging / diagnostics (QMIX)
-        # -----------------------
+        # ----------------------------
         loss_info: dict[str, float] = {}
         with torch.no_grad():
             td_total = (q_total - q_target).view(-1)  # [B]
