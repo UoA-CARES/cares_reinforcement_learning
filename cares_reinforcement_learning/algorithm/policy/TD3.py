@@ -175,6 +175,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions = self.target_actor_net(next_states)
@@ -222,11 +223,35 @@ class TD3(SARLAlgorithm[np.ndarray]):
             .flatten()
         )
 
-        info = {
-            "critic_loss_one": critic_loss_one.item(),
-            "critic_loss_two": critic_loss_two.item(),
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+            # target Q stats + twin gap
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_gap_abs_mean"] = (q_values_one - q_values_two).abs().mean().item()
+
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_q_gap_abs_mean"] = (
+                (target_q_values_one - target_q_values_two).abs().mean().item()
+            )
+            info["target_q_min_mean"] = target_q_values.mean().item()
+
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            # TD stats (useful even with PER)
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std().item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std().item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
+
         return info, priorities
 
     # Weights is set for methods like MAPERTD3 that use weights in the actor update
@@ -235,6 +260,8 @@ class TD3(SARLAlgorithm[np.ndarray]):
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         actions = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -242,15 +269,39 @@ class TD3(SARLAlgorithm[np.ndarray]):
 
         actor_loss = -actor_q_values.mean()
 
+        # Policy action health
+        with torch.no_grad():
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+        # --- Deterministic policy gradient strength (every N updates) ---
+        # Gradient of the critic Q-value with respect to the action ∇Q/∇a = ∇a Q(s, a)
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=actions,
+            retain_graph=True,  # because we do backward(actor_loss) next
+            create_graph=False,  # diagnostic only
+            allow_unused=False,
+        )[0]
+        with torch.no_grad():
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
+
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        actor_info = {
-            "actor_loss": actor_loss.item(),
-        }
+        with torch.no_grad():
+            info["actor_loss"] = actor_loss.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
 
-        return actor_info
+        return info
 
     def update_from_batch(
         self,

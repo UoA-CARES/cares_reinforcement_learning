@@ -158,17 +158,13 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         info: dict[str, Any] = {}
 
         self.critic_net.eval()
-        actions_pred = self.actor_net(states)
-        actor_q = self.critic_net(states, actions_pred)
+        actions = self.actor_net(states)
+        actor_q_values = self.critic_net(states, actions)
         self.critic_net.train()
 
-        actor_loss = -actor_q.mean()
+        actor_loss = -actor_q_values.mean()
 
         with torch.no_grad():
-            # helps avoid any potential side effects of the backward pass
-            # on the actor network when we compute the DPG metrics below
-            # Avoids accidently saving the network graph if missing .item()
-            actions = actions_pred.detach()
             info["pi_action_mean"] = actions.mean().item()
             info["pi_action_std"] = actions.std().item()
             info["pi_action_abs_mean"] = actions.abs().mean().item()
@@ -177,10 +173,10 @@ class DDPG(SARLAlgorithm[np.ndarray]):
             )
 
         # --- Deterministic policy gradient strength (every N updates) ---
-        # Gradient of the critic Q-value with respect to the action ∇_a Q(s, a)
+        # Gradient of the critic Q-value with respect to the action ∇Q/∇a = ∇a Q(s, a)
         dq_da = torch.autograd.grad(
-            outputs=-actor_q.mean(),  # NOTE: uses Q-term only, excludes regularizers
-            inputs=actions_pred,
+            outputs=-actor_q_values.mean(),  # NOTE: uses Q-term only, excludes regularizers
+            inputs=actions,
             retain_graph=True,  # needed because we will backward (actor_loss) next
             create_graph=False,  # diagnostic only
             allow_unused=False,
@@ -194,11 +190,9 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        info |= {
-            "actor_loss": actor_loss.item(),
-            "actor_q_mean": actor_q.detach().mean().item(),
-            "actor_q_std": actor_q.detach().std().item(),
-        }
+        info["actor_loss"] = actor_loss.item()
+        info["actor_q_mean"] = actor_q_values.mean().item()
+        info["actor_q_std"] = actor_q_values.std().item()
         return info
 
     def update_from_batch(
