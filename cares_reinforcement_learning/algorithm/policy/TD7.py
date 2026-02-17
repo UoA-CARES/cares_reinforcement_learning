@@ -117,6 +117,7 @@ from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import TD7Config
+from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class TD7(SARLAlgorithm[np.ndarray]):
@@ -175,16 +176,21 @@ class TD7(SARLAlgorithm[np.ndarray]):
         self.min_priority = config.min_priority
 
         # Policy noise
-        self.min_policy_noise = config.min_policy_noise
-        self.policy_noise = config.policy_noise
-        self.policy_noise_decay = config.policy_noise_decay
-
         self.policy_noise_clip = config.policy_noise_clip
+        self.policy_noise_scheduler = ExponentialScheduler(
+            start_value=config.policy_noise_start,
+            end_value=config.policy_noise_end,
+            decay_steps=config.policy_noise_decay,
+        )
+        self.policy_noise = self.policy_noise_scheduler.get_value(0)
 
         # Action noise
-        self.min_action_noise = config.min_action_noise
-        self.action_noise = config.action_noise
-        self.action_noise_decay = config.action_noise_decay
+        self.action_noise_scheduler = ExponentialScheduler(
+            start_value=config.action_noise_start,
+            end_value=config.action_noise_end,
+            decay_steps=config.action_noise_decay,
+        )
+        self.action_noise = self.action_noise_scheduler.get_value(0)
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -397,8 +403,9 @@ class TD7(SARLAlgorithm[np.ndarray]):
 
         return actor_info
 
-    def update_networks(
+    def update_from_batch(
         self,
+        episode_context: EpisodeContext,
         memory: SARLMemoryBuffer,
         indices: np.ndarray,
         states_tensor: torch.Tensor,
@@ -410,6 +417,14 @@ class TD7(SARLAlgorithm[np.ndarray]):
     ) -> dict[str, Any]:
 
         info: dict[str, Any] = {}
+
+        self.policy_noise = self.policy_noise_scheduler.get_value(
+            episode_context.training_step
+        )
+
+        self.action_noise = self.action_noise_scheduler.get_value(
+            episode_context.training_step
+        )
 
         encoder_info = self._update_encoder(
             states_tensor, actions_tensor, next_states_tensor
@@ -454,21 +469,12 @@ class TD7(SARLAlgorithm[np.ndarray]):
 
         return info
 
-    # TODO use training_step with decay rates
     def _train_policy(
         self,
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
         self.learn_counter += 1
-
-        # TODO replace with training_step based approach to avoid having to save this value
-        self.policy_noise *= self.policy_noise_decay
-        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
-
-        # TODO replace with training_step based approach to avoid having to save this value
-        self.action_noise *= self.action_noise_decay
-        self.action_noise = max(self.min_action_noise, self.action_noise)
 
         # Use the helper to sample and prepare tensors in one step
         (
@@ -489,7 +495,8 @@ class TD7(SARLAlgorithm[np.ndarray]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        info = self.update_networks(
+        info = self.update_from_batch(
+            episode_context,
             memory_buffer,
             indices,
             observation_tensor.vector_state_tensor,

@@ -67,6 +67,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservationTensors,
 )
 from cares_reinforcement_learning.util.configurations import DDPGConfig
+from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class DDPG(SARLAlgorithm[np.ndarray]):
@@ -88,6 +89,16 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         self.gamma = config.gamma
         self.tau = config.tau
 
+        # Action noise
+        self.action_noise_scheduler = ExponentialScheduler(
+            start_value=config.action_noise_start,
+            end_value=config.action_noise_end,
+            decay_steps=config.action_noise_decay,
+        )
+        self.action_noise = self.action_noise_scheduler.get_value(0)
+
+        self.action_num = self.actor_net.num_actions
+
         self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr
         )
@@ -97,20 +108,28 @@ class DDPG(SARLAlgorithm[np.ndarray]):
 
         self.learn_counter = 0
 
-    # TODO add action noise for exploration
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        # pylint: disable-next=unused-argument
+        self.actor_net.eval()
+
         state = observation.vector_state
 
-        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
+            if not evaluation:
+                # this is part the DDPG too, add noise to the action
+                noise = np.random.normal(
+                    0, scale=self.action_noise, size=self.action_num
+                ).astype(np.float32)
+                action = action + noise
+                action = np.clip(action, -1, 1)
+
         self.actor_net.train()
+
         return ActionSample(action=action, source="policy")
 
     def _update_critic(
@@ -121,6 +140,8 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         with torch.no_grad():
             self.target_actor_net.eval()
             next_actions = self.target_actor_net(next_states)
@@ -136,21 +157,26 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         critic_loss.backward()
         self.critic_net_optimiser.step()
 
-        td = (q_values - q_target).detach()
+        with torch.no_grad():
+            td = q_values - q_target
 
-        info = {
-            "critic_loss": critic_loss.item(),
-            "q_mean": q_values.detach().mean().item(),
-            "q_std": q_values.detach().std().item(),
-            "q_target_mean": q_target.detach().mean().item(),
-            "q_target_std": q_target.detach().std().item(),
-            "td_mean": td.mean().item(),
-            "td_std": td.std().item(),
-            "td_abs_mean": td.abs().mean().item(),
-            "reward_mean": rewards.mean().item(),
-            "reward_std": rewards.std().item(),
-            "done_rate": dones.float().mean().item(),
-        }
+            # --- Q statistics ---
+            info["q_mean"] = q_values.mean().item()
+            info["q_std"] = q_values.std().item()
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            info["td_mean"] = td.mean().item()
+            info["td_std"] = td.std().item()
+            info["td_abs_mean"] = td.abs().mean().item()
+
+            # --- Losses (optimization progress ---
+            info["critic_loss"] = critic_loss.item()
 
         return info
 
@@ -164,16 +190,12 @@ class DDPG(SARLAlgorithm[np.ndarray]):
 
         actor_loss = -actor_q_values.mean()
 
-        with torch.no_grad():
-            info["pi_action_mean"] = actions.mean().item()
-            info["pi_action_std"] = actions.std().item()
-            info["pi_action_abs_mean"] = actions.abs().mean().item()
-            info["pi_action_saturation_frac"] = (
-                (actions.abs() > 0.95).float().mean().item()
-            )
-
-        # --- Deterministic policy gradient strength (every N updates) ---
-        # Gradient of the critic Q-value with respect to the action ∇Q/∇a = ∇a Q(s, a)
+        # ---------------------------------------------------------
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
+        # ---------------------------------------------------------
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
         dq_da = torch.autograd.grad(
             outputs=-actor_q_values.mean(),  # NOTE: uses Q-term only, excludes regularizers
             inputs=actions,
@@ -190,9 +212,24 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        info["actor_loss"] = actor_loss.item()
-        info["actor_q_mean"] = actor_q_values.mean().item()
-        info["actor_q_std"] = actor_q_values.std().item()
+        with torch.no_grad():
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
+            info["actor_loss"] = actor_loss.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
+
         return info
 
     def update_from_batch(
@@ -208,7 +245,9 @@ class DDPG(SARLAlgorithm[np.ndarray]):
 
         info: dict[str, Any] = {}
 
-        # TODO add the action noise for exploration with episode context and some decay mechanism
+        self.action_noise = self.action_noise_scheduler.get_value(
+            episode_context.training_step
+        )
 
         # Update Critic
         critic_info = self._update_critic(

@@ -229,22 +229,32 @@ class TD3(SARLAlgorithm[np.ndarray]):
         )
 
         with torch.no_grad():
-            # target Q stats + twin gap
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
             info["q1_mean"] = q_values_one.mean().item()
             info["q2_mean"] = q_values_two.mean().item()
-            info["q_gap_abs_mean"] = (q_values_one - q_values_two).abs().mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
 
+            # --- Target critics disagreement (target stability) ---
+            # Large/unstable gap here often means target critics are drifting or policy is visiting OOD actions.
             info["target_q1_mean"] = target_q_values_one.mean().item()
             info["target_q2_mean"] = target_q_values_two.mean().item()
-            info["target_q_gap_abs_mean"] = (
+            info["target_q_twin_gap_abs_mean"] = (
                 (target_q_values_one - target_q_values_two).abs().mean().item()
             )
-            info["target_q_min_mean"] = target_q_values.mean().item()
 
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
             td1 = q_values_one - q_target  # signed
             td2 = q_values_two - q_target  # signed
 
-            # TD stats (useful even with PER)
             info["td1_mean"] = td1.mean().item()
             info["td1_std"] = td1.std().item()
             info["td1_abs_mean"] = td1.abs().mean().item()
@@ -253,6 +263,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
             info["td2_std"] = td2.std().item()
             info["td2_abs_mean"] = td2.abs().mean().item()
 
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
             info["critic_loss_one"] = critic_loss_one.item()
             info["critic_loss_two"] = critic_loss_two.item()
             info["critic_loss_total"] = critic_loss_total.item()
@@ -274,17 +285,12 @@ class TD3(SARLAlgorithm[np.ndarray]):
 
         actor_loss = -actor_q_values.mean()
 
-        # Policy action health
-        with torch.no_grad():
-            info["pi_action_mean"] = actions.mean().item()
-            info["pi_action_std"] = actions.std().item()
-            info["pi_action_abs_mean"] = actions.abs().mean().item()
-            info["pi_action_saturation_frac"] = (
-                (actions.abs() > 0.95).float().mean().item()
-            )
-
-        # --- Deterministic policy gradient strength (every N updates) ---
-        # Gradient of the critic Q-value with respect to the action ∇Q/∇a = ∇a Q(s, a)
+        # ---------------------------------------------------------
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
+        # ---------------------------------------------------------
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
         dq_da = torch.autograd.grad(
             outputs=actor_loss,
             inputs=actions,
@@ -302,6 +308,19 @@ class TD3(SARLAlgorithm[np.ndarray]):
         self.actor_net_optimiser.step()
 
         with torch.no_grad():
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
             info["actor_loss"] = actor_loss.item()
             info["actor_q_mean"] = actor_q_values.mean().item()
             info["actor_q_std"] = actor_q_values.std().item()

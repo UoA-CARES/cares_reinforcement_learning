@@ -68,7 +68,7 @@ class MATD3(MARLAlgorithm[list[np.ndarray]]):
 
         self.policy_update_freq = config.policy_update_freq
 
-        self.policy_noise = config.policy_noise
+        self.policy_noise = config.policy_noise_end
         self.policy_noise_clip = config.policy_noise_clip
 
         self.max_grad_norm = config.max_grad_norm
@@ -183,10 +183,7 @@ class MATD3(MARLAlgorithm[list[np.ndarray]]):
         joint_actions_flat = actions_all.reshape(batch_size, -1)
         q_val, _ = agent.critic_net(global_states, joint_actions_flat)
 
-        # regularization as in TF code
-        reg = (pred_action_i**2).mean() * 1e-3
-
-        actor_loss = -q_val.mean() + reg
+        actor_loss = -q_val.mean()
 
         # ---------------------------------------------------------
         # Step 5: Backprop
@@ -212,6 +209,16 @@ class MATD3(MARLAlgorithm[list[np.ndarray]]):
         self.learn_counter += 1
 
         info: dict[str, Any] = {}
+
+        # Update action/policy noise for exploration (decayed over training)
+        for current_agent in self.agent_networks:
+            current_agent.policy_noise = current_agent.policy_noise_scheduler.get_value(
+                episode_context.training_step
+            )
+
+            current_agent.action_noise = current_agent.action_noise_scheduler.get_value(
+                episode_context.training_step
+            )
 
         # ---------------------------------------------------------
         # Sample ONCE for all agents (recommended for TD3/SAC)

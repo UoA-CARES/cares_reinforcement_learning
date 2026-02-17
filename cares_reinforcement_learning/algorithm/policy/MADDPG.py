@@ -394,6 +394,12 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
             # ---------------------------------------------------------
             # Update each agent
             # ---------------------------------------------------------
+
+            # Update action noise for exploration (decayed over training)
+            current_agent.action_noise = current_agent.action_noise_scheduler.get_value(
+                episode_context.training_step
+            )
+
             (
                 observation_tensor,
                 actions_tensor,

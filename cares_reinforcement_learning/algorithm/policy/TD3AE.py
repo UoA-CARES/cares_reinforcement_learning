@@ -79,6 +79,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservationTensors,
 )
 from cares_reinforcement_learning.util.configurations import TD3AEConfig
+from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class TD3AE(SARLAlgorithm[np.ndarray]):
@@ -120,16 +121,21 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
         self.min_priority = config.min_priority
 
         # Policy noise
-        self.min_policy_noise = config.min_policy_noise
-        self.policy_noise = config.policy_noise
-        self.policy_noise_decay = config.policy_noise_decay
-
         self.policy_noise_clip = config.policy_noise_clip
+        self.policy_noise_scheduler = ExponentialScheduler(
+            start_value=config.policy_noise_start,
+            end_value=config.policy_noise_end,
+            decay_steps=config.policy_noise_decay,
+        )
+        self.policy_noise = self.policy_noise_scheduler.get_value(0)
 
         # Action noise
-        self.min_action_noise = config.min_action_noise
-        self.action_noise = config.action_noise
-        self.action_noise_decay = config.action_noise_decay
+        self.action_noise_scheduler = ExponentialScheduler(
+            start_value=config.action_noise_start,
+            end_value=config.action_noise_end,
+            decay_steps=config.action_noise_decay,
+        )
+        self.action_noise = self.action_noise_scheduler.get_value(0)
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -288,11 +294,13 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        self.policy_noise *= self.policy_noise_decay
-        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
+        self.policy_noise = self.policy_noise_scheduler.get_value(
+            episode_context.training_step
+        )
 
-        self.action_noise *= self.action_noise_decay
-        self.action_noise = max(self.min_action_noise, self.action_noise)
+        self.action_noise = self.action_noise_scheduler.get_value(
+            episode_context.training_step
+        )
 
         # Sample and convert to tensors using multimodal sampling
         (

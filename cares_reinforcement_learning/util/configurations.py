@@ -935,6 +935,11 @@ class DDPGConfig(AlgorithmConfig):
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
+    # Exploration noise
+    action_noise_start: float = 0.2
+    action_noise_end: float = 0.05
+    action_noise_decay: int = 1000000
+
     gamma: float = 0.99
     tau: float = 0.005
 
