@@ -94,7 +94,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservationTensors,
 )
 from cares_reinforcement_learning.util.configurations import PPOConfig
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.util.helpers import LinearScheduler
 
 
 class PPO(SARLAlgorithm[np.ndarray]):
@@ -119,13 +119,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         self.target_kl = config.target_kl
 
-        self.epsilon_scheduler = EpsilonScheduler(
-            start_epsilon=config.entropy_start,
-            end_epsilon=config.entropy_end,
+        self.epsilon_scheduler = LinearScheduler(
+            start_value=config.entropy_start,
+            end_value=config.entropy_end,
             decay_steps=config.entropy_decay,
         )
         # initial entropy coefficient
-        self.entropy_coef = self.epsilon_scheduler.get_epsilon(0)
+        self.entropy_coef = self.epsilon_scheduler.get_value(0)
 
         self.max_grad_norm = config.max_grad_norm
         self.min_log_std = config.log_std_bounds[0]
@@ -365,7 +365,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         batch_size = len(observation_tensor.vector_state_tensor)
 
-        self.entropy_coef = self.epsilon_scheduler.get_epsilon(
+        self.entropy_coef = self.epsilon_scheduler.get_value(
             episode_context.training_step
         )
 

@@ -65,7 +65,7 @@ from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DQNConfig
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.util.helpers import LinearScheduler
 
 
 class DQN(SARLAlgorithm[int]):
@@ -88,12 +88,12 @@ class DQN(SARLAlgorithm[int]):
         self.max_grad_norm = config.max_grad_norm
 
         # Epsilon
-        self.epsilon_scheduler = EpsilonScheduler(
-            start_epsilon=config.start_epsilon,
-            end_epsilon=config.end_epsilon,
+        self.epsilon_scheduler = LinearScheduler(
+            start_value=config.start_epsilon,
+            end_value=config.end_epsilon,
             decay_steps=config.decay_steps,
         )
-        self.epsilon = self.epsilon_scheduler.get_epsilon(0)
+        self.epsilon = self.epsilon_scheduler.get_value(0)
 
         # Double DQN
         self.use_double_dqn = config.use_double_dqn
@@ -244,7 +244,7 @@ class DQN(SARLAlgorithm[int]):
 
         training_step = episode_context.training_step
 
-        self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
+        self.epsilon = self.epsilon_scheduler.get_value(training_step)
 
         if len(memory_buffer) < self.batch_size:
             return {}

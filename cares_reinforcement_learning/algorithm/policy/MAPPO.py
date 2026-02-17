@@ -71,7 +71,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
 )
 from cares_reinforcement_learning.util.configurations import MAPPOConfig
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class MAPPO(MARLAlgorithm[list[np.ndarray]]):
@@ -90,13 +90,13 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
         self.minibatch_size = config.minibatch_size
         self.updates_per_iteration = config.updates_per_iteration
 
-        self.epsilon_scheduler = EpsilonScheduler(
-            start_epsilon=config.entropy_start,
-            end_epsilon=config.entropy_end,
+        self.entropy_scheduler = ExponentialScheduler(
+            start_value=config.entropy_start,
+            end_value=config.entropy_end,
             decay_steps=config.entropy_decay,
         )
         # initial entropy coefficient
-        self.entropy_coef = self.epsilon_scheduler.get_epsilon(0)
+        self.entropy_coef = self.entropy_scheduler.get_value(0)
 
         self.target_kl = config.target_kl
 
@@ -150,7 +150,7 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
 
         info: dict[str, Any] = {}
 
-        self.entropy_coef = self.epsilon_scheduler.get_epsilon(
+        self.entropy_coef = self.entropy_scheduler.get_value(
             episode_context.training_step
         )
 

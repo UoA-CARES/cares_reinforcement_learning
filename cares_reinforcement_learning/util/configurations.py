@@ -447,7 +447,7 @@ class MAPPOConfig(PPOConfig):
     target_kl: float | None = 0.05
 
     entropy_start: float = 0.01
-    entropy_end: float = 0.0
+    entropy_end: float = 1e-4
     entropy_decay: int = 500000
 
     max_grad_norm: float | None = 0.5
@@ -1046,16 +1046,16 @@ class TD3Config(AlgorithmConfig):
     tau: float = 0.005
 
     # Exploration noise
-    min_action_noise: float = 0.1
-    action_noise: float = 0.1
-    action_noise_decay: float = 1.0
+    action_noise_start: float = 0.1
+    action_noise_end: float = 0.1
+    action_noise_decay: int = 1
 
     # Target policy smoothing
-    policy_noise_clip: float = 0.5
+    policy_noise_start: float = 0.2
+    policy_noise_end: float = 0.2
+    policy_noise_decay: int = 1
 
-    min_policy_noise: float = 0.2
-    policy_noise: float = 0.2
-    policy_noise_decay: float = 1.0
+    policy_noise_clip: float = 0.5
 
     policy_update_freq: int = 2
 
@@ -1343,13 +1343,15 @@ class CTD4Config(TD3Config):
     tau: float = 0.005
     ensemble_size: int = 3
 
-    min_action_noise: float = 0.0
-    action_noise: float = 0.1
-    action_noise_decay: float = 0.999999
+    # Exploration noise
+    action_noise_start: float = 0.1
+    action_noise_end: float = 0.02
+    action_noise_decay: int = 1000000
 
-    min_policy_noise: float = 0.0
-    policy_noise: float = 0.2
-    policy_noise_decay: float = 0.999999
+    # Policy smoothing
+    policy_noise_start: float = 0.2
+    policy_noise_end: float = 0.07
+    policy_noise_decay: int = 1000000
 
     policy_update_freq: int = 2
 
