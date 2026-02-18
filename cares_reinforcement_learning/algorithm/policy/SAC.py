@@ -247,11 +247,17 @@ class SAC(SARLAlgorithm[np.ndarray]):
             # entropy_term_mean: magnitude of entropy regularization in the target (alpha * log_pi is usually negative)
             # soft_target_value_mean: the exact term used inside the Bellman target before reward/discount
             min_target_q = torch.minimum(target_q_values_one, target_q_values_two)
-            entropy_term = self.alpha * next_log_pi  # typically negative
-            soft_target_value = min_target_q - entropy_term  # == minQ - alpha*log_pi
+
+            # alpha_log_pi is typically negative; entropy_bonus is typically positive
+            alpha_log_pi = self.alpha * next_log_pi
+            # this is what gets ADDED to minQ in the target
+            entropy_bonus = -self.alpha * next_log_pi
+
+            soft_target_value = min_target_q + entropy_bonus  # == minQ - alpha*log_pi
 
             info["target_min_q_mean"] = min_target_q.mean().item()
-            info["entropy_term_mean"] = entropy_term.mean().item()
+            info["alpha_log_pi_mean"] = alpha_log_pi.mean().item()
+            info["entropy_bonus_mean"] = entropy_bonus.mean().item()
             info["soft_target_value_mean"] = soft_target_value.mean().item()
 
             # --- Bellman target scale (reward scaling / discount sanity) ---

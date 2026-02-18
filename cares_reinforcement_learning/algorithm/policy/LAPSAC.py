@@ -123,6 +123,7 @@ class LAPSAC(SAC):
 
         priorities = (
             torch.max(td_error_one, td_error_two)
+            .clamp(min=self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()

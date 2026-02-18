@@ -122,20 +122,22 @@ class MAPERSAC(SAC):
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
+
         # Get current Q estimates
         output_one, output_two = self.critic_net(states.detach(), actions.detach())
-        q_value_one, predicted_reward_one, next_states_one = self._split_output(
+        q_values_one, predicted_rewards_one, next_states_one = self._split_output(
             output_one
         )
-        q_value_two, predicted_reward_two, next_states_two = self._split_output(
+        q_values_two, predicted_rewards_two, next_states_two = self._split_output(
             output_two
         )
 
         diff_reward_one = 0.5 * torch.pow(
-            predicted_reward_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+            predicted_rewards_one.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
         diff_reward_two = 0.5 * torch.pow(
-            predicted_reward_two.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
+            predicted_rewards_two.reshape(-1, 1) - rewards.reshape(-1, 1), 2.0
         ).reshape(-1, 1)
 
         diff_next_states_one = 0.5 * torch.mean(
@@ -160,28 +162,32 @@ class MAPERSAC(SAC):
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
-            target_q_values_one, target_q_values_two = self.target_critic_net(
+            target_output_one, target_output_two = self.target_critic_net(
                 next_states, next_actions
             )
-            next_values_one, _, _ = self._split_output(target_q_values_one)
-            next_values_two, _, _ = self._split_output(target_q_values_two)
-            min_next_target = torch.minimum(next_values_one, next_values_two).reshape(
-                -1, 1
-            )
+            target_q_values_one, _, _ = self._split_output(target_output_one)
+            target_q_values_two, _, _ = self._split_output(target_output_two)
+            min_next_target = torch.minimum(
+                target_q_values_one, target_q_values_two
+            ).reshape(-1, 1)
             target_q_values = min_next_target - self.alpha * next_log_pi
 
             predicted_rewards = (
                 (
-                    predicted_reward_one.reshape(-1, 1)
-                    + predicted_reward_two.reshape(-1, 1)
+                    predicted_rewards_one.reshape(-1, 1)
+                    + predicted_rewards_two.reshape(-1, 1)
                 )
                 / 2
             ).reshape(-1, 1)
 
             q_target = predicted_rewards + self.gamma * (1 - dones) * target_q_values
 
-        diff_td_one = F.mse_loss(q_value_one.reshape(-1, 1), q_target, reduction="none")
-        diff_td_two = F.mse_loss(q_value_two.reshape(-1, 1), q_target, reduction="none")
+        diff_td_one = F.mse_loss(
+            q_values_one.reshape(-1, 1), q_target, reduction="none"
+        )
+        diff_td_two = F.mse_loss(
+            q_values_two.reshape(-1, 1), q_target, reduction="none"
+        )
 
         critic_loss_one = (
             diff_td_one
@@ -242,17 +248,149 @@ class MAPERSAC(SAC):
         # Update Scales
         if self.learn_counter == 1:
             self.scale_r = np.mean(numpy_td_mean) / (
-                np.mean(diff_next_state_mean_numpy)
+                np.mean(diff_reward_mean_numpy) + 1e-12
             )
             self.scale_s = np.mean(numpy_td_mean) / (
-                np.mean(diff_next_state_mean_numpy)
+                np.mean(diff_next_state_mean_numpy) + 1e-12
             )
 
-        info = {
-            "critic_loss_one": critic_loss_one.item(),
-            "critic_loss_two": critic_loss_two.item(),
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+
+            # --- Component losses (unweighted, per-sample means) ---
+            # These tell you whether the model heads are actually learning and on what scale.
+            info["td_mse_one_mean"] = diff_td_one.mean().item()
+            info["td_mse_two_mean"] = diff_td_two.mean().item()
+            info["td_mse_mean"] = (
+                0.5 * (diff_td_one.mean() + diff_td_two.mean())
+            ).item()
+
+            info["reward_pred_mse_one_mean"] = diff_reward_one.mean().item()
+            info["reward_pred_mse_two_mean"] = diff_reward_two.mean().item()
+            info["reward_pred_mse_mean"] = (
+                0.5 * (diff_reward_one.mean() + diff_reward_two.mean())
+            ).item()
+
+            info["next_state_pred_mse_one_mean"] = diff_next_states_one.mean().item()
+            info["next_state_pred_mse_two_mean"] = diff_next_states_two.mean().item()
+            info["next_state_pred_mse_mean"] = (
+                0.5 * (diff_next_states_one.mean() + diff_next_states_two.mean())
+            ).item()
+
+            # --- Scales (very important to log; they define the tradeoff) ---
+            info["scale_r"] = float(self.scale_r)
+            info["scale_s"] = float(self.scale_s)
+
+            # --- Weighted contribution ratios (are aux losses dominating TD?) ---
+            # These approximate how much each term contributes inside the critic loss before IS weighting.
+            td_term_mean = (0.5 * (diff_td_one.mean() + diff_td_two.mean())).item()
+            r_term_mean = (
+                0.5 * (diff_reward_one.mean() + diff_reward_two.mean())
+            ).item()
+            s_term_mean = (
+                0.5 * (diff_next_states_one.mean() + diff_next_states_two.mean())
+            ).item()
+
+            info["loss_term_td_mean"] = float(td_term_mean)
+            info["loss_term_r_scaled_mean"] = float(self.scale_r * r_term_mean)
+            info["loss_term_s_scaled_mean"] = float(self.scale_s * s_term_mean)
+
+            den = (
+                td_term_mean
+                + (self.scale_r * r_term_mean)
+                + (self.scale_s * s_term_mean)
+                + 1e-12
+            )
+            info["loss_td_frac"] = float(td_term_mean / den)
+            info["loss_r_frac"] = float((self.scale_r * r_term_mean) / den)
+            info["loss_s_frac"] = float((self.scale_s * s_term_mean) / den)
+
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
+
+            # --- Target critics disagreement (target stability) ---
+            # Large/unstable gap here often means target critics are drifting or policy is visiting OOD actions.
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_q_twin_gap_abs_mean"] = (
+                (target_q_values_one - target_q_values_two).abs().mean().item()
+            )
+
+            # --- Soft target decomposition (SAC-specific) ---
+            # min_target_q_mean: the conservative bootstrap value from twin critics (pre-entropy)
+            # entropy_term_mean: magnitude of entropy regularization in the target (alpha * log_pi is usually negative)
+            # soft_target_value_mean: the exact term used inside the Bellman target before reward/discount
+            min_target_q = torch.minimum(
+                target_q_values_one, target_q_values_two
+            ).reshape(-1, 1)
+
+            # alpha_log_pi is typically negative; entropy_bonus is typically positive
+            alpha_log_pi = (self.alpha * next_log_pi).reshape(-1, 1)
+            entropy_bonus = (-self.alpha * next_log_pi).reshape(-1, 1)
+
+            soft_target_value = min_target_q + entropy_bonus  # == minQ - alpha*log_pi
+
+            info["target_min_q_mean"] = min_target_q.mean().item()
+            info["alpha_log_pi_mean"] = alpha_log_pi.mean().item()
+            info["entropy_bonus_mean"] = entropy_bonus.mean().item()
+            info["soft_target_value_mean"] = soft_target_value.mean().item()
+
+            # --- Predicted reward bias (MaPER/MAPERSAC-specific) ---
+            # Since the Bellman target uses predicted reward instead of env reward,
+            # any systematic bias here directly shifts Q-targets and can cause
+            # value inflation or suppression.
+            predicted_reward_mean = predicted_rewards.mean().item()
+            env_reward_mean = rewards.mean().item()
+
+            info["predicted_reward_mean"] = predicted_reward_mean
+            info["env_reward_mean"] = env_reward_mean
+            info["predicted_reward_bias"] = predicted_reward_mean - env_reward_mean
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std().item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std().item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            # ---Priority diagnostics (raw + final PER priorities) ---
+            prio_td = diff_td_mean.squeeze(1)  # (B,)
+            prio_r = self.scale_r * diff_reward_mean.squeeze(1)  # (B,)
+            prio_s = self.scale_s * diff_next_state_mean.squeeze(1)  # (B,)
+            prio_raw = prio_td + prio_r + prio_s  # (B,)
+
+            info["priority_raw_mean"] = prio_raw.mean().item()
+            info["priority_raw_p95"] = prio_raw.quantile(0.95).item()
+
+            prio_den = prio_raw.mean().item() + 1e-12
+            info["priority_td_frac"] = float(prio_td.mean().item() / prio_den)
+            info["priority_r_frac"] = float(prio_r.mean().item() / prio_den)
+            info["priority_s_frac"] = float(prio_s.mean().item() / prio_den)
+
+            prio_post = prio_raw.clamp(min=self.min_priority).pow(self.per_alpha)
+            info["priority_mean"] = prio_post.mean().item()
+            info["priority_p95"] = prio_post.quantile(0.95).item()
+            info["priority_max"] = prio_post.max().item()
+
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
 
         return info, priorities
 
