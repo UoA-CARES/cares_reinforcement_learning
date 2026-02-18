@@ -155,7 +155,7 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
         )
 
         # ---------------------------------------------------------
-        # Sample ONCE for all agents (recommended for TD3/SAC)
+        # Sample ONCE for all agents (recommended for PPO/TD3/SAC)
         # Shared minibatch: We draw one minibatch per training iteration and reuse it across agent updates.
         # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
         # keeping joint transitions consistent for centralized critics.

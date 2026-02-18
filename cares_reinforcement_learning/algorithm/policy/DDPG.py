@@ -204,6 +204,8 @@ class DDPG(SARLAlgorithm[np.ndarray]):
             allow_unused=False,
         )[0]
         with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
             info["dq_da_abs_mean"] = dq_da.abs().mean().item()
             info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
             info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()

@@ -229,6 +229,18 @@ class TD3(SARLAlgorithm[np.ndarray]):
         )
 
         with torch.no_grad():
+            # --- TD3-style smoothing diagnostics ---
+            # Noise diagnostics
+            # What it tells you:
+            # - target_noise_abs_mean: effective smoothing magnitude.
+            # - target_noise_clip_frac high early: noise often clipped (clip too small or noise too large).
+            target_noise_abs_mean = target_noise.abs().mean().item()
+            target_noise_clip_frac = (
+                (target_noise.abs() >= self.policy_noise_clip).float().mean().item()
+            )
+            info["target_noise_abs_mean"] = float(target_noise_abs_mean)
+            info["target_noise_clip_frac"] = float(target_noise_clip_frac)
+
             # --- Twin critic disagreement (stability/uncertainty) ---
             # If this grows over training, critics are diverging / becoming inconsistent.
             info["q1_mean"] = q_values_one.mean().item()
@@ -299,6 +311,8 @@ class TD3(SARLAlgorithm[np.ndarray]):
             allow_unused=False,
         )[0]
         with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
             info["dq_da_abs_mean"] = dq_da.abs().mean().item()
             info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
             info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
