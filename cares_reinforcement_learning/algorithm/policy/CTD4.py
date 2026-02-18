@@ -397,9 +397,9 @@ class CTD4(TD3):
             info["std_target_std"] = std_target.std().item()
 
             # --- Critic loss diagnostics (fit quality) ---
+            # If one critic stays high: “bad apple” critic, poor calibration, or optimizer issue.
             info["critic_loss_total"] = float(np.mean(critic_loss_totals))
             info["critic_loss_totals"] = critic_loss_totals
-            # If one critic stays high: “bad apple” critic, poor calibration, or optimizer issue.
 
             # --- KL diagnostics (more robust than mean loss alone) ---
             # ---- Mean KL across critics (overall fit quality) ----
