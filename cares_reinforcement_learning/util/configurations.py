@@ -1361,9 +1361,14 @@ class CTD4Config(TD3Config):
     policy_update_freq: int = 2
 
     fusion_method: str = (
-        "kalman_interpolated"  # kalman_precision, kalman_interpolated, minimum, average
+        "interpolated"  # precision, interpolated, covariance, correlated, minimum, average
     )
-    kalman_alpha: float = 1.0
+
+    kalman_beta_start: float = 0.1
+    kalman_beta_end: float = 1.0
+    kalman_beta_decay: int = 800000
+
+    kalman_rho: float = 0.8
 
 
 class TD7Config(TD3Config):

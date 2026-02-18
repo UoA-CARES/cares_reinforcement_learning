@@ -59,6 +59,7 @@ from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import CTD4Config
+from cares_reinforcement_learning.util.helpers import LinearScheduler
 
 
 class CTD4(TD3):
@@ -80,7 +81,15 @@ class CTD4(TD3):
         )
 
         self.fusion_method = config.fusion_method
-        self.kalman_alpha = config.kalman_alpha
+
+        self.kalman_beta_scheduler = LinearScheduler(
+            start_value=config.kalman_beta_start,
+            end_value=config.kalman_beta_end,
+            decay_steps=config.kalman_beta_decay,
+        )
+        self.kalman_beta = self.kalman_beta_scheduler.get_value(0)
+
+        self.kalman_rho = config.kalman_rho
 
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
@@ -116,6 +125,107 @@ class CTD4(TD3):
 
         return fusion_u_a.item()
 
+    def _kalman_covariance(
+        self,
+        u_set: list[torch.Tensor],
+        std_set: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Covariance Intersection (CI) fusion for UNKNOWN correlation.
+        Non-sequential, order-invariant.
+
+        CI formula (1D):
+            P^{-1} = sum_i ω_i P_i^{-1}
+            μ      = P * sum_i ω_i P_i^{-1} μ_i
+        with ω_i >= 0, sum_i ω_i = 1.
+
+        Returns:
+            fusion_u:   (B,1)
+            fusion_std: (B,1)
+            weights:    (B,E) normalized information contributions (for logging/intuition)
+        """
+        u_mat = torch.concat(u_set, dim=1)  # (B,E)
+        std_mat = torch.concat(std_set, dim=1)  # (B,E)
+
+        eps = 1e-12
+        var_mat = std_mat**2 + eps
+        prec_mat = 1.0 / var_mat  # (B,E)
+
+        batch_size, num_critics = u_mat.shape
+
+        # ω vector over critics (must sum to 1)
+        # Default: uniform CI (recommended)
+
+        omega_vec = torch.full(
+            (num_critics,), 1.0 / num_critics, device=u_mat.device, dtype=u_mat.dtype
+        )
+
+        omega_mat = omega_vec.view(1, num_critics).expand(
+            batch_size, num_critics
+        )  # (B,E)
+
+        fused_prec = (omega_mat * prec_mat).sum(dim=1, keepdim=True)  # (B,1)
+        fusion_var = 1.0 / (fused_prec + eps) + 1e-6
+        fusion_std = torch.sqrt(fusion_var)
+
+        fusion_u = fusion_var * (omega_mat * prec_mat * u_mat).sum(dim=1, keepdim=True)
+
+        # "weights" as normalized information contribution (not a unique CI object, but very useful)
+        info_contrib = omega_mat * prec_mat
+        weights = info_contrib / (info_contrib.sum(dim=1, keepdim=True) + eps)
+
+        return fusion_u, fusion_std, weights
+
+    def _kalman_correlated(
+        self,
+        u_set: list[torch.Tensor],
+        std_set: list[torch.Tensor],
+        batch_size: int,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Correlated Gaussian fusion (1D) using a simple correlation model:
+            Cov(fused, new) = rho * sqrt(P_fused * P_new)
+
+        rho=0 recovers the independent Kalman update.
+        rho>0 makes fusion more conservative (less variance collapse).
+        """
+        num_critics = len(u_set)
+        fusion_u = u_set[0]  # (B,1)
+        fusion_std = std_set[0]  # (B,1)
+
+        weights = torch.zeros(
+            (batch_size, num_critics), device=self.device, dtype=torch.float32
+        )
+        weights[:, 0] = 1.0
+
+        eps = 1e-12
+
+        for i in range(1, num_critics):
+            x2 = u_set[i]  # (B,1)
+            std2 = std_set[i]  # (B,1)
+
+            var1 = fusion_std**2
+            var2 = std2**2
+
+            # Cross-covariance model
+            cov12 = self.kalman_rho * torch.sqrt(var1 * var2 + eps)  # (B,1)
+
+            den = (var1 + var2 - 2.0 * cov12) + eps
+            kalman_gain = (var1 - cov12) / den
+            kalman_gain = kalman_gain.clamp(0.0, 1.0)
+
+            fusion_u = fusion_u + kalman_gain * (x2 - fusion_u)
+
+            # Correlated posterior variance
+            fusion_variance = var1 - kalman_gain * (var1 - cov12) + 1e-6
+            fusion_std = torch.sqrt(fusion_variance)
+
+            # weights update (same structure)
+            weights = weights * (1.0 - kalman_gain)
+            weights[:, i : i + 1] = weights[:, i : i + 1] + kalman_gain
+
+        return fusion_u, fusion_std, weights
+
     def _kalman_interpolated(
         self, u_set: list[torch.Tensor], std_set: list[torch.Tensor], batch_size: int
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -143,7 +253,8 @@ class CTD4(TD3):
             # Mean fusion: fused <- (1-K) * fused + K * x2
             fusion_u = fusion_u + kalman_gain * (x2 - fusion_u)
 
-            # Variance fusion (your "interpolated" rule): var <- (1-K)*var1 + K*var2
+            # Variance fusion ("interpolated" rule): var <- (1-K)*var1 + K*var2
+            # Correlations are ignored, so this is not a true Kalman update but an interpolation that avoids variance collapse.
             fusion_variance = (
                 (1 - kalman_gain) * (fusion_std**2) + kalman_gain * (std2**2) + 1e-6
             )
@@ -159,18 +270,24 @@ class CTD4(TD3):
 
         return fusion_u, fusion_std, weights
 
-    def _kalman_precision(self, u_set, std_set):
+    def _kalman_precision(
+        self, u_set: list[torch.Tensor], std_set: list[torch.Tensor]
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         u_mat = torch.concat(u_set, dim=1)  # (B,E)
         std_mat = torch.concat(std_set, dim=1)  # (B,E)
 
         eps = 1e-12
-        precision = 1.0 / (std_mat**2 + eps)
-        precision_sum = precision.sum(dim=1, keepdim=True)
+        precision = 1.0 / (std_mat**2 + eps)  # (B,E)
 
-        weights = precision / precision_sum
-        fusion_u = (weights * u_mat).sum(dim=1, keepdim=True)
+        # Temper precision: beta=0 => all ones => uniform weights
+        precision_t = precision.pow(self.kalman_beta)
+        precision_sum = precision_t.sum(dim=1, keepdim=True)  # (B,1)
 
-        fusion_var = self.kalman_alpha / (precision_sum + eps)
+        weights = precision_t / (precision_sum + eps)  # (B,E)
+        fusion_u = (weights * u_mat).sum(dim=1, keepdim=True)  # (B,1)
+
+        # Tempered fused variance (consistent with tempered weights).
+        fusion_var = 1.0 / (precision_sum + eps)
         fusion_std = torch.sqrt(fusion_var + 1e-6)
 
         return fusion_u, fusion_std, weights
@@ -212,20 +329,24 @@ class CTD4(TD3):
     def _fuse_critic_outputs(
         self, batch_size: int, u_set: list[torch.Tensor], std_set: list[torch.Tensor]
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        if self.fusion_method == "kalman_precision":
+        if self.fusion_method == "precision":
             fusion_u, fusion_std, weights = self._kalman_precision(u_set, std_set)
-        elif self.fusion_method == "kalman_interpolated":
+        elif self.fusion_method == "interpolated":
             fusion_u, fusion_std, weights = self._kalman_interpolated(
                 u_set, std_set, batch_size
             )
+        elif self.fusion_method == "correlated":
+            fusion_u, fusion_std, weights = self._kalman_correlated(
+                u_set, std_set, batch_size
+            )
+        elif self.fusion_method == "covariance":
+            fusion_u, fusion_std, weights = self._kalman_covariance(u_set, std_set)
         elif self.fusion_method == "average":
             fusion_u, fusion_std, weights = self._average(u_set, std_set, batch_size)
         elif self.fusion_method == "minimum":
             fusion_u, fusion_std, weights = self._minimum(u_set, std_set, batch_size)
         else:
-            raise ValueError(
-                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman_precision', 'kalman_interpolated', 'average', or 'minimum'."
-            )
+            raise ValueError(f"Invalid fusion method: {self.fusion_method}.")
 
         return fusion_u, fusion_std, weights
 
