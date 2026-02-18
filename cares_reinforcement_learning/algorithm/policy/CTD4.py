@@ -56,7 +56,9 @@ import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import CTD4Config
 from cares_reinforcement_learning.util.helpers import LinearScheduler
@@ -302,8 +304,10 @@ class CTD4(TD3):
         fusion_u = u_mat.mean(dim=1, keepdim=True)  # (B,1)
         fusion_std = std_mat.mean(dim=1, keepdim=True)  # (B,1)
 
-        E = u_mat.shape[1]
-        weights = torch.full((batch_size, E), 1.0 / E, device=u_mat.device)
+        num_critics = u_mat.shape[1]
+        weights = torch.full(
+            (batch_size, num_critics), 1.0 / num_critics, device=u_mat.device
+        )
 
         return fusion_u, fusion_std, weights
 
@@ -320,8 +324,8 @@ class CTD4(TD3):
         fusion_std = std_mat[torch.arange(batch_size), min_idx].unsqueeze(1)  # (B,1)
 
         # one-hot weights
-        E = u_mat.shape[1]
-        weights = torch.zeros((batch_size, E), device=u_mat.device)
+        num_critics = u_mat.shape[1]
+        weights = torch.zeros((batch_size, num_critics), device=u_mat.device)
         weights[torch.arange(batch_size), min_idx] = 1.0
 
         return fusion_u, fusion_std, weights
@@ -665,6 +669,16 @@ class CTD4(TD3):
 
             info["actor_loss"] = actor_loss.item()
 
+        return info
+
+    def train(
+        self, memory_buffer: SARLMemoryBuffer, episode_context: EpisodeContext
+    ) -> dict[str, Any]:
+        self.kalman_beta = self.kalman_beta_scheduler.get_value(
+            episode_context.training_step
+        )
+        info = super().train(memory_buffer, episode_context)
+        info["kalman_beta"] = self.kalman_beta
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:

@@ -188,12 +188,42 @@ class TQC(SAC):
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
-            mean_qf_pi = self.critic_net(states, pi).mean(2).mean(1, keepdim=True)
+            q_quant = self.critic_net(states, pi)
+
+            q_mean_per_critic = q_quant.mean(dim=2)  # (B, C)
+            mean_qf_pi = q_mean_per_critic.mean(dim=1, keepdim=True)  # (B, 1)
 
         actor_loss = (self.alpha * log_pi - mean_qf_pi).mean()
+
+        # ---------------------------------------------------------
+        # Stochastic Policy Gradient Strength (∇a [α log π(a|s) − Q(s,a)])
+        # ---------------------------------------------------------
+        # Measures how steep the entropy-regularized critic objective is
+        # w.r.t. the sampled policy actions.
+        #
+        # ~0 early  -> critic surface and entropy term nearly flat;
+        #              actor receives weak learning signal.
+        #
+        # Very large -> critic or entropy term is very sharp around policy
+        #               actions; can lead to unstable or overly aggressive
+        #               actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=pi,
+            retain_graph=True,
+            create_graph=False,
+            allow_unused=False,
+        )[0]
+
+        with torch.no_grad():
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
@@ -206,8 +236,57 @@ class TQC(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-            "alpha_loss": alpha_loss.item(),
-        }
+        with torch.no_grad():
+            # --- Policy entropy diagnostics ---
+            info["log_pi_mean"] = log_pi.mean().item()
+            info["log_pi_std"] = log_pi.std(unbiased=False).item()
+
+            # --- Action magnitude/saturation ---
+            info["pi_action_abs_mean"] = pi.abs().mean().item()
+            info["pi_action_std"] = pi.std(unbiased=False).item()
+            info["pi_action_saturation_frac"] = (pi.abs() > 0.95).float().mean().item()
+
+            # --- On-policy critic signal (TQC uses mean over critics+quantiles) ---
+            info["mean_qf_pi_mean"] = mean_qf_pi.mean().item()
+            info["mean_qf_pi_std"] = mean_qf_pi.std(unbiased=False).item()
+
+            # --- Critic disagreement at policy actions (TQC analogue of twin-gap) ---
+            # Useful dispersion metrics (TQC analogue of "twin gap")
+            q_std_across_critics = q_mean_per_critic.std(dim=1, unbiased=False)  # (B,)
+            q_range_across_critics = (
+                q_mean_per_critic.max(dim=1).values
+                - q_mean_per_critic.min(dim=1).values
+            )  # (B,)
+
+            # Quantile spread (distributional uncertainty / sharpness)
+            # IQR across quantiles after averaging critics
+            q_mean_across_critics = q_quant.mean(dim=1)  # (B, N)
+            q_q25 = q_mean_across_critics.quantile(0.25, dim=1)  # (B,)
+            q_q50 = q_mean_across_critics.quantile(0.50, dim=1)  # (B,)
+            q_q75 = q_mean_across_critics.quantile(0.75, dim=1)  # (B,)
+            q_iqr = q_q75 - q_q25  # (B,)
+
+            info["q_pi_critics_std_mean"] = q_std_across_critics.mean().item()
+            info["q_pi_critics_std_p95"] = q_std_across_critics.quantile(0.95).item()
+            info["q_pi_critics_range_mean"] = q_range_across_critics.mean().item()
+            info["q_pi_critics_range_p95"] = q_range_across_critics.quantile(
+                0.95
+            ).item()
+
+            # --- Quantile spread (distributional sharpness / uncertainty proxy) ---
+            info["q_pi_quantile_iqr_mean"] = q_iqr.mean().item()
+            info["q_pi_quantile_iqr_p95"] = q_iqr.quantile(0.95).item()
+            info["q_pi_quantile_median_mean"] = q_q50.mean().item()
+
+            # --- Entropy gap (alpha tuning health) ---
+            entropy_gap = -(log_pi + self.target_entropy)
+            info["entropy_gap_mean"] = entropy_gap.mean().item()
+            info["entropy_gap_std"] = entropy_gap.std(unbiased=False).item()
+
+            # --- Losses / temperature ---
+            info["actor_loss"] = actor_loss.item()
+            info["alpha_loss"] = alpha_loss.item()
+            info["alpha"] = self.alpha.item()
+            info["log_alpha"] = self.log_alpha.item()
+
         return info
