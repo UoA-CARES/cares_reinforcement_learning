@@ -397,6 +397,8 @@ class MAPERSAC(SAC):
     def _update_actor_alpha(
         self, states: torch.Tensor, weights: torch.Tensor
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
@@ -409,6 +411,31 @@ class MAPERSAC(SAC):
         actor_loss = torch.mean(
             (torch.exp(self.log_alpha).detach() * log_pi - min_qf_pi) * weights
         )
+
+        # ---------------------------------------------------------
+        # Stochastic Policy Gradient Strength (∇a [α log π(a|s) − Q(s,a)])
+        # ---------------------------------------------------------
+        # Measures how steep the entropy-regularized critic objective is
+        # w.r.t. the sampled policy actions.
+        #
+        # ~0 early  -> critic surface and entropy term nearly flat;
+        #              actor receives weak learning signal.
+        #
+        # Very large -> critic or entropy term is very sharp around policy
+        #               actions; can lead to unstable or overly aggressive
+        #               actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=pi,
+            retain_graph=True,
+            create_graph=False,
+            allow_unused=False,
+        )[0]
+
+        with torch.no_grad():
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
@@ -423,9 +450,36 @@ class MAPERSAC(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-            "alpha_loss": alpha_loss.item(),
-        }
+        with torch.no_grad():
+            # --- Policy entropy diagnostics (exploration health) ---
+            # log_pi more negative -> higher entropy (more stochastic). Less negative -> lower entropy (more deterministic).
+            info["log_pi_mean"] = log_pi.mean().item()
+            info["log_pi_std"] = log_pi.std().item()
+
+            # --- Action magnitude/saturation (tanh policies) ---
+            # High saturation fraction can indicate the policy is slamming bounds; may reduce effective gradients.
+            info["pi_action_abs_mean"] = pi.abs().mean().item()
+            info["pi_action_std"] = pi.std().item()
+            info["pi_action_saturation_frac"] = (pi.abs() > 0.95).float().mean().item()
+
+            # --- On-policy critic signal ---
+            # min_qf_pi_mean should generally increase as the policy improves (higher value actions under the policy).
+            info["min_qf_pi_mean"] = min_qf_pi.mean().item()
+
+            # --- Twin critics disagreement at policy actions (more relevant than replay actions) ---
+            # Large gap here means critics disagree on what the current policy is doing (can destabilize actor updates).
+            info["qf_pi_gap_abs_mean"] = (qf_pi_one - qf_pi_two).abs().mean().item()
+
+            # --- Entropy gap (alpha tuning health) ---
+            # entropy_gap ~ 0 means entropy matches target.
+            # > 0: entropy too low -> alpha should increase; < 0: entropy too high -> alpha should decrease.
+            entropy_gap = -(log_pi + self.target_entropy)
+            info["entropy_gap_mean"] = entropy_gap.mean().item()
+
+            # --- Losses and temperature ---
+            info["actor_loss"] = actor_loss.item()
+            info["alpha_loss"] = alpha_loss.item()
+            info["alpha"] = self.alpha.item()
+            info["log_alpha"] = self.log_alpha.item()
 
         return info

@@ -402,6 +402,8 @@ class MAPERTD3(TD3):
     def _update_actor(
         self, states: torch.Tensor, weights: torch.Tensor
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         actions = self.actor_net(states.detach())
 
         with hlp.evaluating(self.critic_net):
@@ -410,16 +412,50 @@ class MAPERTD3(TD3):
         actor_q_one, _, _ = self._split_output(output_one)
         actor_q_two, _, _ = self._split_output(output_two)
 
-        actor_val = torch.minimum(actor_q_one, actor_q_two)
+        actor_q_values = torch.minimum(actor_q_one, actor_q_two)
 
-        actor_loss = -(actor_val * weights).mean()
+        actor_loss = -(actor_q_values * weights).mean()
+
+        # ---------------------------------------------------------
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
+        # ---------------------------------------------------------
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=actions,
+            retain_graph=True,  # because we do backward(actor_loss) next
+            create_graph=False,  # diagnostic only
+            allow_unused=False,
+        )[0]
+        with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         # Optimize the actor
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-        }
+        with torch.no_grad():
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
+            info["actor_loss"] = actor_loss.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
         return info

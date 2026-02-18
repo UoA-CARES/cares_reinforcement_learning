@@ -296,9 +296,9 @@ class SAC(SARLAlgorithm[np.ndarray]):
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
-            qf1_pi, qf2_pi = self.critic_net(states, pi)
+            qf_pi_one, qf_pi_two = self.critic_net(states, pi)
 
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
@@ -356,7 +356,7 @@ class SAC(SARLAlgorithm[np.ndarray]):
 
             # --- Twin critics disagreement at policy actions (more relevant than replay actions) ---
             # Large gap here means critics disagree on what the current policy is doing (can destabilize actor updates).
-            info["qf_pi_gap_abs_mean"] = (qf1_pi - qf2_pi).abs().mean().item()
+            info["qf_pi_gap_abs_mean"] = (qf_pi_one - qf_pi_two).abs().mean().item()
 
             # --- Entropy gap (alpha tuning health) ---
             # entropy_gap ~ 0 means entropy matches target.
