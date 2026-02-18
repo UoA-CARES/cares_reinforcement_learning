@@ -124,6 +124,7 @@ class REDQ(SAC):
         next_states: torch.Tensor,
         dones: torch.Tensor,
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
         # replace=False so that not picking the same idx twice
         idx = np.random.choice(
             self.ensemble_size, self.num_sample_critics, replace=False
@@ -148,12 +149,23 @@ class REDQ(SAC):
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        critic_loss_totals = []
+        critic_loss_totals: list[float] = []
+        critic_td_abs_means: list[float] = []
+        critic_q_means: list[float] = []
+
+        # For ensemble diagnostics (store per-critic outputs on this batch)
+        q_set: list[torch.Tensor] = []
 
         for critic_net, critic_net_optimiser in zip(
             self.critic_net.critics, self.ensemble_critic_optimizers
         ):
             q_values = critic_net(states, actions)
+
+            q_set.append(q_values)
+
+            td = q_values - q_target  # signed TD error
+            critic_td_abs_means.append(td.abs().mean().item())
+            critic_q_means.append(q_values.mean().item())
 
             critic_loss = 0.5 * F.mse_loss(q_values, q_target)
 
@@ -163,12 +175,72 @@ class REDQ(SAC):
 
             critic_loss_totals.append(critic_loss.item())
 
-        critic_loss_total = np.mean(critic_loss_totals)
-        info = {
-            "idx": idx,
-            "critic_loss_total": critic_loss_total,
-            "critic_loss_totals": critic_loss_totals,
-        }
+        with torch.no_grad():
+            # Which target critics were sampled (for debugging + reproducibility)
+            info["idx0"] = int(idx[0])
+            info["idx1"] = int(idx[1])
+
+            # --- Target-side diagnostics (s', pi(s')) ---
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_min_q_mean"] = target_q_values.mean().item()
+
+            # Disagreement between the sampled target critics
+            target_gap = (target_q_values_one - target_q_values_two).abs()
+            info["target_q_gap_abs_mean"] = target_gap.mean().item()
+            info["target_q_gap_abs_p95"] = target_gap.quantile(0.95).item()
+
+            # --- Soft target decomposition (SAC-specific) ---
+            # min_target_q_mean: the conservative bootstrap value from twin critics (pre-entropy)
+            # entropy_term_mean: magnitude of entropy regularization in the target (alpha * log_pi is usually negative)
+            # soft_target_value_mean: the exact term used inside the Bellman target before reward/discount
+            min_target_q = torch.minimum(target_q_values_one, target_q_values_two)
+
+            # alpha_log_pi is typically negative; entropy_bonus is typically positive
+            alpha_log_pi = self.alpha * next_log_pi
+            # this is what gets ADDED to minQ in the target
+            entropy_bonus = -self.alpha * next_log_pi
+
+            soft_target_value = min_target_q + entropy_bonus  # == minQ - alpha*log_pi
+
+            info["target_min_q_mean"] = min_target_q.mean().item()
+            info["alpha_log_pi_mean"] = alpha_log_pi.mean().item()
+            info["entropy_bonus_mean"] = entropy_bonus.mean().item()
+            info["soft_target_value_mean"] = soft_target_value.mean().item()
+
+            # Bellman target scale
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std(unbiased=False).item()
+
+            # --- Critic loss diagnostics ---
+            info["critic_loss_total"] = float(np.mean(critic_loss_totals))
+            info["critic_loss_totals"] = critic_loss_totals  # per-critic scalars
+
+            # “Bad apple” detection across critics
+            info["critic_loss_std_across_critics"] = float(np.std(critic_loss_totals))
+            info["critic_td_abs_mean_across_critics"] = float(
+                np.mean(critic_td_abs_means)
+            )
+            info["critic_td_abs_std_across_critics"] = float(
+                np.std(critic_td_abs_means)
+            )
+            info["critic_q_mean_across_critics"] = float(np.mean(critic_q_means))
+            info["critic_q_std_across_critics"] = float(np.std(critic_q_means))
+
+            # --- Ensemble disagreement on replay batch (s,a) ---
+            q_mat = torch.cat(q_set, dim=1)  # (B,E)
+            info["current_ensemble_q_mean"] = q_mat.mean().item()
+            info["current_ensemble_q_std_mean"] = (
+                q_mat.std(dim=1, unbiased=False).mean().item()
+            )
+            # If this grows: see critic divergence / epistemic spread.
+
+            # TD tail risk (more sensitive than mean)
+            td_mat = q_mat - q_target  # broadcast (B,E) - (B,1)
+            td_abs_max = td_mat.abs().max(dim=1).values  # (B,)
+            info["td_abs_max_mean"] = td_abs_max.mean().item()
+            info["td_abs_max_p95"] = td_abs_max.quantile(0.95).item()
+            info["td_abs_max_max"] = td_abs_max.max().item()
 
         return info
 
@@ -177,13 +249,40 @@ class REDQ(SAC):
         self,
         states: torch.Tensor,
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
             q_values = self.critic_net(states, pi)
-            min_qf_pi = q_values.mean(dim=1)
+            q_mean = q_values.mean(dim=1)
 
-        actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+        actor_loss = ((self.alpha * log_pi) - q_mean).mean()
+
+        # ---------------------------------------------------------
+        # Stochastic Policy Gradient Strength (∇a [α log π(a|s) − Q(s,a)])
+        # ---------------------------------------------------------
+        # Measures how steep the entropy-regularized critic objective is
+        # w.r.t. the sampled policy actions.
+        #
+        # ~0 early  -> critic surface and entropy term nearly flat;
+        #              actor receives weak learning signal.
+        #
+        # Very large -> critic or entropy term is very sharp around policy
+        #               actions; can lead to unstable or overly aggressive
+        #               actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=pi,
+            retain_graph=True,
+            create_graph=False,
+            allow_unused=False,
+        )[0]
+
+        with torch.no_grad():
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
@@ -195,10 +294,44 @@ class REDQ(SAC):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-            "alpha_loss": alpha_loss.item(),
-        }
+        with torch.no_grad():
+            # --- Policy entropy diagnostics (exploration health) ---
+            # log_pi more negative -> higher entropy (more stochastic). Less negative -> lower entropy (more deterministic).
+            info["log_pi_mean"] = log_pi.mean().item()
+            info["log_pi_std"] = log_pi.std().item()
+
+            # --- Action magnitude/saturation (tanh policies) ---
+            # High saturation fraction can indicate the policy is slamming bounds; may reduce effective gradients.
+            info["pi_action_abs_mean"] = pi.abs().mean().item()
+            info["pi_action_std"] = pi.std().item()
+            info["pi_action_saturation_frac"] = (pi.abs() > 0.95).float().mean().item()
+
+            # --- On-policy critic signal (REDQ uses ensemble mean) ---
+            # REDQ actor uses mean over ensemble as value signal
+            info["q_pi_mean"] = q_mean.mean().item()
+            info["q_pi_std"] = q_mean.std(unbiased=False).item()
+
+            # --- Ensemble disagreement at policy actions (REDQ analogue of twin-gap) ---
+            # If this grows, critics disagree on current policy behaviour (instability / epistemic spread).
+            q_std_across_critics = q_values.std(dim=1, unbiased=False)  # (B,)
+            info["q_pi_ensemble_std_mean"] = q_std_across_critics.mean().item()
+            info["q_pi_ensemble_std_p95"] = q_std_across_critics.quantile(0.95).item()
+
+            # You can also track dominance extremes if you ever use weighted fusion later
+            info["q_pi_ensemble_min_mean"] = q_values.min(dim=1).values.mean().item()
+            info["q_pi_ensemble_max_mean"] = q_values.max(dim=1).values.mean().item()
+
+            # --- Entropy gap (alpha tuning health) ---
+            # entropy_gap ~ 0 means entropy matches target.
+            # > 0: entropy too low -> alpha should increase; < 0: entropy too high -> alpha should decrease.
+            entropy_gap = -(log_pi + self.target_entropy)
+            info["entropy_gap_mean"] = entropy_gap.mean().item()
+
+            # --- Losses and temperature ---
+            info["actor_loss"] = actor_loss.item()
+            info["alpha_loss"] = alpha_loss.item()
+            info["alpha"] = self.alpha.item()
+            info["log_alpha"] = self.log_alpha.item()
 
         return info
 
