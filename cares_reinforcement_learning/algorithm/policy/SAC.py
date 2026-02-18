@@ -296,6 +296,31 @@ class SAC(SARLAlgorithm[np.ndarray]):
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
 
+        # ---------------------------------------------------------
+        # Stochastic Policy Gradient Strength (∇a [α log π(a|s) − Q(s,a)])
+        # ---------------------------------------------------------
+        # Measures how steep the entropy-regularized critic objective is
+        # w.r.t. the sampled policy actions.
+        #
+        # ~0 early  -> critic surface and entropy term nearly flat;
+        #              actor receives weak learning signal.
+        #
+        # Very large -> critic or entropy term is very sharp around policy
+        #               actions; can lead to unstable or overly aggressive
+        #               actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=pi,
+            retain_graph=True,
+            create_graph=False,
+            allow_unused=False,
+        )[0]
+
+        with torch.no_grad():
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
+
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
