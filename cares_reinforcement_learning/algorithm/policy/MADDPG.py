@@ -565,6 +565,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 next_actions_tensor=next_actions_tensor,
                 dones_i=dones_i,
             )
+            info.update({f"{k}_agent_{agent_index}": v for k, v in critic_info.items()})
 
             # ---------------------------------------------------------
             # Actor update
@@ -576,9 +577,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 global_states=states_tensors,
                 actions_tensor=actions_tensor,
             )
-
-            info[f"critic_loss_agent_{agent_index}"] = critic_info["critic_loss"]
-            info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
+            info.update({f"{k}_agent_{agent_index}": v for k, v in actor_info.items()})
 
         # --- Cross-agent diagnostics ---
         critic_losses = []
