@@ -351,6 +351,8 @@ class TD3(SARLAlgorithm[np.ndarray]):
         dones_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
+
         self.learn_counter += 1
 
         self.policy_noise = self.policy_noise_scheduler.get_value(
@@ -361,7 +363,8 @@ class TD3(SARLAlgorithm[np.ndarray]):
             episode_context.training_step
         )
 
-        info: dict[str, Any] = {}
+        info["policy_noise"] = float(self.policy_noise)
+        info["action_noise"] = float(self.action_noise)
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
