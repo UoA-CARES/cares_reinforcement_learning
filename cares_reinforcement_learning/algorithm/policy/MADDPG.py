@@ -201,7 +201,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         actions: torch.Tensor,  # (batch, n_agents, act_dim)
         global_states: torch.Tensor,  # (batch, state_dim)
         critic: torch.nn.Module,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Return actions_adv where for j != agent_index:
             a_j_adv = a_j + eps_j
@@ -209,7 +209,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         """
         if self.m3_alpha == 0.0:
             # Degenerates to original MADDPG
-            return actions.detach()
+            return actions.detach(), torch.zeros_like(actions)
 
         # Clone and mark for gradient wrt actions only
         actions_for_grad = actions.detach().clone().requires_grad_(True)
@@ -240,7 +240,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         eps = eps * mask
 
         actions_adv = actions_for_grad + eps
-        return actions_adv.detach()  # no gradients through perturbation
+        return actions_adv.detach(), eps.detach()  # no gradients through perturbation
 
     def _update_critic(
         self,
@@ -253,10 +253,12 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         next_actions_tensor: torch.Tensor,  # (B, N, act_dim) from target actors
         dones_i: torch.Tensor,
     ):
+        info: dict[str, Any] = {}
+
         # --- Step 1: build (possibly adversarial) next joint actions ---
         if self.use_m3:
             # M3DDPG: perturb OTHER agents' target actions for agent i
-            next_actions_adv = self._compute_adversarial_actions(
+            next_actions_adv, eps = self._compute_adversarial_actions(
                 agent_index=agent_index,
                 actions=next_actions_tensor,  # (B, N, act_dim)
                 global_states=next_global_states,  # (B, state_dim)
@@ -289,7 +291,34 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
 
         agent.critic_net_optimiser.step()
 
-        return {"critic_loss": loss.item()}
+        with torch.no_grad():
+
+            td = q_values - q_target
+
+            # --- Value scale ---
+            info["q_mean"] = q_values.mean().item()
+            info["q_std"] = q_values.std(unbiased=False).item()
+
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std(unbiased=False).item()
+
+            # --- TD error diagnostics ---
+            td_abs = td.abs()
+            info["td_abs_mean"] = td_abs.mean().item()
+            info["td_abs_p95"] = td_abs.quantile(0.95).item()
+            info["td_abs_max"] = td_abs.max().item()
+
+            # --- Signed bias ---
+            info["td_mean"] = td.mean().item()
+
+            if self.use_m3:
+                info["critic_m3_eps_norm_mean"] = eps.norm(dim=-1).mean().item()
+                info["critic_m3_eps_norm_p95"] = eps.norm(dim=-1).quantile(0.95).item()
+
+            # --- Critic loss ---
+            info["critic_loss"] = loss.item()
+
+        return info
 
     def _update_actor(
         self,
@@ -304,6 +333,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         - For j ≠ agent_index: use replay-buffer actions
         - For j == agent_index: use current actor output
         """
+        info: dict[str, Any] = {}
 
         agent_ids = list(obs_tensors.keys())
         batch_size = global_states.shape[0]
@@ -327,7 +357,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         # ---------------------------------------------------------
         if self.use_m3:
             # compute perturbation on ALL actions (but this returns detached)
-            actions_adv = self._compute_adversarial_actions(
+            actions_adv, eps = self._compute_adversarial_actions(
                 agent_index=agent_index,
                 actions=actions_all,
                 global_states=global_states,
@@ -365,6 +395,13 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
 
         actor_loss = -q_val.mean() + reg + (self.ernie_lambda * ernie_reg)
 
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=pred_action_i,
+            retain_graph=True,
+            create_graph=False,
+        )[0]
+
         # ---------------------------------------------------------
         # Step 5: Backprop
         # ---------------------------------------------------------
@@ -378,7 +415,30 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
 
         agent.actor_net_optimiser.step()
 
-        return {"actor_loss": actor_loss.item()}
+        with torch.no_grad():
+            # --- Policy output scale ---
+            info["action_abs_mean"] = pred_action_i.abs().mean().item()
+            info["action_std"] = pred_action_i.std(unbiased=False).item()
+
+            # --- Q signal at policy actions ---
+            info["q_val_mean"] = q_val.mean().item()
+
+            # --- Gradient strength ---
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
+
+            # --- ERNIE diagnostics ---
+            if self.use_ernie:
+                info["ernie_reg"] = ernie_reg.item()
+
+            if self.use_m3:
+                info["actor_m3_eps_norm_mean"] = eps.norm(dim=-1).mean().item()
+                info["actor_m3_eps_norm_p95"] = eps.norm(dim=-1).quantile(0.95).item()
+
+            info["actor_loss"] = actor_loss.item()
+
+        return info
 
     def train(
         self,
@@ -398,6 +458,10 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
             # Update action noise for exploration (decayed over training)
             current_agent.action_noise = current_agent.action_noise_scheduler.get_value(
                 episode_context.training_step
+            )
+
+            info[f"action_noise_agent_{agent_index}"] = float(
+                current_agent.action_noise
             )
 
             (
@@ -440,6 +504,51 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
             # Flatten replay-buffer actions for this batch
             joint_actions = actions_tensor.reshape(sample_size, -1)
 
+            with torch.no_grad():
+                # ---------------------------------------------------------
+                # Batch-level multi-agent diagnostics (this agent's draw)
+                # ---------------------------------------------------------
+                # Joint action volatility in the replay batch (all agents)
+                info[f"joint_action_std_agent_{agent_index}"] = actions_tensor.std(
+                    unbiased=False
+                ).item()
+
+                # Per-agent action magnitude (detect frozen/saturated agent in replay)
+                # actions_tensor: (B, N, A)
+                per_agent_abs_mean = actions_tensor.abs().mean(dim=(0, 2))  # (N,)
+                per_agent_std = actions_tensor.std(dim=(0, 2), unbiased=False)  # (N,)
+
+                info[f"replay_action_abs_mean_agent_{agent_index}"] = (
+                    per_agent_abs_mean.mean().item()
+                )
+                info[f"replay_action_abs_std_across_agents_agent_{agent_index}"] = (
+                    per_agent_abs_mean.std(unbiased=False).item()
+                )
+                info[f"replay_action_std_mean_agent_{agent_index}"] = (
+                    per_agent_std.mean().item()
+                )
+
+                # Coordination proxy: how aligned are agents' actions? (cheap)
+                # Cos similarity between agents' action vectors per sample, averaged.
+                # Flatten each agent action: (B, N, A) -> (B, N, A)
+                a = actions_tensor  # (B,N,A)
+                a_norm = a / a.norm(dim=2, keepdim=True).clamp_min(1e-6)
+
+                # pairwise cosine for all agent pairs
+                cos = torch.einsum("bna,bma->bnm", a_norm, a_norm)  # (B,N,N)
+                # ignore diagonal
+                n = cos.shape[1]
+                mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
+                info[f"replay_action_cos_mean_agent_{agent_index}"] = (
+                    cos[:, mask].mean().item()
+                )
+
+                # Reward/done scale sanity for this agent (helps catch mis-scaling)
+                info[f"reward_mean_agent_{agent_index}"] = rewards_tensor.mean().item()
+                info[f"done_frac_agent_{agent_index}"] = (
+                    dones_tensor.float().mean().item()
+                )
+
             # ---------------------------------------------------------
             # Critic update for this agent
             # ---------------------------------------------------------
@@ -471,6 +580,39 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
             info[f"critic_loss_agent_{agent_index}"] = critic_info["critic_loss"]
             info[f"actor_loss_agent_{agent_index}"] = actor_info["actor_loss"]
 
+        # --- Cross-agent diagnostics ---
+        critic_losses = []
+        actor_losses = []
+
+        joint_action_std_agents = []
+        cos_agents = []
+        reward_agents = []
+        done_agents = []
+
+        for i in range(self.num_agents):
+            critic_losses.append(info[f"critic_loss_agent_{i}"])
+            actor_losses.append(info[f"actor_loss_agent_{i}"])
+            joint_action_std_agents.append(info[f"joint_action_std_agent_{i}"])
+            cos_agents.append(info[f"replay_action_cos_mean_agent_{i}"])
+            reward_agents.append(info[f"reward_mean_agent_{i}"])
+            done_agents.append(info[f"done_frac_agent_{i}"])
+
+        info["joint_action_std_mean"] = float(np.mean(joint_action_std_agents))
+        info["joint_action_std_std"] = float(np.std(joint_action_std_agents))
+
+        info["replay_action_cos_mean"] = float(np.mean(cos_agents))
+        info["replay_action_cos_std"] = float(np.std(cos_agents))
+
+        info["reward_mean"] = float(np.mean(reward_agents))
+        info["done_frac"] = float(np.mean(done_agents))
+
+        info["critic_loss_mean"] = float(np.mean(critic_losses))
+        info["critic_loss_std"] = float(np.std(critic_losses))
+
+        info["actor_loss_mean"] = float(np.mean(actor_losses))
+        info["actor_loss_std"] = float(np.std(actor_losses))
+
+        # Update Target networks with soft update
         for current_agent in self.agent_networks:
             current_agent.update_target_networks()
 
