@@ -123,7 +123,10 @@ class TQC(SAC):
         dones: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
         batch_size = len(states)
+
+        drop_q_range = self.quantiles_total - self.top_quantiles_to_drop
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
@@ -134,9 +137,7 @@ class TQC(SAC):
             sorted_target_q_values, _ = torch.sort(
                 target_q_values.reshape(batch_size, -1)
             )
-            top_quantile_target_q_values = sorted_target_q_values[
-                :, : self.quantiles_total - self.top_quantiles_to_drop
-            ]
+            top_quantile_target_q_values = sorted_target_q_values[:, :drop_q_range]
 
             # compute target
             q_target = rewards + (1 - dones) * self.gamma * (
@@ -147,12 +148,11 @@ class TQC(SAC):
 
         # Compute td_error for PER
         sorted_q_values, _ = torch.sort(q_values.reshape(batch_size, -1))
-        top_quantile_q_values = sorted_q_values[
-            :, : self.quantiles_total - self.top_quantiles_to_drop
-        ]
+        top_quantile_q_values = sorted_q_values[:, :drop_q_range]
 
         td_errors = top_quantile_q_values - q_target
-        td_error = td_errors.abs().mean(dim=1)  # mean over quantiles
+        td_errors_abs = td_errors.abs()
+        td_error = td_errors_abs.mean(dim=1)  # mean over quantiles
 
         critic_loss_total = hlp.calculate_quantile_huber_loss(
             q_values,
@@ -177,9 +177,100 @@ class TQC(SAC):
             .flatten()
         )
 
-        info = {
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+            # ---- Loss ----
+            info["critic_loss_total"] = critic_loss_total.item()
+
+            # ---- Target decomposition (SAC-like, but on trimmed quantiles) ----
+            # Conservative bootstrap term is the mean of kept target quantiles (pre-entropy)
+            info["target_min_q_mean"] = top_quantile_target_q_values.mean().item()
+
+            # --- Soft target decomposition (SAC-specific) ---
+            # min_target_q_mean: the conservative bootstrap value from twin critics (pre-entropy)
+            # entropy_term_mean: magnitude of entropy regularization in the target (alpha * log_pi is usually negative)
+            # soft_target_value_mean: the exact term used inside the Bellman target before reward/discount
+            # alpha_log_pi is typically negative; entropy_bonus is typically positive
+            alpha_log_pi = self.alpha * next_log_pi
+            # this is what gets ADDED to minQ in the target
+            entropy_bonus = -self.alpha * next_log_pi
+
+            soft_target_value = top_quantile_target_q_values + entropy_bonus
+
+            info["alpha_log_pi_mean"] = alpha_log_pi.mean().item()
+            info["entropy_bonus_mean"] = entropy_bonus.mean().item()
+            info["soft_target_value_mean"] = soft_target_value.mean().item()
+
+            # ---- Bellman target scale ----
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std(unbiased=False).item()
+
+            # ---- Current quantiles scale ----
+            q_flat = q_values.reshape(batch_size, -1)  # (B, Q_total)
+            info["q_mean"] = q_flat.mean().item()
+            info["q_std"] = q_flat.std(unbiased=False).item()
+
+            # ---- Quantile trimming diagnostics (TQC-specific) ----
+            # If dropped quantiles are very far above kept ones, trimming is doing real work
+            # - kept_mean: mean of the quantiles we *keep* (conservative estimate used for learning)
+            # - dropped_mean: mean of the high quantiles we *drop* (optimistic tail)
+            # - drop_gap_mean: how far the dropped tail sits above the kept mass
+            #   Large gap => trimming is actively removing optimistic tail pressure.
+            info["tqc_kept_mean"] = top_quantile_q_values.mean().item()
+            dropped_q_values = sorted_q_values[:, drop_q_range:]
+            kept_q_mean_per_sample = top_quantile_q_values.mean(dim=1)
+            dropped_q_mean_per_sample = dropped_q_values.mean(dim=1)
+
+            info["tqc_dropped_mean"] = dropped_q_values.mean().item()
+            info["tqc_drop_gap_mean"] = (
+                (dropped_q_mean_per_sample - kept_q_mean_per_sample).mean().item()
+            )
+
+            # Same idea on target side
+            info["tqc_target_kept_mean"] = top_quantile_target_q_values.mean().item()
+            dropped_target_q_values = sorted_target_q_values[:, drop_q_range:]
+            kept_target_mean_per_sample = top_quantile_target_q_values.mean(dim=1)
+            dropped_target_mean_per_sample = dropped_target_q_values.mean(dim=1)
+
+            info["tqc_target_dropped_mean"] = dropped_target_q_values.mean().item()
+            info["tqc_target_drop_gap_mean"] = (
+                (dropped_target_mean_per_sample - kept_target_mean_per_sample)
+                .mean()
+                .item()
+            )
+
+            # ---- Quantile spread (uncertainty/sharpness proxies) ----
+            # IQR across kept quantiles: (q75 - q25) per sample
+            q25 = top_quantile_q_values.quantile(0.25, dim=1)
+            q50 = top_quantile_q_values.quantile(0.50, dim=1)
+            q75 = top_quantile_q_values.quantile(0.75, dim=1)
+            iqr = q75 - q25
+
+            info["q_iqr_mean"] = iqr.mean().item()
+            info["q_iqr_p95"] = iqr.quantile(0.95).item()
+            info["q_median_mean"] = q50.mean().item()
+
+            # Same IQR on target kept quantiles
+            tq25 = top_quantile_target_q_values.quantile(0.25, dim=1)
+            tq50 = top_quantile_target_q_values.quantile(0.50, dim=1)
+            tq75 = top_quantile_target_q_values.quantile(0.75, dim=1)
+            tiqr = tq75 - tq25
+
+            info["target_q_iqr_mean"] = tiqr.mean().item()
+            info["target_q_iqr_p95"] = tiqr.quantile(0.95).item()
+            info["target_q_median_mean"] = tq50.mean().item()
+
+            # ---- TD-error diagnostics (fit quality + tails) ----
+            info["td_abs_mean"] = td_error.mean().item()
+            info["td_abs_std"] = td_error.std(unbiased=False).item()
+            info["td_abs_p95"] = td_error.quantile(0.95).item()
+            info["td_abs_max"] = td_error.max().item()
+
+            # Quantile-level TD tail (more sensitive than mean-over-quantiles)
+            # Per sample: max |TD| among kept quantiles
+            td_abs_qmax = td_errors_abs.max(dim=1).values
+            info["td_abs_qmax_mean"] = td_abs_qmax.mean().item()
+            info["td_abs_qmax_p95"] = td_abs_qmax.quantile(0.95).item()
+            info["td_abs_qmax_max"] = td_abs_qmax.max().item()
 
         return info, priorities
 
