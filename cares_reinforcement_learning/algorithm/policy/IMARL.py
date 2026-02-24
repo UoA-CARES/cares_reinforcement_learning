@@ -217,6 +217,14 @@ class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
             for key, value in agent_i_info.items():
                 info[f"{agent_name}_{key}"] = value
 
+        metrics = list(agent_i_info.keys())
+        for metric in metrics:
+            values = [info[f"agent_{i}_{metric}"] for i in range(self.num_agents)]
+            info[f"mean_{metric}"] = float(np.mean(values))
+            info[f"std_{metric}"] = float(np.std(values))
+            info[f"max_{metric}"] = float(np.max(values))
+            info[f"min_{metric}"] = float(np.min(values))
+
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:
