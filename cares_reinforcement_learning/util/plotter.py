@@ -530,8 +530,6 @@ def _read_data(
 def plot_evaluations():
     args = parse_args()
 
-    file_name = args["file_name"] if args["file_name"] is not None else args["title"]
-
     x_train = args["x_train"]
     y_train = args["y_train"]
     y_train_two = args["y_train_two"]
@@ -588,6 +586,7 @@ def plot_evaluations():
         result_directories = [x for x in directory if x.is_dir()]
 
         title, algorithm, task, label = generate_labels(args, title, model_path)
+        file_name = args["file_name"] if args["file_name"] is not None else title
 
         labels.append(label)
 

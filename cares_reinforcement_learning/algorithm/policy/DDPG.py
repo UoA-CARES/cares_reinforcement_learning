@@ -183,10 +183,10 @@ class DDPG(SARLAlgorithm[np.ndarray]):
     def _update_actor(self, states: torch.Tensor) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
-        self.critic_net.eval()
         actions = self.actor_net(states)
-        actor_q_values = self.critic_net(states, actions)
-        self.critic_net.train()
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_values = self.critic_net(states, actions)
 
         actor_loss = -actor_q_values.mean()
 

@@ -39,6 +39,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
 from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
@@ -348,9 +349,9 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         # Step 2: Replace ONLY agent_i action with differentiable action
         # ---------------------------------------------------------
         obs_i = obs_tensors[agent_ids[agent_index]]  # (B, obs_dim_i)
-        pred_action_i = agent.actor_net(obs_i)  # differentiable
+        actions_i = agent.actor_net(obs_i)  # differentiable
 
-        actions_all[:, agent_index, :] = pred_action_i  # keep others from buffer
+        actions_all[:, agent_index, :] = actions_i  # keep others from buffer
 
         # ---------------------------------------------------------
         # Step 3a: Apply M3DDPG adversarial perturbation (if enabled)
@@ -365,7 +366,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
             )
 
             # reinsert differentiable action for agent i
-            actions_adv[:, agent_index, :] = pred_action_i
+            actions_adv[:, agent_index, :] = actions_i
             actions_all = actions_adv
 
         # ---------------------------------------------------------
@@ -382,25 +383,32 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 norm=self.ernie_norm,
             )
             pred_action_adv = agent.actor_net(obs_i + delta_adv)
-            ernie_reg = (pred_action_adv - pred_action_i).pow(2).mean()
+            ernie_reg = (pred_action_adv - actions_i).pow(2).mean()
 
         # ---------------------------------------------------------
         # Step 4: Compute actor loss: -Q_i(x, a_1,...,a_i,...,a_N)
         # ---------------------------------------------------------
         joint_actions_flat = actions_all.reshape(batch_size, -1)
-        q_val = agent.critic_net(global_states, joint_actions_flat)
+        with hlp.evaluating(agent.critic_net):
+            actor_q_values = agent.critic_net(global_states, joint_actions_flat)
 
         # regularization as in TF code
-        reg = (pred_action_i**2).mean() * 1e-3
+        reg = (actions_i**2).mean() * 1e-3
 
-        actor_loss = -q_val.mean() + reg + (self.ernie_lambda * ernie_reg)
+        actor_loss = -actor_q_values.mean() + reg + (self.ernie_lambda * ernie_reg)
 
         dq_da = torch.autograd.grad(
-            outputs=actor_loss,
-            inputs=pred_action_i,
+            outputs=-actor_q_values.mean(),  # NOTE: uses Q-term only, excludes regularizers
+            inputs=actions_i,
             retain_graph=True,
             create_graph=False,
         )[0]
+        with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         # ---------------------------------------------------------
         # Step 5: Backprop
@@ -416,17 +424,22 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         agent.actor_net_optimiser.step()
 
         with torch.no_grad():
-            # --- Policy output scale ---
-            info["action_abs_mean"] = pred_action_i.abs().mean().item()
-            info["action_std"] = pred_action_i.std(unbiased=False).item()
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions_i.mean().item()
+            info["pi_action_std"] = actions_i.std().item()
+            info["pi_action_abs_mean"] = actions_i.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions_i.abs() > 0.95).float().mean().item()
+            )
 
-            # --- Q signal at policy actions ---
-            info["q_val_mean"] = q_val.mean().item()
-
-            # --- Gradient strength ---
-            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
-            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
-            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
+            info["actor_loss"] = actor_loss.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
 
             # --- ERNIE diagnostics ---
             if self.use_ernie:
@@ -509,7 +522,10 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 # Batch-level multi-agent diagnostics (this agent's draw)
                 # ---------------------------------------------------------
                 # Joint action volatility in the replay batch (all agents)
-                info[f"joint_action_std_agent_{agent_index}"] = actions_tensor.std(
+                info[f"agent_{agent_index}_joint_action_mean"] = (
+                    actions_tensor.mean().item()
+                )
+                info[f"agent_{agent_index}_joint_action_std"] = actions_tensor.std(
                     unbiased=False
                 ).item()
 
@@ -518,13 +534,13 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 per_agent_abs_mean = actions_tensor.abs().mean(dim=(0, 2))  # (N,)
                 per_agent_std = actions_tensor.std(dim=(0, 2), unbiased=False)  # (N,)
 
-                info[f"replay_action_abs_mean_agent_{agent_index}"] = (
+                info[f"agent_{agent_index}_replay_action_abs_mean"] = (
                     per_agent_abs_mean.mean().item()
                 )
-                info[f"replay_action_abs_std_across_agents_agent_{agent_index}"] = (
+                info[f"agent_{agent_index}_replay_action_abs_std_across_agents"] = (
                     per_agent_abs_mean.std(unbiased=False).item()
                 )
-                info[f"replay_action_std_mean_agent_{agent_index}"] = (
+                info[f"agent_{agent_index}_replay_action_std_mean"] = (
                     per_agent_std.mean().item()
                 )
 
@@ -539,13 +555,13 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 # ignore diagonal
                 n = cos.shape[1]
                 mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
-                info[f"replay_action_cos_mean_agent_{agent_index}"] = (
+                info[f"agent_{agent_index}_replay_action_cos_mean"] = (
                     cos[:, mask].mean().item()
                 )
 
                 # Reward/done scale sanity for this agent (helps catch mis-scaling)
-                info[f"reward_mean_agent_{agent_index}"] = rewards_tensor.mean().item()
-                info[f"done_frac_agent_{agent_index}"] = (
+                info[f"agent_{agent_index}_reward_mean"] = rewards_tensor.mean().item()
+                info[f"agent_{agent_index}_done_frac"] = (
                     dones_tensor.float().mean().item()
                 )
 
@@ -565,7 +581,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 next_actions_tensor=next_actions_tensor,
                 dones_i=dones_i,
             )
-            info.update({f"{k}_agent_{agent_index}": v for k, v in critic_info.items()})
+            info.update({f"agent_{agent_index}_{k}": v for k, v in critic_info.items()})
 
             # ---------------------------------------------------------
             # Actor update
@@ -577,39 +593,16 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
                 global_states=states_tensors,
                 actions_tensor=actions_tensor,
             )
-            info.update({f"{k}_agent_{agent_index}": v for k, v in actor_info.items()})
+            info.update({f"agent_{agent_index}_{k}": v for k, v in actor_info.items()})
 
         # --- Cross-agent diagnostics ---
-        critic_losses = []
-        actor_losses = []
-
-        joint_action_std_agents = []
-        cos_agents = []
-        reward_agents = []
-        done_agents = []
-
-        for i in range(self.num_agents):
-            critic_losses.append(info[f"critic_loss_agent_{i}"])
-            actor_losses.append(info[f"actor_loss_agent_{i}"])
-            joint_action_std_agents.append(info[f"joint_action_std_agent_{i}"])
-            cos_agents.append(info[f"replay_action_cos_mean_agent_{i}"])
-            reward_agents.append(info[f"reward_mean_agent_{i}"])
-            done_agents.append(info[f"done_frac_agent_{i}"])
-
-        info["joint_action_std_mean"] = float(np.mean(joint_action_std_agents))
-        info["joint_action_std_std"] = float(np.std(joint_action_std_agents))
-
-        info["replay_action_cos_mean"] = float(np.mean(cos_agents))
-        info["replay_action_cos_std"] = float(np.std(cos_agents))
-
-        info["reward_mean"] = float(np.mean(reward_agents))
-        info["done_frac"] = float(np.mean(done_agents))
-
-        info["critic_loss_mean"] = float(np.mean(critic_losses))
-        info["critic_loss_std"] = float(np.std(critic_losses))
-
-        info["actor_loss_mean"] = float(np.mean(actor_losses))
-        info["actor_loss_std"] = float(np.std(actor_losses))
+        metrics = list(critic_info.keys()) + list(actor_info.keys())
+        for metric in metrics:
+            values = [info[f"agent_{i}_{metric}"] for i in range(self.num_agents)]
+            info[f"mean_{metric}"] = float(np.mean(values))
+            info[f"std_{metric}"] = float(np.std(values))
+            info[f"max_{metric}"] = float(np.max(values))
+            info[f"min_{metric}"] = float(np.min(values))
 
         # Update Target networks with soft update
         for current_agent in self.agent_networks:

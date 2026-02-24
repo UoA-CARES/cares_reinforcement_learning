@@ -235,26 +235,7 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
         critic_loss_sum = 0.0
         num_critic_mb = 0
 
-        agent_sums = [
-            {
-                k: 0.0
-                for k in [
-                    "actor_loss",
-                    "entropy",
-                    "approx_kl",
-                    "clip_frac",
-                    "ratio_mean",
-                    "ratio_std",
-                    "action_sat_rate",
-                    "u_abs_mean",
-                    "u_abs_max",
-                    "log_ratio_mean",
-                    "log_ratio_std",
-                    "log_ratio_max_abs",
-                ]
-            }
-            for _ in range(self.num_agents)
-        ]
+        agent_actor_sums: list[dict[str, float]] = [{} for _ in range(self.num_agents)]
         agent_max_kl = [0.0 for _ in range(self.num_agents)]
         # minibatches that actually updated (for averaging stats)
         agent_updates = [0 for _ in range(self.num_agents)]
@@ -289,8 +270,10 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
                     # Accumulate only if update happened
                     if not kl_early_stop:
                         agent_updates[agent_idx] += 1
-                        for k in agent_sums[agent_idx].keys():
-                            agent_sums[agent_idx][k] += float(actor_info[k])
+                        for k in actor_info.keys():
+                            if k not in agent_actor_sums[agent_idx]:
+                                agent_actor_sums[agent_idx][k] = 0.0
+                            agent_actor_sums[agent_idx][k] += float(actor_info[k])
 
                     # Track max KL seen regardless (if target_kl is enabled, approx_kl is meaningful)
                     if self.target_kl is not None:
@@ -325,41 +308,61 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
             td_err = returns_all - values  # [T, N]
 
             for i in range(self.num_agents):
-                info[f"agent{i}_adv_mean"] = float(advantages_all[:, i].mean().item())
-                info[f"agent{i}_adv_std"] = float(
+                info[f"agent_{i}_adv_mean"] = float(advantages_all[:, i].mean().item())
+                info[f"agent_{i}_adv_std"] = float(
                     advantages_all[:, i].std(unbiased=False).item()
                 )
 
-                info[f"agent{i}_ret_mean"] = float(returns_all[:, i].mean().item())
-                info[f"agent{i}_ret_std"] = float(
+                info[f"agent_{i}_ret_mean"] = float(returns_all[:, i].mean().item())
+                info[f"agent_{i}_ret_std"] = float(
                     returns_all[:, i].std(unbiased=False).item()
                 )
 
-                info[f"agent{i}_v_mean"] = float(values[:, i].mean().item())
-                info[f"agent{i}_v_std"] = float(values[:, i].std(unbiased=False).item())
+                info[f"agent_{i}_v_mean"] = float(values[:, i].mean().item())
+                info[f"agent_{i}_v_std"] = float(
+                    values[:, i].std(unbiased=False).item()
+                )
 
-                info[f"agent{i}_td_mean"] = float(td_err[:, i].mean().item())
-                info[f"agent{i}_td_std"] = float(
+                info[f"agent_{i}_td_mean"] = float(td_err[:, i].mean().item())
+                info[f"agent_{i}_td_std"] = float(
                     td_err[:, i].std(unbiased=False).item()
                 )
-                info[f"agent{i}_td_mae"] = float(td_err[:, i].abs().mean().item())
+                info[f"agent_{i}_td_mae"] = float(td_err[:, i].abs().mean().item())
 
                 y = returns_all[:, i]
                 yhat = values[:, i]
                 var_y = torch.var(y, unbiased=False)
                 ev = 1.0 - torch.var(y - yhat, unbiased=False) / (var_y + 1e-8)
-                info[f"agent{i}_explained_var"] = float(ev.item())
+                info[f"agent_{i}_explained_var"] = float(ev.item())
 
                 denom = max(agent_updates[i], 1)
 
-                info[f"agent{i}_actor_updates"] = int(agent_updates[i])
-                info[f"agent{i}_kl_early_stop"] = int(agent_kl_early_stop[i])
+                info[f"agent_{i}_actor_updates"] = int(agent_updates[i])
+                info[f"agent_{i}_kl_early_stop"] = int(agent_kl_early_stop[i])
 
-                for k, v in agent_sums[i].items():
-                    info[f"agent{i}_{k}"] = v / denom
+                for k, v in agent_actor_sums[i].items():
+                    info[f"agent_{i}_{k}"] = v / denom
 
                 if self.target_kl is not None:
-                    info[f"agent{i}_max_kl_seen"] = agent_max_kl[i]
+                    info[f"agent_{i}_max_kl_seen"] = agent_max_kl[i]
+
+        for k in agent_actor_sums[0].keys():
+            values = [info[f"agent_{i}_{k}"] for i in range(self.num_agents)]
+            info[f"mean_{k}"] = float(np.mean(values))
+
+        for metric in [
+            "ret_mean",
+            "ret_std",
+            "v_mean",
+            "v_std",
+            "td_mae",
+            "explained_var",
+        ]:
+            values = [info[f"agent_{i}_{metric}"] for i in range(self.num_agents)]
+            info[f"mean_{metric}"] = float(np.mean(values))
+            info[f"std_{metric}"] = float(np.std(values))
+            info[f"max_{metric}"] = float(np.max(values))
+            info[f"min_{metric}"] = float(np.min(values))
 
         stopped = sum(int(x) for x in agent_kl_early_stop)
         info["num_agents_kl_stopped"] = stopped
