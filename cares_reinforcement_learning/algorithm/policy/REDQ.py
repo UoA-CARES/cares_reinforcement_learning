@@ -376,7 +376,6 @@ class REDQ(SAC):
                 observation_tensor.vector_state_tensor
             )
             info |= actor_info
-            info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update ensemble of target critics

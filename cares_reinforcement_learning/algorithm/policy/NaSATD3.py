@@ -150,20 +150,20 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
             actor_network.autoencoder
         )
 
-        self.actor = actor_network.to(device)
-        self.critic = critic_network.to(device)
+        self.actor_net = actor_network.to(device)
+        self.critic_net = critic_network.to(device)
 
-        self.actor_target = copy.deepcopy(self.actor).to(device)
-        self.critic_target = copy.deepcopy(self.critic).to(device)
+        self.actor_target = copy.deepcopy(self.actor_net).to(device)
+        self.critic_target = copy.deepcopy(self.critic_net).to(device)
 
         # Necessary to make the same autoencoder in the whole algorithm
-        self.actor.autoencoder = self.autoencoder
-        self.critic.autoencoder = self.autoencoder
+        self.actor_net.autoencoder = self.autoencoder
+        self.critic_net.autoencoder = self.autoencoder
 
         self.actor_target.autoencoder = self.autoencoder
         self.critic_target.autoencoder = self.autoencoder
 
-        self.action_num = self.actor.num_actions
+        self.action_num = self.actor_net.num_actions
 
         self.ensemble_predictive_model = nn.ModuleList()
         networks = [
@@ -176,10 +176,10 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         self.actor_lr = config.actor_lr
         self.critic_lr = config.critic_lr
         self.actor_optimizer = torch.optim.Adam(
-            self.actor.parameters(), lr=self.actor_lr
+            self.actor_net.parameters(), lr=self.actor_lr
         )
         self.critic_optimizer = torch.optim.Adam(
-            self.critic.parameters(), lr=self.critic_lr
+            self.critic_net.parameters(), lr=self.critic_lr
         )
 
         self.epm_lr = config.epm_lr
@@ -197,7 +197,7 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         observation: SARLObservation,
         evaluation: bool = False,
     ) -> ActionSample[np.ndarray]:
-        self.actor.eval()
+        self.actor_net.eval()
         self.autoencoder.eval()
 
         with torch.no_grad():
@@ -205,7 +205,7 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
                 [observation], self.device
             )
 
-            action = self.actor(observation_tensors)
+            action = self.actor_net(observation_tensors)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
@@ -216,7 +216,7 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
                 action = action + noise
                 action = np.clip(action, -1, 1)
 
-        self.actor.train()
+        self.actor_net.train()
         self.autoencoder.train()
         return ActionSample(action=action, source="policy")
 
@@ -227,7 +227,9 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         rewards: torch.Tensor,
         next_states: SARLObservationTensors,
         dones: torch.Tensor,
-    ) -> tuple[float, float, float]:
+    ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         with torch.no_grad():
             next_actions = self.actor_target(next_states)
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -244,7 +246,7 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
 
             q_target = rewards + self.gamma * (1 - dones) * target_q_values
 
-        q_values_one, q_values_two = self.critic(states, actions)
+        q_values_one, q_values_two = self.critic_net(states, actions)
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
@@ -254,25 +256,121 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         critic_loss_total.backward()
         self.critic_optimizer.step()
 
-        return critic_loss_one.item(), critic_loss_two.item(), critic_loss_total.item()
+        with torch.no_grad():
+            # --- TD3-style smoothing diagnostics ---
+            # Noise diagnostics
+            # What it tells you:
+            # - target_noise_abs_mean: effective smoothing magnitude.
+            # - target_noise_clip_frac high early: noise often clipped (clip too small or noise too large).
+            target_noise_abs_mean = target_noise.abs().mean().item()
+            target_noise_clip_frac = (
+                (target_noise.abs() >= self.policy_noise_clip).float().mean().item()
+            )
+            info["target_noise_abs_mean"] = float(target_noise_abs_mean)
+            info["target_noise_clip_frac"] = float(target_noise_clip_frac)
+
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
+
+            # --- Target critics disagreement (target stability) ---
+            # Large/unstable gap here often means target critics are drifting or policy is visiting OOD actions.
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_q_twin_gap_abs_mean"] = (
+                (target_q_values_one - target_q_values_two).abs().mean().item()
+            )
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std().item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std().item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
+
+        return info
 
     def _update_autoencoder(self, states: torch.Tensor) -> float:
         # Leaving this function in case this needs to be extended again in the future
         ae_loss = self.autoencoder.update_autoencoder(states)
         return ae_loss.item()
 
-    def _update_actor(self, states: SARLObservationTensors) -> float:
-        actor_q_one, actor_q_two = self.critic(
-            states, self.actor(states, detach_encoder=True), detach_encoder=True
-        )
-        actor_q_values = torch.minimum(actor_q_one, actor_q_two)
+    def _update_actor(self, states: SARLObservationTensors) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
+        actions = self.actor_net(states, detach_encoder=True)
+
+        with hlp.evaluating(self.critic_net):
+            actor_q_values_one, actor_q_values_two = self.critic_net(
+                states, actions, detach_encoder=True
+            )
+        actor_q_values = torch.minimum(actor_q_values_one, actor_q_values_two)
+
         actor_loss = -actor_q_values.mean()
+
+        # ---------------------------------------------------------
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
+        # ---------------------------------------------------------
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=actions,
+            retain_graph=True,  # because we do backward(actor_loss) next
+            create_graph=False,  # diagnostic only
+            allow_unused=False,
+        )[0]
+        with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         self.actor_optimizer.zero_grad()
         actor_loss.backward()
         self.actor_optimizer.step()
 
-        return actor_loss.item()
+        with torch.no_grad():
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
+            info["actor_loss"] = actor_loss.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
+
+        return info
 
     def _get_latent_state(
         self, states: torch.Tensor, detach_output: bool, sample_latent: bool = True
@@ -331,8 +429,8 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         memory_buffer: SARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
-        self.actor.train()
-        self.critic.train()
+        self.actor_net.train()
+        self.critic_net.train()
         self.autoencoder.train()
         self.autoencoder.encoder.train()
         self.autoencoder.decoder.train()
@@ -370,16 +468,14 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         info: dict[str, Any] = {}
 
         # Update the Critic
-        critic_loss_one, critic_loss_two, critic_loss_total = self._update_critic(
+        critic_info = self._update_critic(
             observation_tensor,
             actions_tensor,
             rewards_tensor,
             next_observation_tensor,
             dones_tensor,
         )
-        info["critic_loss_one"] = critic_loss_one
-        info["critic_loss_two"] = critic_loss_two
-        info["critic_loss_total"] = critic_loss_total
+        info.update(critic_info)
 
         # Update Autoencoder
         ae_loss = self._update_autoencoder(observation_tensor.image_state_tensor)
@@ -387,19 +483,21 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_loss = self._update_actor(observation_tensor)
-            info["actor_loss"] = actor_loss
+            actor_info = self._update_actor(observation_tensor)
+            info.update(actor_info)
 
             # Update target network params
             # Note: the encoders in target networks are the same of main networks, so I wont update them
             hlp.soft_update_params(
-                self.critic.critic.Q1, self.critic_target.critic.Q1, self.tau
+                self.critic_net.critic.Q1, self.critic_target.critic.Q1, self.tau
             )
             hlp.soft_update_params(
-                self.critic.critic.Q2, self.critic_target.critic.Q2, self.tau
+                self.critic_net.critic.Q2, self.critic_target.critic.Q2, self.tau
             )
 
-            hlp.soft_update_params(self.actor.actor, self.actor_target.actor, self.tau)
+            hlp.soft_update_params(
+                self.actor_net.actor, self.actor_target.actor, self.tau
+            )
 
         # Update intrinsic models
         if self.intrinsic_on:
@@ -528,8 +626,8 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
         checkpoint = {
-            "actor": self.actor.state_dict(),
-            "critic": self.critic.state_dict(),
+            "actor": self.actor_net.state_dict(),
+            "critic": self.critic_net.state_dict(),
             "actor_target": self.actor_target.state_dict(),
             "critic_target": self.critic_target.state_dict(),
             "encoder": self.autoencoder.encoder.state_dict(),
@@ -548,8 +646,8 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
     def load_models(self, filepath: str, filename: str) -> None:
         checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
 
-        self.actor.load_state_dict(checkpoint["actor"])
-        self.critic.load_state_dict(checkpoint["critic"])
+        self.actor_net.load_state_dict(checkpoint["actor"])
+        self.critic_net.load_state_dict(checkpoint["critic"])
 
         self.actor_target.load_state_dict(checkpoint["actor_target"])
         self.critic_target.load_state_dict(checkpoint["critic_target"])
