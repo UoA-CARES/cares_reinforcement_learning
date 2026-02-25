@@ -51,7 +51,7 @@ The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium
 The standard MPE2 environment: https://mpe2.farama.org/
 
 <p align="center">
-    <img alt="mep2" src="./media/mpe2.png" style="width: 80%;" />
+    <img alt="mep2" src="./media/mpe2.png" style="width: 40%;" />
 </p>
 
 ### Game Boy Emulator
