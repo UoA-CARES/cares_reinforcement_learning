@@ -215,7 +215,7 @@ class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
                 indices=indices,
             )
             for key, value in agent_i_info.items():
-                info[f"{agent_name}_{key}"] = value
+                info[f"agent_{i}_{key}"] = value
 
         metrics = list(agent_i_info.keys())
         for metric in metrics:
