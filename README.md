@@ -69,7 +69,7 @@ The gripper gym contains all the code for training our dexterous robotic manipul
 The Drone gym contains all the code for training the CrazyFly drone on navigation tasks: https://github.com/UoA-CARES/drone_gym
 
 <p align="center">
-    <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 80%;"/>
+    <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 40%;"/>
 </p>
 
 ## F1Tenth Autonomous Racing
