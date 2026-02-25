@@ -64,6 +64,14 @@ The gripper gym contains all the code for training our dexterous robotic manipul
     <img alt="translation task" src="./media/translation_task-min.jpg" style="width: 40%;"/>
 </p>
 
+## Drone Gym
+
+The Drone gym contains all the code for training the CrazyFly drone on navigation tasks: https://github.com/UoA-CARES/drone_gym
+
+<p align="center">
+    <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 80%;"/>
+</p>
+
 ## F1Tenth Autonomous Racing
 
 The Autonomous F1Tenth package contains all the code for training our F1Tenth platforms to autonomously race: https://github.com/UoA-CARES/autonomous_f1tenth
