@@ -46,6 +46,14 @@ The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium
     <img alt="open ai" src="./media/openai.jpg" style="width: 80%;" />
 </p>
 
+### MPE2
+
+The standard MPE2 environment: https://mpe2.farama.org/
+
+<p align="center">
+    <img alt="mep2" src="./media/mpe2.png" style="width: 80%;" />
+</p>
+
 ### Game Boy Emulator
 
 Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment
@@ -55,7 +63,7 @@ Environment running Gameboy games utilising the pyboy wrapper: https://github.co
     <img alt="game boy pokemon" src="./media/pokemon.png" style="width: 40%;"/>
 </p>
 
-## Gripper Gym
+### Gripper Gym
 
 The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
 
@@ -64,7 +72,7 @@ The gripper gym contains all the code for training our dexterous robotic manipul
     <img alt="translation task" src="./media/translation_task-min.jpg" style="width: 40%;"/>
 </p>
 
-## Drone Gym
+### Drone Gym
 
 The Drone gym contains all the code for training the CrazyFly drone on navigation tasks: https://github.com/UoA-CARES/drone_gym
 
@@ -72,7 +80,7 @@ The Drone gym contains all the code for training the CrazyFly drone on navigatio
     <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 40%;"/>
 </p>
 
-## F1Tenth Autonomous Racing
+### F1Tenth Autonomous Racing
 
 The Autonomous F1Tenth package contains all the code for training our F1Tenth platforms to autonomously race: https://github.com/UoA-CARES/autonomous_f1tenth
 
