@@ -1,3 +1,5 @@
+from typing import Any
+
 import torch
 from torch import nn
 
@@ -17,8 +19,11 @@ class BaseNoisyNetwork(BaseNetwork):
 
     def reset_noise(self):
         for module in self.network.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
+
+    def noise_stats(self) -> dict[str, Any]:
+        return self._module_noise_stats("network", self.network)
 
 
 class DefaultNetwork(BaseNoisyNetwork):

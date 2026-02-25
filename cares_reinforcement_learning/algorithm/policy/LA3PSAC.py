@@ -89,6 +89,7 @@ class LA3PSAC(SAC):
         sample: Sample[SingleAgentExperience],
         uniform_sampling: bool,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
 
         # Convert into tensors using helper method
         (
@@ -166,11 +167,59 @@ class LA3PSAC(SAC):
             .flatten()
         )
 
-        info = {
-            "critic_loss_one": critic_loss_one.item(),
-            "critic_loss_two": critic_loss_two.item(),
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+            info["uniform_sampling"] = float(uniform_sampling)
+
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
+
+            # --- Target critics disagreement (target stability) ---
+            # Large/unstable gap here often means target critics are drifting or policy is visiting OOD actions.
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_q_twin_gap_abs_mean"] = (
+                (target_q_values_one - target_q_values_two).abs().mean().item()
+            )
+
+            # --- Soft target decomposition (SAC-specific) ---
+            # min_target_q_mean: the conservative bootstrap value from twin critics (pre-entropy)
+            # entropy_term_mean: magnitude of entropy regularization in the target (alpha * log_pi is usually negative)
+            # soft_target_value_mean: the exact term used inside the Bellman target before reward/discount
+            min_target_q = torch.minimum(target_q_values_one, target_q_values_two)
+            entropy_term = self.alpha * next_log_pi  # typically negative
+            soft_target_value = min_target_q - entropy_term  # == minQ - alpha*log_pi
+
+            info["target_min_q_mean"] = min_target_q.mean().item()
+            info["entropy_term_mean"] = entropy_term.mean().item()
+            info["soft_target_value_mean"] = soft_target_value.mean().item()
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std().item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std().item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
 
         return info, priorities
 
@@ -210,7 +259,6 @@ class LA3PSAC(SAC):
             observation_tensor.vector_state_tensor, weights_tensor
         )
         info_uniform |= actor_info
-        info_uniform["alpha"] = self.alpha.item()
 
         if target_update:
             hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
@@ -248,7 +296,6 @@ class LA3PSAC(SAC):
             observation_tensor.vector_state_tensor, weights_tensor
         )
         info_priority |= actor_info
-        info_priority["alpha"] = self.alpha.item()
 
         info = {"uniform": info_uniform, "priority": info_priority}
 

@@ -180,6 +180,7 @@ class SAC(SARLAlgorithm[np.ndarray]):
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -224,11 +225,63 @@ class SAC(SARLAlgorithm[np.ndarray]):
             .flatten()
         )
 
-        info = {
-            "critic_loss_one": critic_loss_one.item(),
-            "critic_loss_two": critic_loss_two.item(),
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
+
+            # --- Target critics disagreement (target stability) ---
+            # Large/unstable gap here often means target critics are drifting or policy is visiting OOD actions.
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_q_twin_gap_abs_mean"] = (
+                (target_q_values_one - target_q_values_two).abs().mean().item()
+            )
+
+            # --- Soft target decomposition (SAC-specific) ---
+            # min_target_q_mean: the conservative bootstrap value from twin critics (pre-entropy)
+            # entropy_term_mean: magnitude of entropy regularization in the target (alpha * log_pi is usually negative)
+            # soft_target_value_mean: the exact term used inside the Bellman target before reward/discount
+            min_target_q = torch.minimum(target_q_values_one, target_q_values_two)
+
+            # alpha_log_pi is typically negative; entropy_bonus is typically positive
+            alpha_log_pi = self.alpha * next_log_pi
+            # this is what gets ADDED to minQ in the target
+            entropy_bonus = -self.alpha * next_log_pi
+
+            soft_target_value = min_target_q + entropy_bonus  # == minQ - alpha*log_pi
+
+            info["target_min_q_mean"] = min_target_q.mean().item()
+            info["alpha_log_pi_mean"] = alpha_log_pi.mean().item()
+            info["entropy_bonus_mean"] = entropy_bonus.mean().item()
+            info["soft_target_value_mean"] = soft_target_value.mean().item()
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std().item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std().item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
 
         return info, priorities
 
@@ -238,14 +291,41 @@ class SAC(SARLAlgorithm[np.ndarray]):
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         pi, log_pi, _ = self.actor_net(states)
 
         with hlp.evaluating(self.critic_net):
-            qf1_pi, qf2_pi = self.critic_net(states, pi)
+            qf_pi_one, qf_pi_two = self.critic_net(states, pi)
 
-        min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
+        min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
         actor_loss = ((self.alpha * log_pi) - min_qf_pi).mean()
+
+        # ---------------------------------------------------------
+        # Stochastic Policy Gradient Strength (∇a [α log π(a|s) − Q(s,a)])
+        # ---------------------------------------------------------
+        # Measures how steep the entropy-regularized critic objective is
+        # w.r.t. the sampled policy actions.
+        #
+        # ~0 early  -> critic surface and entropy term nearly flat;
+        #              actor receives weak learning signal.
+        #
+        # Very large -> critic or entropy term is very sharp around policy
+        #               actions; can lead to unstable or overly aggressive
+        #               actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=pi,
+            retain_graph=True,
+            create_graph=False,
+            allow_unused=False,
+        )[0]
+
+        with torch.no_grad():
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
@@ -258,11 +338,37 @@ class SAC(SARLAlgorithm[np.ndarray]):
         alpha_loss.backward()
         self.log_alpha_optimizer.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-            "alpha_loss": alpha_loss.item(),
-            "log_pi": log_pi.mean().item(),
-        }
+        with torch.no_grad():
+            # --- Policy entropy diagnostics (exploration health) ---
+            # log_pi more negative -> higher entropy (more stochastic). Less negative -> lower entropy (more deterministic).
+            info["log_pi_mean"] = log_pi.mean().item()
+            info["log_pi_std"] = log_pi.std().item()
+
+            # --- Action magnitude/saturation (tanh policies) ---
+            # High saturation fraction can indicate the policy is slamming bounds; may reduce effective gradients.
+            info["pi_action_abs_mean"] = pi.abs().mean().item()
+            info["pi_action_std"] = pi.std().item()
+            info["pi_action_saturation_frac"] = (pi.abs() > 0.95).float().mean().item()
+
+            # --- On-policy critic signal ---
+            # min_qf_pi_mean should generally increase as the policy improves (higher value actions under the policy).
+            info["min_qf_pi_mean"] = min_qf_pi.mean().item()
+
+            # --- Twin critics disagreement at policy actions (more relevant than replay actions) ---
+            # Large gap here means critics disagree on what the current policy is doing (can destabilize actor updates).
+            info["qf_pi_gap_abs_mean"] = (qf_pi_one - qf_pi_two).abs().mean().item()
+
+            # --- Entropy gap (alpha tuning health) ---
+            # entropy_gap ~ 0 means entropy matches target.
+            # > 0: entropy too low -> alpha should increase; < 0: entropy too high -> alpha should decrease.
+            entropy_gap = -(log_pi + self.target_entropy)
+            info["entropy_gap_mean"] = entropy_gap.mean().item()
+
+            # --- Losses and temperature ---
+            info["actor_loss"] = actor_loss.item()
+            info["alpha_loss"] = alpha_loss.item()
+            info["alpha"] = self.alpha.item()
+            info["log_alpha"] = self.log_alpha.item()
 
         return info
 
@@ -296,7 +402,6 @@ class SAC(SARLAlgorithm[np.ndarray]):
                 observation_tensor.vector_state_tensor, weights_tensor
             )
             info |= actor_info
-            info["alpha"] = self.alpha.item()
 
         if self.learn_counter % self.target_update_freq == 0:
             self.update_target_networks()

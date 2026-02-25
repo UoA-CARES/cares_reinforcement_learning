@@ -49,6 +49,8 @@ C51 = DQN + categorical distributional value learning
       with fixed support and projection.
 """
 
+from typing import Any
+
 import torch
 
 from cares_reinforcement_learning.algorithm.value import DQN
@@ -83,7 +85,7 @@ class C51(DQN):
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
         batch_size: int,
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, dict[str, Any]]:
         with torch.no_grad():
             if self.use_double_dqn:
                 # Double DQN
@@ -129,4 +131,55 @@ class C51(DQN):
         log_p = torch.log(dist[range(batch_size), actions_tensor])
         elementwise_loss = -(proj_dist * log_p).sum(1)
 
-        return elementwise_loss
+        info: dict[str, Any] = {}
+
+        # -----------------------
+        # Logging / diagnostics (C51)
+        # -----------------------
+        with torch.no_grad():
+            # dist: [B, A, N]
+            # proj_dist: [B, N]
+            # chosen pred distribution: [B, N]
+            pred_dist = dist[range(batch_size), actions_tensor]  # [B, N]
+
+            # --- Expected values (scalar Q) ---
+            # support: [N]
+            q_pred = (pred_dist * self.support).sum(dim=1)  # [B]
+            q_targ = (proj_dist * self.support).sum(dim=1)  # [B]
+
+            td = q_pred - q_targ
+            info["q_pred_mean"] = q_pred.mean().item()
+            info["q_pred_std"] = q_pred.std().item()
+            info["q_target_mean"] = q_targ.mean().item()
+            info["q_target_std"] = q_targ.std().item()
+
+            info["td_mean"] = td.mean().item()
+            info["td_std"] = td.std().item()
+            info["td_abs_mean"] = td.abs().mean().item()
+
+            # --- Greedy action distribution under expected value ---
+            q_all = (dist * self.support.view(1, 1, -1)).sum(dim=2)  # [B, A]
+            greedy_actions = q_all.argmax(dim=1)  # [B]
+            num_actions = self.network.num_actions
+            counts = torch.bincount(greedy_actions, minlength=num_actions).float()
+            probs = counts / counts.sum().clamp(min=1.0)
+            entropy_actions = -(probs * (probs + 1e-12).log()).sum()
+            info["greedy_action_entropy"] = entropy_actions.item()
+            info["greedy_action_max_prob"] = probs.max().item()
+            info["greedy_action_probs"] = probs.cpu().tolist()
+
+            # --- Distribution entropy (collapse / over-uncertainty) ---
+            pred_ent = -(pred_dist * (pred_dist + 1e-12).log()).sum(dim=1)  # [B]
+            targ_ent = -(proj_dist * (proj_dist + 1e-12).log()).sum(dim=1)  # [B]
+            info["pred_dist_entropy_mean"] = pred_ent.mean().item()
+            info["pred_dist_entropy_std"] = pred_ent.std().item()
+            info["target_dist_entropy_mean"] = targ_ent.mean().item()
+
+            # --- Support saturation / projection health ---
+            info["proj_mass_vmin"] = proj_dist[:, 0].mean().item()
+            info["proj_mass_vmax"] = proj_dist[:, -1].mean().item()
+            info["proj_mass_on_bounds"] = (
+                (proj_dist[:, 0] + proj_dist[:, -1]).mean().item()
+            )
+
+        return elementwise_loss, info

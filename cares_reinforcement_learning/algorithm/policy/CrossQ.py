@@ -91,6 +91,7 @@ class CrossQ(SAC):
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
 
         with torch.no_grad():
             with hlp.evaluating(self.actor_net):
@@ -104,15 +105,13 @@ class CrossQ(SAC):
         q_values_one, q_values_one_next = torch.chunk(cat_q_values_one, chunks=2, dim=0)
         q_values_two, q_values_two_next = torch.chunk(cat_q_values_two, chunks=2, dim=0)
 
-        target_q_values = (
-            torch.minimum(q_values_one_next, q_values_two_next)
-            - self.alpha * next_log_pi
-        )
+        with torch.no_grad():
+            min_next_q = torch.minimum(q_values_one_next, q_values_two_next)
+            next_q_values = min_next_q - self.alpha * next_log_pi
 
-        q_target = (
-            rewards * self.reward_scale + self.gamma * (1 - dones) * target_q_values
-        )
-        torch.detach(q_target)
+            q_target = (
+                rewards * self.reward_scale + self.gamma * (1 - dones) * next_q_values
+            )
 
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
@@ -139,10 +138,84 @@ class CrossQ(SAC):
             .flatten()
         )
 
-        info = {
-            "critic_loss_one": critic_loss_one.item(),
-            "critic_loss_two": critic_loss_two.item(),
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
+
+            # ---------------------------------------------------------
+            # CrossQ-specific diagnostics
+            # ---------------------------------------------------------
+            # (1) Self-bootstrap "optimism": if q_next is systematically larger than q_now
+            # it can indicate overestimation pressure since the same network supplies bootstrap values.
+            info["q_next_minus_q_mean"] = (
+                (min_next_q - torch.minimum(q_values_one, q_values_two)).mean().item()
+            )
+
+            # (2) Next-Q magnitude vs current-Q magnitude (scale drift check)
+            info["q_next_abs_mean"] = min_next_q.abs().mean().item()
+            info["q_abs_mean"] = (
+                torch.minimum(q_values_one, q_values_two).abs().mean().item()
+            )
+
+            # (3) CrossQ concatenation health: are the two halves numerically similar in distribution?
+            # Big discrepancies can indicate distribution shift or implementation bugs in cat/chunk wiring.
+            info["crossq_half_gap_abs_mean"] = (
+                (torch.minimum(q_values_one, q_values_two).mean() - min_next_q.mean())
+                .abs()
+                .item()
+            )
+
+            # ---------------------------------------------------------
+            # CrossQ "bootstrap-from-self" next critics (s',a')
+            # (these are NOT target critics; they're the next-half outputs)
+            # ---------------------------------------------------------
+            info["q1_next_mean"] = q_values_one_next.mean().item()
+            info["q2_next_mean"] = q_values_two_next.mean().item()
+            info["q_next_twin_gap_abs_mean"] = (
+                (q_values_one_next - q_values_two_next).abs().mean().item()
+            )
+
+            # ---------------------------------------------------------
+            # Soft target decomposition (same as SAC, but using q_next from critic_net)
+            # ---------------------------------------------------------
+            # alpha_log_pi is typically negative; entropy_bonus is typically positive
+            alpha_log_pi = self.alpha * next_log_pi
+            # this is what gets ADDED to minQ in the target
+            entropy_bonus = -self.alpha * next_log_pi
+
+            soft_target_value = min_next_q + entropy_bonus  # == minQ - alpha*log_pi
+
+            info["next_min_q_mean"] = min_next_q.mean().item()
+            info["alpha_log_pi_mean"] = alpha_log_pi.mean().item()
+            info["entropy_bonus_mean"] = entropy_bonus.mean().item()
+            info["soft_target_value_mean"] = soft_target_value.mean().item()
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std(unbiased=False).item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std(unbiased=False).item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std(unbiased=False).item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
 
         return info, priorities

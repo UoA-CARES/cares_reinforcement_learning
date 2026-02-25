@@ -65,7 +65,7 @@ from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.util.configurations import DQNConfig
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.util.helpers import LinearScheduler
 
 
 class DQN(SARLAlgorithm[int]):
@@ -88,12 +88,12 @@ class DQN(SARLAlgorithm[int]):
         self.max_grad_norm = config.max_grad_norm
 
         # Epsilon
-        self.epsilon_scheduler = EpsilonScheduler(
-            start_epsilon=config.start_epsilon,
-            end_epsilon=config.end_epsilon,
+        self.epsilon_scheduler = LinearScheduler(
+            start_value=config.start_epsilon,
+            end_value=config.end_epsilon,
             decay_steps=config.decay_steps,
         )
-        self.epsilon = self.epsilon_scheduler.get_epsilon(0)
+        self.epsilon = self.epsilon_scheduler.get_value(0)
 
         # Double DQN
         self.use_double_dqn = config.use_double_dqn
@@ -165,8 +165,9 @@ class DQN(SARLAlgorithm[int]):
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
         batch_size: int,  # pylint: disable=unused-argument
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, dict[str, Any]]:
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
+
         q_values = self.network(states_tensor)
         next_q_values_target = self.target_network(next_states_tensor)
 
@@ -189,7 +190,48 @@ class DQN(SARLAlgorithm[int]):
         )
         elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
 
-        return elementwise_loss
+        # -----------------------
+        # Logging / diagnostics (DQN)
+        # -----------------------
+        with torch.no_grad():
+            # Action histogram (batch-based)
+            greedy_actions = q_values.argmax(dim=1)  # [B]
+            num_actions = self.network.num_actions
+            counts = torch.bincount(greedy_actions, minlength=num_actions).float()
+            probs = counts / counts.sum().clamp(min=1.0)
+
+            # Entropy: 0 = totally collapsed, higher = more spread
+            entropy = -(probs * (probs + 1e-12).log()).sum()
+
+            td_error = best_q_values - q_target  # signed, shape [B]
+
+            # Logging Statistics
+            info: dict[str, Any] = {}
+            info["greedy_action_entropy"] = entropy.item()
+            info["greedy_action_max_prob"] = probs.max().item()
+            # Optional: full distribution (can be logged as list)
+            info["greedy_action_probs"] = probs.cpu().tolist()
+
+            info["td_error_mean"] = td_error.mean().item()
+            info["td_error_std"] = td_error.std().item()
+            info["td_error_abs_mean"] = td_error.abs().mean().item()
+
+            info["q_value_mean"] = best_q_values.mean().item()
+            info["q_value_max"] = best_q_values.max().item()
+            info["q_value_std"] = best_q_values.std().item()
+            info["q_value_next_mean"] = best_next_q_values.mean().item()
+            info["q_value_next_max"] = best_next_q_values.max().item()
+            info["q_value_next_std"] = best_next_q_values.std().item()
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_max"] = q_target.max().item()
+            info["q_target_std"] = q_target.std().item()
+            info["reward_mean"] = rewards_tensor.mean().item()
+            info["reward_std"] = rewards_tensor.std().item()
+            info["overestimation_gap"] = (
+                (q_values.max(dim=1).values - best_next_q_values).mean().item()
+            )
+
+        return elementwise_loss, info
 
     def train(
         self,
@@ -202,7 +244,7 @@ class DQN(SARLAlgorithm[int]):
 
         training_step = episode_context.training_step
 
-        self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
+        self.epsilon = self.epsilon_scheduler.get_value(training_step)
 
         if len(memory_buffer) < self.batch_size:
             return {}
@@ -235,7 +277,7 @@ class DQN(SARLAlgorithm[int]):
         weights_tensor = weights_tensor.view(-1)
 
         # Calculate loss - overriden by C51
-        elementwise_loss = self._compute_loss(
+        elementwise_loss, train_info = self._compute_loss(
             observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
@@ -243,6 +285,7 @@ class DQN(SARLAlgorithm[int]):
             dones_tensor,
             sample_size,
         )
+        info |= train_info
 
         if self.use_per_buffer:
             # Update the Priorities
@@ -253,6 +296,11 @@ class DQN(SARLAlgorithm[int]):
                 .data.numpy()
                 .flatten()
             )
+
+            info["per_priority_mean"] = priorities.mean()
+            info["per_priority_max"] = priorities.max()
+            info["per_priority_min"] = priorities.min()
+            info["per_priority_std"] = priorities.std()
 
             memory_buffer.update_priorities(indices, priorities)
 

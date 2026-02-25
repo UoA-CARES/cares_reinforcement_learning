@@ -57,15 +57,18 @@ import torch
 
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
-from cares_reinforcement_learning.networks.NoisyNet import Network
+from cares_reinforcement_learning.networks.NoisyNet import BaseNoisyNetwork
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.util.configurations import NoisyNetConfig
 
 
 class NoisyNet(DQN):
+    network: BaseNoisyNetwork
+    target_network: BaseNoisyNetwork
+
     def __init__(
         self,
-        network: Network,
+        network: BaseNoisyNetwork,
         config: NoisyNetConfig,
         device: torch.device,
     ):
@@ -81,5 +84,6 @@ class NoisyNet(DQN):
         episode_context: EpisodeContext,
     ) -> dict:
         info = super().train(memory_buffer, episode_context)
+        info.update(self.network.noise_stats())
         self._reset_noise()
         return info

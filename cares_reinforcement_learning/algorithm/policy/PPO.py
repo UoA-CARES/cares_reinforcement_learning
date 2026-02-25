@@ -94,7 +94,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservationTensors,
 )
 from cares_reinforcement_learning.util.configurations import PPOConfig
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
+from cares_reinforcement_learning.util.helpers import LinearScheduler
 
 
 class PPO(SARLAlgorithm[np.ndarray]):
@@ -119,13 +119,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         self.target_kl = config.target_kl
 
-        self.epsilon_scheduler = EpsilonScheduler(
-            start_epsilon=config.entropy_start,
-            end_epsilon=config.entropy_end,
+        self.epsilon_scheduler = LinearScheduler(
+            start_value=config.entropy_start,
+            end_value=config.entropy_end,
             decay_steps=config.entropy_decay,
         )
         # initial entropy coefficient
-        self.entropy_coef = self.epsilon_scheduler.get_epsilon(0)
+        self.entropy_coef = self.epsilon_scheduler.get_value(0)
 
         self.max_grad_norm = config.max_grad_norm
         self.min_log_std = config.log_std_bounds[0]
@@ -365,7 +365,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         batch_size = len(observation_tensor.vector_state_tensor)
 
-        self.entropy_coef = self.epsilon_scheduler.get_epsilon(
+        self.entropy_coef = self.epsilon_scheduler.get_value(
             episode_context.training_step
         )
 
@@ -505,39 +505,93 @@ class PPO(SARLAlgorithm[np.ndarray]):
                 num_critic_mbs += 1
 
         info: dict[str, Any] = {}
+
+        # ---------------------------------------------------------
+        # Core Losses
+        # ---------------------------------------------------------
+        # critic_loss:
+        # Should generally decrease over time.
+        # Large spikes -> value instability or bad returns scaling.
         info["critic_loss"] = sum_critic_loss / max(num_critic_mbs, 1)
+
+        # actor_loss:
+        # Not directly interpretable in magnitude.
+        # Watch stability and trend, not absolute value.
         info["actor_loss"] = sum_actor_loss / max(num_actor_mbs, 1)
 
-        # Batch-level stats
+        # ---------------------------------------------------------
+        # Advantage & Return Statistics (signal quality)
+        # ---------------------------------------------------------
+        # adv_mean should be ~0 if advantages are normalized.
+        # adv_std too small -> weak learning signal.
         info["adv_mean"] = float(info_adv_mean.item())
         info["adv_std"] = float(info_adv_std.item())
+
+        # returns stats reflect reward scale.
+        # Large drift without performance improvement -> value mismatch.
         info["returns_mean"] = float(info_returns_mean.item())
         info["returns_std"] = float(info_returns_std.item())
+
+        # explained_variance:
+        # ~1.0  -> value function predicts returns well
+        # ~0.0  -> value function no better than baseline
+        # < 0   -> value predictions actively harmful
         info["explained_variance"] = float(explained_var.item())
+
+        # entropy_coef controls exploration strength.
+        # Too small early -> premature convergence.
         info["entropy_coef"] = self.entropy_coef
 
-        # Exploration
+        # ---------------------------------------------------------
+        # Policy Exploration (Gaussian std diagnostics)
+        # ---------------------------------------------------------
+        # log_std controls action stochasticity.
+        # If collapsing too early -> exploration dies.
+        # If very large -> noisy policy.
         info["log_std_mean"] = float(log_std_mean.item())
         info["log_std_min"] = float(log_std_min.item())
         info["log_std_max"] = float(log_std_max.item())
 
-        # Update health (averaged over minibatches)
+        # ---------------------------------------------------------
+        # Policy Update Health (averaged over minibatches)
+        # ---------------------------------------------------------
         if num_actor_mbs > 0:
+            # Should decrease gradually during training.
+            # Sudden collapse -> entropy_coef too low.
             info["entropy"] = sum_entropy / num_actor_mbs
+
+            # Fraction of samples hitting PPO clip.
+            # ~0.1–0.3 typical.
+            # ~0 -> updates too small.
+            # >0.5 -> updates too aggressive.
             info["clip_frac"] = sum_clip_frac / num_actor_mbs
+
+            # ratio stats (π_new / π_old):
+            # ratio_mean ~1 is healthy.
+            # Large std -> unstable updates.
             info["ratio_mean"] = sum_ratio_mean / num_actor_mbs
             info["ratio_std"] = sum_ratio_std / num_actor_mbs
 
+            # High -> policy frequently at action bounds (tanh saturation).
             info["action_sat_rate"] = sum_sat_rate / num_actor_mbs
+
+            # u_abs_*: magnitude of pre-squashed action.
+            # Large values -> pushing into tanh extremes.
             info["u_abs_mean"] = sum_u_abs_mean / num_actor_mbs
             info["u_abs_max"] = sum_u_abs_max / num_actor_mbs
 
+            # log_ratio diagnostics:
+            # Large values indicate aggressive policy shifts.
             info["log_ratio_mean"] = sum_log_ratio_mean / num_actor_mbs
             info["log_ratio_std"] = sum_log_ratio_std / num_actor_mbs
             info["log_ratio_max_abs"] = sum_log_ratio_max_abs / num_actor_mbs
 
-        # KL (only if enabled)
+        # ---------------------------------------------------------
+        # KL Diagnostics (if enabled)
+        # ---------------------------------------------------------
         if self.target_kl is not None and num_actor_mbs > 0:
+            # Measures how far new policy moved from old.
+            # Should remain near target_kl.
             info["approx_kl"] = sum_kl / num_actor_mbs
             info["kl_early_stop"] = int(kl_early_stop)
             info["max_kl_seen"] = max_kl_seen
