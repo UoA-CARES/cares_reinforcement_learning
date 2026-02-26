@@ -9,8 +9,6 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
-logging.basicConfig(level=logging.INFO)
-
 
 def _create_plot(
     title: str,
@@ -736,6 +734,7 @@ def plot_evaluations():
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
     plot_evaluations()
 
 

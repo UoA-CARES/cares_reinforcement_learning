@@ -13,18 +13,24 @@ from cares_reinforcement_learning.runners.execution_coordinator import (
 from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.rl_parser import RLParser
 
-# Set up logging first - choose your preferred preset
-logs.LoggingPresets.production()  # or .production(), .quiet(), .debug()
-
-# Get the main logger for this function
-logger = logs.get_main_logger()
-
 
 def main_with_runner():
     """
     Simplified main function using TrainingRunner.
     This replaces the complex main() function in run.py
     """
+    try:
+        multiprocessing.set_start_method("spawn")
+    except RuntimeError:
+        # Start method has already been set, likely by another part of the code or a library.
+        pass
+
+    # Set up logging first - choose your preferred preset
+    logs.LoggingPresets.production()  # or .production(), .quiet(), .debug()
+
+    # Get the main logger for this function
+    logger = logs.get_main_logger()
+
     # Parse configurations (same as before)
     parser = RLParser()
     configurations = parser.parse_args()
@@ -75,5 +81,4 @@ def main_with_runner():
 
 
 if __name__ == "__main__":
-    multiprocessing.set_start_method("spawn", force=True)
     main_with_runner()

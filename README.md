@@ -13,17 +13,15 @@ The CARES reinforcement learning bed used as the foundation for RL related proje
 
 `git clone` the repository into your desired directory on your local machine
 
-Run `pip install -r requirements.txt` in the **root directory** of the package
-
-To make the module **globally accessible** in your working environment run `pip install --editable .` in the **project root**
+To make the module **globally accessible** in your working environment run `pip install --editable .[gym]` in the **project root**
 
 # Usage
 We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place. 
 
 ## Running Training and Evaluation
-The packagage is called using `run.py`. This takes in specific commands list below for training and evaluation purposes.
+The packagage is called using the cli command `cares-rl`. This takes in specific commands list below for training and evaluation purposes. The installed command runs the `run.py` in the main directoy.
 
-Use `python3 run.py -h` for help on what parameters are available for customisation.
+Use `cares-rl -h` for help on what parameters are available for customisation.
 
 ### Train
 The train command in the run.py script is used to initiate the training process for reinforcement learning models within specified gym environments. This command can be customized using various hyperparameters to tailor the training environment and the RL algorithm. You can use python `run.py train cli -h` to view all available options for customization and start a run directly through the terminal. This flexibility enables users to experiment with different settings and optimize their models effectively.
@@ -31,14 +29,14 @@ The train command in the run.py script is used to initiate the training process 
 Specific and larger configuration changes can be loaded using python `run.py train config --data_path <PATH_TO_TRAINING_CONFIGS>`, allowing for a more structured and repeatable training setup through configuration files including modification of network structures for given algorithms.
 
 ```
-python run.py train cli -h
-python run.py train config --data_path <PATH_TO_TRAINING_CONFIGS>
+cares-rl train cli -h
+cares-rl train config --data_path <PATH_TO_TRAINING_CONFIGS>
 ```
 
 Training can run training across seeds in parrellel using the `--max_workers` parameter which will run each training seed in its own process. 
 
 ```
-python run.py train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50 --max_workers 5
+cares-rl train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50 --max_workers 5
 ```
 
 <p align="center">
@@ -52,21 +50,21 @@ The resume command allows you to continue training from a previously saved check
 Note: to enable a training to be resumable you need to enable the `--save_train_checkpoints 1` when using the train command. Checkpoint saving does not default to true, this is because saving a checkpoint of the memory, and training parameters increases data storage on the HD - especially for image based learning. This is also an experimental feature and the `resume` does not set all parameters/evnrioments to the same state as before - this will change the training outcomes, it is not a true resume command but it is useful for restarting training.
 
 ```
-python run.py resume --data_path <PATH_TO_TRAINING_DATA>
+cares-rl resume --data_path <PATH_TO_TRAINING_DATA>
 ```
 
 ### Evaluate
 The evaluate command is used to re-run the evaluation loops from a prior training run - this will reproduce the evaluation graphs and data from a given training experiment. Useful if you have updated metrics you want to capture without having to re-run the entire training process.
 
 ```
-python run.py evaluate --data_path <PATH_TO_TRAINING_DATA>
+cares-rl evaluate --data_path <PATH_TO_TRAINING_DATA>
 ```
 
 ### Test
 The test command is used to run evaluation loops on a trained reinforcement learning model on the envrionment, users can load the trained model to evaluate how well the model performs on the given task with different evaluation seeds and over any number of episodes. 
 
 ```
-python run.py test --data_path <PATH_TO_TRAINING_DATA> --eval_seed <EVAL_SEED> --episodes <NUM_EPISODES>
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --eval_seed <EVAL_SEED> --episodes <NUM_EPISODES>
 ```
 
 ## Gym Environments
@@ -76,7 +74,7 @@ This package contains wrappers for the following gym environments - these wrappe
 The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
 
 ```
-python3 run.py train cli --gym dmcs --domain ball_in_cup --task catch TD3
+cares-rl train cli --gym dmcs --domain ball_in_cup --task catch TD3
 ```
 
 <p align="center">
@@ -87,9 +85,9 @@ python3 run.py train cli --gym dmcs --domain ball_in_cup --task catch TD3
 The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium 
 
 ```
-python run.py train cli --gym openai --task CartPole-v1 DQN
+cares-rl train cli --gym openai --task CartPole-v1 DQN
 
-python run.py train cli --gym openai --task HalfCheetah-v4 TD3
+cares-rl train cli --gym openai --task HalfCheetah-v4 TD3
 ```
 
 <p align="center">
@@ -100,7 +98,7 @@ python run.py train cli --gym openai --task HalfCheetah-v4 TD3
 Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment 
 
 ```
-python3 run.py train cli --gym pyboy --task mario SACAE
+cares-rl train cli --gym pyboy --task mario SACAE
 ```
 
 <p align="center">
@@ -164,22 +162,22 @@ This folder will contain the following directories and information saved during 
 ## Plotting
 The plotting utility in will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
 
-Running 'python plotter.py -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
+Running 'cares-rl-plot -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
 
 ```sh
-python plotter.py -h
+cares-rl-plot -h
 ```
 
 Plot the results of a single training instance
 
 ```sh
-python plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
+cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
 ```
 
 Plot and compare the results of two or more training instances
 
 ```sh
-python plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
+cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
 ```
 
 # Supported Algorithms 

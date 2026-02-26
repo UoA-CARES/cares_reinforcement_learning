@@ -8,8 +8,9 @@ import cv2
 import numpy as np
 import pandas as pd
 
+import cares_reinforcement_learning.plotter as plt
+
 import cares_reinforcement_learning.runners.execution_logger as logs
-import cares_reinforcement_learning.util.plotter as plt
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.util.configurations import SubscriptableClass

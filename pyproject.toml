@@ -38,3 +38,7 @@ gym = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["cares_reinforcement_learning*"]
+
+[project.scripts]
+cares-rl = "cares_reinforcement_learning.run:main_with_runner"
+cares-rl-plot = "cares_reinforcement_learning.plotter:main"
