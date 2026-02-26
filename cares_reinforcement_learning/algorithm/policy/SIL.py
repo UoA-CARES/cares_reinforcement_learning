@@ -43,15 +43,6 @@ class SIL(VectorAlgorithm):
         self.main_algo = main_algorithm
         self.config = config
 
-        # # SIL hyperparameter--> move to main_algos
-        # self.sil_update_interval = config.sil_update_interval
-        # self.sil_n_update = config.sil_n_update #update times after policy train
-        # self.sil_clip = config.sil_clip # sil clip value, using in advanagtes
-        # self.sil_scaler = config.sil_scaler # for fn_reward() temporary solution
-        # self.sil_max_nlog = config.sil_max_nlog # to do: how to select
-        # self.sil_max_grad_norm = config.sil_max_grad_norm # to do: how to select
-        # self.sil_weight = config.sil_weight # to do: how to set for different algos
-
         self.sil_batch_size = config.sil_batch_size
 
         self.use_per_buffer = config.use_per_buffer
@@ -81,6 +72,8 @@ class SIL(VectorAlgorithm):
         # SIL initial check
         self._sil_initial_check()
 
+        # RewardNormalizer for process SIL reward
+        self.reward_normalizer = hlp.RewardNormalizer(gamma=self.sil_gamma)
 
     def _extract_hyperparameters(self):
         """
@@ -88,7 +81,7 @@ class SIL(VectorAlgorithm):
         """
         # to do: set sil_lr to network
         params_to_sync = ["actor_lr", "critic_lr", "gamma"] # remove batch_size, SIL should have same or small batch_size for update
-        sil_params_main_algos = ["sil_update_interval", "sil_n_update", "sil_batch_size", "sil_scaler", "sil_clip", "sil_max_nlog", "sil_max_grad_norm", "sil_weight", "sil_weight_v"]
+        sil_params_main_algos = ["sil_update_interval", "sil_n_update", "sil_batch_size", "sil_clip", "sil_max_nlog", "sil_max_grad_norm", "sil_weight", "sil_weight_v"]
         
         for param in params_to_sync:
             # Look for attribute directly on the agent instance (e.g., self.main_algo.gamma)
@@ -231,7 +224,6 @@ class SIL(VectorAlgorithm):
             "sil_update_interval": getattr(self, "sil_update_interval", None),
             "sil_n_update": getattr(self, "sil_n_update", None),
             "sil_batch_size": getattr(self, "sil_batch_size", None),
-            "sil_scaler": getattr(self, "sil_scaler", None), # for fn_reward() temporary solution
             "sil_clip": getattr(self, "sil_clip", None),
             "sil_weight": getattr(self, "sil_weight", None),
             "sil_weight_v": getattr(self, "sil_weight_v", None),
@@ -255,13 +247,6 @@ class SIL(VectorAlgorithm):
 
         logging.info(f"SIL module successfully attached and verified for {main_name}")
 
-    def fn_reward(self, reward):
-        # TODO what reward scaler should use for sil: Static Scaling, Sign-based, Return-based RMS
-        # how to balance cross-domain generalization and data precision in SIL advantegs
-        # Temporary solution here
-        sil_scaler = self.sil_scaler
-        fn_reward = reward*sil_scaler
-        return fn_reward
 
     def MC_return_calculator(
             self,
@@ -299,11 +284,8 @@ class SIL(VectorAlgorithm):
         # print(f"Total input for SIL: ")
         # print(f"{num_step} steps, {num_step_episodes} episodes, {num_step_dones} dones   .")
 
-        # reward scalling
-        scaled_rewards = self.fn_reward(batch_rewards)
-
         # calculate MC return for all episodes in memory
-        batch_returns = self.MC_return_calculator(scaled_rewards, batch_episode_ends)
+        batch_returns = self.MC_return_calculator(batch_rewards, batch_episode_ends)
 
         # to do: how to filter good experiences in step stage for all tasks?
         # advantages = self.sil_advantages_calculator(batch_states, batch_actions, batch_returns).detach()
@@ -362,7 +344,8 @@ class SIL(VectorAlgorithm):
         if not hasattr(self, '_temp_buffer'):
             self._temp_buffer = []
 
-        self._temp_buffer.append((state, action, reward, next_state, done, episode_end))
+        scaled_reward = self.reward_normalizer.step(reward, episode_end)
+        self._temp_buffer.append((state, action, scaled_reward, next_state, done, episode_end))
 
         if episode_end:
             if not self._temp_buffer:
@@ -433,8 +416,8 @@ class SIL(VectorAlgorithm):
         if algo_name == "TD3SIL":
             # to do : how to appoximate nlog_prob of TD3 actor action
             pred_actions = self.actor_net(states)
-            pred_mes = torch.pow(pred_actions - actions, 2).sum(dim=-1, keepdim=True)
-            nlog_p = pred_mes
+            pred_mse = torch.pow(pred_actions - actions, 2).sum(dim=-1, keepdim=True)
+            nlog_p = pred_mse
             nlog_p = nlog_p.view(-1)
 
         # print(f"---_get_nlog_p, nlog_p.shape: {nlog_p.shape}")

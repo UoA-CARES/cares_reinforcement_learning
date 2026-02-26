@@ -485,7 +485,6 @@ class PPO2SILConfig(PPO2Config):
     sil_n_update: int = 10  #update times after policy train
     sil_batch_size: int = 512
 
-    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
     sil_clip: float = 1  # sil clip value, using in advanagtes
     sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
     sil_weight_v: float = 0.01 # {0.01, 0.05}
@@ -512,7 +511,6 @@ class SILConfig(AlgorithmConfig):
     sil_n_update: int = 1  #update times after policy train
     sil_batch_size: int = 512
 
-    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
     sil_clip: float = 1  # sil clip value, using in advanagtes
     sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
     sil_weight_v: float = 0.01 # {0.01, 0.05}
@@ -599,7 +597,6 @@ class SACSILConfig(SACConfig):
     sil_n_update: int = 1  #update times after policy train
     sil_batch_size: int = 512
 
-    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
     sil_clip: float = 1  # sil clip value, using in advanagtes
     sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
     sil_weight_v: float = 0.01 # {0.01, 0.05}
@@ -1187,7 +1184,6 @@ class TD3SILConfig(TD3Config):
     sil_n_update: int = 1  #update times after policy train
     sil_batch_size: int = 512
 
-    sil_scaler: float = 0.01 # openai: 0.01; dmcs: 1
     sil_clip: float = 1  # sil clip value, using in advanagtes
     sil_weight: float = 0.1  # refer to source code in PPO, to do: confirm for TD3 SAC
     sil_weight_v: float = 0.01 # {0.01, 0.05}

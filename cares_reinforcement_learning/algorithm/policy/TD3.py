@@ -268,6 +268,7 @@ class TD3(VectorAlgorithm):
             rewards_tensor,
             next_states_tensor,
             dones_tensor,
+            episode_ends_tensor, # add for SIL
             weights_tensor,
             indices,
         ) = tu.sample_batch_to_tensors(

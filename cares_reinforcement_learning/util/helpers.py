@@ -505,3 +505,43 @@ def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float
 
 def avg_l1_norm(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
     return x / x.abs().mean(-1, keepdim=True).clamp(min=eps)
+
+
+class RewardNormalizer:
+    def __init__(self, gamma=0.99, clip_rew=10.0, epsilon=1e-8):
+        self.gamma = gamma
+        self.clip_rew = clip_rew
+        self.epsilon = epsilon
+
+        # Numpy
+        self.count = epsilon
+        self.mean = 0.0
+        self.var = 1.0
+
+        self.current_return = 0.0
+
+    def step(self, reward, episode_end):
+        """
+        scaled reward base on accumulation on whole trainning
+        reward: float or np.array
+        done: bool
+        """
+        # ackward accumulation
+        self.current_return = reward + self.gamma * self.current_return
+
+        # Welford's Algorithm
+        self.count += 1
+        delta = self.current_return - self.mean
+        self.mean += delta / self.count
+        delta2 = self.current_return - self.mean
+        # update var
+        self.var = self.var + (delta * delta2 - self.var) / self.count
+
+        # scaled reward
+        std = np.sqrt(self.var + self.epsilon)
+        scaled_reward = np.clip(reward / std, -self.clip_rew, self.clip_rew)
+
+        if episode_end:
+            self.current_return = 0.0
+
+        return scaled_reward
