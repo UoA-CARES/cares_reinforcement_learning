@@ -17,7 +17,7 @@ dependencies = [
   "PyYAML==6.0.1",
   "torch==2.7.0",
   "rich==14.2.0",
-  "opencv-contrib-python==4.6.0.66",
+  "opencv-python>=4.9.0",
   "mediapy==1.1.9",
   "scikit_image==0.25.2",
   "matplotlib==3.10.1",
