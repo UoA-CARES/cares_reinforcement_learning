@@ -7,10 +7,10 @@ from gymnasium import spaces
 from mpe2 import all_modules as mpe_all
 from pettingzoo.utils.env import AgentID, ParallelEnv
 
-from cares_reinforcement_learning.envs.environments.marl.marl_environment import (
+from cares_reinforcement_learning.envs.marl.marl_environment import (
     MARLEnvironment,
 )
-from cares_reinforcement_learning.envs.util.configurations import MPEConfig
+from cares_reinforcement_learning.envs.configurations import MPEConfig
 from cares_reinforcement_learning.types.experience import MultiAgentExperience
 from cares_reinforcement_learning.types.observation import MARLObservation
 from cares_reinforcement_learning.util import helpers as hlp

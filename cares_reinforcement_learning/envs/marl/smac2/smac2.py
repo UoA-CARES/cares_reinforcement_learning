@@ -3,25 +3,52 @@ from typing import Any
 
 import cv2
 import numpy as np
-from smac.env import StarCraft2Env
+from smacv2.env.starcraft2.wrapper import StarCraftCapabilityEnvWrapper
 
-from cares_reinforcement_learning.envs.environments.marl.marl_environment import (
+from cares_reinforcement_learning.envs.marl.marl_environment import (
     MARLEnvironment,
 )
-from cares_reinforcement_learning.envs.util.configurations import SMACConfig
+from cares_reinforcement_learning.envs.configurations import SMAC2Config
 from cares_reinforcement_learning.types.experience import MultiAgentExperience
 from cares_reinforcement_learning.types.observation import MARLObservation
 
 
-class SMACEnvironment(MARLEnvironment):
-    def __init__(self, config: SMACConfig, seed: int) -> None:
+class SMAC2Environment(MARLEnvironment):
+    def __init__(self, config: SMAC2Config, seed: int) -> None:
         super().__init__(config, seed)
 
-        self.env = StarCraft2Env(map_name=self.task, seed=self.seed)
+        self.distribution_config = {
+            "n_units": config.n_units,
+            "n_enemies": config.n_enemies,
+            "team_gen": {
+                "dist_type": "weighted_teams",
+                "unit_types": ["marine"],
+                "weights": [1.0],
+                "observe": True,
+            },
+            "start_positions": {
+                "dist_type": "surrounded_and_reflect",
+                "p": 0.5,
+                "n_enemies": 3,
+                "map_x": 32,
+                "map_y": 32,
+            },
+        }
+
+        self.env = StarCraftCapabilityEnvWrapper(
+            capability_config=self.distribution_config,
+            map_name=self.task,
+            debug=False,
+            conic_fov=False,
+            obs_own_pos=True,
+            use_unit_ranges=True,
+            min_attack_range=2,
+            seed=self.seed,
+        )
 
         self.env_info = self.env.get_env_info()
 
-        self.possible_agents = [f"agent_{i}" for i in range(self.env_info["n_agents"])]
+        self.agent_ids = [f"agent_{i}" for i in range(self.env_info["n_agents"])]
 
         self.observation: MARLObservation
 
@@ -46,7 +73,7 @@ class SMACEnvironment(MARLEnvironment):
         observation_space: dict[str, Any] = {}
 
         obs_dict = {}
-        for agent_id in self.possible_agents:
+        for agent_id in self.agent_ids:
             obs_dict[agent_id] = self.env_info["obs_shape"]
 
         observation_space["obs"] = obs_dict
@@ -81,7 +108,16 @@ class SMACEnvironment(MARLEnvironment):
         return actions
 
     def set_seed(self, seed: int) -> None:
-        self.env = StarCraft2Env(map_name=self.task, seed=seed)
+        self.env = StarCraftCapabilityEnvWrapper(
+            capability_config=self.distribution_config,
+            map_name="10gen_terran",
+            debug=False,
+            conic_fov=False,
+            obs_own_pos=True,
+            use_unit_ranges=True,
+            min_attack_range=2,
+            seed=seed,
+        )
 
         self.env_info = self.env.get_env_info()
 
@@ -91,7 +127,7 @@ class SMACEnvironment(MARLEnvironment):
         obs, state = self.env.reset()
 
         # Convert obs list → dict[str -> obs_i]
-        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.possible_agents)}
+        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.agent_ids)}
 
         self.observation = MARLObservation(
             global_state=state,
@@ -106,7 +142,7 @@ class SMACEnvironment(MARLEnvironment):
 
         obs = self.env.get_obs()
         # Convert obs list → dict[str -> obs_i]
-        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.possible_agents)}
+        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.agent_ids)}
 
         next_observation = MARLObservation(
             global_state=self.env.get_state(),

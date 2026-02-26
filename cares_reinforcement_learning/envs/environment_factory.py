@@ -1,11 +1,11 @@
-import cares_reinforcement_learning.envs.util.configurations as cfg
-from cares_reinforcement_learning.envs.environments.marl.marl_environment import (
+import cares_reinforcement_learning.envs.configurations as cfg
+from cares_reinforcement_learning.envs.marl.marl_environment import (
     MARLEnvironment,
 )
-from cares_reinforcement_learning.envs.environments.sarl.sarl_environment import (
+from cares_reinforcement_learning.envs.sarl.sarl_environment import (
     SARLEnvironment,
 )
-from cares_reinforcement_learning.envs.util.configurations import GymEnvironmentConfig
+from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
 
 # Disable these as this is a deliberate use of dynamic imports
 # pylint: disable=import-outside-toplevel
@@ -28,7 +28,7 @@ class EnvironmentFactory:
         match config:
             # ---------- SARL ----------
             case cfg.DMCSConfig():
-                from cares_reinforcement_learning.envs.environments.sarl.dmcs.dmcs_environment import (
+                from cares_reinforcement_learning.envs.sarl.dmcs.dmcs_environment import (
                     DMCSEnvironment,
                 )
 
@@ -40,7 +40,7 @@ class EnvironmentFactory:
                 )
 
             case cfg.OpenAIConfig():
-                from cares_reinforcement_learning.envs.environments.sarl.openai.openai_environment import (
+                from cares_reinforcement_learning.envs.sarl.openai.openai_environment import (
                     OpenAIEnvironment,
                 )
 
@@ -52,7 +52,7 @@ class EnvironmentFactory:
                 )
 
             case cfg.PyBoyConfig():
-                from cares_reinforcement_learning.envs.environments.sarl.pyboy.pyboy_environment import (
+                from cares_reinforcement_learning.envs.sarl.pyboy.pyboy_environment import (
                     PyboyEnvironment,
                 )
 
@@ -64,7 +64,7 @@ class EnvironmentFactory:
                 )
 
             case cfg.ShowdownConfig():
-                from cares_reinforcement_learning.envs.environments.sarl.showdown.showdown_environment import (
+                from cares_reinforcement_learning.envs.sarl.showdown.showdown_environment import (
                     ShowdownEnvironment,
                 )
 
@@ -79,7 +79,7 @@ class EnvironmentFactory:
                 )
 
             case cfg.DroneConfig():
-                from cares_reinforcement_learning.envs.environments.sarl.drone.drone_environment import (
+                from cares_reinforcement_learning.envs.sarl.drone.drone_environment import (
                     DroneEnvironment,
                 )
 
@@ -90,7 +90,7 @@ class EnvironmentFactory:
                 eval_env = env
 
             case cfg.GripperConfig():
-                from cares_reinforcement_learning.envs.environments.sarl.gripper.gripper_environment import (
+                from cares_reinforcement_learning.envs.sarl.gripper.gripper_environment import (
                     GripperEnvironment,
                 )
 
@@ -102,7 +102,7 @@ class EnvironmentFactory:
 
             # ---------- MARL ----------
             case cfg.MPEConfig():
-                from cares_reinforcement_learning.envs.environments.marl.mpe.mpe import (
+                from cares_reinforcement_learning.envs.marl.mpe.mpe import (
                     MPE2Environment,
                 )
 
@@ -110,7 +110,7 @@ class EnvironmentFactory:
                 eval_env = MPE2Environment(config, eval_seed)
 
             case cfg.SMACConfig():
-                from cares_reinforcement_learning.envs.environments.marl.smac.smac import (
+                from cares_reinforcement_learning.envs.marl.smac.smac import (
                     SMACEnvironment,
                 )
 
@@ -118,7 +118,7 @@ class EnvironmentFactory:
                 eval_env = SMACEnvironment(config, eval_seed)
 
             case cfg.SMAC2Config():
-                from cares_reinforcement_learning.envs.environments.marl.smac2.smac2 import (
+                from cares_reinforcement_learning.envs.marl.smac2.smac2 import (
                     SMAC2Environment,
                 )
 

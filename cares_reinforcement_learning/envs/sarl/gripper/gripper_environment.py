@@ -4,10 +4,10 @@ import cv2
 import numpy as np
 from gripper_gym.environments.environment_factory import EnvironmentFactory
 
-from cares_reinforcement_learning.envs.environments.sarl.sarl_environment import (
+from cares_reinforcement_learning.envs.sarl.sarl_environment import (
     SARLEnvironment,
 )
-from cares_reinforcement_learning.envs.util.configurations import GripperConfig
+from cares_reinforcement_learning.envs.configurations import GripperConfig
 from cares_reinforcement_learning.util import helpers as hlp
 
 

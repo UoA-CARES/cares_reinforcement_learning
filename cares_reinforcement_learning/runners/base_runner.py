@@ -13,10 +13,10 @@ import numpy as np
 
 import cares_reinforcement_learning.runners.execution_logger as logs
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.envs.environments.environment_factory import (
+from cares_reinforcement_learning.envs.environment_factory import (
     EnvironmentFactory,
 )
-from cares_reinforcement_learning.envs.util.configurations import GymEnvironmentConfig
+from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
 from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.configurations import (

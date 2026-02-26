@@ -7,10 +7,10 @@ import numpy as np
 from gymnasium import spaces
 from showdown_gym.showdown_environment import SingleShowdownWrapper
 
-from cares_reinforcement_learning.envs.environments.sarl.sarl_environment import (
+from cares_reinforcement_learning.envs.sarl.sarl_environment import (
     SARLEnvironment,
 )
-from cares_reinforcement_learning.envs.util.configurations import ShowdownConfig
+from cares_reinforcement_learning.envs.configurations import ShowdownConfig
 
 
 class ShowdownEnvironment(SARLEnvironment):

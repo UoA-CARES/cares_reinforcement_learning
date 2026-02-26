@@ -9,7 +9,7 @@ from typing import Any, Union, get_args, get_origin
 
 from pydantic_core import PydanticUndefined
 
-import cares_reinforcement_learning.envs.util.configurations as cfg
+import cares_reinforcement_learning.envs.configurations as cfg
 from cares_reinforcement_learning.util import configurations
 from cares_reinforcement_learning.util.configurations import (
     AlgorithmConfig,

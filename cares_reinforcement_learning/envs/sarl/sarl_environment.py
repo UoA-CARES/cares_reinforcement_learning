@@ -6,10 +6,10 @@ from typing import Any
 import cv2
 import numpy as np
 
-from cares_reinforcement_learning.envs.environments.base_environment import (
+from cares_reinforcement_learning.envs.base_environment import (
     BaseEnvironment,
 )
-from cares_reinforcement_learning.envs.util.configurations import GymEnvironmentConfig
+from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
 from cares_reinforcement_learning.types.experience import SingleAgentExperience
 from cares_reinforcement_learning.types.observation import SARLObservation
 

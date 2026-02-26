@@ -5,10 +5,10 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
-from cares_reinforcement_learning.envs.environments.sarl.sarl_environment import (
+from cares_reinforcement_learning.envs.sarl.sarl_environment import (
     SARLEnvironment,
 )
-from cares_reinforcement_learning.envs.util.configurations import OpenAIConfig
+from cares_reinforcement_learning.envs.configurations import OpenAIConfig
 from cares_reinforcement_learning.util import helpers as hlp
 
 

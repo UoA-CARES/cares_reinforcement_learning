@@ -6,7 +6,7 @@ from typing import Any, Generic, TypeVar
 import cv2
 import numpy as np
 
-from cares_reinforcement_learning.envs.util.configurations import GymEnvironmentConfig
+from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
 from cares_reinforcement_learning.types.experience import Experience
 from cares_reinforcement_learning.types.observation import Observation
 
