@@ -22,7 +22,7 @@ dependencies = [
   "scikit_image==0.25.2",
   "matplotlib==3.10.1",
   "seaborn==0.13.0",
-  "pandas==1.5.3",
+  "pandas==2.2.2",
   "natsort==8.4.0",
   "pytest==7.4.2",
   # keep truly runtime-only deps here
