@@ -44,7 +44,7 @@ class EvaluationRunner(BaseRunner):
             configurations: Dictionary containing all parsed configurations
             base_log_dir: Base directory for logging evaluation results
             former_base_path: Base path to the trained model directory (contains seed subdirs)
-            num_episodes: Number of episodes to run per checkpoint (if None, uses config default)
+            num_eval_episodes: Number of episodes to run per checkpoint (if None, uses config default)
             save_configurations: Whether to save configurations to disk
             progress_queue: Queue for progress updates (if any)
         """

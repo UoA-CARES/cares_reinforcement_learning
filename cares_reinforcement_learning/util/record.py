@@ -352,14 +352,14 @@ class Record:
         domain_with_hyphen_or_empty = f"{domain}-" if domain != "" else ""
         domain_task = domain_with_hyphen_or_empty + task
 
-        run_name_with_hypen_or_empty = f"{run_name}-" if run_name != "" else ""
+        run_name_with_hyphen_or_empty = f"{run_name}-" if run_name != "" else ""
 
         log_dir = format_str.format(
             algorithm=algorithm,
             domain=domain,
             task=task,
             gym=gym,
-            run_name=run_name_with_hypen_or_empty,
+            run_name=run_name_with_hyphen_or_empty,
             domain_task=domain_task,
             date=date,
             **names,

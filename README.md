@@ -19,21 +19,21 @@ To make the module **globally accessible** in your working environment run `pip 
 We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place. 
 
 ## Running Training and Evaluation
-The packagage is called using the cli command `cares-rl`. This takes in specific commands list below for training and evaluation purposes. The installed command runs the `run.py` in the main directoy.
+The package is called using the cli command `cares-rl`. This takes in specific commands list below for training and evaluation purposes. The installed command runs the `run.py` in the main directory.
 
 Use `cares-rl -h` for help on what parameters are available for customisation.
 
 ### Train
-The train command in the run.py script is used to initiate the training process for reinforcement learning models within specified gym environments. This command can be customized using various hyperparameters to tailor the training environment and the RL algorithm. You can use python `run.py train cli -h` to view all available options for customization and start a run directly through the terminal. This flexibility enables users to experiment with different settings and optimize their models effectively.
+The train command in the `cares-rl` script is used to initiate the training process for reinforcement learning models within specified gym environments. This command can be customized using various hyperparameters to tailor the training environment and the RL algorithm. You can use python `cares-rl train cli -h` to view all available options for customization and start a run directly through the terminal. This flexibility enables users to experiment with different settings and optimize their models effectively.
 
-Specific and larger configuration changes can be loaded using python `run.py train config --data_path <PATH_TO_TRAINING_CONFIGS>`, allowing for a more structured and repeatable training setup through configuration files including modification of network structures for given algorithms.
+Specific and larger configuration changes can be loaded using python `cares-rl train config --data_path <PATH_TO_TRAINING_CONFIGS>`, allowing for a more structured and repeatable training setup through configuration files including modification of network structures for given algorithms.
 
 ```
 cares-rl train cli -h
 cares-rl train config --data_path <PATH_TO_TRAINING_CONFIGS>
 ```
 
-Training can run training across seeds in parrellel using the `--max_workers` parameter which will run each training seed in its own process. 
+Training can run training across seeds in parallel using the `--max_workers` parameter which will run each training seed in its own process. 
 
 ```
 cares-rl train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50 --max_workers 5
@@ -61,7 +61,7 @@ cares-rl evaluate --data_path <PATH_TO_TRAINING_DATA>
 ```
 
 ### Test
-The test command is used to run evaluation loops on a trained reinforcement learning model on the envrionment, users can load the trained model to evaluate how well the model performs on the given task with different evaluation seeds and over any number of episodes. 
+The test command is used to run evaluation loops on a trained reinforcement learning model on the environment, users can load the trained model to evaluate how well the model performs on the given task with different evaluation seeds and over any number of episodes. 
 
 ```
 cares-rl test --data_path <PATH_TO_TRAINING_DATA> --eval_seed <EVAL_SEED> --episodes <NUM_EPISODES>

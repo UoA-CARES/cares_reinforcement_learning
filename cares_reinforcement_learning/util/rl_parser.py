@@ -346,7 +346,7 @@ class RLParser:
 
 
 ## Example of how to use the RLParser for custom environments -
-#  in this case the Example envrionment and task with Example algorithm
+#  in this case the Example environment and task with Example algorithm
 
 
 class ExampleHardwareConfig(SubscriptableClass):

@@ -92,7 +92,7 @@ class BaseRunner(ABC):
             configurations: Dictionary containing all parsed configurations
             base_log_dir: Base directory for logging
             save_configurations: Whether to save configurations to disk
-            num_episodes: Number of episodes for evaluation (if None, uses config default)
+            num_eval_episodes: Number of episodes for evaluation (if None, uses config default)
         """
         # Extract configurations
         self.env_config: GymEnvironmentConfig = configurations["env_config"]
