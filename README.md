@@ -70,6 +70,9 @@ cares-rl test --data_path <PATH_TO_TRAINING_DATA> --eval_seed <EVAL_SEED> --epis
 ## Gym Environments
 This package contains wrappers for the following gym environments - these wrapper standardise the different interfaces various tasks/environments use so we can use the same algorithm interface. 
 
+### Single Agent Enviroments
+Training environments for single agent reinforcement learning algorithms.
+
 #### Deep Mind Control Suite
 The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
 
@@ -78,7 +81,7 @@ cares-rl train cli --gym dmcs --domain ball_in_cup --task catch TD3
 ```
 
 <p align="center">
-    <img src="./media/dmcs.png" style="width: 80%;"/>
+    <img src="./media/dmcs.png" style="width: 60%;"/>
 </p>
 
 #### OpenAI Gymnasium
@@ -91,7 +94,7 @@ cares-rl train cli --gym openai --task HalfCheetah-v4 TD3
 ```
 
 <p align="center">
-    <img src="./media/openai.jpg" style="width: 80%;" />
+    <img src="./media/openai.jpg" style="width: 60%;" />
 </p>
 
 #### Game Boy Emulator
@@ -102,28 +105,44 @@ cares-rl train cli --gym pyboy --task mario SACAE
 ```
 
 <p align="center">
-    <img src="./media/mario.png" style="width: 40%;" />
-    <img src="./media/pokemon.png" style="width: 40%;"/>
+    <img src="./media/mario.png" style="width: 30%;" />
+    <img src="./media/pokemon.png" style="width: 30%;"/>
 </p>
 
 ### Drone Gym
-
 The Drone gym contains all the code for training the CrazyFly drone on navigation tasks: https://github.com/UoA-CARES/drone_gym
 
+```
+cares-rl train cli --gym drone --task move_2d SAC
+```
+
 <p align="center">
-    <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 40%;"/>
+    <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 35%;"/>
 </p>
 
+### Multi Agent Enviroments
+Training environments for multi agent reinforcement learning algorithms.
+
 ### SMAC/SMACv2
+SMAC - The StarCraft Multi-Agent Challenge versions one (https://github.com/oxwhirl/smac) and two (https://github.com/oxwhirl/smacv2).
 
-### Gripper Gym
-
-### MPE2
-
-The standard MPE2 environment: https://mpe2.farama.org/
+```
+cares-rl train cli --gym smac --task m3 QMIX
+```
 
 <p align="center">
-    <img alt="mep2" src="./media/mpe2.png" style="width: 40%;" />
+    <img alt="crazyfly" src="./media/smac.jpg" style="width: 40%;"/>
+</p>
+
+### MPE2
+The standard MPE2 environment: https://mpe2.farama.org/
+
+```
+cares-rl train cli --gym mpe --task simple_spread_v3 MADDPG
+```
+
+<p align="center">
+    <img alt="mep2" src="./media/mpe2.png" style="width: 30%;" />
 </p>
 
 ## Training Data Logs
