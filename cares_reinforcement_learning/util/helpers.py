@@ -2,6 +2,7 @@ import random
 from contextlib import contextmanager
 from typing import overload
 
+import cv2
 import numpy as np
 import torch
 
@@ -232,3 +233,36 @@ def dump_tensor(x):
         float(x.mean()),
         float(x.std()),
     )
+
+
+def overlay_info(image: np.ndarray, **kwargs):
+    """Overlay key-value information on an image."""
+    output_image = image.copy()
+
+    # Define text properties
+    font = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 0.4
+    color = (0, 0, 255)
+    thickness = 1
+
+    # Define initial position for the text
+    text_x, text_y = 10, 30
+
+    # Get text height for proper spacing
+    (_, h), baseline = cv2.getTextSize("A", font, font_scale, thickness)
+    line_height = h + baseline
+
+    # Iterate over key-value pairs and overlay text
+    for i, (key, value) in enumerate(kwargs.items()):
+        text = f"{key}: {value}"
+        cv2.putText(
+            output_image,
+            text,
+            (text_x, text_y + i * line_height),
+            font,
+            font_scale,
+            color,
+            thickness,
+        )
+
+    return output_image

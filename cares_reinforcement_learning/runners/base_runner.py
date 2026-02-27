@@ -22,7 +22,6 @@ from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfi
 from cares_reinforcement_learning.envs.environment_factory import EnvironmentFactory
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
 from cares_reinforcement_learning.util import helpers as hlp
-from cares_reinforcement_learning.util.overlay import overlay_info
 from cares_reinforcement_learning.util.record import Record
 
 
@@ -226,7 +225,7 @@ class BaseRunner(ABC):
             # Record video if requested
             if record_video and self.record is not None:
                 frame = self.env_eval.grab_frame()
-                overlay = overlay_info(
+                overlay = hlp.overlay_info(
                     frame,
                     reward=f"{episode_stats.get_episode_reward():.1f}",
                     **self.env_eval.get_overlay_info(),
