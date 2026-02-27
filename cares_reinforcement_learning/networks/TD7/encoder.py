@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
-from cares_reinforcement_learning.util.configurations import TD7Config
+from cares_reinforcement_learning.algorithm.configurations import TD7Config
 
 
 class BaseEncoder(nn.Module):

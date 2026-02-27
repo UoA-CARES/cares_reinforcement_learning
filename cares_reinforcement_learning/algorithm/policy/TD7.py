@@ -108,16 +108,17 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import TD7Config
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import TD7Config
-from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class TD7(SARLAlgorithm[np.ndarray]):
@@ -365,13 +366,13 @@ class TD7(SARLAlgorithm[np.ndarray]):
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_loss_one = hlp.calculate_huber_loss(
+        huber_loss_one = loss.calculate_huber_loss(
             td_error_one,
             self.min_priority,
             use_quadratic_smoothing=False,
             use_mean_reduction=False,
         )
-        huber_loss_two = hlp.calculate_huber_loss(
+        huber_loss_two = loss.calculate_huber_loss(
             td_error_two,
             self.min_priority,
             use_quadratic_smoothing=False,
@@ -570,13 +571,13 @@ class TD7(SARLAlgorithm[np.ndarray]):
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update target network params
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.fixed_encoder_net, self.target_fixed_encoder_net, self.tau
             )
-            hlp.soft_update_params(self.encoder_net, self.fixed_encoder_net, self.tau)
+            self.soft_update_params(self.encoder_net, self.fixed_encoder_net, self.tau)
 
             memory.reset_max_priority()
 

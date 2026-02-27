@@ -71,7 +71,7 @@ from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import SDARConfig
+from cares_reinforcement_learning.algorithm.configurations import SDARConfig
 
 
 class SDAR(SARLAlgorithm[np.ndarray]):
@@ -474,7 +474,7 @@ class SDAR(SARLAlgorithm[np.ndarray]):
             info |= actor_info
 
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info
 

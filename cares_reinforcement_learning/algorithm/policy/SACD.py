@@ -79,7 +79,7 @@ from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import SACDConfig
+from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 
 
 class SACD(SARLAlgorithm[int]):
@@ -329,7 +329,7 @@ class SACD(SARLAlgorithm[int]):
             info.update(actor_info)
 
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info
 

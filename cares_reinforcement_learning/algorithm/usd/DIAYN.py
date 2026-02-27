@@ -70,7 +70,7 @@ from cares_reinforcement_learning.networks.DIAYN import Discriminator
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import DIAYNConfig
+from cares_reinforcement_learning.algorithm.configurations import DIAYNConfig
 
 
 class DIAYN(SARLAlgorithm[np.ndarray]):

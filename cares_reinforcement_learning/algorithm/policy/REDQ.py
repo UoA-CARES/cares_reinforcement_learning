@@ -67,7 +67,7 @@ from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import REDQConfig
+from cares_reinforcement_learning.algorithm.configurations import REDQConfig
 
 
 class REDQ(SAC):
@@ -382,7 +382,7 @@ class REDQ(SAC):
             for critic_net, target_critic_net in zip(
                 self.critic_net.critics, self.target_critic_net.critics
             ):
-                hlp.soft_update_params(critic_net, target_critic_net, self.tau)
+                self.soft_update_params(critic_net, target_critic_net, self.tau)
 
         return info
 

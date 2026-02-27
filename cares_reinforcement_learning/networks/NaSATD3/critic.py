@@ -3,7 +3,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAut
 from cares_reinforcement_learning.networks.TD3 import Critic as TD3Critic
 from cares_reinforcement_learning.networks.TD3 import DefaultCritic as DefaultTD3Critic
 from cares_reinforcement_learning.networks.common import AECritc
-from cares_reinforcement_learning.util.configurations import NaSATD3Config
+from cares_reinforcement_learning.algorithm.configurations import NaSATD3Config
 
 
 class DefaultCritic(AECritc):

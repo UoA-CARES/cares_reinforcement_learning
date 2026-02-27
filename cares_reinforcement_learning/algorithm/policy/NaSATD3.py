@@ -93,6 +93,8 @@ from torch import nn
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import NaSATD3Config
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
@@ -105,8 +107,6 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import NaSATD3Config
-from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class NaSATD3(SARLAlgorithm[np.ndarray]):
@@ -488,14 +488,14 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
 
             # Update target network params
             # Note: the encoders in target networks are the same of main networks, so I wont update them
-            hlp.soft_update_params(
-                self.critic_net.critic.Q1, self.critic_target.critic.Q1, self.tau
+            self.soft_update_params(
+                self.critic_net.critic.Q1, self.critic_target.critic.Q1, self.tau  # type: ignore
             )
-            hlp.soft_update_params(
-                self.critic_net.critic.Q2, self.critic_target.critic.Q2, self.tau
+            self.soft_update_params(
+                self.critic_net.critic.Q2, self.critic_target.critic.Q2, self.tau  # type: ignore
             )
 
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.actor_net.actor, self.actor_target.actor, self.tau
             )
 

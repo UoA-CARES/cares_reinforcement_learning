@@ -60,8 +60,8 @@ from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import CTD4Config
-from cares_reinforcement_learning.util.helpers import LinearScheduler
+from cares_reinforcement_learning.algorithm.configurations import CTD4Config
+from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 
 
 class CTD4(TD3):

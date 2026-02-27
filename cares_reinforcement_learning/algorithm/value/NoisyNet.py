@@ -59,7 +59,7 @@ from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.NoisyNet import BaseNoisyNetwork
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.util.configurations import NoisyNetConfig
+from cares_reinforcement_learning.algorithm.configurations import NoisyNetConfig
 
 
 class NoisyNet(DQN):

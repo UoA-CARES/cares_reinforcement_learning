@@ -2,7 +2,7 @@ from cares_reinforcement_learning.networks.DDPG import Critic as DDPGCritic
 from cares_reinforcement_learning.networks.DDPG import (
     DefaultCritic as DDPGDefaultCritic,
 )
-from cares_reinforcement_learning.util.configurations import MADDPGConfig
+from cares_reinforcement_learning.algorithm.configurations import MADDPGConfig
 
 
 class DefaultCritic(DDPGDefaultCritic):

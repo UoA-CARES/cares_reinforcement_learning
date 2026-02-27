@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
-from cares_reinforcement_learning.util.configurations import DADSConfig
+from cares_reinforcement_learning.algorithm.configurations import DADSConfig
 
 
 class DefaultSkillDynamicsModel(nn.Module):

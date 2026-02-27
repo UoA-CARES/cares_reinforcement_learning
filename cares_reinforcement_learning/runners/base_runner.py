@@ -13,17 +13,15 @@ import numpy as np
 
 import cares_reinforcement_learning.runners.execution_logger as logs
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.envs.environment_factory import (
-    EnvironmentFactory,
-)
-from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
-from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
-from cares_reinforcement_learning.util import helpers as hlp
-from cares_reinforcement_learning.util.configurations import (
+from cares_reinforcement_learning.algorithm.algorithm_factory import AlgorithmFactory
+from cares_reinforcement_learning.algorithm.configurations import (
     AlgorithmConfig,
     TrainingConfig,
 )
-from cares_reinforcement_learning.util.network_factory import NetworkFactory
+from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
+from cares_reinforcement_learning.envs.environment_factory import EnvironmentFactory
+from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
+from cares_reinforcement_learning.util import helpers as hlp
 from cares_reinforcement_learning.util.overlay import overlay_info
 from cares_reinforcement_learning.util.record import Record
 
@@ -110,7 +108,7 @@ class BaseRunner(ABC):
 
         # Create factory instances (each process needs its own)
         self.env_factory = EnvironmentFactory()
-        self.network_factory = NetworkFactory()
+        self.algorithm_factory = AlgorithmFactory()
         self.memory_factory = MemoryFactory()
 
         self.fps = self.env_config.record_video_fps
@@ -153,7 +151,7 @@ class BaseRunner(ABC):
         self.logger.info(
             f"[SEED {self.train_seed} | {self.eval_seed}] Algorithm: {self.alg_config.algorithm}"
         )
-        self.agent: Algorithm = self.network_factory.create_network(
+        self.agent: Algorithm = self.algorithm_factory.create_network(
             self.env.observation_space, self.env.action_num, self.alg_config
         )
 

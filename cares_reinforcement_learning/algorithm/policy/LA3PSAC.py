@@ -61,14 +61,15 @@ from typing import Any
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.configurations import LA3PSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import Sample, SARLMemoryBuffer
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.experience import SingleAgentExperience
-from cares_reinforcement_learning.util.configurations import LA3PSACConfig
 
 
 class LA3PSAC(SAC):
@@ -130,10 +131,10 @@ class LA3PSAC(SAC):
         td_error_two = (q_values_two - q_target).abs()
 
         if uniform_sampling:
-            critic_loss_one = hlp.prioritized_approximate_loss(
+            critic_loss_one = loss.prioritized_approximate_loss(
                 td_error_one, self.min_priority, self.per_alpha
             )
-            critic_loss_two = hlp.prioritized_approximate_loss(
+            critic_loss_two = loss.prioritized_approximate_loss(
                 td_error_two, self.min_priority, self.per_alpha
             )
             critic_loss_total = critic_loss_one + critic_loss_two
@@ -145,10 +146,10 @@ class LA3PSAC(SAC):
                 .detach()
             )
         else:
-            critic_loss_one = hlp.calculate_huber_loss(
+            critic_loss_one = loss.calculate_huber_loss(
                 td_error_one, self.min_priority, use_quadratic_smoothing=False
             )
-            critic_loss_two = hlp.calculate_huber_loss(
+            critic_loss_two = loss.calculate_huber_loss(
                 td_error_two, self.min_priority, use_quadratic_smoothing=False
             )
             critic_loss_total = critic_loss_one + critic_loss_two
@@ -261,7 +262,7 @@ class LA3PSAC(SAC):
         info_uniform |= actor_info
 
         if target_update:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### CRITIC PRIORITIZED SAMPLING #########################
         priority_sample = memory_buffer.sample_priority(
@@ -280,7 +281,7 @@ class LA3PSAC(SAC):
         memory_buffer.update_priorities(np.asarray(priority_sample.indices), priorities)
 
         if target_update:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         ######################### ACTOR PRIORITIZED SAMPLING #########################
         inverse_sample = memory_buffer.sample_inverse_priority(priority_batch_size)

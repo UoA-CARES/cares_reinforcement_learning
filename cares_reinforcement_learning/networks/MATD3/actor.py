@@ -1,6 +1,6 @@
 from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
 from cares_reinforcement_learning.networks.TD3 import DefaultActor as TD3DefaultActor
-from cares_reinforcement_learning.util.configurations import MATD3Config
+from cares_reinforcement_learning.algorithm.configurations import MATD3Config
 
 
 class DefaultActor(TD3DefaultActor):

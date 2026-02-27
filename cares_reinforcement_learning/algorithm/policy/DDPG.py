@@ -66,8 +66,8 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import DDPGConfig
-from cares_reinforcement_learning.util.helpers import ExponentialScheduler
+from cares_reinforcement_learning.algorithm.configurations import DDPGConfig
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 
 
 class DDPG(SARLAlgorithm[np.ndarray]):
@@ -304,8 +304,8 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         return info
 
     def update_target_networks(self) -> None:
-        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):

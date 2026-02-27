@@ -5,7 +5,7 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
 from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
-from cares_reinforcement_learning.util.configurations import DQNConfig
+from cares_reinforcement_learning.algorithm.configurations import DQNConfig
 
 
 class BaseNetwork(nn.Module):

@@ -49,7 +49,7 @@ from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-from cares_reinforcement_learning.util.configurations import MASACConfig
+from cares_reinforcement_learning.algorithm.configurations import MASACConfig
 
 
 class MASAC(MARLAlgorithm[list[np.ndarray]]):

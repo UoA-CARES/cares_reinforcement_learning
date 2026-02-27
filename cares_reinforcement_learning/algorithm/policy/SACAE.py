@@ -79,7 +79,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import SACAEConfig
+from cares_reinforcement_learning.algorithm.configurations import SACAEConfig
 
 
 class SACAE(SARLAlgorithm[np.ndarray]):
@@ -443,13 +443,13 @@ class SACAE(SARLAlgorithm[np.ndarray]):
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update the target networks - Soft Update
-            hlp.soft_update_params(
-                self.critic_net.critic.Q1, self.target_critic_net.critic.Q1, self.tau
+            self.soft_update_params(
+                self.critic_net.critic.Q1, self.target_critic_net.critic.Q1, self.tau  # type: ignore
             )
-            hlp.soft_update_params(
-                self.critic_net.critic.Q2, self.target_critic_net.critic.Q2, self.tau
+            self.soft_update_params(
+                self.critic_net.critic.Q2, self.target_critic_net.critic.Q2, self.tau  # type: ignore
             )
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.critic_net.encoder,
                 self.target_critic_net.encoder,
                 self.encoder_tau,

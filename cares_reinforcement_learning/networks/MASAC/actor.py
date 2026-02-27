@@ -1,6 +1,6 @@
 from cares_reinforcement_learning.networks.SAC import Actor as SACActor
 from cares_reinforcement_learning.networks.SAC import DefaultActor as SACDefaultActor
-from cares_reinforcement_learning.util.configurations import MASACConfig
+from cares_reinforcement_learning.algorithm.configurations import MASACConfig
 
 
 class DefaultActor(SACDefaultActor):

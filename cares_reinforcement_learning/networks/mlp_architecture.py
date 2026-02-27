@@ -5,7 +5,7 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
-from cares_reinforcement_learning.util.configurations import (
+from cares_reinforcement_learning.algorithm.configurations import (
     FunctionLayer,
     MLPConfig,
     NormLayer,

@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
-from cares_reinforcement_learning.util.configurations import PPOConfig
+from cares_reinforcement_learning.algorithm.configurations import PPOConfig
 
 
 class BaseActor(nn.Module):

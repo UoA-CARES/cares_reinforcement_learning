@@ -2,7 +2,7 @@ from cares_reinforcement_learning.networks.SAC import Critic as SACCritic
 from cares_reinforcement_learning.networks.SAC import (
     DefaultCritic as SACDefaultCritic,
 )
-from cares_reinforcement_learning.util.configurations import MASACConfig
+from cares_reinforcement_learning.algorithm.configurations import MASACConfig
 
 
 class DefaultCritic(SACDefaultCritic):

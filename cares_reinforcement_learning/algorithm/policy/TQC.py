@@ -59,11 +59,12 @@ from typing import Any
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.algorithm.lossess as loss
+from cares_reinforcement_learning.algorithm.configurations import TQCConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.TQC import Actor, Critic
-from cares_reinforcement_learning.util import helpers as hlp
-from cares_reinforcement_learning.util.configurations import TQCConfig
 from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.util import helpers as hlp
 
 
 class TQC(SAC):
@@ -154,7 +155,7 @@ class TQC(SAC):
         td_errors_abs = td_errors.abs()
         td_error = td_errors_abs.mean(dim=1)  # mean over quantiles
 
-        critic_loss_total = hlp.calculate_quantile_huber_loss(
+        critic_loss_total = loss.calculate_quantile_huber_loss(
             q_values,
             q_target,
             self.quantile_taus,

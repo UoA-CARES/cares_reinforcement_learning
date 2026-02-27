@@ -75,7 +75,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import RDTD3Config
+from cares_reinforcement_learning.algorithm.configurations import RDTD3Config
 
 
 class RDTD3(TD3):

@@ -57,7 +57,7 @@ import torch
 
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.DroQ import Actor, Critic
-from cares_reinforcement_learning.util.configurations import DroQConfig
+from cares_reinforcement_learning.algorithm.configurations import DroQConfig
 
 
 class DroQ(SAC):

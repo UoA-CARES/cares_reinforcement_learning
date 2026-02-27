@@ -2,7 +2,7 @@ from cares_reinforcement_learning.networks.TD3 import Critic as TD3Critic
 from cares_reinforcement_learning.networks.TD3 import (
     DefaultCritic as TD3DefaultCritic,
 )
-from cares_reinforcement_learning.util.configurations import MATD3Config
+from cares_reinforcement_learning.algorithm.configurations import MATD3Config
 
 
 class DefaultCritic(TD3DefaultCritic):

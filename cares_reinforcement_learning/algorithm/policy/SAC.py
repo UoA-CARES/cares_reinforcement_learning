@@ -78,7 +78,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import SACConfig
+from cares_reinforcement_learning.algorithm.configurations import SACConfig
 
 
 class SAC(SARLAlgorithm[np.ndarray]):
@@ -409,7 +409,7 @@ class SAC(SARLAlgorithm[np.ndarray]):
         return info, priorities
 
     def update_target_networks(self) -> None:
-        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
     def train(
         self,

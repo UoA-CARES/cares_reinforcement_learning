@@ -54,10 +54,10 @@ from typing import Any
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as hlp
+import cares_reinforcement_learning.algorithm.lossess as loss
+from cares_reinforcement_learning.algorithm.configurations import LAPTD3Config
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
-from cares_reinforcement_learning.util.configurations import LAPTD3Config
 
 
 class LAPTD3(TD3):
@@ -109,10 +109,10 @@ class LAPTD3(TD3):
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_lose_one = hlp.calculate_huber_loss(
+        huber_lose_one = loss.calculate_huber_loss(
             td_error_one, self.min_priority, use_quadratic_smoothing=False
         )
-        huber_lose_two = hlp.calculate_huber_loss(
+        huber_lose_two = loss.calculate_huber_loss(
             td_error_two, self.min_priority, use_quadratic_smoothing=False
         )
         critic_loss_total = huber_lose_one + huber_lose_two

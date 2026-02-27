@@ -5,7 +5,7 @@ from cares_reinforcement_learning.networks.common import (
     ContinuousDistributedCritic,
     EnsembleCritic,
 )
-from cares_reinforcement_learning.util.configurations import CTD4Config
+from cares_reinforcement_learning.algorithm.configurations import CTD4Config
 
 
 # This is the default base network for CTD4 for reference and testing of default network configurations

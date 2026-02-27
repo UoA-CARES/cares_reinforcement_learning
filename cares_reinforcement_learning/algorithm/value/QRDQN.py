@@ -49,10 +49,10 @@ from typing import Any
 
 import torch
 
+import cares_reinforcement_learning.algorithm.lossess as loss
+from cares_reinforcement_learning.algorithm.configurations import QRDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.QRDQN import Network
-from cares_reinforcement_learning.util import helpers as hlp
-from cares_reinforcement_learning.util.configurations import QRDQNConfig
 
 
 class QRDQN(DQN):
@@ -145,7 +145,7 @@ class QRDQN(DQN):
             ).squeeze(1)
 
         # Calculate TD errors.
-        element_wise_quantile_huber_loss = hlp.calculate_quantile_huber_loss(
+        element_wise_quantile_huber_loss = loss.calculate_quantile_huber_loss(
             current_action_q_values,
             target_q_values,
             self.quantile_taus,

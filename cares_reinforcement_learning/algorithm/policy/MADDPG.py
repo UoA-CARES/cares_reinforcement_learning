@@ -49,7 +49,7 @@ from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-from cares_reinforcement_learning.util.configurations import MADDPGConfig
+from cares_reinforcement_learning.algorithm.configurations import MADDPGConfig
 
 
 class MADDPG(MARLAlgorithm[list[np.ndarray]]):

@@ -14,7 +14,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
 from cares_reinforcement_learning.networks.distributions import SquashedNormal
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
 from cares_reinforcement_learning.types.observation import SARLObservationTensors
-from cares_reinforcement_learning.util.configurations import MLPConfig
+from cares_reinforcement_learning.algorithm.configurations import MLPConfig
 
 
 class BasePolicy(nn.Module):

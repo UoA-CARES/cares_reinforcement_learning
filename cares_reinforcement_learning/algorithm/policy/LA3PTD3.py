@@ -61,14 +61,15 @@ from typing import Any
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.configurations import LA3PTD3Config
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.memory.memory_buffer import Sample, SARLMemoryBuffer
 from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.experience import SingleAgentExperience
-from cares_reinforcement_learning.util.configurations import LA3PTD3Config
 
 
 class LA3PTD3(TD3):
@@ -85,8 +86,8 @@ class LA3PTD3(TD3):
 
     def _update_target_network(self) -> None:
         # Update target network params
-        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]
@@ -137,10 +138,10 @@ class LA3PTD3(TD3):
         td_error_two = (q_values_two - q_target).abs()
 
         if uniform_sampling:
-            critic_loss_one = hlp.prioritized_approximate_loss(
+            critic_loss_one = loss.prioritized_approximate_loss(
                 td_error_one, self.min_priority, self.per_alpha
             )
-            critic_loss_two = hlp.prioritized_approximate_loss(
+            critic_loss_two = loss.prioritized_approximate_loss(
                 td_error_two, self.min_priority, self.per_alpha
             )
             critic_loss_total = critic_loss_one + critic_loss_two
@@ -153,10 +154,10 @@ class LA3PTD3(TD3):
                 .detach()
             )
         else:
-            critic_loss_one = hlp.calculate_huber_loss(
+            critic_loss_one = loss.calculate_huber_loss(
                 td_error_one, self.min_priority, use_quadratic_smoothing=False
             )
-            critic_loss_two = hlp.calculate_huber_loss(
+            critic_loss_two = loss.calculate_huber_loss(
                 td_error_two, self.min_priority, use_quadratic_smoothing=False
             )
             critic_loss_total = critic_loss_one + critic_loss_two

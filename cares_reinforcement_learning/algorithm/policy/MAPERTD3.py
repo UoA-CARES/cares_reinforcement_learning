@@ -73,7 +73,7 @@ import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import MAPERTD3Config
+from cares_reinforcement_learning.algorithm.configurations import MAPERTD3Config
 
 
 class MAPERTD3(TD3):

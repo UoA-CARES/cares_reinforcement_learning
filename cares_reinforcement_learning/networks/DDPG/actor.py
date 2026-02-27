@@ -1,7 +1,7 @@
 from torch import nn
 
 from cares_reinforcement_learning.networks.common import DeterministicPolicy, BasePolicy
-from cares_reinforcement_learning.util.configurations import DDPGConfig
+from cares_reinforcement_learning.algorithm.configurations import DDPGConfig
 
 
 class DefaultActor(DeterministicPolicy):
