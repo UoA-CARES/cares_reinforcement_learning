@@ -490,6 +490,7 @@ class PPO2SILConfig(PPO2Config):
     sil_weight_v: float = 0.01 # {0.01, 0.05}
     sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
+    use_sil_rewards_scaler: int = 1 # 0 is off
 
 
 ###################################
@@ -516,6 +517,7 @@ class SILConfig(AlgorithmConfig):
     sil_weight_v: float = 0.01 # {0.01, 0.05}
     sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
+    use_sil_rewards_scaler: int = 1 # 0 is off
 
     # sil PER
     use_per_buffer: int = 1
@@ -602,6 +604,7 @@ class SACSILConfig(SACConfig):
     sil_weight_v: float = 0.01 # {0.01, 0.05}
     sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
+    use_sil_rewards_scaler: int = 1 # 0 is off
 
 
 class SACAEConfig(SACConfig):
@@ -1189,6 +1192,7 @@ class TD3SILConfig(TD3Config):
     sil_weight_v: float = 0.01 # {0.01, 0.05}
     sil_max_nlog: float = 5  # add for sil update clamp
     sil_max_grad_norm: float = 0.5 # add for sil update clamp
+    use_sil_rewards_scaler: int = 1 # 0 is off
 
 
 class TD3AEConfig(TD3Config):

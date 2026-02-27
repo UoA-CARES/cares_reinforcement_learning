@@ -81,7 +81,7 @@ class SIL(VectorAlgorithm):
         """
         # to do: set sil_lr to network
         params_to_sync = ["actor_lr", "critic_lr", "gamma"] # remove batch_size, SIL should have same or small batch_size for update
-        sil_params_main_algos = ["sil_update_interval", "sil_n_update", "sil_batch_size", "sil_clip", "sil_max_nlog", "sil_max_grad_norm", "sil_weight", "sil_weight_v"]
+        sil_params_main_algos = ["sil_update_interval", "sil_n_update", "sil_batch_size", "sil_clip", "sil_max_nlog", "sil_max_grad_norm", "sil_weight", "sil_weight_v", "use_sil_rewards_scaler"]
         
         for param in params_to_sync:
             # Look for attribute directly on the agent instance (e.g., self.main_algo.gamma)
@@ -182,9 +182,9 @@ class SIL(VectorAlgorithm):
 
         print("\n" + "="*60)
         print(f" SIL MODULE INITIALIZED FOR [ {main_name} ] ")
-        print(f" SIL V1.0: experiences filter: reward > 0")
-        print(f" SIL V1.0: reward scaler openai:0.01/dmcs:1 ; sil_clip:1;")
-        print(f" SIL V1.0: sil PER alph:1, beta:0.1, size: 50000")
+        print(f" SIL V2.0: experiences filter: reward > 0")
+        print(f" SIL V2.0: use_sil_rewards_scaler ; sil_clip:1;")
+        print(f" SIL V2.0: sil PER alph:0.6, beta:0.1, size: 50000")
         print("-" * 60)
 
         all_systems_go = True
@@ -229,6 +229,7 @@ class SIL(VectorAlgorithm):
             "sil_weight_v": getattr(self, "sil_weight_v", None),
             "sil_max_nlog": getattr(self, "sil_max_nlog", None),
             "sil_max_grad_norm": getattr(self, "sil_max_grad_norm", None),
+            "use_sil_rewards_scaler": getattr(self, "use_sil_rewards_scaler", None),
             "device": self.device
         }
 
@@ -344,8 +345,11 @@ class SIL(VectorAlgorithm):
         if not hasattr(self, '_temp_buffer'):
             self._temp_buffer = []
 
-        scaled_reward = self.reward_normalizer.step(reward, episode_end)
-        self._temp_buffer.append((state, action, scaled_reward, next_state, done, episode_end))
+        if self.use_sil_rewards_scaler:
+            scaled_reward = self.reward_normalizer.step(reward, episode_end)
+            self._temp_buffer.append((state, action, scaled_reward, next_state, done, episode_end))
+        else:
+            self._temp_buffer.append((state, action, reward, next_state, done, episode_end))
 
         if episode_end:
             if not self._temp_buffer:
@@ -397,12 +401,7 @@ class SIL(VectorAlgorithm):
             log_std = torch.tanh(log_std)
 
             log_std_min, log_std_max = self.actor_net.log_std_bounds
-            # new limit for SACSIL
-            sil_log_std_min = -5.0
-            sil_log_std_max = log_std_max
-
-            #log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
-            log_std = sil_log_std_min + 0.5 * (sil_log_std_max - sil_log_std_min) * (log_std + 1)
+            log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
 
             std = log_std.exp()
 

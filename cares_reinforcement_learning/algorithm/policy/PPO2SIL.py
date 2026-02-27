@@ -83,6 +83,7 @@ class PPO2SIL(VectorAlgorithm):
         self.sil_max_grad_norm = config.sil_max_grad_norm # to do: how to select
         self.sil_weight = config.sil_weight # to do: how to set for different algos
         self.sil_weight_v = config.sil_weight_v
+        self.use_sil_rewards_scaler = config.use_sil_rewards_scaler
 
         # --- SIL module initialization ---
         self.use_SIL = config.use_SIL
