@@ -444,7 +444,7 @@ class SIL(VectorAlgorithm):
             dist = SquashedNormal(mu, std)
             #sample = dist.rsample()
             self.tensor_monitor(actions, "SIL_Memory_Actions")
-            #actions = torch.clamp(actions, -1.0 + 1e-7, 1.0 - 1e-7) # use safe_action to prevent NAN in log_pi
+            actions = torch.clamp(actions, -1.0 + 1e-7, 1.0 - 1e-7) # use safe_action to prevent NAN in log_pi
             log_pi = dist.log_prob(actions).sum(-1, keepdim=True) # using action from sil_memory
             self.tensor_monitor(log_pi, "SAC_Log_Pi")
             nlog_p = -log_pi
