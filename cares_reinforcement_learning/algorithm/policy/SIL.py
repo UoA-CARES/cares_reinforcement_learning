@@ -75,6 +75,40 @@ class SIL(VectorAlgorithm):
         # RewardNormalizer for process SIL reward
         self.reward_normalizer = hlp.RewardNormalizer(gamma=self.sil_gamma)
 
+    def tensor_monitor(self, tensor, name="tensor", threshold=1e5):
+        """
+        Analyzes tensor health to catch numerical instability before a crash.
+
+        Args:
+            tensor (torch.Tensor): The data to check.
+            name (str): Label for identifying the source in logs.
+            threshold (float): Magnitude limit for 'reasonable' values.
+        """
+        if tensor is None:
+            return
+
+        # Ensure we are looking at data without breaking the computational graph
+        data = tensor.detach()
+
+        # 1. Check for absolute fatal errors: NaN and Inf
+        is_nan = torch.isnan(data).any().item()
+        is_inf = torch.isinf(data).any().item()
+
+        # 2. Check for extreme values that lead to gradient explosion
+        # Using abs().max() to catch both negative and positive extremes
+        max_val = data.abs().max().item()
+
+        if is_nan or is_inf or max_val > threshold:
+            print(f"\n--- [STABILITY ALERT: {name}] ---")
+            print(f"Status: {'NaN detected! ' if is_nan else ''}{'Inf detected! ' if is_inf else ''}")
+            print(f"Extreme Value: {max_val:.4f} (Threshold: {threshold})")
+            print(f"Tensor Mean: {data.mean().item():.4f}")
+
+            # Optional: You can force a crash here to get a full traceback
+            # raise ValueError(f"Numerical explosion in {name}")
+
+        return is_nan or is_inf
+
     def _extract_hyperparameters(self):
         """
         Priority: 1. Main Agent Attributes -> 2. SIL Config
@@ -391,6 +425,7 @@ class SIL(VectorAlgorithm):
             '''
             x = self.actor_net.act_net(states)
             mu = self.actor_net.mean_linear(x)
+            self.tensor_monitor(mu, "SACSIL_Mu")
             log_std = self.actor_net.log_std_linear(x)
 
             # Bound the action to finite interval.
@@ -404,10 +439,13 @@ class SIL(VectorAlgorithm):
             log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
 
             std = log_std.exp()
+            self.tensor_monitor(std, "SACSIL_std")
 
             dist = SquashedNormal(mu, std)
             #sample = dist.rsample()
+            self.tensor_monitor(actions, "SIL_Memory_Actions")
             log_pi = dist.log_prob(actions).sum(-1, keepdim=True) # using action from sil_memory
+            self.tensor_monitor(log_pi, "SAC_Log_Pi")
             nlog_p = -log_pi
             nlog_p = nlog_p.view(-1)
 
@@ -436,6 +474,8 @@ class SIL(VectorAlgorithm):
         # current use mini q value from critic_net
         if algo_name == "SACSIL":
             q1, q2 = self.critic_net(states, actions)
+            self.tensor_monitor(q1, "SAC_Q1_Value")
+            self.tensor_monitor(q2, "SAC_Q2_Value")
             v = torch.min(q1, q2).squeeze(-1) # shape:[batch_size]
 
         # TD3
