@@ -438,12 +438,13 @@ class SIL(VectorAlgorithm):
             log_std_min, log_std_max = self.actor_net.log_std_bounds
             log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std + 1)
 
-            std = log_std.exp()
+            std = log_std.exp() + 1e-6 # Add epsilon to prevent std from being 0
             self.tensor_monitor(std, "SACSIL_std")
 
             dist = SquashedNormal(mu, std)
             #sample = dist.rsample()
             self.tensor_monitor(actions, "SIL_Memory_Actions")
+            #actions = torch.clamp(actions, -1.0 + 1e-7, 1.0 - 1e-7) # use safe_action to prevent NAN in log_pi
             log_pi = dist.log_prob(actions).sum(-1, keepdim=True) # using action from sil_memory
             self.tensor_monitor(log_pi, "SAC_Log_Pi")
             nlog_p = -log_pi
