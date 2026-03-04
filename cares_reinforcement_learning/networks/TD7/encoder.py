@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
 from cares_reinforcement_learning.algorithm.configurations import TD7Config
 
@@ -33,7 +33,7 @@ class BaseEncoder(nn.Module):
 
     def zs(self, state):
         zs = self.state_encoder(state)
-        zs = hlp.avg_l1_norm(zs)
+        zs = fnc.avg_l1_norm(zs)
         return zs
 
     def zsa(self, zs, action):

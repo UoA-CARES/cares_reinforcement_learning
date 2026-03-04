@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
 from cares_reinforcement_learning.algorithm.configurations import TD7Config
 
@@ -27,7 +27,7 @@ class BaseActor(nn.Module):
 
     def forward(self, state: torch.Tensor, zs: torch.Tensor) -> torch.Tensor:
         latent = self.feature_layer(state)
-        latent = hlp.avg_l1_norm(latent)
+        latent = fnc.avg_l1_norm(latent)
 
         combined = torch.cat([latent, zs], dim=-1)
 

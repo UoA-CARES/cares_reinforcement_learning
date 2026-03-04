@@ -45,26 +45,6 @@ def set_seed(seed: int) -> None:
     random.seed(seed)
 
 
-def weight_init(module: torch.nn.Module) -> None:
-    """
-    Custom weight init for Conv2D and Linear layers
-
-    delta-orthogonal init from https://arxiv.org/pdf/1806.05393.pdf
-    """
-    if isinstance(module, torch.nn.Linear):
-        torch.nn.init.orthogonal_(module.weight.data)
-        module.bias.data.fill_(0.0)
-
-    elif isinstance(module, (torch.nn.Conv2d, torch.nn.ConvTranspose2d)):
-        assert module.weight.size(2) == module.weight.size(3)
-        module.weight.data.fill_(0.0)
-        if module.bias is not None:
-            module.bias.data.fill_(0.0)
-        mid = module.weight.size(2) // 2
-        gain = torch.nn.init.calculate_gain("relu")
-        torch.nn.init.orthogonal_(module.weight.data[:, :, mid, mid], gain)
-
-
 @overload
 def denormalize(
     action: np.ndarray,
@@ -182,24 +162,6 @@ def normalize(
     return _normalize(action, max_action_value, min_action_value)
 
 
-# TODO rename this function to something more descriptive
-def flatten(w: int, k: int = 3, s: int = 1, p: int = 0, m: bool = True) -> int:
-    """
-    Returns the right size of the flattened tensor after convolutional transformation
-    :param w: width of image
-    :param k: kernel size
-    :param s: stride
-    :param p: padding
-    :param m: max pooling (bool)
-    :return: proper shape and params: use x * x * previous_out_channels
-
-    Example:
-    r = flatten(*flatten(*flatten(w=100, k=3, s=1, p=0, m=True)))[0]
-    self.fc1 = nn.Linear(r*r*128, 1024)
-    """
-    return int((np.floor((w - k + 2 * p) / s) + 1) if m else 1)
-
-
 def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float]:
     """
     Compute discounted returns G_t from a list of rewards.
@@ -215,10 +177,6 @@ def compute_discounted_returns(rewards: list[float], gamma: float) -> list[float
         G = rewards[t] + gamma * G
         returns[t] = G
     return returns
-
-
-def avg_l1_norm(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
-    return x / x.abs().mean(-1, keepdim=True).clamp(min=eps)
 
 
 def dump_tensor(x):
