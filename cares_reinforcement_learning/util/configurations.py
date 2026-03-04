@@ -871,10 +871,10 @@ class SACDConfig(SACConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", out_features=512),
-            FunctionLayer(layer_type="ReLU"),
             ResidualLayer(
                 main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
@@ -884,6 +884,8 @@ class SACDConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             ResidualLayer(
                 main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
@@ -897,10 +899,10 @@ class SACDConfig(SACConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", out_features=512),
-            FunctionLayer(layer_type="ReLU"),
             ResidualLayer(
                 main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
@@ -910,6 +912,8 @@ class SACDConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             ResidualLayer(
                 main_layers=[
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
                     FiLMLayer(layer_type="FiLM"),
