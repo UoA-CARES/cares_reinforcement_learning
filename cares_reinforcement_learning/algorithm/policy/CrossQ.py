@@ -62,6 +62,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
 from cares_reinforcement_learning.algorithm.configurations import CrossQConfig
@@ -94,7 +95,7 @@ class CrossQ(SAC):
         info: dict[str, Any] = {}
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
         cat_states = torch.cat([states, next_states], dim=0)

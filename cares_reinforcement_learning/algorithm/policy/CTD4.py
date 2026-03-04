@@ -55,6 +55,7 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
@@ -116,7 +117,7 @@ class CTD4(TD3):
         q_std_set = []
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 for critic_net in self.critic_net.critics:
                     actor_q_u, actor_q_std = critic_net(state_tensor, action_tensor)
 
@@ -569,7 +570,7 @@ class CTD4(TD3):
         current_sigma_means: list[float] = []
 
         actions = self.actor_net(states)
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             for critic_net in self.critic_net.critics:
                 actor_q_u, actor_q_std = critic_net(states, actions)
 

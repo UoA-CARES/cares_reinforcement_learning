@@ -5,7 +5,36 @@ This module contains standalone tensor operations and network utilities
 that don't maintain state, similar to torch.nn.functional.
 """
 
+from contextlib import contextmanager
+
 import torch
+
+
+@contextmanager
+def evaluating(model):
+    """
+    Context manager for temporarily setting a model to eval mode.
+
+    Automatically restores the model to train mode after the context exits,
+    even if an exception occurs. Useful for performing evaluation or inference
+    within training loops without affecting the training state.
+
+    Args:
+        model (torch.nn.Module): The model to temporarily set to eval mode.
+
+    Yields:
+        torch.nn.Module: The same model in eval mode.
+
+    Example:
+        >>> with evaluating(model):
+        ...     output = model(input)  # model is in eval mode
+        ... # model is back in train mode
+    """
+    try:
+        model.eval()
+        yield model
+    finally:
+        model.train()
 
 
 def avg_l1_norm(x: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:

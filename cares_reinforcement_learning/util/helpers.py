@@ -1,5 +1,4 @@
 import random
-from contextlib import contextmanager
 from typing import overload
 
 import cv2
@@ -16,16 +15,6 @@ def get_device() -> torch.device:
         device = torch.device("mps")
 
     return device
-
-
-@contextmanager
-def evaluating(model):
-    """Context manager for temporarily setting a model to eval mode."""
-    try:
-        model.eval()
-        yield model
-    finally:
-        model.train()
 
 
 def set_seed(seed: int) -> None:

@@ -70,6 +70,7 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
@@ -103,7 +104,7 @@ class MAPERSAC(SAC):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 output_one, output_two = self.critic_net(state_tensor, action_tensor)
 
                 q_value_one, _, _ = self._split_output(output_one)
@@ -159,7 +160,7 @@ class MAPERSAC(SAC):
         diff_next_states_two = diff_next_states_two.reshape(-1, 1)
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_output_one, target_output_two = self.target_critic_net(
@@ -401,7 +402,7 @@ class MAPERSAC(SAC):
 
         pi, log_pi, _ = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             output_one, output_two = self.critic_net(states, pi)
 
         qf_pi_one, _, _ = self._split_output(output_one)

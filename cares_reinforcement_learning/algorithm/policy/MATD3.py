@@ -40,6 +40,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import MATD3Config
 from cares_reinforcement_learning.algorithm.policy.TD3 import TD3
@@ -349,7 +350,7 @@ class MATD3(MARLAlgorithm[list[np.ndarray]]):
         next_actions = []
         for agent, agent_id in zip(self.agent_networks, agent_ids):
             obs_next = next_agent_states[agent_id]
-            with hlp.evaluating(agent.target_actor_net):
+            with fnc.evaluating(agent.target_actor_net):
                 next_actions.append(agent.target_actor_net(obs_next))
 
         # (B, N, act_dim)

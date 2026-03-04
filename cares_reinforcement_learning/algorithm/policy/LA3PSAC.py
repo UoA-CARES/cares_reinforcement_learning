@@ -64,6 +64,7 @@ import torch
 import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.configurations import LA3PSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import Sample, SARLMemoryBuffer
@@ -104,7 +105,7 @@ class LA3PSAC(SAC):
         ) = memory_sampler.sample_to_tensors(sample, self.device)
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(
                     next_observation_tensor.vector_state_tensor
                 )

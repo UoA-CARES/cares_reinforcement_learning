@@ -56,6 +56,7 @@ import torch
 
 import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.configurations import LAPSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
@@ -88,7 +89,7 @@ class LAPSAC(SAC):
         info: dict[str, Any] = {}
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(

@@ -62,9 +62,9 @@ import torch
 import cares_reinforcement_learning.algorithm.lossess as loss
 from cares_reinforcement_learning.algorithm.configurations import TQCConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.TQC import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util import helpers as hlp
 
 
 class TQC(SAC):
@@ -106,7 +106,7 @@ class TQC(SAC):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 q_value = (
                     self.critic_net(state_tensor, action_tensor)
                     .mean(2)
@@ -129,7 +129,7 @@ class TQC(SAC):
 
         drop_q_range = self.quantiles_total - self.top_quantiles_to_drop
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             # compute and cut quantiles at the next state
@@ -284,7 +284,7 @@ class TQC(SAC):
 
         pi, log_pi, _ = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             q_quant = self.critic_net(states, pi)
 
             q_mean_per_critic = q_quant.mean(dim=2)  # (B, C)

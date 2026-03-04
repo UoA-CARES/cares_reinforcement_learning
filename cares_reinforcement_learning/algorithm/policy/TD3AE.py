@@ -67,6 +67,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import TD3AEConfig
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
@@ -302,7 +303,7 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
 
         actions = self.actor_net(states, detach_encoder=True)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
 
         actor_loss = -actor_q_values.mean()

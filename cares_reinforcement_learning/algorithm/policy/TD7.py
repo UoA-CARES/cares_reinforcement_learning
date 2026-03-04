@@ -111,6 +111,7 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import TD7Config
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
@@ -256,7 +257,7 @@ class TD7(SARLAlgorithm[np.ndarray]):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 # Fix: Use proper TD7 critic interface with encodings
                 fixed_zs = self.fixed_encoder_net.zs(state_tensor)
                 fixed_zsa = self.fixed_encoder_net.zsa(fixed_zs, action_tensor)
@@ -457,13 +458,13 @@ class TD7(SARLAlgorithm[np.ndarray]):
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
-        with hlp.evaluating(self.encoder_net):
+        with fnc.evaluating(self.encoder_net):
             fixed_zs = self.fixed_encoder_net.zs(states)
 
         actions = self.actor_net(states, fixed_zs)
         fixed_zsa = self.fixed_encoder_net.zsa(fixed_zs, actions)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values_one, actor_q_values_two = self.critic_net(
                 states, actions, fixed_zsa, fixed_zs
             )
