@@ -64,7 +64,7 @@ import torch
 
 from cares_reinforcement_learning.algorithm.policy import MADDPG
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-from cares_reinforcement_learning.util.configurations import M3DDPGConfig
+from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 
 
 class M3DDPG(MADDPG):

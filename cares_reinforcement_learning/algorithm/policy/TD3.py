@@ -57,7 +57,10 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import TD3Config
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
@@ -70,8 +73,6 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import TD3Config
-from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class TD3(SARLAlgorithm[np.ndarray]):
@@ -163,7 +164,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 q_values_one, q_values_two = self.critic_net(
                     state_tensor, action_tensor
                 )
@@ -182,7 +183,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
     ) -> tuple[dict[str, Any], np.ndarray]:
         info: dict[str, Any] = {}
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions = self.target_actor_net(next_states)
 
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -292,7 +293,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
 
         actions = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values, _ = self.critic_net(states, actions)
 
         actor_loss = -actor_q_values.mean()
@@ -432,8 +433,8 @@ class TD3(SARLAlgorithm[np.ndarray]):
         return info
 
     def update_target_networks(self) -> None:
-        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):

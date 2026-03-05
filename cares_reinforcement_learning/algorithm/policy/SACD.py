@@ -73,13 +73,14 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import SACDConfig
+from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 
 
 class SACD(SARLAlgorithm[int]):
@@ -167,7 +168,7 @@ class SACD(SARLAlgorithm[int]):
         info: dict[str, Any] = {}
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 _, (action_probs, log_actions_probs), _ = self.actor_net(next_states)
 
             qf1_next, qf2_next = self.target_critic_net(next_states)
@@ -233,7 +234,7 @@ class SACD(SARLAlgorithm[int]):
 
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             qf1_pi, qf2_pi = self.critic_net(states)
 
         min_qf_pi = torch.minimum(qf1_pi, qf2_pi)
@@ -329,7 +330,7 @@ class SACD(SARLAlgorithm[int]):
             info.update(actor_info)
 
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info
 

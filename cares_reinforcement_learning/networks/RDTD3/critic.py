@@ -1,7 +1,7 @@
 from torch import nn
 
 from cares_reinforcement_learning.networks.common import TwinQNetwork, BaseCritic
-from cares_reinforcement_learning.util.configurations import RDTD3Config
+from cares_reinforcement_learning.algorithm.configurations import RDTD3Config
 
 
 class DefaultCritic(TwinQNetwork):

@@ -1,6 +1,6 @@
 from cares_reinforcement_learning.networks.PPO import Actor as PPOActor
 from cares_reinforcement_learning.networks.PPO import DefaultActor as PPODefaultActor
-from cares_reinforcement_learning.util.configurations import MAPPOConfig
+from cares_reinforcement_learning.algorithm.configurations import MAPPOConfig
 
 
 class DefaultActor(PPODefaultActor):

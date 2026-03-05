@@ -37,7 +37,7 @@ import torch
 
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
-from cares_reinforcement_learning.util.configurations import PERSACConfig
+from cares_reinforcement_learning.algorithm.configurations import PERSACConfig
 
 
 class PERSAC(SAC):

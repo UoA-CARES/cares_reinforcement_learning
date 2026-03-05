@@ -1,7 +1,7 @@
 from torch import nn
 
 from cares_reinforcement_learning.networks.common import BasePolicy, TanhGaussianPolicy
-from cares_reinforcement_learning.util.configurations import SACConfig
+from cares_reinforcement_learning.algorithm.configurations import SACConfig
 
 
 class DefaultActor(TanhGaussianPolicy):

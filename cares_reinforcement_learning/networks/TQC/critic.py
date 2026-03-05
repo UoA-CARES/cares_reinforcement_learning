@@ -5,7 +5,7 @@ from cares_reinforcement_learning.networks.common import (
     QNetwork,
     BaseCritic,
 )
-from cares_reinforcement_learning.util.configurations import TQCConfig
+from cares_reinforcement_learning.algorithm.configurations import TQCConfig
 
 
 class DefaultCritic(EnsembleCritic):

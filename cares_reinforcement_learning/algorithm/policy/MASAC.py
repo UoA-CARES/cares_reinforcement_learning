@@ -39,17 +39,17 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import MASACConfig
 from cares_reinforcement_learning.algorithm.policy.SAC import SAC
 from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-from cares_reinforcement_learning.util.configurations import MASACConfig
 
 
 class MASAC(MARLAlgorithm[list[np.ndarray]]):
@@ -233,7 +233,7 @@ class MASAC(MARLAlgorithm[list[np.ndarray]]):
         # ---------------------------------------------------------
         # Step 4: Compute actor loss: -Q_i(x, a_1,...,a_i,...,a_N)
         # ---------------------------------------------------------
-        with hlp.evaluating(agent.critic_net):
+        with fnc.evaluating(agent.critic_net):
             qf_pi_one, q_pi_two = agent.critic_net(global_states, joint_actions_flat)
 
         min_qf_pi = torch.min(qf_pi_one, q_pi_two)
@@ -382,7 +382,7 @@ class MASAC(MARLAlgorithm[list[np.ndarray]]):
             obs_next = next_agent_states[agent_id]
 
             with torch.no_grad():
-                with hlp.evaluating(agent.actor_net):
+                with fnc.evaluating(agent.actor_net):
                     next_action_j, next_logp_j, _ = agent.actor_net(
                         obs_next
                     )  # (B, act_dim), (B, 1)

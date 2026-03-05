@@ -7,7 +7,7 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.common import BaseCritic, TwinQNetwork
 from cares_reinforcement_learning.networks.SAC import Critic
-from cares_reinforcement_learning.util.configurations import DroQConfig
+from cares_reinforcement_learning.algorithm.configurations import DroQConfig
 
 
 # pylint: disable=super-init-not-called

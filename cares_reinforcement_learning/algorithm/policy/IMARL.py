@@ -65,7 +65,7 @@ import torch
 
 import cares_reinforcement_learning.algorithm.policy as pol
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.configurations as cfg
+import cares_reinforcement_learning.algorithm.configurations as cfg
 from cares_reinforcement_learning.algorithm.algorithm import (
     MARLAlgorithm,
     SARLAlgorithm,

@@ -67,7 +67,10 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import TD3AEConfig
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
@@ -78,8 +81,6 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import TD3AEConfig
-from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class TD3AE(SARLAlgorithm[np.ndarray]):
@@ -302,7 +303,7 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
 
         actions = self.actor_net(states, detach_encoder=True)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
 
         actor_loss = -actor_q_values.mean()
@@ -426,30 +427,30 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
             info |= actor_info
 
             # Update target network params
-            hlp.soft_update_params(
-                self.critic_net.critic.Q1,
-                self.target_critic_net.critic.Q1,
+            self.soft_update_params(
+                self.critic_net.critic.Q1,  # type: ignore
+                self.target_critic_net.critic.Q1,  # type: ignore
                 self.tau,
             )
-            hlp.soft_update_params(
-                self.critic_net.critic.Q2,
-                self.target_critic_net.critic.Q2,
+            self.soft_update_params(
+                self.critic_net.critic.Q2,  # type: ignore
+                self.target_critic_net.critic.Q2,  # type: ignore
                 self.tau,
             )
 
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.critic_net.encoder,
                 self.target_critic_net.encoder,
                 self.encoder_tau,
             )
 
-            hlp.soft_update_params(
-                self.actor_net.actor.act_net,
-                self.target_actor_net.actor.act_net,
+            self.soft_update_params(
+                self.actor_net.actor.act_net,  # type: ignore
+                self.target_actor_net.actor.act_net,  # type: ignore
                 self.encoder_tau,
             )
 
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.actor_net.encoder, self.target_actor_net.encoder, self.encoder_tau
             )
 

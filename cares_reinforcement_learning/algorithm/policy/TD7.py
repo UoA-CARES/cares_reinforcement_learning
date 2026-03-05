@@ -108,16 +108,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import TD7Config
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import TD7Config
-from cares_reinforcement_learning.util.helpers import ExponentialScheduler
 
 
 class TD7(SARLAlgorithm[np.ndarray]):
@@ -255,7 +257,7 @@ class TD7(SARLAlgorithm[np.ndarray]):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 # Fix: Use proper TD7 critic interface with encodings
                 fixed_zs = self.fixed_encoder_net.zs(state_tensor)
                 fixed_zsa = self.fixed_encoder_net.zsa(fixed_zs, action_tensor)
@@ -365,13 +367,13 @@ class TD7(SARLAlgorithm[np.ndarray]):
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_loss_one = hlp.calculate_huber_loss(
+        huber_loss_one = loss.calculate_huber_loss(
             td_error_one,
             self.min_priority,
             use_quadratic_smoothing=False,
             use_mean_reduction=False,
         )
-        huber_loss_two = hlp.calculate_huber_loss(
+        huber_loss_two = loss.calculate_huber_loss(
             td_error_two,
             self.min_priority,
             use_quadratic_smoothing=False,
@@ -456,13 +458,13 @@ class TD7(SARLAlgorithm[np.ndarray]):
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
-        with hlp.evaluating(self.encoder_net):
+        with fnc.evaluating(self.encoder_net):
             fixed_zs = self.fixed_encoder_net.zs(states)
 
         actions = self.actor_net(states, fixed_zs)
         fixed_zsa = self.fixed_encoder_net.zsa(fixed_zs, actions)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values_one, actor_q_values_two = self.critic_net(
                 states, actions, fixed_zsa, fixed_zs
             )
@@ -570,13 +572,13 @@ class TD7(SARLAlgorithm[np.ndarray]):
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update target network params
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.fixed_encoder_net, self.target_fixed_encoder_net, self.tau
             )
-            hlp.soft_update_params(self.encoder_net, self.fixed_encoder_net, self.tau)
+            self.soft_update_params(self.encoder_net, self.fixed_encoder_net, self.tau)
 
             memory.reset_max_priority()
 

@@ -36,7 +36,7 @@ import torch
 
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
-from cares_reinforcement_learning.util.configurations import PERTD3Config
+from cares_reinforcement_learning.algorithm.configurations import PERTD3Config
 
 
 class PERTD3(TD3):

@@ -19,7 +19,7 @@ import cares_reinforcement_learning.runners.execution_logger as logs
 from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
 from cares_reinforcement_learning.runners.evaluation_runner import EvaluationRunner
 from cares_reinforcement_learning.runners.training_runner import TrainingRunner
-from cares_reinforcement_learning.util.configurations import (
+from cares_reinforcement_learning.algorithm.configurations import (
     AlgorithmConfig,
     TrainingConfig,
 )

@@ -40,6 +40,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
 from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
@@ -49,7 +50,7 @@ from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-from cares_reinforcement_learning.util.configurations import MADDPGConfig
+from cares_reinforcement_learning.algorithm.configurations import MADDPGConfig
 
 
 class MADDPG(MARLAlgorithm[list[np.ndarray]]):
@@ -389,7 +390,7 @@ class MADDPG(MARLAlgorithm[list[np.ndarray]]):
         # Step 4: Compute actor loss: -Q_i(x, a_1,...,a_i,...,a_N)
         # ---------------------------------------------------------
         joint_actions_flat = actions_all.reshape(batch_size, -1)
-        with hlp.evaluating(agent.critic_net):
+        with fnc.evaluating(agent.critic_net):
             actor_q_values = agent.critic_net(global_states, joint_actions_flat)
 
         # regularization as in TF code

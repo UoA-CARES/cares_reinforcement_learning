@@ -3,7 +3,7 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.common import BasePolicy, TanhGaussianPolicy
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
-from cares_reinforcement_learning.util.configurations import (
+from cares_reinforcement_learning.algorithm.configurations import (
     FunctionLayer,
     MLPConfig,
     SDARConfig,

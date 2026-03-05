@@ -62,12 +62,13 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import REDQConfig
+from cares_reinforcement_learning.algorithm.configurations import REDQConfig
 
 
 class REDQ(SAC):
@@ -109,7 +110,7 @@ class REDQ(SAC):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 q_values = self.critic_net(state_tensor, action_tensor)
                 q_value = q_values.mean()
 
@@ -131,7 +132,7 @@ class REDQ(SAC):
         )
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one = self.target_critic_net.critics[idx[0]](
@@ -253,7 +254,7 @@ class REDQ(SAC):
 
         pi, log_pi, _ = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             q_values = self.critic_net(states, pi)
             q_mean = q_values.mean(dim=1)
 
@@ -382,7 +383,7 @@ class REDQ(SAC):
             for critic_net, target_critic_net in zip(
                 self.critic_net.critics, self.target_critic_net.critics
             ):
-                hlp.soft_update_params(critic_net, target_critic_net, self.tau)
+                self.soft_update_params(critic_net, target_critic_net, self.tau)
 
         return info
 

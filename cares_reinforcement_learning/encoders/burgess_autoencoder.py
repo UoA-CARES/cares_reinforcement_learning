@@ -11,7 +11,7 @@ from typing import Any
 import torch
 from torch import nn
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.encoders import functional as fnc
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.losses import BaseBurgessLoss
 
@@ -191,7 +191,7 @@ class BurgessEncoder(nn.Module):
             ]
         )
 
-        self.out_dim = hlp.flatten(
+        self.out_dim = fnc.flatten(
             observation_size[1], k=self.kernel_size, s=stride, p=padding  # type: ignore
         )
 
@@ -207,7 +207,7 @@ class BurgessEncoder(nn.Module):
                     padding=padding,
                 )
             )
-            self.out_dim = hlp.flatten(
+            self.out_dim = fnc.flatten(
                 self.out_dim, k=self.kernel_size, s=stride, p=padding
             )
 

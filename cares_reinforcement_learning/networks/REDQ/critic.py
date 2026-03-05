@@ -5,7 +5,7 @@ from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
     QNetwork,
 )
-from cares_reinforcement_learning.util.configurations import REDQConfig
+from cares_reinforcement_learning.algorithm.configurations import REDQConfig
 
 
 class DefaultCritic(EnsembleCritic):

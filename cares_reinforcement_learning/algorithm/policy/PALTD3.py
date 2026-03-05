@@ -53,10 +53,10 @@ from typing import Any
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
-from cares_reinforcement_learning.util.configurations import PALTD3Config
+from cares_reinforcement_learning.algorithm.configurations import PALTD3Config
+import cares_reinforcement_learning.algorithm.lossess as loss
 
 
 class PALTD3(TD3):
@@ -106,10 +106,10 @@ class PALTD3(TD3):
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        pal_loss_one = hlp.prioritized_approximate_loss(
+        pal_loss_one = loss.prioritized_approximate_loss(
             td_error_one, self.min_priority, self.per_alpha
         )
-        pal_loss_two = hlp.prioritized_approximate_loss(
+        pal_loss_two = loss.prioritized_approximate_loss(
             td_error_two, self.min_priority, self.per_alpha
         )
         critic_loss_total = pal_loss_one + pal_loss_two

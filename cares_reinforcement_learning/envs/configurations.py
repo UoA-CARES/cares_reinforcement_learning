@@ -5,7 +5,7 @@ Configuration class for Gym Environments.
 from pathlib import Path
 from typing import ClassVar
 
-from cares_reinforcement_learning.util.configurations import SubscriptableClass
+from cares_reinforcement_learning.algorithm.configurations import SubscriptableClass
 
 file_path = Path(__file__).parent.resolve()
 

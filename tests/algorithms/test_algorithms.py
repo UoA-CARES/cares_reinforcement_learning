@@ -4,19 +4,19 @@ from random import randrange
 import numpy as np
 import pytest
 
+from cares_reinforcement_learning.algorithm import configurations
+from cares_reinforcement_learning.algorithm.algorithm_factory import AlgorithmFactory
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 from cares_reinforcement_learning.memory.memory_factory import MemoryFactory
+from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.experience import (
-    SingleAgentExperience,
     MultiAgentExperience,
+    SingleAgentExperience,
 )
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.util import configurations
-from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-from cares_reinforcement_learning.util.network_factory import NetworkFactory
 
 
 def create_sarl_observation(
@@ -133,7 +133,7 @@ def populate_buffer_marl(
 
 
 def test_algorithms(tmp_path):
-    factory = NetworkFactory()
+    factory = AlgorithmFactory()
     memory_factory = MemoryFactory()
 
     algorithm_configurations = {}

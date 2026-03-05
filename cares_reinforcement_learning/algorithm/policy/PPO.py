@@ -85,6 +85,8 @@ from torch.distributions import Normal
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import PPOConfig
+from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
@@ -93,8 +95,6 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import PPOConfig
-from cares_reinforcement_learning.util.helpers import LinearScheduler
 
 
 class PPO(SARLAlgorithm[np.ndarray]):

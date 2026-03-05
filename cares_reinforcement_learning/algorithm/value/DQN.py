@@ -57,15 +57,14 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import DQNConfig
+from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import DQNConfig
-from cares_reinforcement_learning.util.helpers import LinearScheduler
 
 
 class DQN(SARLAlgorithm[int]):
@@ -325,7 +324,7 @@ class DQN(SARLAlgorithm[int]):
 
         # Update target network - a tau of 1.0 equates to a hard update.
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.network, self.target_network, self.tau)
+            self.soft_update_params(self.network, self.target_network, self.tau)
 
         return info
 

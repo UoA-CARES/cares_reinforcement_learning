@@ -68,6 +68,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
@@ -79,7 +80,7 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import SACAEConfig
+from cares_reinforcement_learning.algorithm.configurations import SACAEConfig
 
 
 class SACAE(SARLAlgorithm[np.ndarray]):
@@ -191,7 +192,7 @@ class SACAE(SARLAlgorithm[np.ndarray]):
         info: dict[str, Any] = {}
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -298,7 +299,7 @@ class SACAE(SARLAlgorithm[np.ndarray]):
 
         pi, log_pi, _ = self.actor_net(states, detach_encoder=True)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             qf_pi_one, qf_pi_two = self.critic_net(states, pi, detach_encoder=True)
 
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
@@ -443,13 +444,13 @@ class SACAE(SARLAlgorithm[np.ndarray]):
 
         if self.learn_counter % self.target_update_freq == 0:
             # Update the target networks - Soft Update
-            hlp.soft_update_params(
-                self.critic_net.critic.Q1, self.target_critic_net.critic.Q1, self.tau
+            self.soft_update_params(
+                self.critic_net.critic.Q1, self.target_critic_net.critic.Q1, self.tau  # type: ignore
             )
-            hlp.soft_update_params(
-                self.critic_net.critic.Q2, self.target_critic_net.critic.Q2, self.tau
+            self.soft_update_params(
+                self.critic_net.critic.Q2, self.target_critic_net.critic.Q2, self.tau  # type: ignore
             )
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.critic_net.encoder,
                 self.target_critic_net.encoder,
                 self.encoder_tau,

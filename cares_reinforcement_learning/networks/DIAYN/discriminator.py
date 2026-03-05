@@ -2,7 +2,7 @@ import torch
 from torch import nn
 
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
-from cares_reinforcement_learning.util.configurations import DIAYNConfig
+from cares_reinforcement_learning.algorithm.configurations import DIAYNConfig
 
 
 class BaseDiscriminator(nn.Module):

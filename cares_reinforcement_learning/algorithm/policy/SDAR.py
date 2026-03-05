@@ -65,13 +65,14 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import SDARConfig
+from cares_reinforcement_learning.algorithm.configurations import SDARConfig
 
 
 class SDAR(SARLAlgorithm[np.ndarray]):
@@ -203,7 +204,7 @@ class SDAR(SARLAlgorithm[np.ndarray]):
     ) -> tuple[dict[str, Any], np.ndarray]:
         info: dict[str, Any] = {}
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, *_ = self.actor_net(
                     next_states, actions, force_act=False
                 )
@@ -325,7 +326,7 @@ class SDAR(SARLAlgorithm[np.ndarray]):
             log_beta,
         ) = self.actor_net(states, prev_actions, force_act=False)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             qf_pi_one, qf_pi_two = self.critic_net(states, pi)
 
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
@@ -474,7 +475,7 @@ class SDAR(SARLAlgorithm[np.ndarray]):
             info |= actor_info
 
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+            self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
         return info
 

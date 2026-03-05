@@ -72,10 +72,11 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import RDTD3Config
+from cares_reinforcement_learning.algorithm.configurations import RDTD3Config
 
 
 class RDTD3(TD3):
@@ -106,7 +107,7 @@ class RDTD3(TD3):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 output_one, output_two = self.critic_net(state_tensor, action_tensor)
 
                 q_value_one, _, _ = self._split_output(output_one)
@@ -241,7 +242,7 @@ class RDTD3(TD3):
     ) -> dict[str, Any]:
         actions = self.actor_net(states.detach())
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             output_one, output_two = self.critic_net(states.detach(), actions)
 
         actor_q_one, _, _ = self._split_output(output_one)

@@ -17,7 +17,7 @@ from cares_reinforcement_learning.types.observation import (
     Observation,
     SARLObservation,
 )
-from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 
 # Type variable for observation types (SARL or MARL)
 ObsType = TypeVar("ObsType", bound=Observation)
@@ -173,6 +173,44 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         It can be overridden in subclasses to perform any necessary cleanup or logging.
         """
         pass
+
+    def soft_update_params(
+        self, net: torch.nn.Module, target_net: torch.nn.Module, tau: float
+    ) -> None:
+        """
+        Soft updates the parameters of a target network by blending with the source network parameters.
+        Commonly used in RL algorithms for target network updates (e.g., DQN, TD3, SAC).
+
+        Args:
+            net (torch.nn.Module): The source network whose parameters will be used for the update.
+            target_net (torch.nn.Module): The target network whose parameters will be blended.
+            tau (float): The blending factor (0 <= tau <= 1). Updated params = tau * net + (1 - tau) * target_net.
+
+        Returns:
+            None
+        """
+        for param, target_param in zip(net.parameters(), target_net.parameters()):
+            target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+
+        # Hard update the statistics of the target network - specifically for BatchNorm layers
+        for buffer, target_buffer in zip(net.buffers(), target_net.buffers()):
+            target_buffer.copy_(buffer)
+
+    def hard_update_params(
+        self, net: torch.nn.Module, target_net: torch.nn.Module
+    ) -> None:
+        """
+        Hard updates the parameters of a target network by directly copying from the source network.
+        Equivalent to soft_update_params with tau=1.0.
+
+        Args:
+            net (torch.nn.Module): The source network whose parameters will be copied.
+            target_net (torch.nn.Module): The target network whose parameters will be replaced.
+
+        Returns:
+            None
+        """
+        self.soft_update_params(net, target_net, 1.0)
 
 
 class SARLAlgorithm(

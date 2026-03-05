@@ -5,7 +5,7 @@ from cares_reinforcement_learning.memory.memory_buffer import (
     MARLMemoryBuffer,
     SARLMemoryBuffer,
 )
-from cares_reinforcement_learning.util.configurations import AlgorithmConfig
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 
 
 class MemoryFactory:

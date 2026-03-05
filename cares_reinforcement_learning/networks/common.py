@@ -4,7 +4,7 @@ import torch
 from torch import nn
 from torch.distributions import Normal
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
@@ -14,7 +14,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
 from cares_reinforcement_learning.networks.distributions import SquashedNormal
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
 from cares_reinforcement_learning.types.observation import SARLObservationTensors
-from cares_reinforcement_learning.util.configurations import MLPConfig
+from cares_reinforcement_learning.algorithm.configurations import MLPConfig
 
 
 class BasePolicy(nn.Module):
@@ -264,7 +264,7 @@ class EncoderPolicy(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(  # type: ignore
         self, state: SARLObservationTensors, detach_encoder: bool = False
@@ -293,7 +293,7 @@ class EncoderCritic(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(
         self,
@@ -326,7 +326,7 @@ class AEActor(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(
         self, state: SARLObservationTensors, detach_encoder: bool = False
@@ -363,7 +363,7 @@ class AECritc(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(
         self,

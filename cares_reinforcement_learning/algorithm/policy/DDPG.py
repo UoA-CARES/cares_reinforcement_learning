@@ -57,6 +57,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DDPG import Actor, Critic
@@ -66,8 +67,8 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import DDPGConfig
-from cares_reinforcement_learning.util.helpers import ExponentialScheduler
+from cares_reinforcement_learning.algorithm.configurations import DDPGConfig
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 
 
 class DDPG(SARLAlgorithm[np.ndarray]):
@@ -185,7 +186,7 @@ class DDPG(SARLAlgorithm[np.ndarray]):
 
         actions = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values = self.critic_net(states, actions)
 
         actor_loss = -actor_q_values.mean()
@@ -304,8 +305,8 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         return info
 
     def update_target_networks(self) -> None:
-        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-        hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):

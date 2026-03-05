@@ -7,7 +7,7 @@ import inspect
 import logging
 import sys
 
-import cares_reinforcement_learning.util.configurations as acf
+import cares_reinforcement_learning.algorithm.configurations as acf
 import cares_reinforcement_learning.util.helpers as hlp
 
 # Disable these as this is a deliberate use of dynamic imports
@@ -956,7 +956,7 @@ def _compare_mlp_parts(obj1: acf.AlgorithmConfig, obj2: acf.AlgorithmConfig) -> 
     return mlp_fields1 == mlp_fields2
 
 
-class NetworkFactory:
+class AlgorithmFactory:
     def create_network(
         self,
         observation_size,
@@ -972,7 +972,7 @@ class NetworkFactory:
                     agent = obj(observation_size, action_num, config)
 
         if agent is None:
-            logging.warning(f"Unknown {agent} algorithm.")
+            logging.warning(f"Unknown {algorithm} algorithm.")
         else:
             if config.model_path is not None:
                 logging.info(f"Loading model weights from {config.model_path}")

@@ -85,7 +85,7 @@ from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.util.configurations import DADSConfig
+from cares_reinforcement_learning.algorithm.configurations import DADSConfig
 
 
 class DADS(SARLAlgorithm[np.ndarray]):

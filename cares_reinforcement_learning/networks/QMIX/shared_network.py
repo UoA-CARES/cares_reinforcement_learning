@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 
 from cares_reinforcement_learning.networks.DQN import Network
-from cares_reinforcement_learning.util.configurations import QMIXConfig
+from cares_reinforcement_learning.algorithm.configurations import QMIXConfig
 
 
 class BaseSharedMultiAgentNetwork(nn.Module):

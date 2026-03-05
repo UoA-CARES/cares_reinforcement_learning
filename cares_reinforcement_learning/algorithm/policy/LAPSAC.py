@@ -54,10 +54,12 @@ from typing import Any
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import LAPSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
-from cares_reinforcement_learning.util.configurations import LAPSACConfig
 
 
 class LAPSAC(SAC):
@@ -87,7 +89,7 @@ class LAPSAC(SAC):
         info: dict[str, Any] = {}
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -108,10 +110,10 @@ class LAPSAC(SAC):
         td_error_one = (q_values_one - q_target).abs()
         td_error_two = (q_values_two - q_target).abs()
 
-        huber_lose_one = hlp.calculate_huber_loss(
+        huber_lose_one = loss.calculate_huber_loss(
             td_error_one, self.min_priority, use_quadratic_smoothing=False
         )
-        huber_lose_two = hlp.calculate_huber_loss(
+        huber_lose_two = loss.calculate_huber_loss(
             td_error_two, self.min_priority, use_quadratic_smoothing=False
         )
         critic_loss_total = huber_lose_one + huber_lose_two

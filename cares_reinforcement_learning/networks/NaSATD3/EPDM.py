@@ -6,9 +6,9 @@ Predict outputs  a point estimate e.g. discrete value
 import torch
 from torch import nn
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.common import MLP
-from cares_reinforcement_learning.util.configurations import NaSATD3Config
+from cares_reinforcement_learning.algorithm.configurations import NaSATD3Config
 
 
 class BaseEPDM(nn.Module):
@@ -17,7 +17,7 @@ class BaseEPDM(nn.Module):
 
         self.prediction_net = prediction_net
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(self, state: torch.Tensor, action: torch.Tensor) -> torch.Tensor:
         x = torch.cat([state, action], dim=1)

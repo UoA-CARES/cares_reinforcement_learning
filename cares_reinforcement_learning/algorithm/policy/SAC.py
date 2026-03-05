@@ -64,9 +64,10 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import SACConfig
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.common import (
     EnsembleCritic,
     TanhGaussianPolicy,
@@ -78,7 +79,6 @@ from cares_reinforcement_learning.types.observation import (
     SARLObservation,
     SARLObservationTensors,
 )
-from cares_reinforcement_learning.util.configurations import SACConfig
 
 
 class SAC(SARLAlgorithm[np.ndarray]):
@@ -163,7 +163,7 @@ class SAC(SARLAlgorithm[np.ndarray]):
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 q_values_one, q_values_two = self.critic_net(
                     state_tensor, action_tensor
                 )
@@ -183,7 +183,7 @@ class SAC(SARLAlgorithm[np.ndarray]):
         info: dict[str, Any] = {}
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -295,7 +295,7 @@ class SAC(SARLAlgorithm[np.ndarray]):
 
         pi, log_pi, _ = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             qf_pi_one, qf_pi_two = self.critic_net(states, pi)
 
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
@@ -409,7 +409,7 @@ class SAC(SARLAlgorithm[np.ndarray]):
         return info, priorities
 
     def update_target_networks(self) -> None:
-        hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
 
     def train(
         self,

@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from cares_reinforcement_learning.util.configurations import QMIXConfig
+from cares_reinforcement_learning.algorithm.configurations import QMIXConfig
 
 
 class BaseQMixer(nn.Module):
