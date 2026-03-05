@@ -3,7 +3,7 @@ from typing import Any
 import torch
 from torch import nn
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.encoders import functional as fnc
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.losses import AELoss
 
@@ -175,7 +175,7 @@ class Encoder(nn.Module):
             ]
         )
 
-        self.out_dim = hlp.flatten(observation_size[1], k=self.kernel_size, s=2)  # type: ignore
+        self.out_dim = fnc.flatten(observation_size[1], k=self.kernel_size, s=2)  # type: ignore
 
         for _ in range(self.num_layers - 1):
             self.convs.append(
@@ -186,7 +186,7 @@ class Encoder(nn.Module):
                     stride=1,
                 )
             )
-            self.out_dim = hlp.flatten(self.out_dim, k=self.kernel_size, s=1)
+            self.out_dim = fnc.flatten(self.out_dim, k=self.kernel_size, s=1)
 
         self.n_flatten = self.out_dim * self.out_dim * self.num_filters
 

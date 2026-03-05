@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
-from cares_reinforcement_learning.util.configurations import PPOConfig
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.algorithm.configurations import PPOConfig
 
 
 class BaseActor(nn.Module):
@@ -18,8 +18,14 @@ class BaseActor(nn.Module):
 
 
 class DefaultActor(BaseActor):
-    def __init__(self, observation_size: int, num_actions: int):
-        hidden_sizes = [1024, 1024]
+    def __init__(
+        self,
+        observation_size: int,
+        num_actions: int,
+        hidden_sizes: list[int] | None = None,
+    ):
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
         act_net = nn.Sequential(
             nn.Linear(observation_size, hidden_sizes[0]),
@@ -27,7 +33,6 @@ class DefaultActor(BaseActor):
             nn.Linear(hidden_sizes[0], hidden_sizes[1]),
             nn.ReLU(),
             nn.Linear(hidden_sizes[1], num_actions),
-            nn.Tanh(),
         )
 
         super().__init__(act_net=act_net, num_actions=num_actions)

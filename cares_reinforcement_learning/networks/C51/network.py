@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
-from cares_reinforcement_learning.util.configurations import C51Config
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.algorithm.configurations import C51Config
 
 
 class BaseC51Network(BaseNetwork):

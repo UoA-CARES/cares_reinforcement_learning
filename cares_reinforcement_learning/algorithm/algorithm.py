@@ -1,23 +1,30 @@
-"""
-Original Paper: https://arxiv.org/abs/1802.09477v3
-
-"""
-
 from abc import ABC, abstractmethod
-from typing import Any, Literal
+from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.util.configurations import AlgorithmConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
+from cares_reinforcement_learning.memory.memory_buffer import (
+    MARLMemoryBuffer,
+    Memory,
+    SARLMemoryBuffer,
 )
+from cares_reinforcement_learning.types.action import ActionSample, ActType
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import (
+    MARLObservation,
+    Observation,
+    SARLObservation,
+)
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
+
+# Type variable for observation types (SARL or MARL)
+ObsType = TypeVar("ObsType", bound=Observation)
+MemType = TypeVar("MemType", bound=Memory)
 
 
-class Algorithm(ABC):
+class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
     def __init__(
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
@@ -44,9 +51,11 @@ class Algorithm(ABC):
         self.device = device
 
     @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
+    def act(
+        self,
+        observation: ObsType,
+        evaluation: bool = False,
+    ) -> ActionSample[ActType]: ...
 
     def _fixed_step_bias_segments(
         self, values: list[float], step_boundaries: list[int] | None = None
@@ -82,7 +91,7 @@ class Algorithm(ABC):
 
     # @abstractmethod
     def _calculate_value(
-        self, state: Any, action: int | np.ndarray
+        self, state: ObsType, action: int | np.ndarray
     ) -> float:  # pylint: disable=unused-argument
         return 0.0
 
@@ -131,9 +140,13 @@ class Algorithm(ABC):
         }
         return info
 
-    # TODO push batch_size into the algorithm
+    # @abstractmethod
+    # def update_policy(self, *args: Any, **kwargs: Any) -> dict[str, Any]: ...
+
     @abstractmethod
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]: ...
+    def train(
+        self, memory_buffer: MemType, episode_context: EpisodeContext
+    ) -> dict[str, Any]: ...
 
     @abstractmethod
     def save_models(self, filepath: str, filename: str) -> None: ...
@@ -143,9 +156,9 @@ class Algorithm(ABC):
 
     def get_intrinsic_reward(
         self,
-        state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        observation: ObsType,  # pylint: disable=unused-argument
         action: np.ndarray,  # pylint: disable=unused-argument
-        next_state: dict[str, np.ndarray],  # pylint: disable=unused-argument
+        next_observation: ObsType,  # pylint: disable=unused-argument
         **kwargs: Any,  # pylint: disable=unused-argument
     ) -> float:
         """
@@ -161,18 +174,50 @@ class Algorithm(ABC):
         """
         pass
 
+    def soft_update_params(
+        self, net: torch.nn.Module, target_net: torch.nn.Module, tau: float
+    ) -> None:
+        """
+        Soft updates the parameters of a target network by blending with the source network parameters.
+        Commonly used in RL algorithms for target network updates (e.g., DQN, TD3, SAC).
 
-class VectorAlgorithm(Algorithm):
+        Args:
+            net (torch.nn.Module): The source network whose parameters will be used for the update.
+            target_net (torch.nn.Module): The target network whose parameters will be blended.
+            tau (float): The blending factor (0 <= tau <= 1). Updated params = tau * net + (1 - tau) * target_net.
 
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
+        Returns:
+            None
+        """
+        for param, target_param in zip(net.parameters(), target_net.parameters()):
+            target_param.data.copy_(tau * param.data + (1 - tau) * target_param.data)
+
+        # Hard update the statistics of the target network - specifically for BatchNorm layers
+        for buffer, target_buffer in zip(net.buffers(), target_net.buffers()):
+            target_buffer.copy_(buffer)
+
+    def hard_update_params(
+        self, net: torch.nn.Module, target_net: torch.nn.Module
+    ) -> None:
+        """
+        Hard updates the parameters of a target network by directly copying from the source network.
+        Equivalent to soft_update_params with tau=1.0.
+
+        Args:
+            net (torch.nn.Module): The source network whose parameters will be copied.
+            target_net (torch.nn.Module): The target network whose parameters will be replaced.
+
+        Returns:
+            None
+        """
+        self.soft_update_params(net, target_net, 1.0)
 
 
-class ImageAlgorithm(Algorithm):
+class SARLAlgorithm(
+    Algorithm[SARLObservation, ActType, SARLMemoryBuffer], Generic[ActType]
+): ...
 
-    @abstractmethod
-    def select_action_from_policy(
-        self, action_context: ActionContext
-    ) -> int | np.ndarray: ...
+
+class MARLAlgorithm(
+    Algorithm[MARLObservation, ActType, MARLMemoryBuffer], Generic[ActType]
+): ...

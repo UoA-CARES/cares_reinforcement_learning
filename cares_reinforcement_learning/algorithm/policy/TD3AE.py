@@ -1,6 +1,59 @@
 """
-Original Paper: https://arxiv.org/abs/1910.01741 - SAC based but followed same concept here
-Code based on: https://github.com/denisyarats/pytorch_sac_ae/tree/master
+TD3-AE (Twin Delayed Deep Deterministic Policy Gradient with AutoEncoder)
+------------------------------------------------------------------------
+
+Original Paper: https://arxiv.org/abs/1910.01741
+
+Original Code: https://github.com/denisyarats/pytorch_sac_ae/tree/master
+
+TD3-AE extends Twin Delayed Deep Deterministic Policy Gradient (TD3) to learn directly
+from high-dimensional image observations by jointly
+learning a latent state representation.
+
+Core Problem:
+- Standard TD3 assumes low-dimensional state inputs.
+- Learning directly from raw pixels is unstable and
+  sample-inefficient.
+- Representation learning must be integrated with
+  value learning.
+
+Core Idea:
+- Add a convolutional encoder to map images → latent vector z.
+- Train a decoder to reconstruct the input (autoencoder loss).
+- Use the shared encoder for actor and critic updates.
+
+Architecture:
+    Image → Encoder → latent z
+    z → Actor π(a|z)
+    z → Twin Critics Q1(z,a), Q2(z,a)
+    z → Decoder → reconstructed image
+
+Training Components:
+
+1) RL Loss (standard TD3):
+    - Critic TD loss
+    - Actor deterministic policy gradient
+
+2) Reconstruction Loss:
+    L_rec = || x - x̂ ||²
+
+Encoder Update:
+- Critic gradients update encoder.
+- Reconstruction loss also updates encoder.
+- Actor does NOT update encoder (to stabilize learning).
+
+Key Behaviour:
+- Encoder learns compact state representation.
+- Reconstruction stabilizes latent features.
+- Critic drives representation toward task-relevant signals.
+
+Advantages:
+- Enables TD3 to operate from raw pixels.
+- Improves sample efficiency vs naïve pixel TD3.
+- Simple integration without model-based rollouts.
+
+TD3-AE = TD3 + shared convolutional encoder +
+         auxiliary reconstruction objective.
 """
 
 import copy
@@ -12,20 +65,25 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import ImageAlgorithm
+from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import TD3AEConfig
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.encoders.losses import AELoss
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
-from cares_reinforcement_learning.util.configurations import TD3AEConfig
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
+from cares_reinforcement_learning.types.action import ActionSample
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
 )
 
 
-class TD3AE(ImageAlgorithm):
+class TD3AE(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: Actor,
@@ -64,16 +122,21 @@ class TD3AE(ImageAlgorithm):
         self.min_priority = config.min_priority
 
         # Policy noise
-        self.min_policy_noise = config.min_policy_noise
-        self.policy_noise = config.policy_noise
-        self.policy_noise_decay = config.policy_noise_decay
-
         self.policy_noise_clip = config.policy_noise_clip
+        self.policy_noise_scheduler = ExponentialScheduler(
+            start_value=config.policy_noise_start,
+            end_value=config.policy_noise_end,
+            decay_steps=config.policy_noise_decay,
+        )
+        self.policy_noise = self.policy_noise_scheduler.get_value(0)
 
         # Action noise
-        self.min_action_noise = config.min_action_noise
-        self.action_noise = config.action_noise
-        self.action_noise_decay = config.action_noise_decay
+        self.action_noise_scheduler = ExponentialScheduler(
+            start_value=config.action_noise_start,
+            end_value=config.action_noise_end,
+            decay_steps=config.action_noise_decay,
+        )
+        self.action_noise = self.action_noise_scheduler.get_value(0)
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -100,18 +163,17 @@ class TD3AE(ImageAlgorithm):
             **config.autoencoder_config.decoder_optim_kwargs,
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def act(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
 
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, dict)
-
         with torch.no_grad():
-            state_tensor = tu.image_state_to_tensors(state, self.device)
+            observation_tensors = memory_sampler.observation_to_tensors(
+                [observation], self.device
+            )
 
-            action = self.actor_net(state_tensor)
+            action = self.actor_net(observation_tensors)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
@@ -121,17 +183,20 @@ class TD3AE(ImageAlgorithm):
                 action = action + noise
                 action = np.clip(action, -1, 1)
         self.actor_net.train()
-        return action
+
+        return ActionSample(action=action, source="policy")
 
     def _update_critic(
         self,
-        states: dict[str, torch.Tensor],
+        states: SARLObservationTensors,
         actions: torch.Tensor,
         rewards: torch.Tensor,
-        next_states: dict[str, torch.Tensor],
+        next_states: SARLObservationTensors,
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
+
         with torch.no_grad():
             next_actions = self.target_actor_net(next_states)
 
@@ -179,29 +244,112 @@ class TD3AE(ImageAlgorithm):
             .flatten()
         )
 
-        info = {
-            "critic_loss_one": critic_loss_one.item(),
-            "critic_loss_two": critic_loss_two.item(),
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+            # --- TD3-style smoothing diagnostics ---
+            # Noise diagnostics
+            # What it tells you:
+            # - target_noise_abs_mean: effective smoothing magnitude.
+            # - target_noise_clip_frac high early: noise often clipped (clip too small or noise too large).
+            target_noise_abs_mean = target_noise.abs().mean().item()
+            target_noise_clip_frac = (
+                (target_noise.abs() >= self.policy_noise_clip).float().mean().item()
+            )
+            info["target_noise_abs_mean"] = float(target_noise_abs_mean)
+            info["target_noise_clip_frac"] = float(target_noise_clip_frac)
+
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
+
+            # --- Target critics disagreement (target stability) ---
+            # Large/unstable gap here often means target critics are drifting or policy is visiting OOD actions.
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_q_twin_gap_abs_mean"] = (
+                (target_q_values_one - target_q_values_two).abs().mean().item()
+            )
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std().item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std().item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
 
         return info, priorities
 
-    def _update_actor(self, states: dict[str, torch.Tensor]) -> dict[str, Any]:
+    def _update_actor(self, states: SARLObservationTensors) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         actions = self.actor_net(states, detach_encoder=True)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values, _ = self.critic_net(states, actions, detach_encoder=True)
 
         actor_loss = -actor_q_values.mean()
+
+        # ---------------------------------------------------------
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
+        # ---------------------------------------------------------
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=actions,
+            retain_graph=True,  # because we do backward(actor_loss) next
+            create_graph=False,  # diagnostic only
+            allow_unused=False,
+        )[0]
+        with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-        }
+        with torch.no_grad():
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
+            info["actor_loss"] = actor_loss.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
+
         return info
 
     def _update_autoencoder(self, states: torch.Tensor) -> dict[str, Any]:
@@ -225,43 +373,49 @@ class TD3AE(ImageAlgorithm):
         }
         return info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+        self.policy_noise = self.policy_noise_scheduler.get_value(
+            episode_context.training_step
+        )
 
-        self.policy_noise *= self.policy_noise_decay
-        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
-
-        self.action_noise *= self.action_noise_decay
-        self.action_noise = max(self.min_action_noise, self.action_noise)
+        self.action_noise = self.action_noise_scheduler.get_value(
+            episode_context.training_step
+        )
 
         # Sample and convert to tensors using multimodal sampling
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
-        ) = tu.sample_image_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
+        assert observation_tensor.image_state_tensor is not None
+
         info: dict[str, Any] = {}
 
         critic_info, priorities = self._update_critic(
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -269,44 +423,44 @@ class TD3AE(ImageAlgorithm):
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_info = self._update_actor(states_tensor)
+            actor_info = self._update_actor(observation_tensor)
             info |= actor_info
 
             # Update target network params
-            hlp.soft_update_params(
-                self.critic_net.critic.Q1,
-                self.target_critic_net.critic.Q1,
+            self.soft_update_params(
+                self.critic_net.critic.Q1,  # type: ignore
+                self.target_critic_net.critic.Q1,  # type: ignore
                 self.tau,
             )
-            hlp.soft_update_params(
-                self.critic_net.critic.Q2,
-                self.target_critic_net.critic.Q2,
+            self.soft_update_params(
+                self.critic_net.critic.Q2,  # type: ignore
+                self.target_critic_net.critic.Q2,  # type: ignore
                 self.tau,
             )
 
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.critic_net.encoder,
                 self.target_critic_net.encoder,
                 self.encoder_tau,
             )
 
-            hlp.soft_update_params(
-                self.actor_net.actor.act_net,
-                self.target_actor_net.actor.act_net,
+            self.soft_update_params(
+                self.actor_net.actor.act_net,  # type: ignore
+                self.target_actor_net.actor.act_net,  # type: ignore
                 self.encoder_tau,
             )
 
-            hlp.soft_update_params(
+            self.soft_update_params(
                 self.actor_net.encoder, self.target_actor_net.encoder, self.encoder_tau
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_info = self._update_autoencoder(states_tensor["image"])
+            ae_info = self._update_autoencoder(observation_tensor.image_state_tensor)
             info |= ae_info
 
         # Update the Priorities
         if self.use_per_buffer:
-            memory.update_priorities(indices, priorities)
+            memory_buffer.update_priorities(indices, priorities)
 
         return info
 

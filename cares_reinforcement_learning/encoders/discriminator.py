@@ -4,8 +4,7 @@ Module containing discriminator for FactorVAE.
 
 from torch import nn
 
-# from networks import weight_initialization
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 
 
 class Discriminator(nn.Module):
@@ -71,4 +70,4 @@ class Discriminator(nn.Module):
     def reset_parameters(self):
         # self.apply(weight_initialization.weight_init_burgess)
         # TODO pull over actual weight init methods
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)

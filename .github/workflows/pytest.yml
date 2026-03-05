@@ -5,9 +5,11 @@ on:
   push:
     branches:
       - main
+      - dev/v3
   pull_request:
     branches:
       - main
+      - dev/v3
 
 jobs:
   test:
@@ -27,8 +29,8 @@ jobs:
 
       - name: Install deps
         run: |
-          pip install -r requirements.txt
-          pip install --editable .
+          python -m pip install -U pip
+          pip install --editable ".[gym]"
       
       - name: Run tests
         run: pytest tests

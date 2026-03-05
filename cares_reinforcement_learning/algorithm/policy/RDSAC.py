@@ -1,13 +1,81 @@
+"""
+RD-PER (Reward Discrepancy / Reward Prediction Error Prioritization)
+---------------------------------------------------------------------
+
+Original Paper: https://arxiv.org/pdf/2501.18093
+
+RD methods replace TD-error-based prioritisation with
+Reward Prediction Error (RPE) as the sampling signal.
+
+Core Problem:
+- Standard PER prioritises transitions using TD-error.
+- In continuous control, TD-error can be noisy due to:
+      • bootstrapping
+      • Q-value over/underestimation
+      • function approximation error
+- TD-error may not reliably reflect learning progress.
+
+Core Idea:
+- Use reward prediction discrepancy instead of TD-error.
+- Prioritise experiences where predicted rewards differ
+  most from actual rewards.
+
+Enhanced Critic (EMCN-style):
+The critic predicts:
+    Q(s, a)
+    R(s, a)          (reward model)
+    T(s, a)          (next-state model)
+
+Reward Prediction Error:
+    RPE_i = || Rθ(s_i, a_i) - r_i ||²
+
+Priority:
+    p_i = (RPE_i + ε)^α
+
+Sampling probability:
+    P(i) ∝ p_i
+
+Key Behaviour:
+- Early training:
+      Reward prediction error is large → focus on learning
+      environment structure.
+- Later training:
+      RPE shrinks → sampling becomes more uniform.
+- Decouples prioritisation from bootstrapped Q-targets.
+
+Critic Training:
+- Standard TD loss for Q-values.
+- Auxiliary losses for:
+      reward prediction
+      next-state prediction
+- Combined loss:
+      L = ξ1 L_Q + ξ2 L_R + ξ3 L_T
+
+Advantages:
+- More stable than TD-error prioritisation in continuous control.
+- Avoids over-prioritising noisy Q-target spikes.
+- Biologically inspired (dopaminergic RPE hypothesis).
+
+Scope:
+- Plug-in replacement for PER in off-policy actor-critic methods.
+- Modifies priority computation and critic architecture.
+- Actor update remains unchanged.
+
+RD-PER = PER with Reward Prediction Error
+         replacing TD-error as the priority signal.
+"""
+
 from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.configurations import RDSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
-from cares_reinforcement_learning.util.configurations import RDSACConfig
+from cares_reinforcement_learning.types.observation import SARLObservation
 
 
 class RDSAC(SAC):
@@ -29,15 +97,17 @@ class RDSAC(SAC):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         return target[:, 0], target[:, 1], target[:, 2:]
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 output_one, output_two = self.critic_net(state_tensor, action_tensor)
 
                 q_value_one, _, _ = self._split_output(output_one)
@@ -87,7 +157,7 @@ class RDSAC(SAC):
         diff_next_states_two = diff_next_states_two.reshape(-1, 1)
 
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
@@ -168,7 +238,7 @@ class RDSAC(SAC):
     ) -> dict[str, Any]:
         pi, log_pi, _ = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             qf1_pi, qf2_pi = self.critic_net(states, pi)
 
         qf_pi_one, _, _ = self._split_output(qf1_pi)

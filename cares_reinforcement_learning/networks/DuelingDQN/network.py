@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
-from cares_reinforcement_learning.util.configurations import DuelingDQNConfig
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.algorithm.configurations import DuelingDQNConfig
 
 
 class BaseDuelingNetwork(BaseNetwork):
