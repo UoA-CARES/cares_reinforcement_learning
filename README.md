@@ -2,18 +2,78 @@
 <img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
 </p>
 
-The CARES reinforcement learning bed used as the foundation for RL related projects.
+A modular reinforcement learning framework for training and evaluating RL algorithms across diverse environments.
+![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
+![GitHub release](https://img.shields.io/github/v/release/UoA-CARES/cares_reinforcement_learning)
 
 # Motivation
 
 **Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
 
 # Installation Instructions
-![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
+We recommend using the Stable release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.
 
-`git clone` the repository into your desired directory on your local machine
+### Stable Release v3.0.0 (Recommended)
+Clone the latest stable release of CARES Reinforcement Learning.
 
-To make the module **globally accessible** in your working environment run `pip install --editable .[gym]` in the **project root**
+```bash
+git clone --branch v3.0.0 https://github.com/UoA-CARES/cares_reinforcement_learning.git
+
+cd cares_reinforcement_learning
+pip install -e .[gym]
+```
+
+Clone the **main** branch for the latest features - note this branch may not be stable as it is the working branch.
+
+### Development Environment (UV)
+We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This setup should be used those looking to contribute to the code base. 
+
+#### 1. Install uv
+
+Install `uv` using the official installer:
+
+```bash
+curl -Ls https://astral.sh/uv/install.sh | sh
+```
+
+#### 2. Setup Virtual Environment (pyenv)
+Install the required Python version - note you can use 3.12 if you prefer.
+
+```bash
+pyenv install 3.10
+pyenv virtualenv 3.10 cares_rl_310
+pyenv activate cares_rl_310
+```
+
+#### 3. Install Requirements (UV)
+Install the project and its requirements
+
+```bash
+uv sync --extra gym
+```
+
+## Quick Start
+
+Train a reinforcement learning agent in a Gymnasium environment:
+
+```bash
+cares-rl train cli --gym openai --task CartPole-v1 DQN
+```
+
+Run training across multiple seeds in parallel
+```bash
+cares-rl train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50 --max_workers 5
+```
+
+Test a trained model:
+```bash
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
+```
+
+Plot training results
+```bash
+cares-rl-plot -s ~/cares_rl_logs -d <PATH_TO_RUN>
+```
 
 # Usage
 We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place. 
