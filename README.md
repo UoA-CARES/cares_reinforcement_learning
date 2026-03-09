@@ -25,8 +25,8 @@ pip install -e .[gym]
 
 Clone the **main** branch for the latest features - note this branch may not be stable as it is the working branch.
 
-### Development Environment (UV)
-We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This setup should be used those looking to contribute to the code base. 
+### Development Environment (UV/pyenv)
+We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used those looking to contribute to the code base or various gym packages.
 
 #### 1. Install uv
 
@@ -46,10 +46,10 @@ pyenv activate cares_rl_310
 ```
 
 #### 3. Install Requirements (UV)
-Install the project and its requirements
+Install the project and its requirements - note we are using the **--active** command to work inside of the pyenv environment.
 
 ```bash
-uv sync --extra gym
+uv sync --active --extra gym
 ```
 
 ## Quick Start
