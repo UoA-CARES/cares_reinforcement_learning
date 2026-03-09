@@ -28,12 +28,18 @@ Clone the **main** branch for the latest features - note this branch may not be 
 ### Development Environment (UV/pyenv)
 We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used those looking to contribute to the code base or various gym packages.
 
-#### 1. Install uv
+#### 1. Install uv and pyenv
 
 Install `uv` using the official installer:
 
 ```bash
 curl -Ls https://astral.sh/uv/install.sh | sh
+```
+
+Install 'pyenv' using the official installer:
+
+```bash
+curl -fsSL https://pyenv.run | bash
 ```
 
 #### 2. Setup Virtual Environment (pyenv)
