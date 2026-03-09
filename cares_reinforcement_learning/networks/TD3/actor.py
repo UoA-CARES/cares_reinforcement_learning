@@ -1,7 +1,7 @@
 from torch import nn
 
 from cares_reinforcement_learning.networks.common import DeterministicPolicy, BasePolicy
-from cares_reinforcement_learning.util.configurations import TD3Config
+from cares_reinforcement_learning.algorithm.configurations import TD3Config
 
 
 class DefaultActor(DeterministicPolicy):

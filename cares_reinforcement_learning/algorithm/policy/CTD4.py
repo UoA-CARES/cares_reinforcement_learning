@@ -1,10 +1,52 @@
 """
+CTD4 (Continuous Twin Delayed Distributional Deterministic Policy Gradient)
+----------------------------------------------------------------------------
+
 Original Paper: https://arxiv.org/abs/2405.02576
 
-Continues Distributed TD3
-Each Critic outputs a normal distribution
+Original Code: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/1fce6fcde5183bafe4efce0aa30fc59f630a8429/cares_reinforcement_learning/algorithm/policy/CTD4.py
 
-Original Implementation: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/1fce6fcde5183bafe4efce0aa30fc59f630a8429/cares_reinforcement_learning/algorithm/policy/CTD4.py
+This algorithm extends TD3 by replacing scalar Q-value critics
+with continuous distributional critics. Each critic outputs a
+Gaussian return distribution parameterized by (μ, σ).
+
+Data / Training (off-policy):
+- Uses standard TD3 replay buffer and target networks.
+- Each critic predicts Z(s, a) ~ Normal(μ, σ).
+- Actor remains deterministic.
+
+Distributional Bellman update:
+- Target critics produce multiple distributions for next state.
+- Critic outputs are fused (Kalman / average / minimum).
+- Target distribution is constructed analytically:
+      μ_target  = r + γ μ_fused (1 - done)
+      σ_target  = γ σ_fused
+- No categorical projection step is required.
+
+Critic updates:
+- Each critic minimizes KL divergence between:
+      Z_current  and  Z_target
+- Critics are optimized independently (ensemble).
+
+Actor updates:
+- Actor maximizes fused mean return:
+      J ≈ E[ μ_fused(s, π(s)) ]
+- Implemented as minimizing -μ_fused.mean().
+
+Ensemble fusion:
+- Default: Kalman fusion (uncertainty-weighted Gaussian fusion).
+- Alternatives: average or minimum.
+- Kalman fusion mitigates overestimation without discarding
+  ensemble information.
+
+Rationale:
+- Continuous distributions avoid categorical support tuning
+  and projection steps.
+- KL between Gaussians is analytic and stable.
+- Ensemble fusion reduces overestimation bias while preserving
+  uncertainty information.
+
+CTD4 = TD3 + Gaussian distributional critics + Kalman fusion.
 """
 
 from typing import Any
@@ -13,9 +55,14 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.policy import TD3
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
-from cares_reinforcement_learning.util.configurations import CTD4Config
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.algorithm.configurations import CTD4Config
+from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 
 
 class CTD4(TD3):
@@ -38,6 +85,15 @@ class CTD4(TD3):
 
         self.fusion_method = config.fusion_method
 
+        self.kalman_beta_scheduler = LinearScheduler(
+            start_value=config.kalman_beta_start,
+            end_value=config.kalman_beta_end,
+            decay_steps=config.kalman_beta_decay,
+        )
+        self.kalman_beta = self.kalman_beta_scheduler.get_value(0)
+
+        self.kalman_rho = config.kalman_rho
+
         self.lr_ensemble_critic = config.critic_lr
         self.ensemble_critic_optimizers = [
             torch.optim.Adam(
@@ -48,8 +104,10 @@ class CTD4(TD3):
             for critic_net in self.critic_net.critics
         ]
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.tensor(action, dtype=torch.float32, device=self.device)
@@ -59,95 +117,243 @@ class CTD4(TD3):
         q_std_set = []
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 for critic_net in self.critic_net.critics:
                     actor_q_u, actor_q_std = critic_net(state_tensor, action_tensor)
 
                     q_u_set.append(actor_q_u)
                     q_std_set.append(actor_q_std)
 
-        fusion_u_a, _ = self._fuse_critic_outputs(1, q_u_set, q_std_set)
+        fusion_u_a, _, _ = self._fuse_critic_outputs(1, q_u_set, q_std_set)
 
         return fusion_u_a.item()
 
-    def _fusion_kalman(
+    def _kalman_covariance(
         self,
-        std_1: torch.Tensor,
-        mean_1: torch.Tensor,
-        std_2: torch.Tensor,
-        mean_2: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        kalman_gain = (std_1**2) / (std_1**2 + std_2**2)
-        fusion_mean = mean_1 + kalman_gain * (mean_2 - mean_1)
-        fusion_variance = (
-            (1 - kalman_gain) * std_1**2 + kalman_gain * std_2**2 + 1e-6
-        )  # 1e-6 was included to avoid values equal to 0
-        fusion_std = torch.sqrt(fusion_variance)
-        return fusion_mean, fusion_std
+        u_set: list[torch.Tensor],
+        std_set: list[torch.Tensor],
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Covariance Intersection (CI) fusion for UNKNOWN correlation.
+        Non-sequential, order-invariant.
 
-    def _kalman(
+        CI formula (1D):
+            P^{-1} = sum_i ω_i P_i^{-1}
+            μ      = P * sum_i ω_i P_i^{-1} μ_i
+        with ω_i >= 0, sum_i ω_i = 1.
+
+        Returns:
+            fusion_u:   (B,1)
+            fusion_std: (B,1)
+            weights:    (B,E) normalized information contributions (for logging/intuition)
+        """
+        u_mat = torch.concat(u_set, dim=1)  # (B,E)
+        std_mat = torch.concat(std_set, dim=1)  # (B,E)
+
+        eps = 1e-12
+        var_mat = std_mat**2 + eps
+        prec_mat = 1.0 / var_mat  # (B,E)
+
+        batch_size, num_critics = u_mat.shape
+
+        # ω vector over critics (must sum to 1)
+        # Default: uniform CI (recommended)
+
+        omega_vec = torch.full(
+            (num_critics,), 1.0 / num_critics, device=u_mat.device, dtype=u_mat.dtype
+        )
+
+        omega_mat = omega_vec.view(1, num_critics).expand(
+            batch_size, num_critics
+        )  # (B,E)
+
+        fused_prec = (omega_mat * prec_mat).sum(dim=1, keepdim=True)  # (B,1)
+        fusion_var = 1.0 / (fused_prec + eps) + 1e-6
+        fusion_std = torch.sqrt(fusion_var)
+
+        fusion_u = fusion_var * (omega_mat * prec_mat * u_mat).sum(dim=1, keepdim=True)
+
+        # "weights" as normalized information contribution (not a unique CI object, but very useful)
+        info_contrib = omega_mat * prec_mat
+        weights = info_contrib / (info_contrib.sum(dim=1, keepdim=True) + eps)
+
+        return fusion_u, fusion_std, weights
+
+    def _kalman_correlated(
+        self,
+        u_set: list[torch.Tensor],
+        std_set: list[torch.Tensor],
+        batch_size: int,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Correlated Gaussian fusion (1D) using a simple correlation model:
+            Cov(fused, new) = rho * sqrt(P_fused * P_new)
+
+        rho=0 recovers the independent Kalman update.
+        rho>0 makes fusion more conservative (less variance collapse).
+        """
+        num_critics = len(u_set)
+        fusion_u = u_set[0]  # (B,1)
+        fusion_std = std_set[0]  # (B,1)
+
+        weights = torch.zeros(
+            (batch_size, num_critics), device=self.device, dtype=torch.float32
+        )
+        weights[:, 0] = 1.0
+
+        eps = 1e-12
+
+        for i in range(1, num_critics):
+            x2 = u_set[i]  # (B,1)
+            std2 = std_set[i]  # (B,1)
+
+            var1 = fusion_std**2
+            var2 = std2**2
+
+            # Cross-covariance model
+            cov12 = self.kalman_rho * torch.sqrt(var1 * var2 + eps)  # (B,1)
+
+            den = (var1 + var2 - 2.0 * cov12) + eps
+            kalman_gain = (var1 - cov12) / den
+            kalman_gain = kalman_gain.clamp(0.0, 1.0)
+
+            fusion_u = fusion_u + kalman_gain * (x2 - fusion_u)
+
+            # Correlated posterior variance
+            fusion_variance = var1 - kalman_gain * (var1 - cov12) + 1e-6
+            fusion_std = torch.sqrt(fusion_variance)
+
+            # weights update (same structure)
+            weights = weights * (1.0 - kalman_gain)
+            weights[:, i : i + 1] = weights[:, i : i + 1] + kalman_gain
+
+        return fusion_u, fusion_std, weights
+
+    def _kalman_interpolated(
+        self, u_set: list[torch.Tensor], std_set: list[torch.Tensor], batch_size: int
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+
+        num_critics = len(u_set)
+        # Start from critic 0
+        fusion_u = u_set[0]  # (B,1)
+        fusion_std = std_set[0]  # (B,1)
+
+        # weights: (B,E), start fully on critic 0
+        weights = torch.zeros(
+            (batch_size, num_critics), device=self.device, dtype=torch.float32
+        )
+        weights[:, 0] = 1.0
+
+        # Fuse critics 1..E-1 sequentially
+        for i in range(1, num_critics):
+            x2 = u_set[i]  # (B,1)
+            std2 = std_set[i]  # (B,1)
+
+            # Kalman gain: trust weight on the NEW critic (x2) relative to current fused estimate
+            # K close to 1 -> new critic dominates; K close to 0 -> old fused dominates
+            kalman_gain = (fusion_std**2) / (fusion_std**2 + std2**2 + 1e-12)  # (B,1)
+
+            # Mean fusion: fused <- (1-K) * fused + K * x2
+            fusion_u = fusion_u + kalman_gain * (x2 - fusion_u)
+
+            # Variance fusion ("interpolated" rule): var <- (1-K)*var1 + K*var2
+            # Correlations are ignored, so this is not a true Kalman update but an interpolation that avoids variance collapse.
+            fusion_variance = (
+                (1 - kalman_gain) * (fusion_std**2) + kalman_gain * (std2**2) + 1e-6
+            )
+            fusion_std = torch.sqrt(fusion_variance)
+
+            # Weight update:
+            # - all existing contributions get down-weighted by (1-K)
+            # - new critic i gets weight K
+            weights = weights * (1 - kalman_gain)  # broadcast (B,E) * (B,1)
+            weights[:, i : i + 1] = (
+                weights[:, i : i + 1] + kalman_gain
+            )  # add (B,1) into column i
+
+        return fusion_u, fusion_std, weights
+
+    def _kalman_precision(
         self, u_set: list[torch.Tensor], std_set: list[torch.Tensor]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        # Kalman fusion
-        for i in range(len(u_set) - 1):
-            if i == 0:
-                x_1, std_1 = u_set[i], std_set[i]
-                x_2, std_2 = u_set[i + 1], std_set[i + 1]
-                fusion_u, fusion_std = self._fusion_kalman(std_1, x_1, std_2, x_2)
-            else:
-                x_2, std_2 = u_set[i + 1], std_set[i + 1]
-                fusion_u, fusion_std = self._fusion_kalman(
-                    fusion_std, fusion_u, std_2, x_2
-                )
-        return fusion_u, fusion_std
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        u_mat = torch.concat(u_set, dim=1)  # (B,E)
+        std_mat = torch.concat(std_set, dim=1)  # (B,E)
+
+        eps = 1e-12
+        precision = 1.0 / (std_mat**2 + eps)  # (B,E)
+
+        # Temper precision: beta=0 => all ones => uniform weights
+        precision_t = precision.pow(self.kalman_beta)
+        precision_sum = precision_t.sum(dim=1, keepdim=True)  # (B,1)
+
+        weights = precision_t / (precision_sum + eps)  # (B,E)
+        fusion_u = (weights * u_mat).sum(dim=1, keepdim=True)  # (B,1)
+
+        # Tempered fused variance (consistent with tempered weights).
+        fusion_var = 1.0 / (precision_sum + eps)
+        fusion_std = torch.sqrt(fusion_var + 1e-6)
+
+        return fusion_u, fusion_std, weights
 
     def _average(
         self, u_set: list[torch.Tensor], std_set: list[torch.Tensor], batch_size: int
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Average value among the critic predictions:
-        fusion_u = (
-            torch.mean(torch.concat(u_set, dim=1), dim=1)
-            .unsqueeze(0)
-            .reshape(batch_size, 1)
+        u_mat = torch.concat(u_set, dim=1)  # (B,E)
+        std_mat = torch.concat(std_set, dim=1)  # (B,E)
+
+        fusion_u = u_mat.mean(dim=1, keepdim=True)  # (B,1)
+        fusion_std = std_mat.mean(dim=1, keepdim=True)  # (B,1)
+
+        num_critics = u_mat.shape[1]
+        weights = torch.full(
+            (batch_size, num_critics), 1.0 / num_critics, device=u_mat.device
         )
-        fusion_std = (
-            torch.mean(torch.concat(std_set, dim=1), dim=1)
-            .unsqueeze(0)
-            .reshape(batch_size, 1)
-        )
-        return fusion_u, fusion_std
+
+        return fusion_u, fusion_std, weights
 
     def _minimum(
         self, u_set: list[torch.Tensor], std_set: list[torch.Tensor], batch_size: int
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        fusion_min = torch.min(torch.concat(u_set, dim=1), dim=1)
-        fusion_u = fusion_min.values.unsqueeze(0).reshape(batch_size, 1)
-        # # This corresponds to the std of the min U index. That is; the min cannot be got between the stds
-        std_concat = torch.concat(std_set, dim=1)
-        fusion_std = (
-            torch.stack(
-                [std_concat[i, fusion_min.indices[i]] for i in range(len(std_concat))]
-            )
-            .unsqueeze(0)
-            .reshape(batch_size, 1)
-        )
-        return fusion_u, fusion_std
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        u_mat = torch.concat(u_set, dim=1)  # (B,E)
+        std_mat = torch.concat(std_set, dim=1)  # (B,E)
+
+        min_vals, min_idx = torch.min(u_mat, dim=1)  # (B,), (B,)
+        fusion_u = min_vals.unsqueeze(1)  # (B,1)
+
+        # std of the selected critic
+        fusion_std = std_mat[torch.arange(batch_size), min_idx].unsqueeze(1)  # (B,1)
+
+        # one-hot weights
+        num_critics = u_mat.shape[1]
+        weights = torch.zeros((batch_size, num_critics), device=u_mat.device)
+        weights[torch.arange(batch_size), min_idx] = 1.0
+
+        return fusion_u, fusion_std, weights
 
     def _fuse_critic_outputs(
         self, batch_size: int, u_set: list[torch.Tensor], std_set: list[torch.Tensor]
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        if self.fusion_method == "kalman":
-            fusion_u, fusion_std = self._kalman(u_set, std_set)
-        elif self.fusion_method == "average":
-            fusion_u, fusion_std = self._average(u_set, std_set, batch_size)
-        elif self.fusion_method == "minimum":
-            fusion_u, fusion_std = self._minimum(u_set, std_set, batch_size)
-        else:
-            raise ValueError(
-                f"Invalid fusion method: {self.fusion_method}. Please choose between 'kalman', 'average', or 'minimum'."
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        if self.fusion_method == "precision":
+            fusion_u, fusion_std, weights = self._kalman_precision(u_set, std_set)
+        elif self.fusion_method == "interpolated":
+            fusion_u, fusion_std, weights = self._kalman_interpolated(
+                u_set, std_set, batch_size
             )
+        elif self.fusion_method == "correlated":
+            fusion_u, fusion_std, weights = self._kalman_correlated(
+                u_set, std_set, batch_size
+            )
+        elif self.fusion_method == "covariance":
+            fusion_u, fusion_std, weights = self._kalman_covariance(u_set, std_set)
+        elif self.fusion_method == "average":
+            fusion_u, fusion_std, weights = self._average(u_set, std_set, batch_size)
+        elif self.fusion_method == "minimum":
+            fusion_u, fusion_std, weights = self._minimum(u_set, std_set, batch_size)
+        else:
+            raise ValueError(f"Invalid fusion method: {self.fusion_method}.")
 
-        return fusion_u, fusion_std
+        return fusion_u, fusion_std, weights
 
     def _update_critic(
         self,
@@ -158,6 +364,8 @@ class CTD4(TD3):
         dones: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
+
         batch_size = len(states)
 
         with torch.no_grad():
@@ -180,7 +388,9 @@ class CTD4(TD3):
                 u_set.append(u)
                 std_set.append(std)
 
-            fusion_u, fusion_std = self._fuse_critic_outputs(batch_size, u_set, std_set)
+            fusion_u, fusion_std, fusion_weights = self._fuse_critic_outputs(
+                batch_size, u_set, std_set
+            )
 
             # Create the target distribution = aX+b
             u_target = rewards + self.gamma * fusion_u * (1 - dones)
@@ -193,6 +403,10 @@ class CTD4(TD3):
         critic_loss_totals = []
         critic_loss_elementwise = []
 
+        # --- current (s,a) ensemble output health (optional but useful) ---
+        current_mu_means: list[float] = []
+        current_sigma_means: list[float] = []
+
         for critic_net, critic_net_optimiser in zip(
             self.critic_net.critics, self.ensemble_critic_optimizers
         ):
@@ -201,7 +415,7 @@ class CTD4(TD3):
                 u_current, std_current
             )
 
-            # Compute each critic los
+            # Compute each critic loss as KL divergence to the target distribution
             critic_elementwise_loss = torch.distributions.kl.kl_divergence(
                 current_distribution, target_distribution
             )
@@ -210,28 +424,132 @@ class CTD4(TD3):
             critic_loss = critic_elementwise_loss.mean()
             critic_loss_totals.append(critic_loss.item())
 
+            # If σ collapses while KL stays high -> overconfident wrong critic (bad calibration)
+            current_mu_means.append(u_current.mean().item())
+            current_sigma_means.append(std_current.mean().item())
+
             critic_net_optimiser.zero_grad()
             critic_loss.backward()
             critic_net_optimiser.step()
 
-        critic_losses = torch.stack(critic_loss_elementwise, dim=0)
-        critic_losses = torch.max(critic_losses, dim=0).values
+        kl_stack = torch.stack(critic_loss_elementwise, dim=0)
+        critic_max_per_sample = torch.max(kl_stack, dim=0).values
 
         # Update the Priorities - PER only
         priorities = (
-            critic_losses.clamp(self.min_priority)
+            critic_max_per_sample.clamp(self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()
             .flatten()
         )
 
-        critic_loss_total = np.mean(critic_loss_totals)
+        with torch.no_grad():
+            # --- TD3-style smoothing diagnostics ---
+            # Noise diagnostics
+            # What it tells you:
+            # - target_noise_abs_mean: effective smoothing magnitude.
+            # - target_noise_clip_frac high early: noise often clipped (clip too small or noise too large).
+            target_noise_abs_mean = target_noise.abs().mean().item()
+            target_noise_clip_frac = (
+                (target_noise.abs() >= self.policy_noise_clip).float().mean().item()
+            )
+            info["target_noise_abs_mean"] = float(target_noise_abs_mean)
+            info["target_noise_clip_frac"] = float(target_noise_clip_frac)
 
-        info = {
-            "critic_loss_total": critic_loss_total,
-            "critic_loss_totals": critic_loss_totals,
-        }
+            # How different are the critics’ average predicted means from each other (on the current batch)?
+            info["mu_std_across_critics"] = float(np.std(current_mu_means))
+            info["sigma_std_across_critics"] = float(np.std(current_sigma_means))
+
+            # --- Target ensemble diagnostics (s', a') ---
+            u_mat = torch.concat(u_set, dim=1)  # (B, E)
+            std_mat = torch.concat(std_set, dim=1)  # (B, E)
+
+            # mu_std_mean is “ensemble disagreement” (epistemic spread). Spikes/growth often = divergence/OOD.
+            info["target_ensemble_mu_mean"] = u_mat.mean().item()
+            info["target_ensemble_mu_std_mean"] = (
+                u_mat.std(dim=1, unbiased=False).mean().item()
+            )
+
+            # sigma_mean is average predicted uncertainty; collapse = overconfidence; explosion = instability.
+            info["target_ensemble_sigma_mean"] = std_mat.mean().item()
+            info["target_ensemble_sigma_std"] = std_mat.std().item()
+
+            # --- Fusion diagnostics (s', a') ---
+            # Fused μ is the value signal used for the target
+            # Fused σ is the “post-fusion uncertainty”; should not collapse too early
+            info["fusion_mu_mean"] = fusion_u.mean().item()
+            info["fusion_mu_std"] = fusion_u.std().item()
+
+            info["fusion_sigma_mean"] = fusion_std.mean().item()
+            info["fusion_sigma_std"] = fusion_std.std().item()
+
+            # weights: (B, E)  -- contribution of each critic to fused estimate
+            eps = 1e-12
+
+            # Dominance: how much the most trusted critic contributes
+            # w_max ≈ 1/E  -> equal trust
+            # w_max → 1.0  -> single critic dominating (ensemble collapse)
+            w_max = fusion_weights.max(dim=1).values  # (B,)
+
+            info["fusion_w_max_mean"] = w_max.mean().item()
+            info["fusion_w_max_p95"] = w_max.quantile(0.95).item()
+
+            # Entropy of weights: distribution of trust
+            # High entropy  -> distributed trust across critics
+            # Low entropy   -> sharp trust concentration
+            entropy = -(fusion_weights * (fusion_weights + eps).log()).sum(
+                dim=1
+            )  # (B,)
+            info["fusion_w_entropy_mean"] = entropy.mean().item()
+            info["fusion_w_entropy_std"] = entropy.std().item()
+
+            # Effective Ensemble Size
+            # N_eff = 1 / sum(w_k^2)
+            # ≈ E  -> all critics contributing
+            # ≈ 1  -> effectively a single critic
+            n_eff = 1.0 / (fusion_weights.pow(2).sum(dim=1) + eps)  # (B,)
+
+            info["fusion_n_eff_mean"] = n_eff.mean().item()
+            info["fusion_n_eff_p10"] = n_eff.quantile(0.10).item()
+
+            # --- Target distribution diagnostics ---
+            # Drift upward without reward improvement: gamma/reward_scale/instability.
+            info["u_target_mean"] = u_target.mean().item()
+            info["u_target_std"] = u_target.std().item()
+
+            # Collapse -> overconfident targets; explosion -> noisy targets / unstable critics.
+            info["std_target_mean"] = std_target.mean().item()
+            info["std_target_std"] = std_target.std().item()
+
+            # --- Critic loss diagnostics (fit quality) ---
+            # If one critic stays high: “bad apple” critic, poor calibration, or optimizer issue.
+            info["critic_loss_total"] = float(np.mean(critic_loss_totals))
+            info["critic_loss_totals"] = critic_loss_totals
+
+            # --- KL diagnostics (more robust than mean loss alone) ---
+            # ---- Mean KL across critics (overall fit quality) ----
+            kl_mean_per_sample = kl_stack.mean(dim=0)  # (B,1)
+
+            info["kl_mean"] = kl_mean_per_sample.mean().item()
+            info["kl_mean_std"] = kl_mean_per_sample.std().item()
+
+            # ---- Max KL across critics (worst critic instability) ----
+            # Spikes: distribution mismatch / exploding σ / unstable learning.
+            info["kl_max_mean"] = critic_max_per_sample.mean().item()
+            info["kl_max_std"] = critic_max_per_sample.std().item()
+            info["kl_max_p95"] = critic_max_per_sample.quantile(0.95).item()
+
+            # --- Current ensemble health on replay (s, a) ---
+            # σ collapsing while KL remains high => overconfident wrong critics.
+            info["current_ensemble_mu_mean"] = float(np.mean(current_mu_means))
+            info["current_ensemble_sigma_mean"] = float(np.mean(current_sigma_means))
+
+            # --- PER priority health ---
+            # priority_max exploding => PER may over-focus on a few transitions and destabilize training.
+            info["priority_mean"] = float(np.mean(priorities))
+            info["priority_p95"] = float(np.quantile(priorities, 0.95))
+            info["priority_max"] = float(np.max(priorities))
 
         return info, priorities
 
@@ -240,33 +558,128 @@ class CTD4(TD3):
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         batch_size = len(states)
 
-        actor_q_u_set = []
-        actor_q_std_set = []
+        actor_q_u_set: list[torch.Tensor] = []
+        actor_q_std_set: list[torch.Tensor] = []
+
+        # Track per-critic batch means for “bad apple” detection (like critic update)
+        current_mu_means: list[float] = []
+        current_sigma_means: list[float] = []
 
         actions = self.actor_net(states)
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             for critic_net in self.critic_net.critics:
                 actor_q_u, actor_q_std = critic_net(states, actions)
 
                 actor_q_u_set.append(actor_q_u)
                 actor_q_std_set.append(actor_q_std)
 
-        fusion_u_a, _ = self._fuse_critic_outputs(
+                current_mu_means.append(actor_q_u.mean().item())
+                current_sigma_means.append(actor_q_std.mean().item())
+
+        fusion_u_a, fusion_std_a, fusion_weights_a = self._fuse_critic_outputs(
             batch_size, actor_q_u_set, actor_q_std_set
         )
 
         actor_loss = -fusion_u_a.mean()
 
+        # ---------------------------------------------------------
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
+        # ---------------------------------------------------------
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=actions,
+            retain_graph=True,  # because we do backward(actor_loss) next
+            create_graph=False,  # diagnostic only
+            allow_unused=False,
+        )[0]
+        with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
+
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        info = {
-            "actor_loss": actor_loss.item(),
-        }
+        with torch.no_grad():
 
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
+
+            # --- Actor-side ensemble diagnostics (s, pi(s)) ---
+            u_mat = torch.concat(actor_q_u_set, dim=1)  # (B,E)
+            std_mat = torch.concat(actor_q_std_set, dim=1)  # (B,E)
+
+            # Per-sample disagreement across critics on μ under current policy (epistemic spread).
+            info["actor_ensemble_mu_mean"] = u_mat.mean().item()
+            info["actor_ensemble_mu_std_mean"] = (
+                u_mat.std(dim=1, unbiased=False).mean().item()
+            )
+
+            # Average predicted uncertainty under current policy; collapse/explosion are red flags.
+            info["actor_ensemble_sigma_mean"] = std_mat.mean().item()
+            info["actor_ensemble_sigma_std"] = std_mat.std(unbiased=False).item()
+
+            # --- “Bad apple” ensemble drift (across critics, coarse) ---
+            # If one critic drifts, these rise even if the per-sample std looks OK.
+            info["actor_mu_std_across_critics"] = float(np.std(current_mu_means))
+            info["actor_sigma_std_across_critics"] = float(np.std(current_sigma_means))
+
+            # --- Actor-side fusion outputs ---
+            info["actor_fusion_mu_mean"] = fusion_u_a.mean().item()
+            info["actor_fusion_mu_std"] = fusion_u_a.std(unbiased=False).item()
+            info["actor_fusion_sigma_mean"] = fusion_std_a.mean().item()
+            info["actor_fusion_sigma_std"] = fusion_std_a.std(unbiased=False).item()
+
+            # --- Fusion weight diagnostics (actor-side) ---
+            eps = 1e-12
+
+            # Dominance: near 1 => single critic dominating under actor actions.
+            w_max = fusion_weights_a.max(dim=1).values  # (B,)
+            info["actor_fusion_w_max_mean"] = w_max.mean().item()
+            info["actor_fusion_w_max_p95"] = w_max.quantile(0.95).item()
+
+            # Diversity of trust across critics.
+            entropy = -(fusion_weights_a * (fusion_weights_a + eps).log()).sum(
+                dim=1
+            )  # (B,)
+            info["actor_fusion_w_entropy_mean"] = entropy.mean().item()
+            info["actor_fusion_w_entropy_std"] = entropy.std(unbiased=False).item()
+
+            # Effective ensemble size: near 1 => effectively single-critic behavio
+            n_eff = 1.0 / (fusion_weights_a.pow(2).sum(dim=1) + eps)  # (B,)
+            info["actor_fusion_n_eff_mean"] = n_eff.mean().item()
+            info["actor_fusion_n_eff_p10"] = n_eff.quantile(0.10).item()
+
+            info["actor_loss"] = actor_loss.item()
+
+        return info
+
+    def train(
+        self, memory_buffer: SARLMemoryBuffer, episode_context: EpisodeContext
+    ) -> dict[str, Any]:
+        self.kalman_beta = self.kalman_beta_scheduler.get_value(
+            episode_context.training_step
+        )
+        info = super().train(memory_buffer, episode_context)
+        info["kalman_beta"] = self.kalman_beta
         return info
 
     def save_models(self, filepath: str, filename: str) -> None:

@@ -1,5 +1,49 @@
 """
+DQN (Deep Q-Network)
+---------------------
+
 Original Paper: https://arxiv.org/abs/1312.5602
+
+DQN is an off-policy, value-based reinforcement learning algorithm
+for discrete action spaces. It learns an action-value function
+Q(s, a) with a neural network and selects actions via ε-greedy
+exploration.
+
+Core Idea:
+- Approximate Q*(s,a) with Qθ(s,a).
+- Train with TD-learning using replay and a target network
+  to stabilize the moving Bellman target.
+
+Data / Replay:
+- Transitions are stored in a replay buffer:
+      (s, a, r, s', done)
+- Minibatches are sampled uniformly (PER is an optional extension).
+- Replay breaks temporal correlations and improves data efficiency.
+
+Critic (Q-network) update:
+- Bootstrapped target:
+      y = r + γ (1 - done) max_{a'} Qθ¯(s', a')
+  where Qθ¯ is a slowly-updated target network.
+- Loss (typically MSE or Huber):
+      L = (Qθ(s,a) - y)^2
+
+Target Network:
+- Updated periodically (hard update) or via Polyak averaging.
+- Reduces instability from chasing a rapidly-changing target.
+
+Exploration:
+- ε-greedy:
+      with prob ε: random action
+      else: a = argmax_a Qθ(s,a)
+
+Key Behaviour:
+- Learns from off-policy data via replay.
+- Bootstrapping enables efficient credit assignment.
+- Most effective in discrete actions; continuous control
+  typically requires actor-critic methods.
+
+DQN = Q-learning + neural function approximation
+      + replay buffer + target network.
 """
 
 import copy
@@ -12,19 +56,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import DQNConfig
+from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
-from cares_reinforcement_learning.util.configurations import DQNConfig
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
+from cares_reinforcement_learning.types.action import ActionSample
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
 
 
-class DQN(VectorAlgorithm):
+class DQN(SARLAlgorithm[int]):
     def __init__(
         self,
         network: BaseNetwork,
@@ -44,12 +87,12 @@ class DQN(VectorAlgorithm):
         self.max_grad_norm = config.max_grad_norm
 
         # Epsilon
-        self.epsilon_scheduler = EpsilonScheduler(
-            start_epsilon=config.start_epsilon,
-            end_epsilon=config.end_epsilon,
+        self.epsilon_scheduler = LinearScheduler(
+            start_value=config.start_epsilon,
+            end_value=config.end_epsilon,
             decay_steps=config.decay_steps,
         )
-        self.epsilon = self.epsilon_scheduler.get_epsilon(0)
+        self.epsilon = self.epsilon_scheduler.get_value(0)
 
         # Double DQN
         self.use_double_dqn = config.use_double_dqn
@@ -85,25 +128,26 @@ class DQN(VectorAlgorithm):
 
         return action
 
-    def select_action_from_policy(self, action_context: ActionContext) -> int:
+    def act(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> ActionSample[int]:
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         if evaluation:
-            return self._exploit(state)
+            return ActionSample(action=self._exploit(state), source="policy")
 
         if random.random() < self.epsilon:
-            return self._explore()
+            return ActionSample(action=self._explore(), source="explore")
 
-        return self._exploit(state)
+        return ActionSample(action=self._exploit(state), source="policy")
 
-    def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-        state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
+    def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
+        state_tensor = torch.tensor(
+            state.vector_state, dtype=torch.float32, device=self.device
+        )
         state_tensor = state_tensor.unsqueeze(0)
 
         with torch.no_grad():
@@ -120,8 +164,9 @@ class DQN(VectorAlgorithm):
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
         batch_size: int,  # pylint: disable=unused-argument
-    ) -> torch.Tensor:
+    ) -> tuple[torch.Tensor, dict[str, Any]]:
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
+
         q_values = self.network(states_tensor)
         next_q_values_target = self.target_network(next_states_tensor)
 
@@ -144,40 +189,86 @@ class DQN(VectorAlgorithm):
         )
         elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
 
-        return elementwise_loss
+        # -----------------------
+        # Logging / diagnostics (DQN)
+        # -----------------------
+        with torch.no_grad():
+            # Action histogram (batch-based)
+            greedy_actions = q_values.argmax(dim=1)  # [B]
+            num_actions = self.network.num_actions
+            counts = torch.bincount(greedy_actions, minlength=num_actions).float()
+            probs = counts / counts.sum().clamp(min=1.0)
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+            # Entropy: 0 = totally collapsed, higher = more spread
+            entropy = -(probs * (probs + 1e-12).log()).sum()
+
+            td_error = best_q_values - q_target  # signed, shape [B]
+
+            # Logging Statistics
+            info: dict[str, Any] = {}
+            info["greedy_action_entropy"] = entropy.item()
+            info["greedy_action_max_prob"] = probs.max().item()
+            # Optional: full distribution (can be logged as list)
+            info["greedy_action_probs"] = probs.cpu().tolist()
+
+            info["td_error_mean"] = td_error.mean().item()
+            info["td_error_std"] = td_error.std().item()
+            info["td_error_abs_mean"] = td_error.abs().mean().item()
+
+            info["q_value_mean"] = best_q_values.mean().item()
+            info["q_value_max"] = best_q_values.max().item()
+            info["q_value_std"] = best_q_values.std().item()
+            info["q_value_next_mean"] = best_next_q_values.mean().item()
+            info["q_value_next_max"] = best_next_q_values.max().item()
+            info["q_value_next_std"] = best_next_q_values.std().item()
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_max"] = q_target.max().item()
+            info["q_target_std"] = q_target.std().item()
+            info["reward_mean"] = rewards_tensor.mean().item()
+            info["reward_std"] = rewards_tensor.std().item()
+            info["overestimation_gap"] = (
+                (q_values.max(dim=1).values - best_next_q_values).mean().item()
+            )
+
+        return elementwise_loss, info
+
+    def train(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
-        training_step = training_context.training_step
+        training_step = episode_context.training_step
 
-        self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
+        self.epsilon = self.epsilon_scheduler.get_value(training_step)
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
         # Use training_utils to sample and prepare batch
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
-        ) = tu.sample_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
             action_dtype=torch.long,  # DQN uses discrete actions
         )
+
+        sample_size = len(indices)
 
         # Reshape tensors to match DQN's expected dimensions
         rewards_tensor = rewards_tensor.view(-1)
@@ -185,14 +276,15 @@ class DQN(VectorAlgorithm):
         weights_tensor = weights_tensor.view(-1)
 
         # Calculate loss - overriden by C51
-        elementwise_loss = self._compute_loss(
-            states_tensor,
+        elementwise_loss, train_info = self._compute_loss(
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
-            batch_size,
+            sample_size,
         )
+        info |= train_info
 
         if self.use_per_buffer:
             # Update the Priorities
@@ -204,7 +296,12 @@ class DQN(VectorAlgorithm):
                 .flatten()
             )
 
-            memory.update_priorities(indices, priorities)
+            info["per_priority_mean"] = priorities.mean()
+            info["per_priority_max"] = priorities.max()
+            info["per_priority_min"] = priorities.min()
+            info["per_priority_std"] = priorities.std()
+
+            memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
         else:
@@ -227,7 +324,7 @@ class DQN(VectorAlgorithm):
 
         # Update target network - a tau of 1.0 equates to a hard update.
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.network, self.target_network, self.tau)
+            self.soft_update_params(self.network, self.target_network, self.tau)
 
         return info
 

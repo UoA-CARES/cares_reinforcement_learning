@@ -2,7 +2,7 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.networks.common import BaseCritic, TwinQNetwork
-from cares_reinforcement_learning.util.configurations import CrossQConfig
+from cares_reinforcement_learning.algorithm.configurations import CrossQConfig
 
 
 class DefaultCritic(TwinQNetwork):

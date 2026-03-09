@@ -2,7 +2,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import Encoder
 from cares_reinforcement_learning.networks.TD3 import Actor as TD3Actor
 from cares_reinforcement_learning.networks.TD3 import DefaultActor as DefaultTD3Actor
 from cares_reinforcement_learning.networks.common import EncoderPolicy
-from cares_reinforcement_learning.util.configurations import TD3AEConfig
+from cares_reinforcement_learning.algorithm.configurations import TD3AEConfig
 
 
 class DefaultActor(EncoderPolicy):

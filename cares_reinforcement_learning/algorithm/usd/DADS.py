@@ -1,28 +1,94 @@
 """
-DADS DYNAMICS-AWARE DISCOVERY OF SKILLS https://arxiv.org/pdf/1907.01657
+DADS (Dynamics-Aware Discovery of Skills)
+------------------------------------------
 
-Code: https://github.com/google-research/dads
+Original Paper: https://arxiv.org/abs/1907.01657
+Original Code: https://github.com/google-research/dads
+
+DADS is an unsupervised skill discovery method that learns a
+diverse set of latent-conditioned policies by maximizing how
+distinctly each skill influences environment dynamics.
+
+Core Problem:
+- Many skill discovery methods maximize diversity in state space,
+  but ignore whether differences are controllable or predictable.
+- Pure state-entropy objectives can encourage noisy or unstable
+  behaviors.
+
+Core Idea:
+- Learn skills that induce distinguishable transitions in dynamics.
+- Maximize mutual information between:
+      latent skill z
+      next state s'
+  conditioned on current state s.
+
+Objective:
+    max  I(z ; s' | s)
+
+This encourages each skill to produce transitions that are
+predictable and uniquely attributable to that skill.
+
+Architecture:
+
+1) Skill-Conditioned Policy:
+      π(a | s, z)
+
+2) Dynamics Model:
+      p_φ(s' | s, z)
+
+The dynamics model predicts next state conditioned on skill.
+The policy is trained so that:
+
+      s' under skill z
+      is more likely under p_φ(· | s, z)
+      than under other skills z'.
+
+Reward Signal:
+    r(s, z, s') ≈ log p_φ(s' | s, z)
+                  - log Σ_{z'} p_φ(s' | s, z')
+
+This is a variational lower bound on the mutual information.
+
+Training:
+- Off-policy RL (often SAC) used to optimize the policy.
+- Skills are sampled from a fixed prior (e.g., uniform categorical).
+- No extrinsic reward required.
+
+Key Behaviour:
+- Learns diverse, temporally extended behaviors.
+- Skills correspond to distinct, predictable dynamics.
+- Enables hierarchical RL by treating skills as high-level actions.
+
+Advantages:
+- Dynamics-aware diversity (not just state coverage).
+- Produces reusable and controllable skills.
+- Improves downstream task learning via pretraining.
+
+DADS = skill discovery via maximizing
+       mutual information between skill and dynamics.
 """
 
 import logging
+import math
 import os
+from dataclasses import replace
 from typing import Any
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.memory import memory_sampler
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
-from cares_reinforcement_learning.util.configurations import DADSConfig
-from cares_reinforcement_learning.util.training_context import (
-    TrainingContext,
-    ActionContext,
-)
+from cares_reinforcement_learning.types.action import ActionSample
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.algorithm.configurations import DADSConfig
 
 
-class DADS(VectorAlgorithm):
+class DADS(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         skills_agent: SAC,
@@ -37,11 +103,17 @@ class DADS(VectorAlgorithm):
 
         self.num_skills = config.num_skills
 
-        p_z = np.full(self.num_skills, 1 / self.num_skills)
-        self.z = np.random.choice(self.num_skills, p=p_z)
+        self.z_dim = config.z_dim
+        self.z = np.random.randn(self.z_dim).astype(np.float32)  # z ~ N(0, I)
 
-        self.z_experience_index = []
-        self.z_experience_index.append(self.z)
+        rng = np.random.default_rng(100)
+        self.eval_z_radius = getattr(config, "eval_z_radius", 2.0)
+        self.eval_z_bank = rng.standard_normal(
+            size=(self.num_skills, self.z_dim)
+        ).astype(np.float32)
+
+        norms = np.linalg.norm(self.eval_z_bank, axis=1, keepdims=True) + 1e-8
+        self.eval_z_bank = (self.eval_z_bank / norms) * self.eval_z_radius
 
         self.discriminator_optimizer = torch.optim.Adam(
             self.discriminator_net.parameters(), lr=config.discriminator_lr
@@ -51,99 +123,165 @@ class DADS(VectorAlgorithm):
         if skill < 0 or skill >= self.num_skills:
             raise ValueError(f"Skill index {skill} is out of bounds.")
 
-        self.z = skill
-
-        if not evaluation:
-            self.z_experience_index.append(self.z)
+        self.z = self.eval_z_bank[skill]
 
     def _concat_state_latent(self, state: np.ndarray) -> np.ndarray:
-        z_one_hot = np.zeros(self.num_skills)
-        z_one_hot[self.z] = 1
-        return np.concatenate([state, z_one_hot])
+        return np.concatenate([state, self.z])
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
-        state = action_context.state
-        evaluation = action_context.evaluation
+    def act(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> ActionSample[np.ndarray]:
 
-        assert isinstance(state, np.ndarray)
+        observation = replace(
+            observation,
+            vector_state=self._concat_state_latent(observation.vector_state),
+        )
 
-        action_context.state = self._concat_state_latent(state)
+        action_sample = self.skills_agent.act(observation, evaluation)
+        action_sample.extras["z"] = self.z.copy()
+        return action_sample
 
-        if not evaluation:
-            self.z_experience_index.append(self.z)
-
-        return self.skills_agent.select_action_from_policy(action_context)
-
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state = self._concat_state_latent(state)
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
+        state = replace(
+            state, vector_state=self._concat_state_latent(state.vector_state)
+        )
 
         return self.skills_agent._calculate_value(state, action)
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        memory = training_context.memory
-        batch_size = training_context.batch_size
+    def _gaussian_log_likelihood(
+        self,
+        x: torch.Tensor,  # [B, D]
+        mean: torch.Tensor,  # [B, D]
+        logvar: torch.Tensor,  # [B, D]  (log variance)
+    ) -> torch.Tensor:
+        """
+        Stable log N(x | mean, exp(logvar)).
+        Returns shape [B] (sum over feature dim).
+        """
+        # Clamp log-variance for numerical stability
+        inv_var = torch.exp(-logvar)
 
-        if len(memory) < batch_size:
-            return {}
-
-        experiences = memory.sample_uniform(batch_size)
-        states, actions, _, next_states, dones, indices = experiences
-        weights = [1.0] * batch_size
-
-        batch_size = len(states)
-
-        zs = np.array(self.z_experience_index)[indices]
-
-        zs_tensor = torch.tensor(zs, dtype=torch.long, device=self.device).unsqueeze(-1)
-
-        # Concatenate zs (skills) as one-hot to states
-        zs_one_hot = np.eye(self.num_skills)[zs]
-        states_zs = np.concatenate([states, zs_one_hot], axis=1)
-        next_states_zs = np.concatenate([next_states, zs_one_hot], axis=1)
-
-        # Convert into tensor using training utilities
-        states_tensor = torch.tensor(
-            np.asarray(states), dtype=torch.float32, device=self.device
+        # log-likelihood per-dimension then sum over feature dim
+        log_likelihood = -0.5 * (
+            (x - mean) ** 2 * inv_var + logvar + math.log(2.0 * math.pi)
         )
-        states_zs_tensor = torch.tensor(
-            np.asarray(states_zs), dtype=torch.float32, device=self.device
-        )
+        return log_likelihood.sum(dim=-1)  # [B]
 
-        actions_tensor = torch.tensor(
-            np.asarray(actions), dtype=torch.float32, device=self.device
-        )
+    def train(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
 
-        next_states_tensor = torch.tensor(
-            np.asarray(next_states), dtype=torch.float32, device=self.device
-        )
-        next_states_zs_tensor = torch.tensor(
-            np.asarray(next_states_zs), dtype=torch.float32, device=self.device
-        )
+        info: dict[str, Any] = {}
 
-        dones_tensor = torch.tensor(
-            np.asarray(dones), dtype=torch.long, device=self.device
-        )
-        weights_tensor = torch.tensor(
-            np.asarray(weights), dtype=torch.float32, device=self.device
+        if len(memory_buffer) < self.batch_size:
+            return info
+
+        (
+            observation_tensor,
+            actions_tensor,
+            rewards_tensor,
+            next_observation_tensor,
+            dones_tensor,
+            weights_tensor,
+            train_data,
+            indices,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
+            use_per_buffer=0,  # DADS does not use PER
         )
 
-        # One-hot encode skill
-        # pylint: disable-next=not-callable
-        z_onehot = F.one_hot(zs_tensor.squeeze(-1), self.num_skills).float()
+        z_list = [extra["z"] for extra in train_data]
+        z_tensor = torch.tensor(
+            np.asarray(z_list), dtype=torch.float32, device=self.device
+        )  # (B, z_dim)
+
+        states_z_tensor = torch.cat(
+            [observation_tensor.vector_state_tensor, z_tensor], dim=1
+        )
+        next_states_z_tensor = torch.cat(
+            [next_observation_tensor.vector_state_tensor, z_tensor], dim=1
+        )
 
         # Predict next-state distribution
-        mean, logvar = self.discriminator_net(states_tensor, z_onehot)
+        mean, logvar = self.discriminator_net(
+            observation_tensor.vector_state_tensor, z_tensor
+        )
+
+        use_delta_s = True
+        target = (
+            (
+                next_observation_tensor.vector_state_tensor
+                - observation_tensor.vector_state_tensor
+            )
+            if use_delta_s
+            else next_observation_tensor.vector_state_tensor
+        )
 
         # Compute Gaussian log-likelihood (sum over state dims)
-        epsilon = 1e-6
-        log_likelihood = -0.5 * (
-            ((next_states_tensor - mean) ** 2) / (logvar.exp() + epsilon)
-            + logvar
-            + np.log(2 * np.pi)
-        ).sum(dim=-1)
+        log_q_true = self._gaussian_log_likelihood(target, mean, logvar)
 
-        # Use as intrinsic reward (detached)
-        rewards_tensor = log_likelihood.detach().unsqueeze(-1)
+        # -----------------------------
+        # TF-faithful marginal estimate
+        # current + per-transition alternates (excluding current)
+        num_skills = 16
+        batch_size, state_dim = observation_tensor.vector_state_tensor.shape
+
+        z_alt = torch.randn(
+            batch_size, num_skills, self.z_dim, device=self.device
+        )  # (N, M, dz)
+
+        states_rep = (
+            observation_tensor.vector_state_tensor.unsqueeze(1)
+            .expand(batch_size, num_skills, state_dim)
+            .reshape(batch_size * num_skills, state_dim)
+        )
+        target_rep = (
+            target.unsqueeze(1)
+            .expand(batch_size, num_skills, state_dim)
+            .reshape(batch_size * num_skills, state_dim)
+        )
+        z_alt_rep = z_alt.reshape(batch_size * num_skills, self.z_dim)  # (N*M, dz)
+
+        mean_alt, logvar_alt = self.discriminator_net(states_rep, z_alt_rep)
+        log_q_alt = self._gaussian_log_likelihood(
+            target_rep, mean_alt, logvar_alt
+        ).view(batch_size, num_skills)
+
+        log_q_all = torch.cat([log_q_true.unsqueeze(1), log_q_alt], dim=1)  # (N, M+1)
+        log_marginal = torch.logsumexp(log_q_all, dim=1) - math.log(num_skills + 1)
+        rewards_tensor = (log_q_true - log_marginal).detach().unsqueeze(1)  # (N, 1)
+
+        with torch.no_grad():
+            # reward stats
+            r = rewards_tensor.squeeze(-1)  # [N]
+            info["reward_mean"] = r.mean().item()
+            info["reward_std"] = r.std(unbiased=False).item()
+            info["reward_min"] = r.min().item()
+            info["reward_max"] = r.max().item()
+
+            # target (Δs) magnitude
+            abs_target = target.abs()
+            info["target_abs_mean"] = abs_target.mean().item()
+            info["target_abs_max"] = abs_target.max().item()
+
+            # log_q stats
+            info["logq_true_mean"] = log_q_true.mean().item()
+            info["logq_true_std"] = log_q_true.std(unbiased=False).item()
+            info["log_marginal_mean"] = log_marginal.mean().item()
+
+            # variance / logvar stats (current skill)
+            info["disc_logvar_cur_min"] = logvar.min().item()
+            info["disc_logvar_cur_mean"] = logvar.mean().item()
+            info["disc_logvar_cur_max"] = logvar.max().item()
+
+            # variance / logvar stats (alternate skills)
+            info["disc_logvar_alt_min"] = logvar_alt.min().item()
+            info["disc_logvar_alt_mean"] = logvar_alt.mean().item()
+            info["disc_logvar_alt_max"] = logvar_alt.max().item()
 
         # Reshape to batch_size x whatever
         # rewards_tensor = rewards_tensor.reshape(batch_size, 1)
@@ -151,19 +289,27 @@ class DADS(VectorAlgorithm):
         weights_tensor = weights_tensor.reshape(batch_size, 1)
         rewards_tensor = rewards_tensor.reshape(batch_size, 1)
 
-        info = self.skills_agent.update_networks(
-            memory,
-            indices,
-            states_zs_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_zs_tensor,
-            dones_tensor,
-            weights_tensor,
+        observation_z_tensor = replace(
+            observation_tensor,
+            vector_state_tensor=states_z_tensor,
+        )
+        next_observation_z_tensor = replace(
+            next_observation_tensor,
+            vector_state_tensor=next_states_z_tensor,
         )
 
+        agent_info, _ = self.skills_agent.update_from_batch(
+            observation_tensor=observation_z_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_z_tensor,
+            dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor,
+        )
+        info |= agent_info
+
         # Update the Discriminator
-        discriminator_loss = -log_likelihood.mean()
+        discriminator_loss = -log_q_true.mean()
 
         info["discriminator_loss"] = discriminator_loss.item()
 
@@ -174,8 +320,7 @@ class DADS(VectorAlgorithm):
         return info
 
     def episode_done(self):
-        p_z = np.full(self.num_skills, 1 / self.num_skills)
-        self.z = np.random.choice(self.num_skills, p=p_z)
+        self.z = np.random.randn(self.z_dim).astype(np.float32)
 
         return super().episode_done()
 
@@ -188,8 +333,6 @@ class DADS(VectorAlgorithm):
         checkpoint = {
             "discriminator": self.discriminator_net.state_dict(),
             "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
-            "z_experience_index": self.z_experience_index,
-            "z": self.z,
         }
         torch.save(checkpoint, f"{filepath}/{filename}_dads.pth")
         logging.info("models, optimisers, and DADS state have been saved...")
@@ -202,8 +345,4 @@ class DADS(VectorAlgorithm):
         self.discriminator_optimizer.load_state_dict(
             checkpoint["discriminator_optimizer"]
         )
-        self.z_experience_index = checkpoint.get(
-            "z_experience_index", self.z_experience_index
-        )
-        self.z = checkpoint.get("z", self.z)
         logging.info("models, optimisers, and DADS state have been loaded...")

@@ -1,279 +1,373 @@
+import pytest
 import numpy as np
-from memory import memory_buffer, memory_buffer_1e6, memory_buffer_n_step
+
+from cares_reinforcement_learning.types.experience import (
+    SingleAgentExperience,
+    MultiAgentExperience,
+)
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    MARLObservation,
+)
+from cares_reinforcement_learning.memory.memory_buffer import (
+    SARLMemoryBuffer,
+    MARLMemoryBuffer,
+)
 
 
-def test_sample(memory_buffer_1e6):
+def get_sarl_observation(state_size: int = 4) -> SARLObservation:
+    """Create a dummy SARL observation for testing."""
+    return SARLObservation(vector_state=np.array([1.0] * state_size), image_state=None)
+
+
+def get_indexed_sarl_observation(index: int, state_size: int = 4) -> SARLObservation:
+    """Create an indexed SARL observation for testing (uses index as state value)."""
+    return SARLObservation(
+        vector_state=np.array([float(index)] * state_size), image_state=None
+    )
+
+
+def get_marl_observation(state_size: int = 4, num_agents: int = 2) -> MARLObservation:
+    """Create a dummy MARL observation for testing."""
+    agent_states = {
+        f"agent_{i}": np.array([1.0] * state_size) for i in range(num_agents)
+    }
+    return MARLObservation(
+        global_state=np.array([1.0] * state_size),
+        agent_states=agent_states,
+        avail_actions=np.ones((num_agents,), dtype=bool),
+    )
+
+
+def get_indexed_marl_observation(
+    index: int, state_size: int = 4, num_agents: int = 2
+) -> MARLObservation:
+    """Create an indexed MARL observation for testing (uses index as state value)."""
+    agent_states = {
+        f"agent_{i}": np.array([float(index)] * state_size) for i in range(num_agents)
+    }
+    return MARLObservation(
+        global_state=np.array([float(index)] * state_size),
+        agent_states=agent_states,
+        avail_actions=np.ones((num_agents,), dtype=bool),
+    )
+
+
+def create_sarl_experience(
+    observation: SARLObservation | None = None,
+    next_observation: SARLObservation | None = None,
+) -> SingleAgentExperience:
+    """Create a SingleAgentExperience for testing."""
+    if observation is None:
+        observation = get_sarl_observation()
+    if next_observation is None:
+        next_observation = get_sarl_observation()
+
+    return SingleAgentExperience(
+        observation=observation,
+        next_observation=next_observation,
+        action=np.array([0.5]),
+        reward=1.0,
+        done=False,
+        truncated=False,
+        info={},
+    )
+
+
+def create_marl_experience(
+    observation: MARLObservation | None = None,
+    next_observation: MARLObservation | None = None,
+) -> MultiAgentExperience:
+    """Create a MultiAgentExperience for testing."""
+    if observation is None:
+        observation = get_marl_observation()
+    if next_observation is None:
+        next_observation = get_marl_observation()
+
+    return MultiAgentExperience(
+        observation=observation,
+        next_observation=next_observation,
+        action=[np.array([0.5]), np.array([0.3])],
+        reward=[1.0, 0.5],
+        done=[False, False],
+        truncated=[False, False],
+        info={},
+    )
+
+
+@pytest.mark.parametrize(
+    "buffer_class,exp_builder",
+    [
+        (SARLMemoryBuffer, create_sarl_experience),
+        (MARLMemoryBuffer, create_marl_experience),
+    ],
+)
+def test_sample(buffer_class, exp_builder):
+    """Test basic sampling methods (uniform, priority, inverse_priority)."""
+    buffer = buffer_class(max_capacity=int(1e6))
 
     for i in range(4):
-        memory_buffer_1e6.add(i, i, i, i, False, 0.5 * i)
+        experience = exp_builder()
+        buffer.add(experience)
 
     batch_size = 3
-    states, actions, rewards, next_states, dones, log_probs, ind = (
-        memory_buffer_1e6.sample_uniform(batch_size)
-    )
+    sample = buffer.sample_uniform(batch_size)
+
+    assert len(sample.experiences) == len(sample.indices) == batch_size
+
+    sample = buffer.sample_inverse_priority(batch_size)
 
     assert (
-        len(states)
-        == len(actions)
-        == len(rewards)
-        == len(next_states)
-        == len(dones)
-        == len(log_probs)
-        == len(ind)
+        len(sample.experiences)
+        == len(sample.indices)
+        == len(sample.weights)
         == batch_size
     )
 
-    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
-        memory_buffer_1e6.sample_inverse_priority(batch_size)
-    )
+    sample = buffer.sample_priority(batch_size)
 
     assert (
-        len(states)
-        == len(actions)
-        == len(rewards)
-        == len(next_states)
-        == len(dones)
-        == len(log_probs)
-        == len(ind)
-        == len(weights)
-        == batch_size
-    )
-
-    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
-        memory_buffer_1e6.sample_priority(batch_size)
-    )
-
-    assert (
-        len(states)
-        == len(actions)
-        == len(rewards)
-        == len(next_states)
-        == len(dones)
-        == len(log_probs)
-        == len(ind)
-        == len(weights)
+        len(sample.experiences)
+        == len(sample.indices)
+        == len(sample.weights)
         == batch_size
     )
 
 
-def test_n_step_values(memory_buffer_n_step):
-    memory_buffer_n_step.n_step = 3  # Get n-step value
-    memory_buffer_n_step.gamma = 0.99  # Discount factor
+@pytest.mark.parametrize(
+    "buffer_class,exp_builder",
+    [
+        (SARLMemoryBuffer, create_sarl_experience),
+        (MARLMemoryBuffer, create_marl_experience),
+    ],
+)
+def test_sample_more_than_buffer(buffer_class, exp_builder):
+    """Test sampling batch larger than buffer capacity."""
+    buffer = buffer_class(max_capacity=5)
 
-    # Add transitions: [state, action, reward, next_state, done]
-    memory_buffer_n_step.add(1, 1, 1, 1, 0)
-    memory_buffer_n_step.add(2, 2, 2, 2, 0)
-    memory_buffer_n_step.add(3, 3, 3, 3, 0)
-
-    # Sample a batch of size 1
-    states, actions, rewards, next_states, dones, ind = (
-        memory_buffer_n_step.sample_uniform(1)
-    )
-
-    value = ind[0]  # Get sampled index
-
-    # Compute expected n-step return
-    expected_reward = 5.9203
-
-    # Assertions to validate n-step transitions
-    assert states == [value + 1]
-    assert actions == [value + 1]
-    assert np.isclose(rewards[0], expected_reward)  # Check discounted sum
-    assert next_states == [3]  # Expected next state
-    assert dones == [0]  # Done flag based on sequence
-    assert ind == [value]
-
-
-def test_sample_values(memory_buffer_1e6):
-    for i in range(10):
-        memory_buffer_1e6.add(i, i, i, i, i % 2, i)
-
-    states, actions, rewards, next_states, dones, log_probs, ind = (
-        memory_buffer_1e6.sample_uniform(1)
-    )
-
-    value = ind[0]
-    assert states == [value]
-    assert actions == [value]
-    assert rewards == [value]
-    assert next_states == [value]
-    assert dones == [value % 2]
-    assert log_probs == [value]
-    assert ind == [value]
-
-
-def test_sample_priority_values(memory_buffer_1e6):
-    for i in range(10):
-        memory_buffer_1e6.add(i, i, i, i, i % 2, i)
-
-    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
-        memory_buffer_1e6.sample_priority(1)
-    )
-
-    value = ind[0]
-    assert states == [value]
-    assert actions == [value]
-    assert rewards == [value]
-    assert next_states == [value]
-    assert dones == [value % 2]
-    assert log_probs == [value]
-    assert ind == [value]
-    assert weights == [1.0]
-
-
-def test_sample_inverse_sample_values(memory_buffer_1e6):
-    size = 10
-    for i in range(size):
-        memory_buffer_1e6.add(i, i, i, i, i % 2, i)
-
-    ind = []
-    priorities = []
-    for i in range(size):
-        ind.append(i)
-        priorities.append(1)
-    memory_buffer_1e6.update_priorities(np.array(ind), np.array(priorities))
-
-    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
-        memory_buffer_1e6.sample_inverse_priority(1)
-    )
-
-    value = ind[0]
-    assert states == [value]
-    assert actions == [value]
-    assert rewards == [value]
-    assert next_states == [value]
-    assert dones == [value % 2]
-    assert log_probs == [value]
-    assert ind == [value]
-    assert abs(weights[0] - size) < 0.001
-
-
-def test_sample_consecutive_values(memory_buffer_1e6):
-    for i in range(20):
-        memory_buffer_1e6.add(i, i, i, i, i % 2)
-
-    (
-        states_t1,
-        actions_t1,
-        rewards_t1,
-        next_states_t1,
-        dones_t1,
-        states_t2,
-        actions_t2,
-        rewards_t2,
-        next_states_t2,
-        dones_t2,
-        ind,
-    ) = memory_buffer_1e6.sample_consecutive(1)
-
-    value = ind[0]
-    assert states_t1 == [value]
-    assert actions_t1 == [value]
-    assert rewards_t1 == [value]
-    assert next_states_t1 == [value]
-    assert dones_t1 == [False]
-
-    assert states_t2 == [value + 1]
-    assert actions_t2 == [value + 1]
-    assert rewards_t2 == [value + 1]
-    assert next_states_t2 == [value + 1]
-    assert dones_t2 == [True]
-
-    assert ind == [value]
-
-
-def test_sample_more_than_buffer(memory_buffer):
     for i in range(5):
-        memory_buffer.add(i, i, i, i, False, 0.5 * i)
+        experience = exp_builder()
+        buffer.add(experience)
 
     batch_size = 10
-    states, actions, rewards, next_states, dones, log_probs, ind = (
-        memory_buffer.sample_uniform(batch_size)
-    )
+    sample = buffer.sample_uniform(batch_size)
 
-    assert (
-        len(states)
-        == len(actions)
-        == len(rewards)
-        == len(next_states)
-        == len(dones)
-        == len(log_probs)
-        == len(ind)
-        == 5
-    )
+    assert len(sample.experiences) == len(sample.indices) == len(sample.weights) == 5
 
-    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
-        memory_buffer.sample_priority(batch_size)
-    )
+    sample = buffer.sample_priority(batch_size)
 
-    assert (
-        len(states)
-        == len(actions)
-        == len(rewards)
-        == len(next_states)
-        == len(dones)
-        == len(log_probs)
-        == len(ind)
-        == len(weights)
-        == 5
-    )
+    assert len(sample.experiences) == len(sample.indices) == len(sample.weights) == 5
 
-    states, actions, rewards, next_states, dones, log_probs, ind, weights = (
-        memory_buffer.sample_inverse_priority(batch_size)
-    )
+    sample = buffer.sample_inverse_priority(batch_size)
 
-    assert (
-        len(states)
-        == len(actions)
-        == len(rewards)
-        == len(next_states)
-        == len(dones)
-        == len(log_probs)
-        == len(ind)
-        == len(weights)
-        == 5
-    )
+    assert len(sample.experiences) == len(sample.indices) == len(sample.weights) == 5
 
 
-def test_sample_empty_buffer(memory_buffer):
-    batch_size = 10
-    try:
-        states, actions, rewards, next_states, dones, indicies = (
-            memory_buffer.sample_uniform(batch_size)
+def test_sample_values_sarl():
+    """Test that SARL uniform sample values match what was added."""
+    buffer = SARLMemoryBuffer(max_capacity=int(1e6))
+
+    for i in range(10):
+        obs = get_indexed_sarl_observation(i)
+        next_obs = get_indexed_sarl_observation(i)
+        experience = SingleAgentExperience(
+            observation=obs,
+            next_observation=next_obs,
+            action=np.array([float(i)]),
+            reward=float(i),
+            done=bool(i % 2),
+            truncated=False,
+            info={},
         )
-    except ValueError:
-        # Nothing in the buffer, so should receive not enough values to unpack
-        assert True
+        buffer.add(experience)
 
-    try:
-        states, actions, rewards, next_states, dones, indicies, weights = (
-            memory_buffer.sample_priority(batch_size)
+    sample = buffer.sample_uniform(1)
+
+    index = 0
+    value = sample.indices[index]
+    # Verify the sampled observation matches the indexed state
+    assert np.allclose(sample.experiences[index].observation.vector_state, float(value))
+    assert np.allclose(
+        sample.experiences[index].next_observation.vector_state, float(value)
+    )
+    assert np.allclose(sample.experiences[index].action, float(value))
+    assert np.isclose(sample.experiences[index].reward, float(value))
+    assert sample.experiences[index].done == bool(value % 2)
+    assert sample.experiences[index].truncated is False
+    assert sample.indices[index] == value
+
+
+def test_sample_values_marl():
+    """Test that MARL uniform sample values match what was added."""
+    buffer = MARLMemoryBuffer(max_capacity=int(1e6))
+
+    for i in range(10):
+        obs = get_indexed_marl_observation(i)
+        next_obs = get_indexed_marl_observation(i)
+        experience = MultiAgentExperience(
+            observation=obs,
+            next_observation=next_obs,
+            action=[np.array([float(i)]), np.array([float(i)])],
+            reward=[float(i), float(i)],
+            done=[bool(i % 2), bool(i % 2)],
+            truncated=[False, False],
+            info={},
         )
-    except ValueError:
-        # Nothing in the buffer, so should receive not enough values to unpack
-        assert True
+        buffer.add(experience)
 
-    try:
-        states, actions, rewards, next_states, dones, indicies, weights = (
-            memory_buffer.sample_inverse_priority(batch_size)
+    sample = buffer.sample_uniform(1)
+
+    index = 0
+    value = sample.indices[index]
+    # Verify the sampled observation matches the indexed state
+    assert np.allclose(sample.experiences[index].observation.global_state, float(value))
+    assert np.allclose(
+        sample.experiences[index].next_observation.global_state, float(value)
+    )
+    assert sample.experiences[index].done[0] == bool(value % 2)
+    assert sample.experiences[index].truncated[0] is False
+    assert sample.indices[index] == value
+
+
+def test_sample_priority_values_sarl():
+    """Test that SARL priority sample values match what was added."""
+    buffer = SARLMemoryBuffer(max_capacity=int(1e6))
+
+    for i in range(10):
+        obs = get_indexed_sarl_observation(i)
+        next_obs = get_indexed_sarl_observation(i)
+        experience = SingleAgentExperience(
+            observation=obs,
+            next_observation=next_obs,
+            action=np.array([float(i)]),
+            reward=float(i),
+            done=bool(i % 2),
+            truncated=False,
+            info={},
         )
-    except ValueError:
-        # Nothing in the buffer, so should receive not enough values to unpack
-        assert True
+        buffer.add(experience)
 
-    try:
-        (
-            states_t1,
-            actions_t1,
-            rewards_t1,
-            next_states_t1,
-            dones_t1,
-            states_t2,
-            actions_t2,
-            rewards_t2,
-            next_states_t2,
-            dones_t2,
-            ind,
-        ) = memory_buffer.sample_consecutive(1)
-    except ValueError:
-        assert True
+    sample = buffer.sample_priority(1)
+
+    index = 0
+    value = sample.indices[index]
+    assert np.allclose(sample.experiences[index].observation.vector_state, float(value))
+    assert np.allclose(
+        sample.experiences[index].next_observation.vector_state, float(value)
+    )
+    assert np.allclose(sample.experiences[index].action, float(value))
+    assert np.isclose(sample.experiences[index].reward, float(value))
+    assert sample.experiences[index].done == bool(value % 2)
+    assert sample.experiences[index].truncated is False
+    assert sample.indices[index] == value
+    assert sample.weights[index] == 1.0
+
+
+def test_sample_priority_values_marl():
+    """Test that MARL priority sample values match what was added."""
+    buffer = MARLMemoryBuffer(max_capacity=int(1e6))
+
+    for i in range(10):
+        obs = get_indexed_marl_observation(i)
+        next_obs = get_indexed_marl_observation(i)
+        experience = MultiAgentExperience(
+            observation=obs,
+            next_observation=next_obs,
+            action=[np.array([float(i)]), np.array([float(i)])],
+            reward=[float(i), float(i)],
+            done=[bool(i % 2), bool(i % 2)],
+            truncated=[False, False],
+            info={},
+        )
+        buffer.add(experience)
+
+    sample = buffer.sample_priority(1)
+
+    index = 0
+    value = sample.indices[index]
+    assert np.allclose(sample.experiences[index].observation.global_state, float(value))
+    assert np.allclose(
+        sample.experiences[index].next_observation.global_state, float(value)
+    )
+    assert sample.experiences[index].done[0] == bool(value % 2)
+    assert sample.experiences[index].truncated[0] is False
+    assert sample.indices[index] == value
+    assert sample.weights[index] == 1.0
+
+
+def test_sample_inverse_priority_values_sarl():
+    """Test that SARL inverse priority sample values and weights match."""
+    buffer = SARLMemoryBuffer(max_capacity=int(1e6))
+    size = 10
+
+    for i in range(size):
+        obs = get_indexed_sarl_observation(i)
+        next_obs = get_indexed_sarl_observation(i)
+        experience = SingleAgentExperience(
+            observation=obs,
+            next_observation=next_obs,
+            action=np.array([float(i)]),
+            reward=float(i),
+            done=bool(i % 2),
+            truncated=False,
+            info={},
+        )
+        buffer.add(experience)
+
+    # Set all priorities to 1
+    ind = np.arange(size)
+    priorities = np.ones(size)
+    buffer.update_priorities(ind, priorities)
+
+    sample = buffer.sample_inverse_priority(1)
+
+    index = 0
+    value = sample.indices[index]
+    assert np.allclose(sample.experiences[index].observation.vector_state, float(value))
+    assert np.allclose(
+        sample.experiences[index].next_observation.vector_state, float(value)
+    )
+    assert np.allclose(sample.experiences[index].action, float(value))
+    assert np.isclose(sample.experiences[index].reward, float(value))
+    assert sample.experiences[index].done == bool(value % 2)
+    assert sample.experiences[index].truncated is False
+    assert sample.indices[index] == value
+    assert abs(sample.weights[index] - size) < 0.001
+
+
+def test_sample_inverse_priority_values_marl():
+    """Test that MARL inverse priority sample values and weights match."""
+    buffer = MARLMemoryBuffer(max_capacity=int(1e6))
+    size = 10
+
+    for i in range(size):
+        obs = get_indexed_marl_observation(i)
+        next_obs = get_indexed_marl_observation(i)
+        experience = MultiAgentExperience(
+            observation=obs,
+            next_observation=next_obs,
+            action=[np.array([float(i)]), np.array([float(i)])],
+            reward=[float(i), float(i)],
+            done=[bool(i % 2), bool(i % 2)],
+            truncated=[False, False],
+            info={},
+        )
+        buffer.add(experience)
+
+    # Set all priorities to 1
+    ind = np.arange(size)
+    priorities = np.ones(size)
+    buffer.update_priorities(ind, priorities)
+
+    sample = buffer.sample_inverse_priority(1)
+
+    index = 0
+    value = sample.indices[index]
+    assert np.allclose(sample.experiences[index].observation.global_state, float(value))
+    assert np.allclose(
+        sample.experiences[index].next_observation.global_state, float(value)
+    )
+    assert sample.experiences[index].done[0] == bool(value % 2)
+    assert sample.experiences[index].truncated[0] is False
+    assert sample.indices[index] == value
+    assert abs(sample.weights[index] - size) < 0.001
