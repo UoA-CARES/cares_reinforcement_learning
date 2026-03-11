@@ -15,7 +15,7 @@ class F1TenthEnvironment(SARLEnvironment):
         self.factory = EnvironmentFactory()
 
         # # Instantiate the task
-        self.env = self.factory.create(config.task)
+        self.env = self.factory.create(config.task, {})
 
         self.set_seed(self.seed)
 
