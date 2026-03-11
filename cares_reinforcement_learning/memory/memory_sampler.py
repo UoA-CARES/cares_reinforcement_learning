@@ -107,6 +107,8 @@ def observation_to_tensors(
             images = np.empty((num_obs, *image_shape), dtype=np.float32)
 
         for i in range(num_obs):
+            print(vectors.shape)
+            print(observations[i].vector_state.shape)
             vectors[i] = observations[i].vector_state
 
             if observations[i].image_state is not None:

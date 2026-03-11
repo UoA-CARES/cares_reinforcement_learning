@@ -55,4 +55,4 @@ class F1TenthEnvironment(SARLEnvironment):
         return self.env.ACTION_NUM
 
     def grab_frame(self, height=720, width=1280) -> np.ndarray:
-        return self.env.grab_frame(height, width)
+        return np.zeros((height, width, 3), dtype=np.uint8)
