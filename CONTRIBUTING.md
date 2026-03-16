@@ -62,7 +62,7 @@ When contributing a new algorithm, please:
 - Integrate cleanly with the current training framework
 
 Exact reproduction of published results is not required, but implementations should produce reasonable learning behaviour on standard environments.
-Performance may differ due to hyperparameters, environment differences, and implementation details but the algorithm should learn. 
+Performance may differ due to hyperparameters, environment differences, and implementation details but the algorithm should learn.
 
 ## Testing
 Please run the following checks before opening a pull request.
