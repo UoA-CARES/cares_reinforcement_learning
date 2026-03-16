@@ -350,7 +350,7 @@ Implementation of Unsupervised Skill discovery methods
   author = {CARES},
   year = {2025},
   publisher = {GitHub},
-  url = {https://https://github.com/UoA-CARES/cares_reinforcement_learning.}
+  url = {https://github.com/UoA-CARES/cares_reinforcement_learning}
 }
 ```
 
