@@ -1,0 +1,10 @@
+site_name: CARES Reinforcement Learning
+
+theme:
+  name: material
+
+nav:
+  - Home: index.md
+  - Concepts:
+      - Key Concepts: concepts/index.md
+      - Foundations: concepts/foundations.md
