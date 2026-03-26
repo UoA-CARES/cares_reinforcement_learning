@@ -20,7 +20,7 @@ class F1TenthEnvironment(SARLEnvironment):
         self.set_seed(self.seed)
 
     def _reset(self, training: bool = True):
-        state, _ = self.env.reset()
+        state = self.env.reset()
         return state
 
     def sample_action(self):
