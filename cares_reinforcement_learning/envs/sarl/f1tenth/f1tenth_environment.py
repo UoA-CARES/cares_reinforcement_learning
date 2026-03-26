@@ -41,19 +41,19 @@ class F1TenthEnvironment(SARLEnvironment):
 
     @cached_property
     def max_action_value(self) -> np.ndarray:
-        return self.env.MAX_ACTIONS
+        return self.env.max_actions
 
     @cached_property
     def min_action_value(self) -> np.ndarray:
-        return self.env.MIN_ACTIONS
+        return self.env.min_actions
 
     @cached_property
     def _vector_space(self) -> int:
-        return self.env.OBSERVATION_SIZE
+        return self.env.observation_size
 
     @cached_property
     def action_num(self) -> int:
-        return self.env.ACTION_NUM
+        return self.env.action_num
 
     def grab_frame(self, height=720, width=1280) -> np.ndarray:
         return np.zeros((height, width, 3), dtype=np.uint8)
