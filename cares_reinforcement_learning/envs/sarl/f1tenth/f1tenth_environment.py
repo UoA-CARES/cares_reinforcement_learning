@@ -1,7 +1,7 @@
 from functools import cached_property
 
 import numpy as np
-from reinforcement_learning.EnvironmentFactory import EnvironmentFactory
+from environments.EnvironmentFactory import EnvironmentFactory
 
 from cares_reinforcement_learning.envs.configurations import F1TenthConfig
 from cares_reinforcement_learning.envs.sarl.sarl_environment import SARLEnvironment
