@@ -8,6 +8,7 @@ When self training, it includes a slight historical bias (not sure if thats the 
 '''
 
 class RunningNormalization(nn.Module):
+    super().__init__()
     def __init__(self, obs_size):
         self.register_buffer("mean", torch.zeros(obs_size))
         self.register_buffer("var",  torch.ones(obs_size))
