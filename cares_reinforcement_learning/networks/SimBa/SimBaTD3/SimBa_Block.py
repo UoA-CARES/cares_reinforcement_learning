@@ -8,14 +8,14 @@ When self training, it includes a slight historical bias (not sure if thats the 
 '''
 
 class RunningNormalization(nn.Module):
-    super().__init__()
     def __init__(self, obs_size):
+        super().__init__()
         self.register_buffer("mean", torch.zeros(obs_size))
         self.register_buffer("var",  torch.ones(obs_size))
 
     def forward(self, x):
         if self.training:
             self.mean = 0.9 * self.mean + 0.1 * x.mean(0)
-            self.variance  = 0.9 * self.variance  + 0.1 * x.var(1)
-        return ((x - self.mean) / (self.variance.sqrt() + 1e-8))
+            self.var  = 0.9 * self.var  + 0.1 * x.var(1)
+        return ((x - self.mean) / (self.var.sqrt() + 1e-8))
 
