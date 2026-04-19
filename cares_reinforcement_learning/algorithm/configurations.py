@@ -1513,3 +1513,44 @@ class DADSConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
         ]
     )
+
+class LSDConfig(SACConfig):
+    algorithm: str = "LSD"
+
+    skill_dim: int = 8
+    is_discrete: bool = True
+
+    max_steps_exploration: Literal[0] = Field(default=0)
+    
+    batch_size:int = 2048
+    updates_per_iteration:int = 4
+
+    encoder_lr: float = 3e-05
+    encoder_config: MLPConfig = MLPConfig (
+        layers=[
+            TrainableLayer(layer_type="SpectralNormLinear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="SpectralNormLinear",in_features=1024,out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="SpectralNormLinear",in_features=1024),
+        ]
+    )
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )

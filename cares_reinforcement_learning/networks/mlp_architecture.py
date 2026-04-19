@@ -5,6 +5,7 @@ from torch import nn
 
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
+from cares_reinforcement_learning.networks.spectral_norm import SpectralNormLinear
 from cares_reinforcement_learning.algorithm.configurations import (
     FunctionLayer,
     MLPConfig,
@@ -21,6 +22,8 @@ def _get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
         return BatchRenorm1d
     elif module_name == "NoisyLinear":
         return NoisyLinear
+    elif module_name == "SpectralNormLinear":
+        return SpectralNormLinear
     raise ValueError(f"Module {module_name} not found in nn or custom modules.")
 
 
