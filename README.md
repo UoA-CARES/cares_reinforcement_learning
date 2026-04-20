@@ -30,6 +30,11 @@ Clone the **main** branch for the latest features - note this branch may not be 
 ### Development Environment (UV/pyenv)
 We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used those looking to contribute to the code base or various gym packages.
 
+Clone the latest main of CARES Reinforcement Learning.
+```bash
+git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
+```
+
 #### 1. Install uv and pyenv
 
 Install `uv` using the official installer:
@@ -186,6 +191,13 @@ cares-rl train cli --gym drone --task move_2d SAC
 
 <p align="center">
     <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 35%;"/>
+</p>
+
+### F1Tenth Gym V2.0
+The F1Tenth gym contains all the code for training F1Tenth cars in autonomous racing. 
+
+<p align="center">
+    <img alt="crazyfly" src="./media/f1tenth-min.png" style="width: 50%;"/>
 </p>
 
 ### Multi Agent Enviroments

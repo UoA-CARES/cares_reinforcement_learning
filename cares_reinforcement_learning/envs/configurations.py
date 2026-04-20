@@ -75,6 +75,11 @@ class DroneConfig(GymEnvironmentConfig):
     use_simulator: int = 1  # 1 for simulator (DroneSim), 0 for real drone (Drone)
 
 
+class F1TenthConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "f1tenth"
+    task: str = "track"
+
+
 class GripperConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "gripper"
 
