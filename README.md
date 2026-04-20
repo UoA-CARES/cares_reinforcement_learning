@@ -3,8 +3,10 @@
 </p>
 
 A modular reinforcement learning framework for training and evaluating RL algorithms across diverse environments.
+
 ![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 ![GitHub release](https://img.shields.io/github/v/release/UoA-CARES/cares_reinforcement_learning)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 # Motivation
 
@@ -360,6 +362,10 @@ Implementation of Unsupervised Skill discovery methods
   author = {CARES},
   year = {2025},
   publisher = {GitHub},
-  url = {https://https://github.com/UoA-CARES/cares_reinforcement_learning.}
+  url = {https://github.com/UoA-CARES/cares_reinforcement_learning}
 }
 ```
+
+## License
+
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
