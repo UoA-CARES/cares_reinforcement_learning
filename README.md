@@ -191,6 +191,13 @@ cares-rl train cli --gym drone --task move_2d SAC
     <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 35%;"/>
 </p>
 
+### F1Tenth Gym V2.0
+The F1Tenth gym contains all the code for training F1Tenth cars in autonomous racing. 
+
+<p align="center">
+    <img alt="crazyfly" src="./media/f1tenth-min.png" style="width: 50%;"/>
+</p>
+
 ### Multi Agent Enviroments
 Training environments for multi agent reinforcement learning algorithms.
 
