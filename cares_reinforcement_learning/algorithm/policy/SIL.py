@@ -115,7 +115,7 @@ class SIL(VectorAlgorithm):
         """
         # to do: set sil_lr to network
         params_to_sync = ["actor_lr", "critic_lr", "gamma"] # remove batch_size, SIL should have same or small batch_size for update
-        sil_params_main_algos = ["sil_update_interval", "sil_n_update", "sil_batch_size", "sil_clip", "sil_max_nlog", "sil_max_grad_norm", "sil_weight", "sil_weight_v", "use_sil_rewards_scaler"]
+        sil_params_main_algos = ["sil_update_interval", "sil_n_update", "sil_batch_size", "sil_clip", "sil_max_nlog", "sil_max_grad_norm", "sil_weight", "sil_weight_v", "use_sil_rewards_scaler", "sil_clip_epsilon"]
         
         for param in params_to_sync:
             # Look for attribute directly on the agent instance (e.g., self.main_algo.gamma)
@@ -264,6 +264,7 @@ class SIL(VectorAlgorithm):
             "sil_max_nlog": getattr(self, "sil_max_nlog", None),
             "sil_max_grad_norm": getattr(self, "sil_max_grad_norm", None),
             "use_sil_rewards_scaler": getattr(self, "use_sil_rewards_scaler", None),
+            "sil_clip_epsilon": getattr(self,  "sil_clip_epsilon", None),
             "device": self.device
         }
 
@@ -522,6 +523,7 @@ class SIL(VectorAlgorithm):
 
         # SIL critic loss calculation:
         # sil_value_loss  = 1/2 * || (R - V_θ(s))+ ||^2
+        advantages = advantages - self.sil_clip_epsilon # add for DMCS advantages filter
         clipped_advantages = torch.clamp(advantages, min=0.0, max = self.sil_clip).view(-1)
 
         # check shape
@@ -553,6 +555,7 @@ class SIL(VectorAlgorithm):
             clipped_nlog_p = torch.clamp(nlog_p, max= self.sil_max_nlog)
             # to do: should using latest advs in here?
             curr_advanatges = self.sil_advantages_calculator(states_tensor, actions_tensor, returns_tensor).detach()
+            curr_advanatges = curr_advanatges - self.sil_clip_epsilon # add for DMCS advantages filter
             clipped_curr_advanatges = torch.clamp(curr_advanatges, min=0.0, max = self.sil_clip)
 
             #check shape

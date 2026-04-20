@@ -91,6 +91,7 @@ class TD3SIL(VectorAlgorithm):
         self.sil_weight = config.sil_weight # to do: how to set for different algos
         self.sil_weight_v = config.sil_weight_v
         self.use_sil_rewards_scaler = config.use_sil_rewards_scaler
+        self.sil_clip_epsilon = config.sil_clip_epsilon
 
         # --- SIL module initialization ---
         self.use_SIL = config.use_SIL
