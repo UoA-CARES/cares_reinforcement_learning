@@ -32,7 +32,9 @@ class LSD(SARLAlgorithm[np.ndarray]):
         self.skills_agent = skills_agent
         self.encoder_net = encoder.to(device)
 
-        self.skill_dim = config.skill_dim # num of discrete skills or dimensions for continuouse skill
+        self.skill_dim = (
+            config.skill_dim
+        )  # num of discrete skills or dimensions for continuouse skill
         self.is_discrete = config.is_discrete
         self.updates_per_iteration = config.updates_per_iteration
 
@@ -42,17 +44,16 @@ class LSD(SARLAlgorithm[np.ndarray]):
                 self.skill_dim, 1.0 / self.skill_dim, dtype=np.float32
             )  # (K,)
         else:
-            self.p_z = None # ignore as using standard normal built into np
+            self.p_z = None  # ignore as using standard normal built into np
 
         # sample first skill
         self._sample_new_z()
-        
+
         # create state encoder optimiser
         self.encoder_optimizer = torch.optim.Adam(
-            self.encoder_net.parameters(),
-            lr=config.encoder_lr
+            self.encoder_net.parameters(), lr=config.encoder_lr
         )
-    
+
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
@@ -65,7 +66,7 @@ class LSD(SARLAlgorithm[np.ndarray]):
         action_sample = self.skills_agent.act(observation, evaluation)
         action_sample.extras["skill"] = self.z
         return action_sample
-    
+
     def train(
         self,
         memory_buffer: SARLMemoryBuffer,
@@ -77,7 +78,7 @@ class LSD(SARLAlgorithm[np.ndarray]):
         # skip if there are not enough samples in mem buffer
         if len(memory_buffer) < self.batch_size:
             return {}
-        
+
         (
             observation_tensor,
             actions_tensor,
@@ -99,31 +100,32 @@ class LSD(SARLAlgorithm[np.ndarray]):
         # Extract skills from the sampled transitions into tensor
         skills = [extra["skill"] for extra in train_data]
         if self.is_discrete:
-            z_code_tensor= torch.tensor(skills, dtype=torch.long, device=self.device) #(B,) each entry is the number for the skill
+            z_code_tensor = torch.tensor(
+                skills, dtype=torch.long, device=self.device
+            )  # (B,) each entry is the number for the skill
             # Concatenate zs (skills) as one-hot to states
             # pylint: disable-next=not-callable
             skill_tensor = F.one_hot(z_code_tensor, num_classes=self.skill_dim).to(
                 observation_tensor.vector_state_tensor.dtype
-            ) # (B,skill_dim), one hot for chosen skill
+            )  # (B,skill_dim), one hot for chosen skill
         else:
-            skill_tensor = torch.tensor(skills) #(B,skill_dim)
+            skill_tensor = torch.tensor(skills)  # (B,skill_dim)
 
-        # Concate 
+        # Concate
         states_z_tensor = torch.cat(
             [observation_tensor.vector_state_tensor, skill_tensor], dim=1
         )
         next_states_z_tensor = torch.cat(
             [next_observation_tensor.vector_state_tensor, skill_tensor], dim=1
         )
-        
-        
+
         for _ in range(self.updates_per_iteration):
             # Calc loss for both sac agent and encoder net
             representation_skill_prod = self.compute_representation_skill_prod(
                 observation_tensor.vector_state_tensor,
                 next_observation_tensor.vector_state_tensor,
-                skill_tensor
-            ) #(B,)
+                skill_tensor,
+            )  # (B,)
 
             # update sac agent
             observation_z_tensor = replace(
@@ -135,14 +137,15 @@ class LSD(SARLAlgorithm[np.ndarray]):
                 vector_state_tensor=next_states_z_tensor,
             )
 
-            
             agent_info, _ = self.skills_agent.update_from_batch(
                 observation_tensor=observation_z_tensor,
                 actions_tensor=actions_tensor,
-                rewards_tensor=representation_skill_prod.detach().unsqueeze(-1), #(B,) -> (B,1), needed for some reason
+                rewards_tensor=representation_skill_prod.detach().unsqueeze(
+                    -1
+                ),  # (B,) -> (B,1), needed for some reason
                 next_observation_tensor=next_observation_z_tensor,
                 dones_tensor=dones_tensor,
-                weights_tensor=weights_tensor
+                weights_tensor=weights_tensor,
             )
 
             # print(observation_z_tensor.vector_state_tensor.shape)
@@ -150,55 +153,59 @@ class LSD(SARLAlgorithm[np.ndarray]):
             info |= agent_info
 
             # Update state encoder
-            representation_skill_prod_mean = representation_skill_prod.mean() #()
+            representation_skill_prod_mean = representation_skill_prod.mean()  # ()
             encoder_loss = -representation_skill_prod_mean
 
             self.encoder_optimizer.zero_grad()
             encoder_loss.backward()
             self.encoder_optimizer.step()
-        
+
         return info
 
-    
     def compute_representation_skill_prod(
-            self,
-            state_tensor: torch.Tensor, #(B, state size)
-            next_state_tensor: torch.Tensor, #(B, state size)
-            skill_tensor: torch.Tensor #(B, skill_dim)
-        ):
-        '''
+        self,
+        state_tensor: torch.Tensor,  # (B, state size)
+        next_state_tensor: torch.Tensor,  # (B, state size)
+        skill_tensor: torch.Tensor,  # (B, skill_dim)
+    ):
+        """
         Calculate (phi(s')-phi(s))z
-        '''
-        current_z = self.encoder_net(state_tensor) #(B, skill_dim)
-        next_z = self.encoder_net(next_state_tensor) #(B, skill_dim)
-        delta_z:torch.Tensor = next_z - current_z #(B, skill_dim)
+        """
+        current_z = self.encoder_net(state_tensor)  # (B, skill_dim)
+        next_z = self.encoder_net(next_state_tensor)  # (B, skill_dim)
+        delta_z: torch.Tensor = next_z - current_z  # (B, skill_dim)
 
         if self.is_discrete:
-            #(B,1,skill_dim)
-            delta_z = delta_z.reshape(delta_z.size(0), 1, delta_z.size(1)) 
-            #(B,skill_dim,skill_dim). Batches of one hot encoding for each skill:
+            # (B,1,skill_dim)
+            delta_z = delta_z.reshape(delta_z.size(0), 1, delta_z.size(1))
+            # (B,skill_dim,skill_dim). Batches of one hot encoding for each skill:
             # e.g. [[1,0,0],[0,1,0],[0,0,1],...]
-            eye_z = torch.eye(self.skill_dim, device=self.device).reshape(1, self.skill_dim, self.skill_dim).expand(delta_z.size(0), -1, -1)
-            #(B,skill_dim), effectively: each option gets a score of how much latent change align with that dimension
+            eye_z = (
+                torch.eye(self.skill_dim, device=self.device)
+                .reshape(1, self.skill_dim, self.skill_dim)
+                .expand(delta_z.size(0), -1, -1)
+            )
+            # (B,skill_dim), effectively: each option gets a score of how much latent change align with that dimension
             logits = (eye_z * delta_z).sum(dim=2)
 
-            #(B,skill_dim), onehot for chosen skill -> centered around 0 and scaled
-            masks = (skill_tensor - skill_tensor.mean(dim=1, keepdim=True)) * (self.skill_dim) / (self.skill_dim - 1 if self.skill_dim != 1 else 1)
+            # (B,skill_dim), onehot for chosen skill -> centered around 0 and scaled
+            masks = (
+                (skill_tensor - skill_tensor.mean(dim=1, keepdim=True))
+                * (self.skill_dim)
+                / (self.skill_dim - 1 if self.skill_dim != 1 else 1)
+            )
 
-            return (logits * masks).sum(dim=1) #(B,)
+            return (logits * masks).sum(dim=1)  # (B,)
 
         else:
-            return (delta_z * skill_tensor).sum(dim=1) #(B,)
-            
-
+            return (delta_z * skill_tensor).sum(dim=1)  # (B,)
 
     def episode_done(self):
-        '''
+        """
         Sample new skill from p(z) when episode finishes.
-        '''
+        """
         self._sample_new_z()
         return super().episode_done()
-    
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state = replace(
@@ -214,17 +221,16 @@ class LSD(SARLAlgorithm[np.ndarray]):
             return np.concatenate([state, z_one_hot])
         else:
             return np.concatenate([state, self.z])
-        
+
     def _sample_new_z(self):
-        ''' Sample new skill z following p(z)'''
-        # NOTE: different z in continuous and discrete case 
+        """Sample new skill z following p(z)"""
+        # NOTE: different z in continuous and discrete case
         #   - Discrete: z is the number for the skill (NOT one-hot)
-        #   - Continuous: z is sampled (skill_dim) shaped tensor 
+        #   - Continuous: z is sampled (skill_dim) shaped tensor
         if self.is_discrete:
             self.z = np.random.choice(self.skill_dim, p=self.p_z)
         else:
             self.z = np.random.randn(self.skill_dim)
-
 
     ###### SAVING UTIL ####################################################################
 
@@ -256,5 +262,3 @@ class LSD(SARLAlgorithm[np.ndarray]):
 
         self.z = checkpoint.get("z", self.z)
         logging.info("LSD models and state have been loaded...")
-
-    

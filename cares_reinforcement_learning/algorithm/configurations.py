@@ -1514,6 +1514,7 @@ class DADSConfig(SACConfig):
         ]
     )
 
+
 class LSDConfig(SACConfig):
     algorithm: str = "LSD"
 
@@ -1521,18 +1522,20 @@ class LSDConfig(SACConfig):
     is_discrete: bool = True
 
     max_steps_exploration: Literal[0] = Field(default=0)
-    
-    batch_size:int = 2048
-    updates_per_iteration:int = 4
+
+    batch_size: int = 2048
+    updates_per_iteration: int = 4
 
     encoder_lr: float = 3e-05
-    encoder_config: MLPConfig = MLPConfig (
+    encoder_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="SpectralNormLinear", out_features=1024),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="SpectralNormLinear",in_features=1024,out_features=1024),
+            TrainableLayer(
+                layer_type="SpectralNormLinear", in_features=1024, out_features=1024
+            ),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="SpectralNormLinear",in_features=1024),
+            TrainableLayer(layer_type="SpectralNormLinear", in_features=1024),
         ]
     )
 
