@@ -434,6 +434,8 @@ class SAC(SARLAlgorithm[np.ndarray]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
+        print(observation_tensor.vector_state_tensor.shape)
+
         info, priorities = self.update_from_batch(
             observation_tensor=observation_tensor,
             actions_tensor=actions_tensor,
