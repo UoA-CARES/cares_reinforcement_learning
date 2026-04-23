@@ -2,9 +2,25 @@ site_name: CARES Reinforcement Learning
 
 theme:
   name: material
+  features:
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
 
 nav:
   - Home: index.md
-  - Concepts:
-      - Key Concepts: concepts/index.md
-      - Foundations: concepts/foundations.md
+  # - Concepts:
+  #     - Key Concepts: concepts/index.md
+  #     - Foundations: concepts/foundations.md
+  - User Guide:
+      - Overview: user_guide/index.md
+  - Developer Guide:
+      - Overview: developer_guide/index.md
+      - Abstractions: developer_guide/abstractions.md
+      - Algorithm: developer_guide/algorithm.md
+      - Environments: developer_guide/environments.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences

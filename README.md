@@ -8,9 +8,8 @@ A modular reinforcement learning framework for training and evaluating RL algori
 ![GitHub release](https://img.shields.io/github/v/release/UoA-CARES/cares_reinforcement_learning)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-# Motivation
-
-**Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
+# Introduction
+The CARES Reinforcement Learning package is a modular and extensible framework for developing, training, and evaluating reinforcement learning algorithms. It provides a consistent interface across value-based, policy-based, and multi-agent methods, enabling clear comparisons between approaches in a single code base. Designed with research and real-world robotics applications in mind. This code base has been designed for the local team but we feel it has utility beyond our research group and are open to contributions/suggestions from others. 
 
 # Installation Instructions
 We recommend using the Stable release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.
