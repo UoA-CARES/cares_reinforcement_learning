@@ -8,8 +8,8 @@ Contributions should integrate cleanly with the existing framework and follow th
 
 We are happy to consider contributions such as:
 
-- [Implementations of reinforcement learning algorithms](./algorithm.md)
-- [New Gym Environment Support](./environments.md)
+- [Implementations of reinforcement learning algorithms][algorithm-guide]
+- [New Gym Environment Support][environment-guide]
 - New General Methods or Mechanisms useful for Reinforcement Learning
 
 ## Package Overview
@@ -19,10 +19,10 @@ The `cares_reinforcement_learning` package is organised around the core abstract
 ## Core Framework Structure
 
 ### `runners/`
-The [runners](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/runners) folder contains the primary training and evaluation loop logic, including experiment execution, evaluation scheduling, and checkpoint management. This is the main entry point for how algorithms interact with environments during training.
+The [runners][runners-code] folder contains the primary training and evaluation loop logic, including experiment execution, evaluation scheduling, and checkpoint management. This is the main entry point for how algorithms interact with environments during training.
 
 ### `algorithm/`
-The [algorithm](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/algorithm) folder contains the learning logic for each method, grouped by broad method families such as `value-based`, `policy-based`, and `unsupervised skill discovery`.
+The [algorithm][algorithm-code] folder contains the learning logic for each method, grouped by broad method families such as `value-based`, `policy-based`, and `unsupervised skill discovery`.
 
 This folder also contains:
 - Shared `SARL` and `MARL` algorithm interfaces
@@ -32,7 +32,7 @@ This folder also contains:
 This is where new learning methods are implemented.
 
 ### `networks/`
-The [networks](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/networks) folder contains the neural network components used by the algorithms. Each algorithm typically has its own subfolder containing components such as actors, critics, encoders, mixers, or value networks.
+The [networks][networks-code] folder contains the neural network components used by the algorithms. Each algorithm typically has its own subfolder containing components such as actors, critics, encoders, mixers, or value networks.
 
 The `algorithm/` and `networks/` folders work closely together:
 
@@ -42,17 +42,17 @@ The `algorithm/` and `networks/` folders work closely together:
 These are the two primary folders used when adding a new algorithm to the library.
 
 ### `envs/`
-The [envs](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/envs) folder contains the environment wrappers that adapt external environment APIs (such as Gymnasium or PettingZoo) to the framework’s `SARL` and `MARL` environment interfaces.
+The [envs][envs-code] folder contains the environment wrappers that adapt external environment APIs (such as Gymnasium or PettingZoo) to the framework’s `SARL` and `MARL` environment interfaces.
 
 These wrappers standardise observation, action, and transition handling so that all algorithms can interact with environments through a consistent abstraction defined in `types`. This is where new environment integrations should be added.
 
 ### `memory/`
-The [memory](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/memory) folder contains replay buffers, rollout storage, and memory abstractions used by the training loops and algorithms.
+The [memory][memory-code] folder contains replay buffers, rollout storage, and memory abstractions used by the training loops and algorithms.
 
 The memory supports both single-agent and multi-agent learning workflows.
 
 ### `types/`
-The [types](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/types) folder contains the shared data abstractions used across the framework, including the `Observation`, `Experience`, and related training data structures. These types ensure consistency between environments, algorithms, memory buffers, and runners across both SARL and MARL implementations.
+The [types][types-code] folder contains the shared data abstractions used across the framework, including the `Observation`, `Experience`, and related training data structures. These types ensure consistency between environments, algorithms, memory buffers, and runners across both SARL and MARL implementations.
 
 ## General Development Guide
 
@@ -66,3 +66,5 @@ As a general rule:
 - Adjust training loop behaviour in `runners/`
 
 This structure helps keep implementation details isolated while maintaining consistent abstractions across the full framework.
+
+--8<-- "include/links.md"

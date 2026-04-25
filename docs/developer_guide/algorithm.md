@@ -1,4 +1,4 @@
-# Algorithm Contribution Guide
+# Algorithm Contribution Guide { #algorithm-guide }
 We are seeking published algorithms that are interesting or offer novel insights to the reinforcement learning community. Please reference the original paper or source in your pull request, and document any deviations or improvements made during your implementation. These instructions explain how to create a new algorithm within our code base - specific details on code abstraction logic can be found in the [abstractions](./abstractions.md) portion of the developers guide.
 
 ![Architecture Overview](../images/algorithm-guide.png)
@@ -7,33 +7,32 @@ At a high level: *configuration defines structure, components implement structur
 ## Replication Philosophy
 Our goal is to faithfully replicate these algorithms with best intentions against the original publications. We recognize that achieving a perfect, byte-for-byte replication of published algorithms is often not possible due to differences in frameworks, environment versions, or unavailable implementation details. When contributing, please aim to capture the original intent and core mechanisms of the algorithm as faithfully as possible. If you make design decisions—such as modernizing components for compatibility, optimizing for efficiency, or improving consistency with current best practices—clearly document these choices and the reasoning behind them in your code and pull request. This transparency helps maintain the integrity of benchmarking and ensures that others can understand and reproduce your results.
 
-
 ## Implementation Steps
 To implement a new algorithm in the CARES Reinforcement Learning package you need to follow four steps:
 
-1. Create the Algorithm class that contains all algorithm logic in the [algorithm folder](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/algorithm). This class will contain all the training and decision logic for the algorithm.
-2. Create the Components for the algorithm that defines the algorithms networks in the [networks folder](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/networks). This folder will define all the networks the algorithm requires e.g. Actor and Critic.
-3. Define the default parameter and network configurations for the algorithm in the [configurations file](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/configurations.py). This configuration will store the default values for all parameters used by the algorithm (e.g. learning rate) and define the default network architectures (e.g. hidden layer sizes).
-4. Define the Constructor method for the Algorithm in the [AlgorithmFactory](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/algorithm_factory.py).
+1. Create the `<Algorithm>` class that contains all algorithm logic in the [algorithm folder][algorithm-code]. This class will contain all the training and decision logic for the algorithm.
+2. Create the Components for the algorithm that defines the algorithms networks in the [networks folder][networks-code]. This folder will define all the networks the algorithm requires e.g. Actor and Critic.
+3. Define the default parameter and network configurations for the algorithm in the [configurations file][config-file]. This configuration will store the default values for all parameters used by the algorithm (e.g. learning rate) and define the default network architectures (e.g. hidden layer sizes).
+4. Define the Constructor method for the Algorithm in the [AlgorithmFactory][alg-fac-code].
 
 This design separates algorithm logic, network structure, and configuration, enabling modular development, reproducibility, and flexible experimentation without modifying core code. 
 
 ## 1. Create the Algorithm Class
-Place your new algorithm in the appropriate subfolder under the primary algorithms folder [here](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/algorithm) (e.g., `policy/`, `value/`, or `usd/`). If the algorithm doesn't fit into these categories (e.g. Model-Based RL) then create a new folder that effectively categorizes it. We currently have implementations that loosely fall into the three categories below: 
+Place your new algorithm in the appropriate subfolder under the primary [algorithms folder][algorithm-code] (e.g., `policy/`, `value/`, or `usd/`). If the algorithm doesn't fit into these categories (e.g. Model-Based RL) then create a new folder that effectively categorizes it. We currently have implementations that loosely fall into the three categories below: 
 
-- **Value**: Q-Learning based algorithms (e.g. DQN) - [here](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/algorithm/value)
-- **Policy**: Policy gradient and Actor/Critic based methods (e.g. SAC, TD3) - [here](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/algorithm/policy).
-- **USD**: Unsupervised Skill Discovery methods (e.g. DIAYN) - [here](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/algorithm/usd)
+- **Value**: Q-Learning based algorithms (e.g. DQN) - [value folder][value-folder]
+- **Policy**: Policy gradient and Actor/Critic based methods (e.g. SAC, TD3) - [policy folder][policy-folder].
+- **USD**: Unsupervised Skill Discovery methods (e.g. DIAYN) - [usd folder][usd-folder]
 
 ### Algorithm Interface
-Your algorithm should extend from either `SARL` (Single-Agent RL) or `MARL` (Multi-Agent RL) and define the action type as continuous (`np.ndarray`) or discrete (`int`), depending on the type of algorithm it is. The key public methods to implement are `train`, `save_models`, `load_models`, and `act` for the algorithm. Other optional class functions for interaction with the training loops can be found in the base algorithm interface where relevant for the given algorithm. You can find the base Algorithm and SARL/MARL interfaces in the [algorithm.py](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/algorithm.py) file for reference. 
+Your algorithm should extend from either `SARL` (Single-Agent RL) or `MARL` (Multi-Agent RL) and define the action type as continuous (`np.ndarray`) or discrete (`int`), depending on the type of algorithm it is. The key public methods to implement are `train`, `save_models`, `load_models`, and `act` for the algorithm. Other optional class functions for interaction with the training loops can be found in the base algorithm interface where relevant for the given algorithm. You can find the base Algorithm and SARL/MARL interfaces in the [algorithm.py][algorithm-py] file for reference. 
 
-These interfaces also define the expected Observation and action data for the algorithm - the environment wrappers enforce these data types for consistency across the all the gym environments. The implementation details for the overall package typing can be found [here](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/types). These types generalise beyond just the standard Openai Gym and PettingZoo abstractions and enable handling of multi-agent algorithms in the same code abstraction. 
+These interfaces also define the expected Observation and action data for the algorithm - the environment wrappers enforce these data types for consistency across the all the gym environments. The implementation details for the overall package typing can be found in [types][types-code]. These types generalise beyond just the standard Openai Gym and PettingZoo abstractions and enable handling of multi-agent algorithms in the same code abstraction. 
 
-The parameter configurations for the algorithm are provided via the corresponding `AlgorithmConfig` (e.g. `DQNConfig`) pydantic data class. This is explained further in step 3. 
+The parameter configurations for the algorithm are provided via the corresponding `<Algorithm>Config` (e.g. `DQNConfig`) pydantic data class. This is explained further in step 3. 
 
 ### Example: DQN Algorithm
-Below is a minimal example of the public interface for DQN using the algorithm base class to work into the training/evaluation loop. The full implementation of DQN in our format can be found [here](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/value/DQN.py). 
+Below is a minimal example of the public interface for DQN using the algorithm base class to work into the training/evaluation loop. The full implementation of DQN in our format can be found in [DQN][dqn-code]. 
 
 ```python
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
@@ -84,28 +83,28 @@ class DQN(SARLAlgorithm[int]):
 ```
 
 ## 2. Create the Components
-Implementations for an Algorithms required neural network components go into the networks folder [here](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/networks) (e.g. [network/DQN](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/networks/DQN)). Each algorithm gets its own folder for its component implementations.
+Implementations for an Algorithms required neural network components go into the [networks folder][networks-code] (e.g. [network/DQN][dqn-net-code]). Each algorithm gets its own folder for its component implementations.
 
 For each network component in an algorithm (e.g. actor, critic, or encoder), the CARES Reinforcement Learning codebase typically defines three classes: `Base`, `Default`, and `Component`. If your algorithm requires multiple network components (e.g. actor and critic networks), create a dedicated file for each component separately (e.g `actor.py` and `critic.py`). The naming conventions must follow the format of: `BaseComponent`, `DefaultComponent`, and `Component`.
 
 - The `Base` provides the shared interface and core forward-pass behaviour for the component, ensuring consistency across implementations. This defines the modules and their interactions required for the algorithm to function. 
 - The `Default` defines the reference architecture for the modules used by the framework by default, which is important for both clarity and automated testing, as it allows us to verify that default configurations produce the intended structure through automated testing. 
-- The `Component` class represents the configurable implementation used in practice by the code, constructing each component using the configuration-driven `MLP` class [here](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/networks/mlp_architecture.py).
+- The `Component` class represents the configurable implementation used in practice by the code, constructing each component using the configuration-driven [MLP class][mlp-code].
 
 This separation allows automated tests to verify that the default configuration always produces the expected network structure, preventing accidental changes to layer sizes or architecture. 
 
-The `MLP` class provides a flexible way to construct modules within a network component. Instead of hardcoding architectures, modules are defined through configuration files, allowing layer sizes, activations, and structure to be adjusted without changing code. This enables network components to remain consistent while supporting fully configurable internal architectures. The full description of how the `MLP` class works is provided in the [abstractions](./abstractions.md) portion of the wiki. How to define the modules with the algorithms config class is explained in step 3.
+The `MLP` class provides a flexible way to construct modules within a network component. Instead of hardcoding architectures, modules are defined through configuration files, allowing layer sizes, activations, and structure to be adjusted without changing code. This enables network components to remain consistent while supporting fully configurable internal architectures. The full explination of how the [MLP class][mlp-code] works is provided in the [abstractions](./abstractions.md) portion of the wiki. How to define the modules with the algorithms config class is explained in step 3.
 
-Within a component, the architecture may be composed of multiple internal modules. These modules represent smaller functional building blocks, such as shared feature extractors, value and advantage heads, or separate policy and value branches. These components each make up their own separate module in the overall network. See [dueling DQN](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/networks/DuelingDQN/network.py) how this works. Each internal module may have its own `MLPConfig` definition. 
+Within a component, the architecture may be composed of multiple internal modules. These modules represent smaller functional building blocks, such as shared feature extractors, value and advantage heads, or separate policy and value branches. These components each make up their own separate module in the overall network. See [dueling DQN][duel-net-code] how this works. Each internal module may have its own `MLPConfig` definition. 
 
-You may also extend an existing base network or import one directly if it will reuse the base components of an existing algorithm. In some cases only the `default` network may be instantiated to indicate the difference in the default network configuration. In these cases the base `<Algorithm>Config` will need to extend from the existing algorithms configuration. See [PERSAC](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/networks/PERSAC) as an example of providing a pass through to the base SAC actor and critic components.
+You may also extend an existing base network or import one directly if it will reuse the base components of an existing algorithm. In some cases only the `default` network may be instantiated to indicate the difference in the default network configuration. In these cases the base `<Algorithm>Config` will need to extend from the existing algorithms configuration. See [PERSAC][persac-code] as an example of providing a pass through to the base SAC actor and critic components.
 
 ### Example: DQN Network
-Below is an example of the basic boilerplate for the DQN network structure for the DQN algorithm (e.g. `network.py`). The full implementation of the DQN network in our format can be found [here](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/networks/DQN).
+Below is an example of the basic boilerplate for the DQN network structure for the DQN algorithm (e.g. `network.py`). The full implementation of the DQN network in our format can be found [here][dqn-net-code].
 
 - The base network class (`BaseDQN`) provides a common interface for how the networks modules related, in this instance a very straightforward case with only a single module. 
 - The `DefaultNetwork` class implements the reference architecture with fixed layer sizes and activations, matching the default configuration parameters.  
-- The `Network` class is the primary component used in practice and is constructed based on the user-provided configuration, allowing for flexible customization through the `MLP` class that is configured through the algorithms configuration `DQNConfig`.
+- The `Network` class is the primary component used in practice and is constructed based on the user-provided configuration, allowing for flexible customization through the [MLP class][mlp-code] that is configured through the algorithms configuration `DQNConfig`.
 
 ```python
 # Base class for extensions to DQN to extend
@@ -271,3 +270,4 @@ Implementing a new algorithm in the CARES Reinforcement Learning framework follo
 
 This design cleanly separates concerns between logic, structure, and configuration. As a result, new algorithms can be added with minimal changes to the existing codebase, while supporting flexible experimentation, consistent interfaces, and automated validation of default behaviours.
 
+--8<-- "include/links.md"

@@ -1,8 +1,8 @@
-# Create the Environment Wrapper
+# Create the Environment Wrapper { #environment-guide }
 
 To integrate a new environment into the CARES Reinforcement Learning framework, create an environment wrapper that adapts the source environment to the framework’s standard interface. The wrapper should follow either the `SARL` or `MARL` environment interface, both of which build on the shared `BaseEnvironment` abstraction. This ensures that all environments expose a consistent set of methods and metadata to the training loops, regardless of whether they originate from Gymnasium, PettingZoo, or another simulator.
 
-The purpose of the wrapper is not to mirror the external API exactly, but to translate it into the observation, action, and experience types expected by the CARES RL algorithms - the base interface for all wrappers is through the [BaseEnvironment](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/envs/base_environment.py). In practice, this means converting the raw outputs of the environment into the framework’s `Observation` and `Experience` [types](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/types), while also exposing properties such as `observation_space`, `action_num`, action bounds, and action sampling through a common interface. The base environment defines the required methods, including `reset`, `step`, `sample_action`, `set_seed`, `grab_frame`, and rendering-related helpers, which all wrappers must implement or override as needed.
+The purpose of the wrapper is not to mirror the external API exactly, but to translate it into the observation, action, and experience types expected by the CARES RL algorithms - the base interface for all wrappers is through the [BaseEnvironment][base-env-code]. In practice, this means converting the raw outputs of the environment into the framework’s `Observation` and `Experience` [types](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/types), while also exposing properties such as `observation_space`, `action_num`, action bounds, and action sampling through a common interface. The base environment defines the required methods, including `reset`, `step`, `sample_action`, `set_seed`, `grab_frame`, and rendering-related helpers, which all wrappers must implement or override as needed.
 
 ![Architecture Overview](../images/envrionment_wrapper.png)
 
@@ -94,3 +94,5 @@ When implementing a wrapper, keep the framework-facing interface as clean and st
 ### Summary
 
 An environment wrapper serves as the translation layer between an external environment API and the CARES RL framework. By implementing the `SARL` or `MARL` interface on top of `BaseEnvironment`, the wrapper standardises how observations, actions, rewards, and transitions are represented. This allows the training loops and algorithms to interact with all environments through one consistent abstraction, making the framework easier to extend across different environment backends. 
+
+--8<-- "include/links.md"
