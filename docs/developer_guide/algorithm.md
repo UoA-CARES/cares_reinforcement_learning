@@ -166,16 +166,16 @@ class Network(BaseDQN):
 ## 3. Define Default Configurations
 The configuration file contains all the default configuration parameters for the algorithms and defines the algorithms network architectures through the MLP class. The configurations are a `pydantic` data class for each algorithm. Default parameters should be chosen based on the original paper details where possible but adjustments can be made to meet modern research standards or expectations of baseline defaults. 
 
-Create the default configuration for your algorithm in the [configurations](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/configurations.py) file found under `algorithm/configurations.py`. The naming convention follows `NameConfig`. This naming convention match is used by the automated tools for instantiating the algorithms and populating the command line tool parameter reader [rl_parser.py](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/util/rl_parser.py). 
+Create the default configuration for your algorithm in the [configurations file][config-file] found under `algorithm/configurations.py`. The naming convention follows `<Algorithm>Config`. This naming convention match is used by the automated tools for instantiating the algorithms and populating the command line tool parameter reader [rl_parser.py][rl-parser]. 
 
 The configuration must extend the `AlgorithmConfig` base configuration that shares the basic learning parameters for the algorithms - these are the minimum expected by the training loops. If the method is an extension to an existing algorithm you can extend the base class of that algorithm's configuration to inherit the same parameter configurations. See `PERSACConfig` and `SACConfig` as an example of this in the configurations file. You can override the base defaults within the specific configuration for the new algorithm.  
 
-The required configuration parameter `algorithm` must follow the naming convention of the algorithm class to enable the automated configuration handler to find the algorithm - (e.g. DQN -> DQNConfig -> `algorithm: str = "DQN"`).
+The required configuration parameter `algorithm` must follow the naming convention `<Algorithm>` - (e.g. DQN -> DQNConfig -> `algorithm: str = "DQN"`).
 
 ### Component Configuration
-Network components are configured through the `MLPConfig` data class which defines the internal architectures of each component. Rather than hardcoding network structures, each component (e.g. actor, critic, or DQN) receives an `MLPConfig` that specifies how its internal modules should be constructed. This instantiates the generic and configurable Multi-Layer Perceptron class: [MLP](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/networks/mlp_architecture.py).  
+Network components are configured through the `MLPConfig` data class which defines the internal architectures of each component. Rather than hardcoding network structures, each component (e.g. actor, critic, or DQN) receives an `MLPConfig` that specifies how its internal modules should be constructed. This instantiates the generic and configurable [MLP class][mlp-code].  
 
-An `MLPConfig` defines a sequence of layers with their default configurations (e.g. `linear` in_features=64 and out_features=64). This allows complex architectures to be expressed as simple configuration objects, which are then interpreted by the `MLP` class to build the corresponding PyTorch modules.
+An `MLPConfig` defines a sequence of layers with their default configurations (e.g. `linear` in_features=64 and out_features=64). This allows complex architectures to be expressed as simple configuration objects, which are then interpreted by the [MLP class][mlp-code] to build the corresponding PyTorch modules.
 
 The supported layer abstractions that are used to construct an `MLP` are:
 
@@ -221,11 +221,11 @@ class DQNConfig(AlgorithmConfig):
 
     # Network configuration for DQN here we define the equivalent of:
     # network = nn.Sequential(
-    #         nn.Linear(observation_size, hidden_sizes[0]),
+    #         nn.Linear(observation_size, 64),
     #         nn.ReLU(),
-    #         nn.Linear(hidden_sizes[0], hidden_sizes[1]),
+    #         nn.Linear(64, 64),
     #         nn.ReLU(),
-    #         nn.Linear(hidden_sizes[1], num_actions),
+    #         nn.Linear(64, num_actions),
     #     )
     network_config: MLPConfig = MLPConfig(
         layers=[
@@ -243,7 +243,7 @@ The final step is to register the algorithm within the factory by implementing a
 
 Each `create_<Algorithm>` function follows a consistent pattern: it instantiates the required network components (e.g. actor, critic, or value network) using the provided configuration, determines the appropriate device, and then passes these components into the algorithm class. This ensures that all algorithms are created in a standardised and reproducible way. This also facilitates the automated testing of the code base.
 
-The [AlgorithmFactory](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/algorithm_factory.py) then dynamically selects the correct creation method based on the `algorithm` field in the configuration, allowing new algorithms to be integrated simply by defining their configuration and corresponding factory method. This design keeps the system modular and extensible, while maintaining a single entry point for constructing fully configured agents.
+The [AlgorithmFactory][alg-fac-code] then dynamically selects the correct creation method based on the `algorithm` field in the configuration, allowing new algorithms to be integrated simply by defining their configuration and corresponding factory method. This design keeps the system modular and extensible, while maintaining a single entry point for constructing fully configured agents.
 
 ### Example DQN
 The `create_DQN` method is shown below - the method creates the `Network` with the environments `observation_size` and `action_num` and passes it into the `DQN` algorithm.  

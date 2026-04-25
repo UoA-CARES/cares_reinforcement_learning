@@ -26,6 +26,8 @@
 
 [mlp-code]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/networks/mlp_architecture.py
 
+[rl-parser]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/util/rl_parser.py
+
  <!-- Algorithms -->
  [dqn-code]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/value/DQN.py
  
