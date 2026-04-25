@@ -58,12 +58,12 @@ The [types][types-code] folder contains the shared data abstractions used across
 
 As a general rule:
 
-- Add new algorithms in `algorithm/`
-- Add new network components in `networks/`
-- Add new environment integrations in `envs/`
-- Modify replay and rollout handling in `memory/`
-- Update shared data structures in `types/`
-- Adjust training loop behaviour in `runners/`
+- Add new algorithms in [`algorithm/`][algorithm-code]
+- Add new network components in [`networks/`][networks-code]
+- Add new environment integrations in [`envs/`][envs-code]
+- Modify replay and rollout handling in [`memory/`][memory-code]
+- Update shared data structures in [`types/`][types-code]
+- Adjust training loop behaviour in [`runners/`][runners-code]
 
 This structure helps keep implementation details isolated while maintaining consistent abstractions across the full framework.
 

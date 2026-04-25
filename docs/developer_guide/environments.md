@@ -12,15 +12,15 @@ The environment wrappers are meant to be a lightweight conversion from the third
 
 A wrapper is responsible for three main tasks:
 
-1. Adapting the source environment API to the framework [interface](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/envs/base_environment.py).
-2. Converting environment outputs into the framework’s standard observation and experience [types](https://github.com/UoA-CARES/cares_reinforcement_learning/tree/main/cares_reinforcement_learning/types).
+1. Adapting the source environment API to the framework [interface][base-env-code].
+2. Converting environment outputs into the framework’s standard observation and experience [types][types-code].
 3. Providing the metadata required by the algorithms and training loops in a consistent format.
 
 For single-agent environments, this means wrapping the task as a [SARL](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/envs/sarl/sarl_environment.py) environment with a single observation and action interface. For multi-agent environments, the wrapper must instead follow the [MARL](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/envs/marl/marl_environment.py) structure, preserving agent ordering and returning observations, actions, and transition data in a way that is consistent across all agents. This is especially important because the framework uses the environment wrappers to enforce the expected typing and structure used by the algorithms.
 
 ### Base Environment Interface
 
-The SARL and MARL interfaces ultimately inherit from [BaseEnvironment](https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/envs/base_environment.py), which defines the shared contract across environment types. At minimum, every wrapper is expected to implement a public:
+The SARL and MARL interfaces ultimately inherit from [BaseEnvironment][base-env-code], which defines the shared contract across environment types. At minimum, every wrapper is expected to implement a public:
 
 - `reset` to initialise the environment and return the initial observation.
 - `step` to apply an action and return an `Experience` object containing the transition information.
@@ -32,7 +32,7 @@ The SARL and MARL interfaces ultimately inherit from [BaseEnvironment](https://g
 The shared `BaseEnvironment` provides the rendering interface through `render()` and `grab_frame()`, where `render()` calls `grab_frame()` and displays the result using OpenCV. This allows wrappers to standardise how image observations and visual debugging are handled without exposing simulator-specific rendering logic to the algorithms. 
 
 #### SARL Environment
-Single agent environments (e.g. [OpenAI Gymnasium](https://gymnasium.farama.org/index.html), and [Deep Mind Control Suite](https://github.com/google-deepmind/dm_control)) are designed for single agent algorithms (e.g DQN and SAC).
+Single agent environments (e.g. [OpenAI Gymnasium][gymnasium], and [Deep Mind Control Suite][dm-control]) are designed for single agent algorithms (e.g DQN and SAC).
 
 ```python
 from cares_reinforcement_learning.envs.base_environment import BaseEnvironment
@@ -64,7 +64,7 @@ class ExampleSARLEnvironment(BaseEnvironment[SARLObservation]):
 ```
 
 #### Marl Environment
-The multi-agent environments (e.g [MPE2](https://mpe2.farama.org/index.html)) are designed for multi-agent algorithms (e.g. MADDPG). 
+The multi-agent environments (e.g [MPE2][mpe2]) are designed for multi-agent algorithms (e.g. MADDPG). 
 
 ```python
 class ExampleMARLEnvironment(BaseEnvironment[MARLObservation]):
