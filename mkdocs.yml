@@ -6,6 +6,10 @@ theme:
     - navigation.expand
     - content.code.copy
     - content.code.annotate
+    - content.tooltips
+    - navigation.instant
+    - navigation.instant.preview
+    - content.tooltips
 
 nav:
   - Home: index.md
@@ -27,6 +31,10 @@ markdown_extensions:
   - attr_list
   - pymdownx.snippets:
       base_path: docs
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - abbr
 
 plugins:
   - search
