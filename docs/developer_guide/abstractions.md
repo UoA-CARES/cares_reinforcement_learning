@@ -9,7 +9,11 @@ The main training loop is built around a small number of shared abstractions. Th
 ![Abstraction Overview](../images/abstraction-loop.png)
 
 !!! tip "Evolving Abstraction"
+    Contributors should treat these abstractions as stable contracts that allow the package to scale without repeatedly rewriting training infrastructure.
+
     If you look at the commit history this abstraction has evolved over time. We are open to adjusting things when required, but it must be from deep thought and not quick short-cuts. 
+
+    If a new feature (e.g. Algorithm) requires `if algorithm == ...` checks inside the runner or other components, the abstraction probably needs another evolution.
 
 ## Why These Abstractions Exist
 
@@ -30,6 +34,20 @@ Instead, contributors should aim to preserve a small number of stable contracts:
 
     If a new feature requires changing one of these abstractions, consider whether the
     change is broadly useful across the package or specific to one implementation.
+
+## Single-Agent and Multi-Agent Abstractions
+
+The interfaces in the codebase support both single-agent reinforcement learning (SARL) and multi-agent reinforcement learning (MARL). Rather than treating MARL as a completely separate system, the package uses the same core abstractions with agent-specific extensions where needed. This allows contributors to implement both paradigms while preserving a consistent training loop.
+
+![SARL vs MARL](../images/sarl-vs-marl.png)
+
+!!! note "SARL vs MARL"
+    Single-Agent Reinforcement Learning (SARL) involves one learning agent interacting
+    with the environment.
+
+    Multi-Agent Reinforcement Learning (MARL) extends this to multiple agents acting in
+    the same environment, often requiring shared state, coordination, or centralized
+    training with decentralized execution.
 
 ### Environment
 
@@ -119,6 +137,13 @@ Algorithms use [Observations][obs-code] in order to produce actions as [ActionSa
 
 Algorithms train using batches of [Experiences][exp-code] sampled from memory along with the current [EpisodeContext][ecx-code]. Each algorithm handles all training logic internally. 
 
+!!! tip "Contributor mindset"
+    When adding a new algorithm, try to extend the shared abstractions rather than
+    creating special-case training loops.
+
+    Most new functionality should be handled through richer experience and context
+    objects, not runner-specific logic.
+
 ### Action Sample
 
 Algorithms do not return raw actions directly. Instead, they return [ActionSamples][act-code], which contains:
@@ -150,100 +175,23 @@ This abstraction allows the same algorithm to work with:
 The algorithm should depend on sampled batches, not on how the buffer stores them.
 
 !!! tip "Replay flexibility"
-    The memory abstraction defines how experiences are stored and sampled, but it does
-    not force a single replay strategy.
+    The memory abstraction defines how experiences are stored and sampled, but it does not force a single replay strategy.
 
-    The same algorithm can work with uniform replay, prioritized replay, sequence
-    replay, or other sampling strategies without changing the training loop.
+    The same algorithm can work with uniform replay, prioritized replay, sequence replay, or other sampling strategies without changing the training loop.
 
-## Single-Agent and Multi-Agent Abstractions
+!!! warning Keep Data Structures Explicit
 
-The interfaces in the codebase support both single-agent reinforcement learning (SARL) and multi-agent reinforcement learning (MARL). Rather than treating MARL as a completely separate system, the package uses the same core abstractions with agent-specific extensions where needed. This allows contributors to implement both paradigms while preserving a consistent training loop.
+    Objects such as `Experience`, `EpisodeContext`, and `ActionSample` should make data flow clear and predictable.
 
-![SARL vs MARL](../images/sarl-vs-marl.png)
+    Avoid hidden assumptions or implicit states where possible.
 
-### Single-Agent Reinforcement Learning (SARL)
-
-SARL assumes one learning agent interacting with the environment.
-
-This is the standard structure used by algorithms such as:
-
-- DQN
-- SAC
-- TD3
-- PPO
-
-In this case:
-
-- one observation is processed
-- one action is selected
-- one reward is received
-- one transition is stored
-
-The abstractions remain relatively simple because all decision-making belongs to a
-single policy.
-
-
-### Multi-Agent Reinforcement Learning (MARL)
-
-MARL extends the same structure to multiple agents interacting in the same environment.
-
-Examples include:
-
-- QMIX
-- MADDPG
-- MAPPO
-
-In this case:
-
-- multiple agent observations may exist
-- multiple actions are selected
-- rewards may be individual or shared
-- global state may be required for training
-
-This introduces additional requirements such as agent indexing, shared state, and
-coordination between policies.
-
-
-### Shared Interface Philosophy
-
-The goal is not to create two completely separate frameworks.
-
-Instead:
-
-- SARL and MARL share the same training loop structure
-- algorithms still implement the same high-level interface
-- environments still produce experiences
-- memory buffers still store replay data
-
-The difference is in the structure of the data being passed.
-
-For example:
-
-- `SARLExperience` stores one transition
-- `MARLExperience` stores per-agent transitions and shared state
-
-and similarly for:
-
-- `SARLAlgorithm` vs `MARLAlgorithm`
-- `SARLEpisodeContext` vs `MARLEpisodeContext`
-
-This keeps the system extensible without duplicating the entire framework.
-
-!!! tip "Contributor mindset"
-    When adding a new MARL algorithm, try to extend the shared abstractions rather than
-    creating special-case training loops.
-
-    Most new functionality should be handled through richer experience and context
-    objects, not runner-specific logic.
+    Explicit transition objects make debugging easier, simplify replay buffer design, and reduce coupling between components.
 
 ## Configuration-Driven Construction
 
-Most components in the package are created through configuration classes rather than
-being manually constructed inside training scripts.
+Most components in the package are created through configuration classes rather than being manually constructed inside training scripts. Contributors should avoid hardcoding implementation details directly into runners or training scripts.
 
-This keeps experiments reproducible, reduces duplicated setup logic, and allows runners
-to remain generic across many algorithms and environments.
+This keeps experiments reproducible, reduces duplicated setup logic, and allows runners to remain generic across many algorithms and environments.
 
 The general pattern is:
 
@@ -254,31 +202,10 @@ The general pattern is:
 This applies to:
 
 - algorithms
-- neural networks
 - environments
 - memory buffers
-- training runners
 
-### Why This Matters
-
-Contributors should avoid hardcoding implementation details directly into runners or
-training scripts.
-
-Instead, new functionality should be introduced through:
-
-- a new config
-- a factory update
-- a class that follows the existing abstraction
-
-This makes new methods easier to test, compare, and maintain.
-
-For example, adding a new algorithm should usually require:
-
-- a new algorithm class
-- a matching configuration class
-- registration in the relevant factory
-
-rather than modifying the core training loop.
+![Configuration Development](../images/configuration-dev.png)
 
 !!! tip "Contributor Mindset"
 
@@ -286,35 +213,7 @@ rather than modifying the core training loop.
     
     In most cases, the correct solution is to extend configuration and factory logic rather than introducing algorithm-specific handling inside the training loop.
 
-## Design Principles
-
-The purpose of these abstractions is not only code organisation, but long-term
-maintainability.
-
-As the number of algorithms, environments, and replay systems grows, consistency becomes
-more important than individual implementations.
-
-Contributors should treat these abstractions as stable contracts that allow the package
-to scale without repeatedly rewriting training infrastructure.
-
-### Prefer Extensions Over Special Cases
-
-New functionality should usually be added by extending an existing abstraction rather
-than introducing special handling in runners or training loops.
-
-For example:
-
-- add a new algorithm class rather than branching inside the runner
-- add a new replay buffer implementation rather than changing training logic
-- add a new environment wrapper rather than environment-specific algorithm code
-
-This keeps the package easier to test and significantly easier to maintain.
-
-!!! tip "Design rule"
-    If a feature requires multiple `if algorithm == ...` checks inside the runner,
-    the abstraction probably needs improvement.
-
-### Keep Runners Generic
+## Keep Runners Generic
 
 Runners should coordinate training, not implement algorithm logic.
 
@@ -327,23 +226,12 @@ They should work with abstractions such as:
 
 rather than concrete implementations such as DQN, SAC, or QMIX.
 
-This separation allows contributors to add new methods without rewriting the training
-loop.
+This separation allows contributors to add new methods without rewriting the training loop.
 
-### Keep Data Structures Explicit
+!!! warning "Design Guide"
+    If runners have logic being added that is only utilised by one algorithm - rather than by types of algorithms - then something in the design is wrong. 
 
-Objects such as `Experience`, `EpisodeContext`, and `ActionSample` should make data flow
-clear and predictable.
-
-Avoid hidden assumptions or implicit state where possible.
-
-Explicit transition objects make debugging easier, simplify replay buffer design, and
-reduce coupling between components.
-
-This is particularly important for MARL methods where shared state and per-agent state
-must remain easy to reason about.
-
-### When to Change an Abstraction
+## When to Change an Abstraction
 
 Sometimes new research requires extending an existing abstraction.
 
