@@ -1,16 +1,30 @@
 <p align="center">
-<img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
+  <a href="https://robotlearningteam.org/">
+    <img src="docs/images/logo.png" alt="CARES Reinforcement Learning Logo" width="80%"/>
+  </a>
 </p>
 
 A modular reinforcement learning framework for training and evaluating RL algorithms across diverse environments.
 
+[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://uoa-cares.github.io/cares_reinforcement_learning/)
 ![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 ![GitHub release](https://img.shields.io/github/v/release/UoA-CARES/cares_reinforcement_learning)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-# Motivation
+# Introduction
+The CARES Reinforcement Learning package is a modular and extensible framework for developing, training, and evaluating reinforcement learning algorithms. It provides a consistent interface across value-based, policy-based, and multi-agent methods, enabling clear comparisons between approaches in a single code base. Designed with research and real-world robotics applications in mind. This code base has been designed for the local team but we feel it has utility beyond our research group and are open to contributions/suggestions from others. 
 
-**Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
+## Documentation
+
+Full documentation: https://uoa-cares.github.io/cares_reinforcement_learning/
+
+The docs are split into three main sections:
+
+- **User Guide** — how to use the library, run experiments, configure environments, and train agents
+- **Developer Guide** — how to add algorithms, environments, replay buffers, and contribute to the codebase
+- **Learning Reinforcement Learning** — conceptual guides covering reinforcement learning fundamentals, algorithm intuition, core theory, and practical understanding of methods used throughout the library.
+
+New users should usually start with the User Guide, while contributors should begin with the Developer Guide.
 
 # Installation Instructions
 We recommend using the Stable release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.

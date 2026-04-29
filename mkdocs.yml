@@ -1,0 +1,56 @@
+site_name: CARES Reinforcement Learning
+site_description: Documentation for the CARES RL package
+site_url: https://uoa-cares.github.io/cares_reinforcement_learning/
+
+repo_name: UoA-CARES/cares_reinforcement_learning
+repo_url: https://github.com/UoA-CARES/cares_reinforcement_learning
+
+theme:
+  name: material
+  features:
+    - navigation.expand
+    - content.code.copy
+    - content.code.annotate
+    - content.tooltips
+    - navigation.instant
+    - navigation.instant.preview
+    - content.tooltips
+    - navigation.indexes
+  logo: images/logo-small.png
+
+
+nav:
+  - Home: index.md
+  # - Concepts:
+  #     - Key Concepts: concepts/index.md
+  #     - Foundations: concepts/foundations.md
+  - User Guide:
+      - Overview: user_guide/index.md
+  - Developer Guide:
+      - Overview: developer_guide/index.md
+      - Abstractions: developer_guide/abstractions.md
+      - Algorithm: developer_guide/algorithm.md
+      - Environments: developer_guide/environments.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences
+  - attr_list
+  - pymdownx.snippets:
+      base_path: docs
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - abbr
+
+plugins:
+  - search
+  - autorefs
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      zoomable: true
+      draggable: true
+      auto_caption: false

@@ -23,7 +23,7 @@ class F1TenthEnvironment(SARLEnvironment):
         state = self.env.reset()
         return state
 
-    def sample_action(self):
+    def sample_action(self) -> np.ndarray:
         action = np.random.uniform(
             self.min_action_value, self.max_action_value, size=self.action_num
         )
@@ -35,7 +35,7 @@ class F1TenthEnvironment(SARLEnvironment):
     def get_overlay_info(self) -> dict:
         return {}
 
-    def _step(self, action):
+    def _step(self, action) -> tuple:
         action = hlp.denormalize(action, self.max_action_value, self.min_action_value)
         return self.env.step(action)
 

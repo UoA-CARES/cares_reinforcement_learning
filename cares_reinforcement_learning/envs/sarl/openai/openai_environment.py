@@ -54,7 +54,7 @@ class OpenAIEnvironment(SARLEnvironment):
             )
         return action_num
 
-    def sample_action(self) -> int:
+    def sample_action(self) -> int | np.ndarray:
         action = self.env.action_space.sample()
         if self.apply_action_normalization:
             action = hlp.normalize(action, self.max_action_value, self.min_action_value)

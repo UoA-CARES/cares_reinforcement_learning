@@ -37,20 +37,12 @@ class BaseEnvironment(ABC, Generic[ObsType]):
     def set_log_path(self, log_path: str, step_count: int) -> None:
         pass
 
-    def get_multimodal_observation(self) -> dict:
-        # Default implementation, override if necessary
-        return {}
-
     def get_available_actions(self) -> np.ndarray:
         return np.array([])
 
     @cached_property
     def num_agents(self) -> int:
         return 1
-
-    @abstractmethod
-    def get_overlay_info(self) -> dict:
-        raise NotImplementedError("Override this method")
 
     @cached_property
     @abstractmethod
@@ -73,14 +65,6 @@ class BaseEnvironment(ABC, Generic[ObsType]):
         raise NotImplementedError("Override this method")
 
     @abstractmethod
-    def sample_action(self) -> Any:
-        raise NotImplementedError("Override this method")
-
-    @abstractmethod
-    def set_seed(self, seed: int) -> None:
-        raise NotImplementedError("Override this method")
-
-    @abstractmethod
     def reset(self, training: bool = True) -> ObsType:
         raise NotImplementedError("Override this method")
 
@@ -89,5 +73,17 @@ class BaseEnvironment(ABC, Generic[ObsType]):
         raise NotImplementedError("Override this method")
 
     @abstractmethod
+    def sample_action(self) -> Any:
+        raise NotImplementedError("Override this method")
+
+    @abstractmethod
+    def set_seed(self, seed: int) -> None:
+        raise NotImplementedError("Override this method")
+
+    @abstractmethod
     def grab_frame(self, height: int = 240, width: int = 300) -> np.ndarray:
+        raise NotImplementedError("Override this method")
+
+    @abstractmethod
+    def get_overlay_info(self) -> dict:
         raise NotImplementedError("Override this method")
