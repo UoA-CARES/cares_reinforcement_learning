@@ -1,15 +1,18 @@
+from typing import Any
+
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP, NoisyLinear
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
-from cares_reinforcement_learning.util.configurations import RainbowConfig
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
+from cares_reinforcement_learning.algorithm.configurations import RainbowConfig
 
 
 class BaseRainbowNetwork(BaseNetwork):
     def __init__(
         self,
-        oberservation_size: int,
+        observation_size: int,
         num_actions: int,
         output_size: int,
         num_atoms: int,
@@ -19,7 +22,7 @@ class BaseRainbowNetwork(BaseNetwork):
         value_stream: MLP | nn.Sequential,
         advantage_stream: MLP | nn.Sequential,
     ):
-        super().__init__(observation_size=oberservation_size, num_actions=num_actions)
+        super().__init__(observation_size=observation_size, num_actions=num_actions)
 
         self.output_size = output_size
         self.num_atoms = num_atoms
@@ -60,16 +63,25 @@ class BaseRainbowNetwork(BaseNetwork):
 
     def reset_noise(self):
         for module in self.feature_layer.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
 
         for module in self.value_stream.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
 
         for module in self.advantage_stream.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
+
+    def noise_stats(self) -> dict[str, Any]:
+        stats = {}
+        stats.update(self._module_noise_stats("feature_layer", self.feature_layer))
+        stats.update(self._module_noise_stats("value_stream", self.value_stream))
+        stats.update(
+            self._module_noise_stats("advantage_stream", self.advantage_stream)
+        )
+        return stats
 
 
 # This is the default base network for DQN for reference and testing of default network configurations
@@ -107,7 +119,7 @@ class DefaultNetwork(BaseRainbowNetwork):
         )
 
         super().__init__(
-            oberservation_size=observation_size,
+            observation_size=observation_size,
             num_actions=num_actions,
             output_size=output_size,
             num_atoms=num_atoms,
@@ -143,7 +155,7 @@ class Network(BaseRainbowNetwork):
         )
 
         super().__init__(
-            oberservation_size=observation_size,
+            observation_size=observation_size,
             num_actions=num_actions,
             output_size=output_size,
             num_atoms=config.num_atoms,

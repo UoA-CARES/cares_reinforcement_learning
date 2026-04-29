@@ -1,5 +1,50 @@
 """
+QMIX (Monotonic Value Function Factorisation)
+----------------------------------------------
+
 Original Paper: https://arxiv.org/pdf/1803.11485
+
+QMIX is a value-based multi-agent RL algorithm for cooperative
+tasks with a shared team reward. It enables centralized training
+with decentralized execution by factorizing the joint action-value.
+
+Core Idea:
+- Learn per-agent utility functions:
+      Q_i(o_i, a_i)
+- Combine them into a joint action-value:
+      Q_tot(s, a_1..a_n)
+  using a mixing network that enforces a monotonic constraint:
+      ∂Q_tot / ∂Q_i >= 0  for all agents i
+
+This guarantees that maximizing each agent's Q_i independently
+also maximizes Q_tot, enabling decentralized greedy action
+selection at execution time.
+
+Architecture:
+- Agent networks: estimate Q_i from local observation/history.
+- Mixing network: produces Q_tot from {Q_i} and global state s.
+- Hypernetworks: generate mixing weights conditioned on s,
+  allowing state-dependent coordination while keeping monotonicity.
+
+Training (centralized):
+- Use TD-learning on Q_tot with a team reward:
+      y = r + γ max_{a'} Q_tot(s', a')
+- Loss:
+      L = (Q_tot(s, a) - y)^2
+- Typically uses target networks and replay buffer (DQN-style).
+
+Execution (decentralized):
+- Each agent selects action greedily from its own utility:
+      a_i = argmax_a Q_i(o_i, a)
+
+Rationale:
+- Pure independent Q-learning fails due to non-stationarity.
+- Full joint Q(s, a_1..a_n) is intractable as agents scale.
+- QMIX captures coordination via state-conditioned mixing while
+  preserving decentralizable argmax through monotonicity.
+
+QMIX = per-agent Q-learning + centralized monotonic mixing
+       for cooperative MARL.
 """
 
 import copy
@@ -12,22 +57,18 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.networks.QMIX import (
-    SharedMultiAgentNetwork,
-    QMixer,
-)
-from cares_reinforcement_learning.util.configurations import QMIXConfig
-from cares_reinforcement_learning.util.helpers import EpsilonScheduler
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
-)
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import QMIXConfig
+from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
+from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
+from cares_reinforcement_learning.networks.QMIX import QMixer, SharedMultiAgentNetwork
+from cares_reinforcement_learning.types.action import ActionSample
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import MARLObservation
 
 
-class QMIX(VectorAlgorithm):
+class QMIX(MARLAlgorithm[list[int]]):
     def __init__(
         self,
         network: SharedMultiAgentNetwork,
@@ -55,12 +96,12 @@ class QMIX(VectorAlgorithm):
         self.num_actions = network.num_actions
 
         # Epsilon
-        self.epsilon_scheduler = EpsilonScheduler(
-            start_epsilon=config.start_epsilon,
-            end_epsilon=config.end_epsilon,
+        self.epsilon_scheduler = LinearScheduler(
+            start_value=config.start_epsilon,
+            end_value=config.end_epsilon,
             decay_steps=config.decay_steps,
         )
-        self.epsilon = self.epsilon_scheduler.get_epsilon(0)
+        self.epsilon = self.epsilon_scheduler.get_value(0)
 
         # Double DQN
         self.use_double_dqn = config.use_double_dqn
@@ -91,29 +132,26 @@ class QMIX(VectorAlgorithm):
         obs_list = [obs_dict[a] for a in agent_names]
         return torch.stack(obs_list, dim=1)
 
-    def select_action_from_policy(self, action_context: ActionContext):
+    def act(
+        self, observation: MARLObservation, evaluation: bool = False
+    ) -> ActionSample[list[int]]:
         """
         Epsilon-greedy per-agent action selection.
         Each agent decides independently whether to explore or exploit.
         """
-        state = action_context.state
-        evaluation = action_context.evaluation
-        available_actions = action_context.available_actions
-
-        assert isinstance(state, dict)
-
         actions = []
 
         # Get greedy actions for all agents once
-        obs_dict_tensors, _, avail_actions_tensor = tu.marl_states_to_tensors(
-            [state], self.device
+        observation_tensors = memory_sampler.observation_to_tensors(
+            [observation], self.device
         )
-        obs_tensors = self._stack_obs(obs_dict_tensors)  # [1, num_agents, obs_dim]
+
+        obs_tensors = self._stack_obs(observation_tensors.agent_states_tensor)
 
         self.network.eval()
         with torch.no_grad():
             q_values = self.network(obs_tensors)  # [1, num_agents, num_actions]
-            mask = avail_actions_tensor == 0
+            mask = observation_tensors.avail_actions_tensor == 0
             q_values = q_values.masked_fill(mask, -1e9)
             greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
         self.network.train()
@@ -125,22 +163,14 @@ class QMIX(VectorAlgorithm):
             else:
                 # Each agent decides independently
                 if random.random() < self.epsilon:
-                    avail_actions_ind = np.nonzero(available_actions[agent_id])[0]
+                    avail_actions_ind = np.nonzero(observation.avail_actions[agent_id])[
+                        0
+                    ]
                     actions.append(int(np.random.choice(avail_actions_ind)))
                 else:
                     actions.append(int(greedy_actions[agent_id]))
 
-        return actions
-
-    # def _calculate_value(self, state: np.ndarray, action: int) -> float:  # type: ignore[override]
-    #     state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
-    #     state_tensor = state_tensor.unsqueeze(0)
-
-    #     with torch.no_grad():
-    #         q_values = self.network(state_tensor)
-    #         q_value = q_values[0][action].item()
-
-    #     return q_value
+        return ActionSample(action=actions, source="policy")
 
     def _compute_loss(
         self,
@@ -149,13 +179,12 @@ class QMIX(VectorAlgorithm):
         states_tensors: torch.Tensor,
         next_states_tensors: torch.Tensor,
         actions_tensors: torch.Tensor,
+        avail_actions: torch.Tensor,
         next_avail_actions_tensors: torch.Tensor,
         rewards_tensors: torch.Tensor,
         dones_tensors: torch.Tensor,
     ) -> tuple[torch.Tensor, dict[str, float]]:
         """Computes the elementwise loss for QMIX. If use_double_dqn=True, applies Double DQN logic."""
-
-        loss_info: dict[str, float] = {}
 
         q_values = self.network(obs_tensors)
         next_q_values_target = self.target_network(next_obs_tensors)
@@ -198,45 +227,132 @@ class QMIX(VectorAlgorithm):
 
         elementwise_loss = F.mse_loss(q_total, q_target, reduction="none")
 
-        loss_info["td_error_mean"] = elementwise_loss.mean().item()
-        loss_info["td_error_std"] = elementwise_loss.std().item()
-        loss_info["q_total_mean"] = q_total.mean().item()
-        loss_info["q_target_mean"] = q_target.mean().item()
-        loss_info["q_next_mean"] = best_next_q_values.mean().item()
+        # ----------------------------
+        # Logging / diagnostics (QMIX)
+        # ----------------------------
+        loss_info: dict[str, float] = {}
+        with torch.no_grad():
+            td_total = (q_total - q_target).view(-1)  # [B]
+
+            loss_info["td_total_mean"] = td_total.mean().item()
+            loss_info["td_total_std"] = td_total.std().item()
+            loss_info["td_total_abs_mean"] = td_total.abs().mean().item()
+            loss_info["mse_total_mean"] = elementwise_loss.mean().item()
+
+            loss_info["q_total_mean"] = q_total.mean().item()
+            loss_info["q_target_mean"] = q_target.mean().item()
+
+            # Per-agent utilities (chosen + bootstrap)
+            loss_info["q_i_chosen_mean"] = best_q_values.mean().item()
+            loss_info["q_i_chosen_std"] = best_q_values.std().item()
+            loss_info["q_i_next_mean"] = best_next_q_values.mean().item()
+            loss_info["q_i_next_std"] = best_next_q_values.std().item()
+
+            # --- Current-state action masking for meaningful greedy/diversity metrics ---
+            avail = avail_actions.to(q_values.device)  # [B, n_agents, n_actions]
+            masked_q_values = q_values.masked_fill(avail == 0, -1e9)
+
+            # Max feasible utility per agent
+            q_i_max = masked_q_values.max(dim=2).values  # [B, n_agents]
+            loss_info["q_i_max_mean"] = q_i_max.mean().item()
+            loss_info["q_i_max_std"] = q_i_max.std().item()
+
+            # Mixer vs sum baseline
+            sum_q_i = best_q_values.sum(dim=1, keepdim=True)  # [B, 1]
+            diff = q_total - sum_q_i  # [B, 1]
+
+            loss_info["sum_q_i_mean"] = sum_q_i.mean().item()
+            loss_info["sum_q_i_abs_mean"] = sum_q_i.abs().mean().item()
+
+            loss_info["q_total_minus_sum_q_i_mean"] = diff.mean().item()
+            loss_info["q_total_minus_sum_q_i_std"] = diff.std().item()
+            loss_info["q_total_minus_sum_q_i_abs_mean"] = diff.abs().mean().item()
+
+            # Scale-stable "how big is mixer output vs sum" using absolute means
+            loss_info["q_total_abs_mean"] = q_total.abs().mean().item()
+            loss_info["q_total_abs_over_sum_q_i_abs_mean"] = (
+                q_total.abs().mean() / (sum_q_i.abs().mean() + 1e-6)
+            ).item()
+
+            # Correlation between q_total and sum_q_i (are they at least monotonic-ish?)
+            sum_centered = sum_q_i - sum_q_i.mean()
+            qt_centered = q_total - q_total.mean()
+            corr = (sum_centered * qt_centered).mean() / (
+                (sum_centered.pow(2).mean().sqrt() * qt_centered.pow(2).mean().sqrt())
+                + 1e-6
+            )
+            loss_info["q_total_sum_q_i_corr"] = corr.item()
+
+            # Availability constraints (next-state)
+            loss_info["next_avail_action_frac"] = (
+                next_avail_actions_tensors.float().mean().item()
+            )
+            loss_info["next_avail_actions_per_agent"] = (
+                next_avail_actions_tensors.float().sum(dim=2).mean().item()
+            )
+
+            # Sanity: are actions in replay valid under current avail_actions?
+            chosen_is_valid = avail.gather(2, actions_tensors.unsqueeze(-1)).squeeze(
+                -1
+            )  # [B, n_agents]
+            loss_info["invalid_action_frac"] = (
+                (chosen_is_valid == 0).float().mean().item()
+            )
+            loss_info["no_action_available_frac"] = (
+                (avail.float().sum(dim=2) == 0).float().mean().item()
+            )
+
+            # Greedy action diversity (MASKED, feasible actions only)
+            greedy_actions = masked_q_values.argmax(dim=2)  # [B, n_agents]
+            entropies = []
+            max_probs = []
+            for ag in range(self.num_agents):
+                counts = torch.bincount(
+                    greedy_actions[:, ag], minlength=self.num_actions
+                ).float()
+                probs = counts / counts.sum().clamp(min=1.0)
+                entropies.append(-(probs * (probs + 1e-12).log()).sum())
+                max_probs.append(probs.max())
+
+            loss_info["greedy_action_entropy_mean_agents"] = (
+                torch.stack(entropies).mean().item()
+            )
+            loss_info["greedy_action_max_prob_mean_agents"] = (
+                torch.stack(max_probs).mean().item()
+            )
 
         return elementwise_loss, loss_info
 
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
+    def train(
+        self,
+        memory_buffer: MARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
 
-        memory = training_context.memory
-        batch_size = training_context.batch_size
-        training_step = training_context.training_step
+        training_step = episode_context.training_step
 
-        self.epsilon = self.epsilon_scheduler.get_epsilon(training_step)
+        self.epsilon = self.epsilon_scheduler.get_value(training_step)
 
-        if len(memory) < batch_size:
+        if len(memory_buffer) < self.batch_size:
             return {}
 
         # Use training_utils to sample and prepare batch
         (
-            obs_dict_tensors,
-            states_tensors,
-            _,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_obs_dict_tensors,
-            next_states_tensors,
-            next_avail_actions_tensors,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,  # extras ignored
             indices,
-        ) = tu.sample_marl_batch_to_tensors(
-            memory,
-            batch_size,
-            self.device,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
@@ -252,18 +368,19 @@ class QMIX(VectorAlgorithm):
         dones_tensor = dones_tensor.view(-1)
         weights_tensor = weights_tensor.view(-1)
 
-        obs_tensors = self._stack_obs(obs_dict_tensors)
-        next_obs_tensors = self._stack_obs(next_obs_dict_tensors)
+        obs_tensors = self._stack_obs(observation_tensor.agent_states_tensor)
+        next_obs_tensors = self._stack_obs(next_observation_tensor.agent_states_tensor)
 
         # Calculate loss - overriden by C51
         elementwise_loss, loss_info = self._compute_loss(
             obs_tensors=obs_tensors,
             next_obs_tensors=next_obs_tensors,
-            states_tensors=states_tensors,
-            next_states_tensors=next_states_tensors,
+            states_tensors=observation_tensor.global_state_tensor,
+            next_states_tensors=next_observation_tensor.global_state_tensor,
             actions_tensors=actions_tensor,
             rewards_tensors=rewards_tensor,
-            next_avail_actions_tensors=next_avail_actions_tensors,
+            avail_actions=observation_tensor.avail_actions_tensor,
+            next_avail_actions_tensors=next_observation_tensor.avail_actions_tensor,
             dones_tensors=dones_tensor,
         )
         info |= loss_info
@@ -278,7 +395,12 @@ class QMIX(VectorAlgorithm):
                 .flatten()
             )
 
-            memory.update_priorities(indices, priorities)
+            info["per_priority_mean"] = priorities.mean()
+            info["per_priority_max"] = priorities.max()
+            info["per_priority_min"] = priorities.min()
+            info["per_priority_std"] = priorities.std()
+
+            memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
         else:
@@ -302,8 +424,8 @@ class QMIX(VectorAlgorithm):
 
         # Update target network - a tau of 1.0 equates to a hard update.
         if self.learn_counter % self.target_update_freq == 0:
-            hlp.soft_update_params(self.network, self.target_network, self.tau)
-            hlp.soft_update_params(self.mixer, self.target_mixer, self.tau)
+            self.soft_update_params(self.network, self.target_network, self.tau)
+            self.soft_update_params(self.mixer, self.target_mixer, self.tau)
 
         return info
 

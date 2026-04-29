@@ -64,7 +64,7 @@ class AELoss:
         loss = self.calculate_loss(
             data=data,
             reconstructed_data=reconstructed_observation,
-            latent_sample=reconstructed_observation,
+            latent_sample=latent_observation,
         )
 
         autoencoder.encoder_optimizer.zero_grad()

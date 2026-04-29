@@ -1,6 +1,6 @@
 from cares_reinforcement_learning.networks.DDPG import Actor as DDPGActor
 from cares_reinforcement_learning.networks.DDPG import DefaultActor as DDPGDefaultActor
-from cares_reinforcement_learning.util.configurations import MADDPGConfig
+from cares_reinforcement_learning.algorithm.configurations import MADDPGConfig
 
 
 class DefaultActor(DDPGDefaultActor):

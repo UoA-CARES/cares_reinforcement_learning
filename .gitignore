@@ -15,3 +15,5 @@ dist/
 .DS_Store
 rl_logs/
 .vscode/
+*.egg-info/
+.venv/

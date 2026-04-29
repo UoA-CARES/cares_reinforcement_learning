@@ -1,6 +1,49 @@
 """
+TD3 (Twin Delayed Deep Deterministic Policy Gradient)
+----------------------------------------------------
+
 Original Paper: https://arxiv.org/abs/1802.09477v3
 
+TD3 is an off-policy, actor-critic algorithm for continuous control that improves
+DDPG-style learning stability by addressing value overestimation and brittle policy updates.
+
+Core Problem:
+- Deterministic actor-critic methods (e.g., DDPG) often overestimate Q-values.
+- Overestimated Q-values can push the actor toward bad actions (feedback loop).
+- Updating the actor too frequently can exploit critic errors and destabilize learning.
+
+Core Idea:
+- Use two critics and take the minimum to reduce overestimation.
+- Add noise to target actions (policy smoothing) to avoid exploiting sharp Q-errors.
+- Delay actor (and target) updates so the critic can become more accurate first.
+
+Key Mechanisms:
+
+1) Clipped Double Q (Twin Critics):
+    - Learn two independent critics: Q1(s,a), Q2(s,a)
+    - Target uses the conservative estimate:
+        y = r + γ * min(Q1'(s', a'), Q2'(s', a'))
+
+2) Target Policy Smoothing:
+    - Compute target action with clipped noise:
+        a' = π'(s') + clip(ε, -c, c),   ε ~ N(0, σ)
+    - Prevents the critic from learning unrealistically optimistic peaks around π'(s').
+
+3) Delayed Policy Updates:
+    - Update critics every step (or more often),
+      but update actor less frequently (e.g., every d steps).
+    - Also update target networks only when actor updates.
+
+Key Behaviour:
+- Min over twin critics reduces optimistic bias in targets.
+- Smoothing noise regularizes Q around the target action.
+- Delayed actor updates reduce chasing transient critic errors.
+
+Advantages:
+- Much more stable than DDPG in many continuous-control settings.
+- Typically improves final performance and robustness with minimal complexity.
+
+TD3 = DDPG + twin critics + target action smoothing + delayed actor/target updates.
 """
 
 import copy
@@ -12,23 +55,27 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-import cares_reinforcement_learning.util.training_utils as tu
-from cares_reinforcement_learning.algorithm.algorithm import VectorAlgorithm
-from cares_reinforcement_learning.memory import MemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import TD3Config
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
+from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
     EnsembleCritic,
     TwinQNetwork,
 )
-from cares_reinforcement_learning.util.configurations import TD3Config
-from cares_reinforcement_learning.util.training_context import (
-    ActionContext,
-    TrainingContext,
+from cares_reinforcement_learning.types.action import ActionSample
+from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
 )
 
 
-class TD3(VectorAlgorithm):
+class TD3(SARLAlgorithm[np.ndarray]):
     def __init__(
         self,
         actor_network: DeterministicPolicy,
@@ -57,16 +104,21 @@ class TD3(VectorAlgorithm):
         self.min_priority = config.min_priority
 
         # Policy noise
-        self.min_policy_noise = config.min_policy_noise
-        self.policy_noise = config.policy_noise
-        self.policy_noise_decay = config.policy_noise_decay
-
         self.policy_noise_clip = config.policy_noise_clip
+        self.policy_noise_scheduler = ExponentialScheduler(
+            start_value=config.policy_noise_start,
+            end_value=config.policy_noise_end,
+            decay_steps=config.policy_noise_decay,
+        )
+        self.policy_noise = self.policy_noise_scheduler.get_value(0)
 
         # Action noise
-        self.min_action_noise = config.min_action_noise
-        self.action_noise = config.action_noise
-        self.action_noise_decay = config.action_noise_decay
+        self.action_noise_scheduler = ExponentialScheduler(
+            start_value=config.action_noise_start,
+            end_value=config.action_noise_end,
+            decay_steps=config.action_noise_decay,
+        )
+        self.action_noise = self.action_noise_scheduler.get_value(0)
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -80,13 +132,12 @@ class TD3(VectorAlgorithm):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-    def select_action_from_policy(self, action_context: ActionContext) -> np.ndarray:
+    def act(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> ActionSample[np.ndarray]:
         self.actor_net.eval()
 
-        state = action_context.state
-        evaluation = action_context.evaluation
-
-        assert isinstance(state, np.ndarray)
+        state = observation.vector_state
 
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
@@ -97,22 +148,23 @@ class TD3(VectorAlgorithm):
                 # this is part the TD3 too, add noise to the action
                 noise = np.random.normal(
                     0, scale=self.action_noise, size=self.action_num
-                )
+                ).astype(np.float32)
                 action = action + noise
                 action = np.clip(action, -1, 1)
+
         self.actor_net.train()
 
-        return action
+        return ActionSample(action=action, source="policy")
 
-    def _calculate_value(self, state: np.ndarray, action: np.ndarray) -> float:  # type: ignore[override]
-        state_tensor = torch.FloatTensor(state).to(self.device)
+    def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
+        state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
         state_tensor = state_tensor.unsqueeze(0)
 
         action_tensor = torch.FloatTensor(action).to(self.device)
         action_tensor = action_tensor.unsqueeze(0)
 
         with torch.no_grad():
-            with hlp.evaluating(self.critic_net):
+            with fnc.evaluating(self.critic_net):
                 q_values_one, q_values_two = self.critic_net(
                     state_tensor, action_tensor
                 )
@@ -129,8 +181,9 @@ class TD3(VectorAlgorithm):
         dones: torch.Tensor,
         weights: torch.Tensor,
     ) -> tuple[dict[str, Any], np.ndarray]:
+        info: dict[str, Any] = {}
         with torch.no_grad():
-            with hlp.evaluating(self.actor_net):
+            with fnc.evaluating(self.actor_net):
                 next_actions = self.target_actor_net(next_states)
 
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -176,11 +229,58 @@ class TD3(VectorAlgorithm):
             .flatten()
         )
 
-        info = {
-            "critic_loss_one": critic_loss_one.item(),
-            "critic_loss_two": critic_loss_two.item(),
-            "critic_loss_total": critic_loss_total.item(),
-        }
+        with torch.no_grad():
+            # --- TD3-style smoothing diagnostics ---
+            # Noise diagnostics
+            # What it tells you:
+            # - target_noise_abs_mean: effective smoothing magnitude.
+            # - target_noise_clip_frac high early: noise often clipped (clip too small or noise too large).
+            target_noise_abs_mean = target_noise.abs().mean().item()
+            target_noise_clip_frac = (
+                (target_noise.abs() >= self.policy_noise_clip).float().mean().item()
+            )
+            info["target_noise_abs_mean"] = float(target_noise_abs_mean)
+            info["target_noise_clip_frac"] = float(target_noise_clip_frac)
+
+            # --- Twin critic disagreement (stability/uncertainty) ---
+            # If this grows over training, critics are diverging / becoming inconsistent.
+            info["q1_mean"] = q_values_one.mean().item()
+            info["q2_mean"] = q_values_two.mean().item()
+            info["q_twin_gap_abs_mean"] = (
+                (q_values_one - q_values_two).abs().mean().item()
+            )
+
+            # --- Target critics disagreement (target stability) ---
+            # Large/unstable gap here often means target critics are drifting or policy is visiting OOD actions.
+            info["target_q1_mean"] = target_q_values_one.mean().item()
+            info["target_q2_mean"] = target_q_values_two.mean().item()
+            info["target_q_twin_gap_abs_mean"] = (
+                (target_q_values_one - target_q_values_two).abs().mean().item()
+            )
+
+            # --- Bellman target scale (reward scaling / discount sanity) ---
+            # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
+            info["q_target_mean"] = q_target.mean().item()
+            info["q_target_std"] = q_target.std().item()
+
+            # --- TD error diagnostics (Bellman fit quality) ---
+            # td_abs_mean down over time is healthy; persistent growth/spikes often indicate critic instability.
+            td1 = q_values_one - q_target  # signed
+            td2 = q_values_two - q_target  # signed
+
+            info["td1_mean"] = td1.mean().item()
+            info["td1_std"] = td1.std().item()
+            info["td1_abs_mean"] = td1.abs().mean().item()
+
+            info["td2_mean"] = td2.mean().item()
+            info["td2_std"] = td2.std().item()
+            info["td2_abs_mean"] = td2.abs().mean().item()
+
+            # --- Losses (optimization progress; less diagnostic than TD/twin gaps) ---
+            info["critic_loss_one"] = critic_loss_one.item()
+            info["critic_loss_two"] = critic_loss_two.item()
+            info["critic_loss_total"] = critic_loss_total.item()
+
         return info, priorities
 
     # Weights is set for methods like MAPERTD3 that use weights in the actor update
@@ -189,43 +289,90 @@ class TD3(VectorAlgorithm):
         states: torch.Tensor,
         weights: torch.Tensor,  # pylint: disable=unused-argument
     ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
         actions = self.actor_net(states)
 
-        with hlp.evaluating(self.critic_net):
+        with fnc.evaluating(self.critic_net):
             actor_q_values, _ = self.critic_net(states, actions)
 
         actor_loss = -actor_q_values.mean()
+
+        # ---------------------------------------------------------
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
+        # ---------------------------------------------------------
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
+        dq_da = torch.autograd.grad(
+            outputs=actor_loss,
+            inputs=actions,
+            retain_graph=True,  # because we do backward(actor_loss) next
+            create_graph=False,  # diagnostic only
+            allow_unused=False,
+        )[0]
+        with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
+            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
 
-        actor_info = {
-            "actor_loss": actor_loss.item(),
-        }
+        with torch.no_grad():
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions.mean().item()
+            info["pi_action_std"] = actions.std().item()
+            info["pi_action_abs_mean"] = actions.abs().mean().item()
+            info["pi_action_saturation_frac"] = (
+                (actions.abs() > 0.95).float().mean().item()
+            )
 
-        return actor_info
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
+            info["actor_loss"] = actor_loss.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
 
-    def update_networks(
+        return info
+
+    def update_from_batch(
         self,
-        memory: MemoryBuffer,
-        indices: np.ndarray,
-        states_tensor: torch.Tensor,
+        episode_context: EpisodeContext,
+        observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
-    ) -> dict[str, Any]:
-
+    ) -> tuple[dict[str, Any], np.ndarray]:
         info: dict[str, Any] = {}
+
+        self.learn_counter += 1
+
+        self.policy_noise = self.policy_noise_scheduler.get_value(
+            episode_context.training_step
+        )
+
+        self.action_noise = self.action_noise_scheduler.get_value(
+            episode_context.training_step
+        )
+
+        info["policy_noise"] = float(self.policy_noise)
+        info["action_noise"] = float(self.action_noise)
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
-            states_tensor,
+            observation_tensor.vector_state_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor.vector_state_tensor,
             dones_tensor,
             weights_tensor,
         )
@@ -233,64 +380,61 @@ class TD3(VectorAlgorithm):
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
-            actor_info = self._update_actor(states_tensor, weights_tensor)
+            actor_info = self._update_actor(
+                observation_tensor.vector_state_tensor, weights_tensor
+            )
             info |= actor_info
 
             # Update target network params
-            hlp.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
-            hlp.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
+            self.update_target_networks()
 
-        # Update the Priorities
-        if self.use_per_buffer:
-            memory.update_priorities(indices, priorities)
-
-        return info
+        return info, priorities
 
     # TODO use training_step with decay rates
-    def train_policy(self, training_context: TrainingContext) -> dict[str, Any]:
-        self.learn_counter += 1
-
-        memory = training_context.memory
-        batch_size = training_context.batch_size
-
-        # TODO replace with training_step based approach to avoid having to save this value
-        self.policy_noise *= self.policy_noise_decay
-        self.policy_noise = max(self.min_policy_noise, self.policy_noise)
-
-        # TODO replace with training_step based approach to avoid having to save this value
-        self.action_noise *= self.action_noise_decay
-        self.action_noise = max(self.min_action_noise, self.action_noise)
+    def train(
+        self,
+        memory_buffer: SARLMemoryBuffer,
+        episode_context: EpisodeContext,
+    ) -> dict[str, Any]:
 
         # Use the helper to sample and prepare tensors in one step
         (
-            states_tensor,
+            observation_tensor,
             actions_tensor,
             rewards_tensor,
-            next_states_tensor,
+            next_observation_tensor,
             dones_tensor,
             weights_tensor,
+            _,
             indices,
-        ) = tu.sample_batch_to_tensors(
-            memory=memory,
-            batch_size=batch_size,
+        ) = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=self.use_per_buffer,
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        info = self.update_networks(
-            memory,
-            indices,
-            states_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_states_tensor,
-            dones_tensor,
-            weights_tensor,
+        info, priorities = self.update_from_batch(
+            episode_context=episode_context,
+            observation_tensor=observation_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_tensor,
+            dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor,
         )
 
+        # Update the Priorities
+        if self.use_per_buffer:
+            memory_buffer.update_priorities(indices, priorities)
+
         return info
+
+    def update_target_networks(self) -> None:
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
+        self.soft_update_params(self.actor_net, self.target_actor_net, self.tau)
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):

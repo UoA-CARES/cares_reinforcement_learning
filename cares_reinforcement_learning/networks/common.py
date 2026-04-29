@@ -1,141 +1,20 @@
-import math
-from typing import Any, Callable
+from typing import Any
 
 import torch
-import torch.nn.functional as F
-from torch import distributions as pyd
 from torch import nn
 from torch.distributions import Normal
-from torch.distributions.transformed_distribution import TransformedDistribution
-from torch.distributions.transforms import TanhTransform
 
-import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAutoencoder
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     Encoder,
     VanillaAutoencoder,
 )
-from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
-from cares_reinforcement_learning.util.configurations import (
-    FunctionLayer,
-    MLPConfig,
-    NormLayer,
-    ResidualLayer,
-    TrainableLayer,
-)
-
-import cares_reinforcement_learning.networks.activation_functions as afs
-
-
-def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
-    if hasattr(nn, module_name):
-        return getattr(nn, module_name)
-    elif module_name == "BatchRenorm1d":
-        return BatchRenorm1d
-    elif module_name == "NoisyLinear":
-        return NoisyLinear
-    elif hasattr(afs, module_name):
-        return getattr(afs, module_name)
-    raise ValueError(f"Module {module_name} not found in nn or custom modules.")
-
-
-# Standard Multilayer Perceptron (MLP) network - consider making Sequential itself
-class MLP(nn.Module):
-    def __init__(
-        self,
-        input_size: int,
-        output_size: int | None,
-        config: MLPConfig,
-    ):
-        super().__init__()
-
-        self.input_size = input_size
-
-        layers = nn.ModuleList()
-
-        current_input_size = self.input_size
-        current_output_size = self.input_size
-
-        for layer_spec in config.layers:
-            if isinstance(layer_spec, TrainableLayer):
-                if layer_spec.in_features is not None:
-                    current_input_size = layer_spec.in_features
-
-                if layer_spec.out_features is not None:
-                    current_output_size = layer_spec.out_features
-                elif output_size is not None:
-                    current_output_size = output_size
-
-                layer = get_pytorch_module_from_name(layer_spec.layer_type)(
-                    current_input_size, current_output_size, **layer_spec.params
-                )
-            elif isinstance(layer_spec, FunctionLayer):
-                layer = get_pytorch_module_from_name(layer_spec.layer_type)(
-                    **layer_spec.params
-                )
-            elif isinstance(layer_spec, NormLayer):
-                if layer_spec.in_features is not None:
-                    current_input_size = layer_spec.in_features
-
-                layer = get_pytorch_module_from_name(layer_spec.layer_type)(
-                    current_input_size, **layer_spec.params
-                )
-            elif isinstance(layer_spec, ResidualLayer):
-                layer = ResidualBlock(current_input_size, layer_spec)
-            else:
-                raise ValueError(f"Unknown layer type {layer_spec}")
-
-            layers.append(layer)
-
-            current_input_size = current_output_size
-
-        self.model = nn.Sequential(*layers)
-
-        self.output_size = current_input_size if output_size is None else output_size
-
-    def forward(self, input_value: torch.Tensor) -> torch.Tensor:
-        return self.model(input_value)
-
-
-class ResidualBlock(MLP):
-    def __init__(
-        self,
-        input_size: int,
-        config: ResidualLayer,
-    ):
-        super().__init__(input_size, None, MLPConfig(layers=config.main_layers))
-        self.use_padding = config.use_padding
-
-        self.shortcut: nn.Module
-        if config.shortcut_layer is None:
-            self.shortcut = nn.Identity()
-        else:
-            self.shortcut = MLP(
-                input_size, None, MLPConfig(layers=[config.shortcut_layer])
-            )
-
-    def forward(self, input_value: torch.Tensor) -> torch.Tensor:
-        main_output = self.model(input_value)
-        if self.use_padding:
-            input_value = self.pad_channels(input_value, self.output_size)
-        return main_output + self.shortcut(input_value)
-
-    def pad_channels(self, x: torch.Tensor, target_channels: int):
-        """
-        Pads tensor `x` along channel dimension (dim=1) with zeros
-        until it reaches `target_channels`.
-        Works for shapes [N, C, L], [N, C, H, W], or [N, C, H, W, T].
-        """
-        N, C = x.shape[:2]
-        if C >= target_channels:
-            return x
-
-        pad_channels = target_channels - C
-        # Create a zero tensor of the same type and device
-        pad_shape = (N, pad_channels, *x.shape[2:])
-        zeros = torch.zeros(pad_shape, dtype=x.dtype, device=x.device)
-        return torch.cat([x, zeros], dim=1)
+from cares_reinforcement_learning.networks.distributions import SquashedNormal
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.types.observation import SARLObservationTensors
+from cares_reinforcement_learning.algorithm.configurations import MLPConfig
 
 
 class BasePolicy(nn.Module):
@@ -385,17 +264,17 @@ class EncoderPolicy(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(  # type: ignore
-        self, state: dict[str, torch.Tensor], detach_encoder: bool = False
+        self, state: SARLObservationTensors, detach_encoder: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
+        state_latent = self.encoder(state.image_state_tensor, detach_cnn=detach_encoder)
 
         actor_input = state_latent
         if self.add_vector_observation:
-            actor_input = torch.cat([state["vector"], actor_input], dim=1)
+            actor_input = torch.cat([state.vector_state_tensor, actor_input], dim=1)
 
         return self.actor(actor_input)
 
@@ -414,20 +293,20 @@ class EncoderCritic(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(
         self,
-        state: dict[str, torch.Tensor],
+        state: SARLObservationTensors,
         action: torch.Tensor,
         detach_encoder: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state["image"], detach_cnn=detach_encoder)
+        state_latent = self.encoder(state.image_state_tensor, detach_cnn=detach_encoder)
 
         critic_input = state_latent
         if self.add_vector_observation:
-            critic_input = torch.cat([state["vector"], critic_input], dim=1)
+            critic_input = torch.cat([state.vector_state_tensor, critic_input], dim=1)
 
         return self.critic(critic_input, action)
 
@@ -447,25 +326,25 @@ class AEActor(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(
-        self, state: dict[str, torch.Tensor], detach_encoder: bool = False
+        self, state: SARLObservationTensors, detach_encoder: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # NaSATD3 detatches the encoder at the output
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
             # take the mean value for stability
             z_vector, _, _ = self.autoencoder.encoder(
-                state["image"], detach_output=detach_encoder
+                state.image_state_tensor, detach_output=detach_encoder
             )
         else:
             z_vector = self.autoencoder.encoder(
-                state["image"], detach_output=detach_encoder
+                state.image_state_tensor, detach_output=detach_encoder
             )
 
         actor_input = z_vector
         if self.add_vector_observation:
-            actor_input = torch.cat([state["vector"], actor_input], dim=1)
+            actor_input = torch.cat([state.vector_state_tensor, actor_input], dim=1)
 
         return self.actor(actor_input)
 
@@ -484,11 +363,11 @@ class AECritc(nn.Module):
 
         self.add_vector_observation = add_vector_observation
 
-        self.apply(hlp.weight_init)
+        self.apply(fnc.weight_init)
 
     def forward(
         self,
-        state: dict[str, torch.Tensor],
+        state: SARLObservationTensors,
         action: torch.Tensor,
         detach_encoder: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -496,110 +375,15 @@ class AECritc(nn.Module):
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
             # take the mean value for stability
             z_vector, _, _ = self.autoencoder.encoder(
-                state["image"], detach_output=detach_encoder
+                state.image_state_tensor, detach_output=detach_encoder
             )
         else:
             z_vector = self.autoencoder.encoder(
-                state["image"], detach_output=detach_encoder
+                state.image_state_tensor, detach_output=detach_encoder
             )
 
         critic_input = z_vector
         if self.add_vector_observation:
-            critic_input = torch.cat([state["vector"], critic_input], dim=1)
+            critic_input = torch.cat([state.vector_state_tensor, critic_input], dim=1)
 
         return self.critic(critic_input, action)
-
-
-# Stable version of the Tanh transform - overriden to avoid NaN values through atanh in pytorch
-class StableTanhTransform(TanhTransform):
-    def __init__(self, cache_size=1):
-        super().__init__(cache_size=cache_size)
-
-    @staticmethod
-    def atanh(x):
-        return 0.5 * (x.log1p() - (-x).log1p())
-
-    def __eq__(self, other):
-        return isinstance(other, StableTanhTransform)
-
-    def _inverse(self, y):
-        # We do not clamp to the boundary here as it may degrade the performance of certain algorithms.
-        # one should use `cache_size=1` instead
-        return self.atanh(y)
-
-
-# These methods are not required for the purposes of SAC and are thus intentionally ignored
-# pylint: disable=abstract-method
-class SquashedNormal(TransformedDistribution):
-    def __init__(self, loc, scale):
-        self.loc = loc
-        self.scale = scale
-        self.base_dist = pyd.Normal(loc, scale)
-
-        transforms = [StableTanhTransform()]
-        super().__init__(self.base_dist, transforms, validate_args=False)
-
-    @property
-    def mean(self):
-        mu = self.loc
-        for tr in self.transforms:
-            mu = tr(mu)
-        return mu
-
-
-class NoisyLinear(nn.Module):
-    def __init__(self, in_features, out_features, sigma_init=0.5):
-        super(NoisyLinear, self).__init__()
-
-        self.in_features = in_features
-        self.out_features = out_features
-        self.sigma_init = sigma_init
-
-        self.weight_mu = nn.Parameter(torch.FloatTensor(out_features, in_features))
-        self.weight_sigma = nn.Parameter(torch.FloatTensor(out_features, in_features))
-        self.register_buffer(
-            "weight_epsilon", torch.FloatTensor(out_features, in_features)
-        )
-        self.bias_mu = nn.Parameter(torch.FloatTensor(out_features))
-        self.bias_sigma = nn.Parameter(torch.FloatTensor(out_features))
-        self.register_buffer("bias_epsilon", torch.FloatTensor(out_features))
-
-        self.reset_parameters()
-        self.reset_noise()
-
-    def forward(self, x):
-        weight = self.weight_mu + self.weight_sigma.mul(self.weight_epsilon)
-        bias = self.bias_mu + self.bias_sigma.mul(self.bias_epsilon)
-
-        # pylint: disable-next=not-callable
-        return F.linear(x, weight, bias)
-
-    def reset_parameters(self):
-        std = 1 / math.sqrt(self.in_features)
-        self.weight_mu.data.uniform_(-std, std)
-        self.bias_mu.data.uniform_(-std, std)
-
-        self.weight_sigma.data.fill_(self.sigma_init * std)
-        self.bias_sigma.data.fill_(self.sigma_init * std)
-
-    def reset_noise(self):
-        epsilon_in = self._scale_noise(self.in_features)
-        epsilon_out = self._scale_noise(self.out_features)
-
-        self.weight_epsilon.data.copy_(epsilon_out.ger(epsilon_in))
-        self.bias_epsilon.data.copy_(epsilon_out)
-
-        # Print the noise values
-        # print(
-        #     f"Weight epsilon mean: {self.weight_epsilon.mean().item():.6f}, "
-        #     f"std: {self.weight_epsilon.std().item():.6f}"
-        # )
-        # print(
-        #     f"Bias epsilon mean: {self.bias_epsilon.mean().item():.6f}, "
-        #     f"std: {self.bias_epsilon.std().item():.6f}"
-        # )
-
-    def _scale_noise(self, size):
-        x = torch.randn(size, device=self.weight_mu.device)
-        # print(f"Raw noise stats: mean {x.mean().item():.6f}, std {x.std().item():.6f}")
-        return x.sign().mul(x.abs().sqrt())

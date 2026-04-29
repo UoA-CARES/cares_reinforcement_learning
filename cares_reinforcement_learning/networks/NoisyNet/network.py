@@ -1,8 +1,12 @@
+from typing import Any
+
 import torch
 from torch import nn
-from cares_reinforcement_learning.networks.common import MLP, NoisyLinear
-from cares_reinforcement_learning.util.configurations import NoisyNetConfig
+
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
+from cares_reinforcement_learning.algorithm.configurations import NoisyNetConfig
 
 
 class BaseNoisyNetwork(BaseNetwork):
@@ -15,8 +19,11 @@ class BaseNoisyNetwork(BaseNetwork):
 
     def reset_noise(self):
         for module in self.network.modules():
-            if hasattr(module, "reset_noise"):
+            if isinstance(module, NoisyLinear):
                 module.reset_noise()
+
+    def noise_stats(self) -> dict[str, Any]:
+        return self._module_noise_stats("network", self.network)
 
 
 class DefaultNetwork(BaseNoisyNetwork):

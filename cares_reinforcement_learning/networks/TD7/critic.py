@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks.common import MLP
-from cares_reinforcement_learning.util.configurations import TD7Config
+from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.algorithm.configurations import TD7Config
 
 
 class BaseCritic(nn.Module):
@@ -56,12 +56,12 @@ class BaseCritic(nn.Module):
         embeddings = torch.cat([zsa, zs], dim=1)
 
         q1 = self.feature_layer_one(obs_action)
-        q1 = hlp.avg_l1_norm(q1)
+        q1 = fnc.avg_l1_norm(q1)
         q1 = torch.cat([q1, embeddings], dim=1)
         q1 = self.Q1(q1)
 
         q2 = self.feature_layer_two(obs_action)
-        q2 = hlp.avg_l1_norm(q2)
+        q2 = fnc.avg_l1_norm(q2)
         q2 = torch.cat([q2, embeddings], dim=1)
         q2 = self.Q2(q2)
 

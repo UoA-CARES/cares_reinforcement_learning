@@ -2,129 +2,230 @@
 <img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
 </p>
 
-The CARES reinforcement learning bed used as the foundation for RL related projects.
+A modular reinforcement learning framework for training and evaluating RL algorithms across diverse environments.
+
+![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
+![GitHub release](https://img.shields.io/github/v/release/UoA-CARES/cares_reinforcement_learning)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 # Motivation
 
 **Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
 
-# Usage
-Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki) for a guide on how to use the package
-
 # Installation Instructions
-![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
+We recommend using the Stable release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.
 
-`git clone` the repository into your desired directory on your local machine
+### Stable Release v3.0.0 (Recommended)
+Clone the latest stable release of CARES Reinforcement Learning.
 
-Run `pip3 install -r requirements.txt` in the **root directory** of the package
+```bash
+git clone --branch v3.0.0 https://github.com/UoA-CARES/cares_reinforcement_learning.git
 
-To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
-
-# Running an Example
-
-This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own environments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks.
-
-## Gym Environments
-
-We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place:  https://github.com/UoA-CARES/gymnasium_envrionments
-
-This package contains wrappers for the following gym environments:
-
-### Deep Mind Control Suite
-
-The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
-
-<p align="center">
-    <img alt="deep mind control suite" src="./media/dmcs.png" style="width: 80%;"/>
-</p>
-
-### OpenAI Gymnasium
-
-The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium
-
-<p align="center">
-    <img alt="open ai" src="./media/openai.jpg" style="width: 80%;" />
-</p>
-
-### Game Boy Emulator
-
-Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment
-
-<p align="center">
-    <img alt="game boy mario" src="./media/mario.png" style="width: 40%;" />
-    <img alt="game boy pokemon" src="./media/pokemon.png" style="width: 40%;"/>
-</p>
-
-## Gripper Gym
-
-The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
-
-<p align="center">
-    <img alt="rotation task" src="./media/rotation_task-min.jpg" style="width: 40%;"/>
-    <img alt="translation task" src="./media/translation_task-min.jpg" style="width: 40%;"/>
-</p>
-
-## F1Tenth Autonomous Racing
-
-The Autonomous F1Tenth package contains all the code for training our F1Tenth platforms to autonomously race: https://github.com/UoA-CARES/autonomous_f1tenth
-
-<p align="center">
-    <img alt="f one tenth" src="./media/f1tenth-min.png" style="width: 80%;"/>
-</p>
-
-# Package Structure
-
-```text
-cares_reinforcement_learning/
-├─ algorithm/
-├─ encoders/
-│  ├─ autoencoder.py
-│  ├─ ...
-├─ policy/
-│  │  ├─ TD3.py
-│  │  ├─ ...
-│  ├─ value/
-│  │  ├─ DQN.py
-│  │  ├─ ...
-├─ memory/
-│  ├─ prioritised_replay_buffer.py
-├─ networks/
-│  ├─ DQN/
-│  │  ├─ network.py
-│  ├─ TD3.py/
-│  │  ├─ actor.py
-│  │  ├─ critic.py
-│  ├─ ...
-├─ util/
-│  ├─ network_factory.py
-│  ├─ ...
+cd cares_reinforcement_learning
+pip install -e .[gym]
 ```
 
-`algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
+Clone the **main** branch for the latest features - note this branch may not be stable as it is the working branch.
 
-`encoders`: contains the implementations for various autoencoders and variational autoencoders
+### Development Environment (UV/pyenv)
+We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used those looking to contribute to the code base or various gym packages.
 
-`memory`: contains the implementation of various memory buffers - e.g. Prioritised Experience Replay
+Clone the latest main of CARES Reinforcement Learning.
+```bash
+git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
+```
 
-`networks`: contains standard neural networks that can be used with each algorithm
+#### 1. Install uv and pyenv
 
-`util`: contains common utility classes
+Install `uv` using the official installer:
 
-# Encoders
-An autoencoder consists of an encoder that compresses input data into a latent representation and a decoder that reconstructs the original data from this compressed form. Variants of autoencoders, such as Variational Autoencoders (VAEs) and Beta-VAEs, introduce probabilistic elements and regularization techniques to enhance the quality and interpretability of the latent space. While standard autoencoders focus on reconstruction accuracy, advanced variants like Beta-VAE and Squared VAE (SqVAE) aim to improve latent space disentanglement and sparsity, making them valuable for generating more meaningful and structured representations.
+```bash
+curl -Ls https://astral.sh/uv/install.sh | sh
+```
 
-We have re-implemented a range of autoencoder/variational-autoencoder methodologies for use with the RL algorithms implemented within this library.
-For more information on the encoders available in this package, please refer to the [README](./cares_reinforcement_learning/encoders/README.md) in the encoders folder.
-These algorithms can be used stand-alone beyond their use here for RL. 
+Install 'pyenv' using the official installer:
 
-# Utilities
+```bash
+curl -fsSL https://pyenv.run | bash
+```
 
-CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new environments we build to test our approaches.
+#### 2. Setup Virtual Environment (pyenv)
+Install the required Python version - note you can use 3.12 if you prefer.
 
-## Record.py
+```bash
+pyenv install 3.10
+pyenv virtualenv 3.10 cares_rl_310
+pyenv activate cares_rl_310
+```
 
-The Record class allows data to be saved into a consistent format during training. This allows all data to be consistently formatted for plotting against each other for fair and consistent evaluation.
+#### 3. Install Requirements (UV)
+Install the project and its requirements - note we are using the **--active** command to work inside of the pyenv environment.
 
+```bash
+uv sync --active --extra gym
+```
+
+## Quick Start
+
+Train a reinforcement learning agent in a Gymnasium environment:
+
+```bash
+cares-rl train cli --gym openai --task CartPole-v1 DQN
+```
+
+Run training across multiple seeds in parallel
+```bash
+cares-rl train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50 --max_workers 5
+```
+
+Test a trained model:
+```bash
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
+```
+
+Plot training results
+```bash
+cares-rl-plot -s ~/cares_rl_logs -d <PATH_TO_RUN>
+```
+
+# Usage
+We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place. 
+
+## Running Training and Evaluation
+The package is called using the cli command `cares-rl`. This takes in specific commands list below for training and evaluation purposes. The installed command runs the `run.py` in the main directory.
+
+Use `cares-rl -h` for help on what parameters are available for customisation.
+
+### Train
+The train command in the `cares-rl` script is used to initiate the training process for reinforcement learning models within specified gym environments. This command can be customized using various hyperparameters to tailor the training environment and the RL algorithm. You can use python `cares-rl train cli -h` to view all available options for customization and start a run directly through the terminal. This flexibility enables users to experiment with different settings and optimize their models effectively.
+
+Specific and larger configuration changes can be loaded using python `cares-rl train config --data_path <PATH_TO_TRAINING_CONFIGS>`, allowing for a more structured and repeatable training setup through configuration files including modification of network structures for given algorithms.
+
+```
+cares-rl train cli -h
+cares-rl train config --data_path <PATH_TO_TRAINING_CONFIGS>
+```
+
+Training can run training across seeds in parallel using the `--max_workers` parameter which will run each training seed in its own process. 
+
+```
+cares-rl train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50 --max_workers 5
+```
+
+<p align="center">
+    <img src="./media/par.gif" alt="par gif" style="width: 100%;" />
+</p>
+
+
+### Resume (Experimental)
+The resume command allows you to continue training from a previously saved checkpoint. This is useful if training was interrupted or if you want to further improve a model. You can specify the path to the checkpoint and resume training with your desired settings.
+
+Note: to enable a training to be resumable you need to enable the `--save_train_checkpoints 1` when using the train command. Checkpoint saving does not default to true, this is because saving a checkpoint of the memory, and training parameters increases data storage on the HD - especially for image based learning. This is also an experimental feature and the `resume` does not set all parameters/evnrioments to the same state as before - this will change the training outcomes, it is not a true resume command but it is useful for restarting training.
+
+```
+cares-rl resume --data_path <PATH_TO_TRAINING_DATA>
+```
+
+### Evaluate
+The evaluate command is used to re-run the evaluation loops from a prior training run - this will reproduce the evaluation graphs and data from a given training experiment. Useful if you have updated metrics you want to capture without having to re-run the entire training process.
+
+```
+cares-rl evaluate --data_path <PATH_TO_TRAINING_DATA>
+```
+
+### Test
+The test command is used to run evaluation loops on a trained reinforcement learning model on the environment, users can load the trained model to evaluate how well the model performs on the given task with different evaluation seeds and over any number of episodes. 
+
+```
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --eval_seed <EVAL_SEED> --episodes <NUM_EPISODES>
+```
+
+## Gym Environments
+This package contains wrappers for the following gym environments - these wrapper standardise the different interfaces various tasks/environments use so we can use the same algorithm interface. 
+
+### Single Agent Enviroments
+Training environments for single agent reinforcement learning algorithms.
+
+#### Deep Mind Control Suite
+The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
+
+```
+cares-rl train cli --gym dmcs --domain ball_in_cup --task catch TD3
+```
+
+<p align="center">
+    <img src="./media/dmcs.png" style="width: 60%;"/>
+</p>
+
+#### OpenAI Gymnasium
+The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium 
+
+```
+cares-rl train cli --gym openai --task CartPole-v1 DQN
+
+cares-rl train cli --gym openai --task HalfCheetah-v4 TD3
+```
+
+<p align="center">
+    <img src="./media/openai.jpg" style="width: 60%;" />
+</p>
+
+#### Game Boy Emulator
+Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment 
+
+```
+cares-rl train cli --gym pyboy --task mario SACAE
+```
+
+<p align="center">
+    <img src="./media/mario.png" style="width: 30%;" />
+    <img src="./media/pokemon.png" style="width: 30%;"/>
+</p>
+
+### Drone Gym
+The Drone gym contains all the code for training the CrazyFly drone on navigation tasks: https://github.com/UoA-CARES/drone_gym
+
+```
+cares-rl train cli --gym drone --task move_2d SAC
+```
+
+<p align="center">
+    <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 35%;"/>
+</p>
+
+### F1Tenth Gym V2.0
+The F1Tenth gym contains all the code for training F1Tenth cars in autonomous racing. 
+
+<p align="center">
+    <img alt="crazyfly" src="./media/f1tenth-min.png" style="width: 50%;"/>
+</p>
+
+### Multi Agent Enviroments
+Training environments for multi agent reinforcement learning algorithms.
+
+### SMAC/SMACv2
+SMAC - The StarCraft Multi-Agent Challenge versions one (https://github.com/oxwhirl/smac) and two (https://github.com/oxwhirl/smacv2).
+
+```
+cares-rl train cli --gym smac --task m3 QMIX
+```
+
+<p align="center">
+    <img alt="crazyfly" src="./media/smac.jpg" style="width: 40%;"/>
+</p>
+
+### MPE2
+The standard MPE2 environment: https://mpe2.farama.org/
+
+```
+cares-rl train cli --gym mpe --task simple_spread_v3 MADDPG
+```
+
+<p align="center">
+    <img alt="mep2" src="./media/mpe2.png" style="width: 30%;" />
+</p>
+
+## Training Data Logs
 All data from a training run is saved into the directory specified in the `CARES_LOG_BASE_DIR` environment variable. If not specified, this will default to `'~/cares_rl_logs'`.
 
 You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}"`.
@@ -157,39 +258,26 @@ This folder will contain the following directories and information saved during 
 |  ├─ ...
 ```
 
-## plotting.py
+## Plotting
+The plotting utility in will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
 
-The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
-
-Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
+Running 'cares-rl-plot -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
 
 ```sh
-python3 plotter.py -h
+cares-rl-plot -h
 ```
 
 Plot the results of a single training instance
 
 ```sh
-python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
+cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
 ```
 
 Plot and compare the results of two or more training instances
 
 ```sh
-python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
+cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
 ```
-
-## configurations.py
-
-Provides baseline data classes for environment, training, and algorithm configurations to allow for consistent recording of training parameters.
-
-## NetworkFactory.py
-
-A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package.
-
-## MemoryFactory.py
-
-A factory class for creating a memory buffer that has been implemented into the CARES RL package.
 
 # Supported Algorithms 
 
@@ -248,8 +336,16 @@ Multi-Agent Reinforcement Learning algorithms (MARL).
 | Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
+| IDDPG       | Vector (MARL)              | Continuous   | N/A                                                         |
 | MADDPG      | Vector (MARL)              | Continuous   | [MADDPG](https://arxiv.org/pdf/1706.02275)                  |
 | M3DDPG      | Vector (MARL)              | Continuous   | [M3DDPG](https://doi.org/10.1609/aaai.v33i01.33014213)      |
+| ERNIE       | Vector (MARL)              | Continuous   | [ERNIE](https://arxiv.org/abs/2310.10810)                   |
+| ITD3        | Vector (MARL)              | Continuous   | N/A                                                         |
+| MATD3       | Vector (MARL)              | Continuous   | [MATD3](https://arxiv.org/pdf/1910.01465)                   |
+| ISAC        | Vector (MARL)              | Continuous   | N/A                                                         |
+| MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://doi.org/10.1609/aaai.v33i01.33014213)       |
+| IPPO        | Vector (MARL)              | Continuous   | N/A                                                         |
+| MAPPO       | Vector (MARL)              | Continuous   | [MAPPO](https://arxiv.org/abs/2103.01955)                   |
 
 ## Unsupervised Skill Discovery
 Implementation of Unsupervised Skill discovery methods
@@ -266,6 +362,10 @@ Implementation of Unsupervised Skill discovery methods
   author = {CARES},
   year = {2025},
   publisher = {GitHub},
-  url = {https://https://github.com/UoA-CARES/cares_reinforcement_learning.}
+  url = {https://github.com/UoA-CARES/cares_reinforcement_learning}
 }
 ```
+
+## License
+
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.

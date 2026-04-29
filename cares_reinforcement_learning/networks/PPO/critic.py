@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
-from cares_reinforcement_learning.util.configurations import PPOConfig
+from cares_reinforcement_learning.networks.mlp_architecture import MLP
+from cares_reinforcement_learning.algorithm.configurations import PPOConfig
 
 
 class BaseCritic(nn.Module):
@@ -17,8 +17,9 @@ class BaseCritic(nn.Module):
 
 
 class DefaultCritic(BaseCritic):
-    def __init__(self, observation_size: int):
-        hidden_sizes = [1024, 1024]
+    def __init__(self, observation_size: int, hidden_sizes: list[int] | None = None):
+        if hidden_sizes is None:
+            hidden_sizes = [256, 256]
 
         # Q1 architecture
         # pylint: disable-next=invalid-name
