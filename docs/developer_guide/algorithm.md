@@ -6,7 +6,6 @@ We welcome published algorithms that offer novel insights to the RL community. R
 ![Architecture Overview](../images/algorithm-guide.png)
 At a high level: *configuration defines structure, components implement structure, and the algorithm consumes those components to learn.*
 
-
 !!! warning "Replication Philosophy"
 
     Our goal is to reproduce the original algorithm as faithfully as possible.
@@ -18,8 +17,6 @@ At a high level: *configuration defines structure, components implement structur
 
 ## Implementation Steps
 To implement a new algorithm in the CARES Reinforcement Learning package you need to follow four steps:
-
-To add a new algorithm, follow these four steps:
 
 1. Implement the `<Algorithm>` class in the [algorithm folder][algorithm-code].
 2. Create the required network components in the [networks folder][networks-code].
