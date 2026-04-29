@@ -10,6 +10,8 @@ theme:
     - navigation.instant
     - navigation.instant.preview
     - content.tooltips
+    - navigation.indexes
+
 
 nav:
   - Home: index.md
@@ -39,3 +41,10 @@ markdown_extensions:
 plugins:
   - search
   - autorefs
+  - glightbox:
+      touchNavigation: true
+      loop: false
+      effect: zoom
+      zoomable: true
+      draggable: true
+      auto_caption: false

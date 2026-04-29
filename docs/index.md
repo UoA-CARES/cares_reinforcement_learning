@@ -1,5 +1,7 @@
 <p align="center">
-    <img src="images/logo.png" alt="CARES Reinforcement Learning Logo" width="80%"/>
+    <a href="https://robotlearningteam.org/">
+        <img src="images/logo.png" alt="CARES Reinforcement Learning Logo" width="80%"/>
+    </a>
 </p>
 
 # CARES Reinforcement Learning

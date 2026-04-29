@@ -4,7 +4,7 @@ Thank you for your interest in contributing to CARES Reinforcement Learning! Thi
 Before contributing, please review this guide to understand the structure and requirements for adding new features to the CARES Reinforcement Learning library. Whether you are implementing a new algorithm or environment wrapper, following these steps will help ensure consistency and maintainability across the project.
 
 ## Types of Contributions
-Contributions should integrate cleanly with the existing framework and follow the current project structure. To assist with any implementations you can read the code abstraction guide and reasoning [here](./abstractions.md).
+Contributions should integrate cleanly with the existing framework and follow the current project structure. To assist with any implementations you can read the code [abstraction guide](./abstractions.md).
 
 We are happy to consider contributions such as:
 
