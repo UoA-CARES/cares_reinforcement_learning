@@ -21,3 +21,7 @@
 *[Actor-Critic]: A reinforcement learning structure using both a policy network (actor) and value estimator (critic)
 *[Value-Based]: Methods that learn action values directly, such as DQN
 *[Policy-Based]: Methods that optimise the policy directly, such as PPO or SAC
+
+*[experience]: A data structure representing a single transition in reinforcement learning, typically containing the observation (state), action, reward, next observation (next state), and done flag. Used for both single-agent and multi-agent settings to record interactions between agent(s) and environment.
+
+*[Experience]: A data structure representing a single transition in reinforcement learning, typically containing the observation (state), action, reward, next observation (next state), and done flag. Used for both single-agent and multi-agent settings to record interactions between agent(s) and environment.

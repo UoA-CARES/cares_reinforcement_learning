@@ -31,8 +31,13 @@
 [rl-parser]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/util/rl_parser.py
 
 <!-- Types Links -->
+[exp-code]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/types/experience.py
+ 
+[obs-code]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/types/observation.py
 
+[ecx-code]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/types/episode.py
 
+[act-code]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/types/action.py
 
  <!-- Algorithms -->
 [algorithm-py]: https://github.com/UoA-CARES/cares_reinforcement_learning/blob/main/cares_reinforcement_learning/algorithm/algorithm.py
