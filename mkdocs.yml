@@ -1,4 +1,9 @@
 site_name: CARES Reinforcement Learning
+site_description: Documentation for the CARES RL package
+site_url: https://uoa-cares.github.io/cares_reinforcement_learning/
+
+repo_name: UoA-CARES/cares_reinforcement_learning
+repo_url: https://github.com/UoA-CARES/cares_reinforcement_learning
 
 theme:
   name: material
