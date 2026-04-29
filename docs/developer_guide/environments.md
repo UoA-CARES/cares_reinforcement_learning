@@ -25,7 +25,7 @@ To implement a new envrionment wrapper in the CARES Reinforcement Learning packa
 
 1. Implement the `<Environment>` class in the [envrionment folder][envs-code].
 2. Define the run time parameters for the environment in [configurations file][envs-config].
-3. Register the constructor in the [EnvironmentFactory][envs-fact].
+3. Register the constructor in the [EnvironmentFactory][envs-fac].
 
 This modular design enables reproducibility, flexible experimentation, and minimal code changes for new envrionments.
 
@@ -140,7 +140,7 @@ You can now use `MyCustomEnvConfig` as the `config` argument when creating your 
     See the existing config classes (e.g., `OpenAIConfig`, `DMCSConfig`, `PyBoyConfig`, etc.) in [`envs/configurations.py`][envs-config] for more examples.
 
 ## 3. Define the Constructor
-After defining your environment class and its configuration, you must register it in the [EnvironmentFactory][envs-fact] so it can be instantiated by the framework. This step is required for your environment to be discoverable and usable in experiments.
+After defining your environment class and its configuration, you must register it in the [EnvironmentFactory][envs-fac] so it can be instantiated by the framework. This step is required for your environment to be discoverable and usable in experiments.
 
 1. In the `create_environment` method, add a new `case` for your configuration class. This should match the pattern of the existing cases.
 2. Import your environment class inside the case (dynamic import pattern to reduce dependency requirements).
