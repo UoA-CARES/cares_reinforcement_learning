@@ -1,5 +1,7 @@
 <p align="center">
-<img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
+  <a href="https://robotlearningteam.org/">
+    <img src="docs/images/logo.png" alt="CARES Reinforcement Learning Logo" width="80%"/>
+  </a>
 </p>
 
 A modular reinforcement learning framework for training and evaluating RL algorithms across diverse environments.
