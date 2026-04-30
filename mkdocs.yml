@@ -26,6 +26,9 @@ nav:
   #     - Foundations: concepts/foundations.md
   - User Guide:
       - Overview: user_guide/index.md
+      - Installation: user_guide/installation.md
+      - Usasge: user_guide/usage.md
+      - MLP Configuration: user_guide/mlp_configuration.md
   - Developer Guide:
       - Overview: developer_guide/index.md
       - Abstractions: developer_guide/abstractions.md
