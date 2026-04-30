@@ -40,6 +40,10 @@ class TrainingConfig(SubscriptableClass):
 
     max_workers: int = 1
 
+    save_train_checkpoints: int = 0
+
+    display: int = 0
+
 
 class TrainableLayer(BaseModel):
     layer_category: Literal["trainable"] = "trainable"  # Discriminator field

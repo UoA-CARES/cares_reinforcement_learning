@@ -28,9 +28,9 @@ The commands to choose whether to use the command line interface or configuratio
 - `config` loads everything from config files for full reproducibility.
 
 !!! tip "cli versus config"
-    For quick experiments, use CLI flags to change simple configuration parameters to key parameters and the defaults for the rest.
+    For quick experiments, use `cli` to change simple configuration parameters to key parameters and the defaults for the rest.
     
-    For reproducibility, use the configuration files which allow full control over all parameters for consistency between runs and allow you to configure an aglorithm's network architecture. 
+    For reproducibility, use the `config` and the configuration files which allow full control over all parameters for consistency between runs and allow you to configure an aglorithm's network architecture. 
 
 ### Command Line Input (cli)
 The `cli` (command line input) mode lets you specify all training, environment, and algorithm parameters directly as command-line flags. This is ideal for quick experiments, prototyping, or when you want to override just a few settings without creating configuration files. 
@@ -39,7 +39,6 @@ The `cli` (command line input) mode lets you specify all training, environment, 
     The network architectures for a given algorithm can't be changed via command line - at least not in a nice convenient style. Use the `config` command for that instead.  
 
 **Gym Envrionment**: Choose the Gym Envrionment and Task
-The first piece is choosing which gym envrionment and task you are seeking to train the algorithm against. 
 
 ```bash
 cares-rl train cli --gym <GYM> --task <TASK>
@@ -65,6 +64,9 @@ cares-rl train cli --gym openai --task CartPole-v1 DQN --lr 0.001 --gamma 0.99 -
 !!! tip "Configurations Saved"
     The full training configurations are saved into the training logs for future reference - default location `~/cares_rl_logs/<ALGORITHM>`
 
+!!! tip "Enable future Resume"
+    In order to enable the resume feature for a given experiment you need to manually enable `--save_train_checkpoints 1`
+
 ### Configuration Files (config)
 
 The `config` mode allows you to specify all experiment parameters in structured JSON configuration files, rather than on the command line. This approach is ideal for reproducible research, large-scale experiments, or when you want to precisely control every aspect of your environment, algorithm, and training setup.
@@ -74,42 +76,82 @@ All parameters, including advanced options like network architectures, optimizer
 **Data Path structure:** The command will read the three files from the provided path: 
 ```
 ~/my_experiment/
-  env_config.json
-  train_config.json
-  alg_config.json
+    train_config.json
+    env_config.json
+    alg_config.json
 ```
 
-***Example env_config.json:** provides the configuration parameters for the training envrionment.
+**Example: Running with config files**
 
-The `env_config.json` can  be used to configure any parameters that are exposed by the gym environment - e.g. change reward functions, state space settings, or other internal modes.
-
-```json
-{
-    "gym": "dmcs",
-    "domain": "ball_in_cup", 
-    "task": "catch", 
-    "display": 0, 
-    "save_train_checkpoints": 0, 
-    "state_std": 0.0, 
-    "action_std": 0.0, 
-    "frames_to_stack": 3, 
-    "frame_width": 84, "frame_height": 84, "grey_scale": 0, 
-    "record_video_fps": 30
-}
+The command below runs the training as defined by the configuration files detailed above. 
+```bash
+cares-rl train config --data_path ~/my_experiment/
 ```
+
+!!! tip "Generating Configuration Files"
+    You can generate JSON files manually, or use a previous run's output as a template for new experiments.
+
+!!! tip "Defaults Override Unspecificed Parameters"
+    Not all parameters need to be defined in the config files - defaults will be automatically used where parameters are not defined in the config file. 
+
+    The custom recording tool will generate the complete configuration files in the logging directory.
 
 ***Example train_config.json:** provides the configuration parameters for the runners. 
 
+The `train_config.json` provides the configuration parameters that setup the training runners.
+
 ```json
 {
-    "seeds": [10], 
+    // The independent seeds to train on - in series or parallel
+    "seeds": [10,20,30,40,50], 
+    // The number of seeds to run in parallel at a given time
+    "max_workers": 3,
+
+    // The number of training steps between evaluations
     "number_steps_per_evaluation": 10000, 
+    // The number of episodes to run per evaluation
     "number_eval_episodes": 10, 
+    // Whether to record a video of the first evaluation episode
     "record_eval_video": 1, 
+
+    // Whether to record training checkpoints in order to resume training
+    "save_train_checkpoints": 1,
+    // How frequently to save checkpoint data (in episodes)
     "checkpoint_interval": 1, 
-    "max_workers": 1
+
+    // Whether to display the environment during training
+    "display": 0 
 }
 ```
+
+!!! tip "Training Configuration"
+    The training configuration is found in the [Algorithm Configurations file][config-file]
+
+***Example env_config.json:** provides the configuration parameters for the training envrionment.
+
+The `env_config.json` can  be used to configure any parameters that are exposed by the gym environment - e.g. change reward functions, state space settings, or other internal modes. The standard parameters for all gym envrionments configure the image observation if it is required by an Algorithm. 
+
+```json
+{
+    // The gym environemnt to load
+    "gym": "dmcs",
+    
+    // DMCS specific parameter to set the task domain
+    "domain": "ball_in_cup", 
+    // The name of the task to train on
+    "task": "catch",  
+    
+    // Image observation parameters
+    "frames_to_stack": 3, 
+    "frame_width": 84, "frame_height": 84, "grey_scale": 0, 
+
+    // fps controls the output for the evaluation recording
+    "record_video_fps": 30,
+}
+```
+
+!!! tip "Environment Configurations"
+    All Gym configurations can be found under the [Envrionment configuration file][envs-config].
 
 ***Example alg_config.json:** provides the configuration parameters for the algroithm. 
 
@@ -214,37 +256,72 @@ The `alg_config.json` can be used to override the desired algoithm parameters an
 }
 ```
 
-**Example: Running with config files**
+!!! tip "Algorithm Configurations"
+    The algorithm configurations are found in the [Algorithm Configurations file][config-file]
 
-The command below runs the training as defined by the configuration files detailed above. 
+### Resuming Training (resume)
+
+The `resume` command allows you to continue training from a previously saved checkpoint. This is useful if training was interrupted, or if you want to further improve a model without starting from scratch. The resume function loads all configuration and model state from the specified training directory. For resuming to work, you must have enabled checkpoint saving during the original training run (e.g., `--save_train_checkpoints 1`) - the defualt setting is `0` as it increases the log storage significantly.
+
+!!! tip "Extending Training"
+    You can adjust the number of additional steps or other parameters in the config files before resuming if desired - for example increase the max training steps in the configuration files to extend the training on a previously finished experiment.
+
+**Example: Resume training from a checkpoint**
+
+Training will continue from the last saved checkpoint - `--save_train_checkpoints 1` must have been set on the experiment for this to work.
+
 ```bash
-cares-rl train config --data_path ~/my_experiment/
+cares-rl resume --data_path my_experiment/
 ```
 
-!!! tip "Generating Configuration Files"
-    You can generate or edit these JSON files manually, or use a previous run's output as a template for new experiments.
-
-!!! tip "Defaults Override Unspecificed Parameters"
-    Not all parameters need to be configured in the config files - defaults will be used where parameters are left out. 
-
-    The custom recording tool will auotmatically fill in the default values in the log outputs too. 
+!!! warning "Resume is not Deterministic"
+    The resume command is not guaranteed to be fully deterministic, but it will restore the model, optimizer, and training state as closely as possible.
 
 ## Evaluating Models (evaluate)
-Evaluate a run (reproduce evaluation metrics/plots):
+The `evaluate` command is used to re-run the evaluation phase of a completed or in-progress training run. This is useful for generating updated evaluation metrics, plots, or logs without re-running the entire training process. Evaluation uses the saved model evaluation checkpoints and configuration files from a previous run.
+
+**Example: Evaluate a trained model**
 ```bash
-cares-rl evaluate --data_path <PATH_TO_TRAINING_DATA>
+cares-rl evaluate --data_path <PATH_TO_EXPERIMENT>
 ```
+
+**What evaluation does:**
+
+- Runs the evaluation loop as defined in your configuration (e.g., number of episodes, evaluation seeds, metrics).
+- Produces updated evaluation logs, plots, and summary statistics in the output directory.
+- Does not modify or continue training—evaluation is read-only and safe to run multiple times.
+
+!!! tip "Post Training Evaluations"
+    Use evaluation after training or resuming to generate consistent metrics and plots for comparison or publication.
+
+    You can adjust evaluation parameters in the config files before running evaluation if you want to change the number of episodes or other settings.
 
 ## Test Models (test)
-Test a trained model:
+
+The `test` command is used to evaluate the final trained model on a new evaluation seed and for a specified number of episodes. This is essential for assessing the generalization and robustness of your agent, as it tests the model on data it has not seen during training or evaluation.
+
+**Example: Test a trained model**
 ```bash
-cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes <NUM_EPISODES_TO_RUN> --eval_seed <SEED>
 ```
 
-## Resuming Training (resume)
-Resume from a checkpoint (if `--save_train_checkpoints 1` was enabled):
-```bash
-cares-rl resume --data_path <PATH_TO_TRAINING_DATA>
-```
+**What testing does:**
 
---8<-- "include/links.md"
+- Loads the final checkpoint for each training seed from the experiment directory.
+- Runs the agent for the specified number of episodes using the provided evaluation seed (ensuring reproducibility and fair comparison).
+- Produces test logs, summary statistics, and plots in the output directory.
+- Does not alter the model or training state — testing is read-only and safe to repeat.
+
+!!! tip "Best Practices for Testing"
+    Always use a different `--eval_seed` for testing than for training or evaluation to avoid overfitting to a particular random seed.
+  
+    Run multiple test seeds and average results for robust performance estimates.
+  
+    Use the same number of episodes for each test run to ensure fair comparison.
+
+!!! note "Testing vs. Evaluation"
+    **Evaluation** runs on all checkpoints (e.g., for plotting learning curves or tracking progress during training) on the original training seed.
+  
+    **Testing** runs only on the final model, with a new evaluation seed, to measure generalization and final performance.
+
+---8<-- "include/links.md"

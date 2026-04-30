@@ -58,7 +58,7 @@ def main_with_runner():
             sys.exit()
 
     # Checkpoint warnings
-    if coordinator.env_config.save_train_checkpoints:
+    if coordinator.training_config.save_train_checkpoints:
         logger.warning(
             "Training checkpoints will be saved - be aware this will increase disk usage (memory buffer)."
         )
@@ -68,7 +68,7 @@ def main_with_runner():
             )
             if no_gpu_answer in ["y", "Y"]:
                 logger.info("Disabling training checkpoint saving.")
-                coordinator.env_config.save_train_checkpoints = False
+                coordinator.training_config.save_train_checkpoints = False
 
     # Setup directories and logging
     coordinator.setup_logging_and_directories(run_name)

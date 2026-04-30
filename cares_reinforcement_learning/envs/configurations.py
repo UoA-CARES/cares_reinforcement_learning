@@ -27,11 +27,6 @@ class GymEnvironmentConfig(SubscriptableClass):
     domain: str = ""
     task: str
 
-    # TODO shift to TrainingConfig?
-    display: int = 0
-    # TODO shift to TrainingConfig?
-    save_train_checkpoints: int = 0
-
     # stochastic noise configuration
     state_std: float = 0.0
     action_std: float = 0.0
@@ -42,7 +37,6 @@ class GymEnvironmentConfig(SubscriptableClass):
     frame_height: int = 84
     grey_scale: int = 0
 
-    # TODO shift to TrainingConfig?
     record_video_fps: int = 30
 
     def model_dump(self, *args, **kwargs):

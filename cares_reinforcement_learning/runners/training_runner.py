@@ -58,7 +58,7 @@ class TrainingRunner(BaseRunner):
 
         # TrainingRunner-specific setup
         self.progress_queue = progress_queue
-        self.display = bool(self.env_config.display)
+        self.display = bool(self.training_config.display)
 
         # Create memory (needed for training)
         self.memory_buffer = self.memory_factory.create_memory(self.alg_config)
