@@ -11,12 +11,38 @@ class BaseCritic(nn.Module):
 
         self.Q1 = Q1
         self.Q2 = Q2
+        self.encoder_net = nn.Identity()
+
 
     def forward(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        q1 = self.Q1(state)
-        q2 = self.Q2(state)
+        encoded_state = self.encoder_net(state)
+        q1 = self.Q1(encoded_state)
+        q2 = self.Q2(encoded_state)
         return q1, q2
+    
 
+    def set_encoder(self, encoder_net: MLP) -> None:
+        """Sets the encoder network for the critic."""
+        self.encoder_net = encoder_net
+    
+
+    def enable_film(self, num_tasks: int) -> None:
+        self.film_fc_layer = nn.Linear(num_tasks, len(self.Q1.film_layers) * 2).cuda()
+        self.num_film_layers = len(self.Q1.film_layers)
+
+
+    def update_film_params(self, tasks: torch.Tensor) -> torch.Tensor:
+        # Assume tasks is of shape (batch_size, num_tasks)
+        film_params = self.film_fc_layer(tasks)
+        for i in range(self.num_film_layers):
+            scales = film_params[:, 2 * i]
+            shifts = film_params[:, 2 * i + 1]
+            self.Q1.film_layers[i].set_film_parameters(scales, shifts)
+            self.Q2.film_layers[i].set_film_parameters(scales, shifts)
+    
+
+    def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        return super().__call__(state)
 
 class DefaultCritic(BaseCritic):
     def __init__(self, observation_size: int, num_actions: int):

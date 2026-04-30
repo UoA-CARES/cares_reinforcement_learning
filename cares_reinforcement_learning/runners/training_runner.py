@@ -171,7 +171,9 @@ class TrainingRunner(BaseRunner):
             f"Running Exploration Steps {train_step_counter + 1}/{self.max_steps_exploration}"
         )
 
-        return ActionSample(self.env.sample_action(), source="exploration")
+        exploration_extras = self.agent.get_exploration_extras()
+
+        return ActionSample(self.env.sample_action(), source="exploration", extras=exploration_extras)
 
     def _select_repetition_action(self, episode_timesteps: int) -> ActionSample:
         """Handle episode repetition action selection."""

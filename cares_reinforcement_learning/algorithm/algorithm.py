@@ -212,6 +212,16 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         """
         self.soft_update_params(net, target_net, 1.0)
 
+    def get_exploration_extras(self) -> dict[str, Any]:
+        """
+        Returns a dictionary of extra information related to exploration.
+        This can be overridden by subclasses to provide specific exploration-related metrics or data.
+
+        Returns:
+            dict[str, Any]: A dictionary containing exploration extras.
+        """
+        return {}
+
 
 class SARLAlgorithm(
     Algorithm[SARLObservation, ActType, SARLMemoryBuffer], Generic[ActType]
