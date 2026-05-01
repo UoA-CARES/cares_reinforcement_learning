@@ -7,7 +7,3 @@ Welcome to the CARES Reinforcement Learning User Guide! This guide is your start
 
 This section provides comprehensive, step-by-step instructions for installing, configuring, running, and analyzing experiments with the CARES RL framework. Whether you are a new user or an experienced researcher, this guide will help you get the most out of the library.
 
-
-
-
-
