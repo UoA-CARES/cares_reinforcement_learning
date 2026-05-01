@@ -1,5 +1,5 @@
 --8<-- "include/glossary.md"
-# Usage Guide
+# Experiment Guide
 
 This section provides a focused overview of how to use the CARES Reinforcement Learning framework from the command line. Here you'll find practical examples and explanations for running training, evaluation, testing, and plotting commands, as well as tips for customizing your experiments. Whether you're running quick tests or large-scale experiments, this guide will help you make the most of the CLI tools and configuration options.
 
@@ -14,6 +14,9 @@ The main entry point is the `cares-rl` CLI command with the specific commands:
 - `resume` - resume a training session from a checkpoint (not deterministic)
 - `evaluate` - re-run the evaluation of a training sessions
 - `test` - test the trained model against a different seed over a given number of episodes
+
+!!! note "Training Logs"
+    All commands produce detailed logs for training and evaluation - see the [logging](./logging.md) for full details on the training logs. The default logging folder can be found under `~/cares_rl_logs/`
 
 !!! tip "Command Help"
     Use `cares-rl -h` for help on all commands and options.
