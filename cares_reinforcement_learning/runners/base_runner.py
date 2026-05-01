@@ -119,7 +119,7 @@ class BaseRunner(ABC):
             task=self.env_config.task,
             agent=None,
             record_video=bool(self.training_config.record_eval_video),
-            record_checkpoints=bool(self.env_config.save_train_checkpoints),
+            record_checkpoints=bool(self.training_config.save_train_checkpoints),
             checkpoint_interval=self.training_config.checkpoint_interval,
             logger=self.logger,
         )
