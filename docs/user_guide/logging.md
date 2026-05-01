@@ -55,47 +55,37 @@ By default logs are saved into a folder under `~/cares_rl_logs/` with the naming
 
 ## Debugging with Logs
 
-Logs include not just rewards and losses, but also internal metrics (e.g., Q-values, entropies, exploration rates) to help diagnose why an algorithm may not be learning. For example:
+The logging system captures far more than just reward curves. Each run records environment configurations, algorithm settings, and a wide range of training metrics, providing a complete view of how an experiment was executed. This information is essential for reproducing results, comparing runs, and diagnosing unexpected behaviour.
 
-- If DQN is not learning, check if epsilon is decaying as expected, or if Q-values are diverging.
-- If SAC is unstable, check entropy and alpha values.
+During training, logs include both general performance metrics (e.g. rewards, episode length) and algorithm-specific learning signals (e.g. Q-values, entropy, exploration rates). These metrics help explain *why* or *how* well an algorithm is or is not learning, rather than just relying on the reward curve.
+
+For example:
+
+- If DQN is not improving, check whether epsilon is decaying as expected and whether Q-values are stable or diverging.
+- If SAC appears unstable, inspect entropy and alpha values to understand the exploration–exploitation balance.
+- If results vary significantly between runs, compare configuration files and seed-specific outputs to identify inconsistencies.
 
 !!! note "Algorithm-Specific Metrics"
-        Some metrics are algorithm-specific (e.g. entropy in SAC, epsilon in DQN). See the individual algorithm documentation for detailed explanations of how to interpret these values.
+    Refer to the corresponding algorithm documentation for detailed guidance on how to interpret training log values for each algorithm.
 
 ## Plotting
 
 The `cares-rl-plot` utility can plot the data from one or multiple training sessions. Features include:
 
-- Plot single or multiple runs for comparison
+- Plot multiple runs for comparison
 - Support for dual y-axes (e.g., reward and loss on the same plot)
 - Customizable axis labels, title, font sizes, and legend
-- Plots are saved as PNGs in the `figures/` directory
+- Plots are saved as PNGs in the given folder `-s <PATH_TO_OUTPUT>` directory
 
-Example usage:
-
+**Example** Plot and compare the results of two or more training instances:
 ```sh
-cares-rl-plot -h
+cares-rl-plot -s ~/cares_rl_logs -d <PATH_TO_ONE> <PATH_TO_TWO>
 ```
 
-Plot the results of a single training instance:
-```sh
-cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
-```
-
-Plot and compare the results of two or more training instances:
-```sh
-cares-rl-plot -s ~/cares_rl_logs -d <run1> -d <run2> --y2 loss --y2_label "Loss"
-```
-
-## Best Practices
-
-- Always keep logs for reproducibility
-- Use environment variables to organize experiments
-- Use plotting to compare across seeds, algorithms, or hyperparameters
-
-```sh
-cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
-```
+!!! tip "Full Plotting Options"
+    For all plotting configuration options run:
+    ```sh
+    cares-rl-plot -h
+    ```
 
 ---8<-- "include/links.md"

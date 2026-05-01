@@ -1,16 +1,27 @@
 --8<-- "include/glossary.md"
 
 # Installation Instructions
-We recommend using the Stable release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.
+We recommend using the Stable Release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.
 
 **Python:** 3.10–3.12 recommended
 
-## Stable Release v3.0.0 (Recommended)
+## Stable Release v3.0.0
+The Stable Release version is recommended for users who want to use CARES Reinforcement Learning as a package without modifying the core codebase. It provides a tested, reliable version suitable for running experiments and applications.
+
+### 1. Clone the latest Release (stable)
 Clone the latest stable release of CARES Reinforcement Learning.
 
 ```bash
 git clone --branch v3.0.0 https://github.com/UoA-CARES/cares_reinforcement_learning.git
+```
 
+!!! warning "Unstable Main Branch"
+    Clone the **main** branch for the latest features - note this branch may not be stable as it is the working branch.
+
+### 2. Install the Package
+Install the package and it's dependencies through pip. 
+
+```bash
 cd cares_reinforcement_learning
 pip install -e .[gym]
 ```
@@ -23,16 +34,8 @@ pip install -e .[gym]
 
     Additional environment packages (e.g. robotics, vision, or MARL environments) may require installing extra dependencies separately.
 
-!!! warning "Unstable Main Branch"
-    Clone the **main** branch for the latest features - note this branch may not be stable as it is the working branch.
-
 ## Development Environment (UV/pyenv)
-We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used those looking to contribute to the code base or various gym packages.
-
-Clone the latest main of CARES Reinforcement Learning.
-```bash
-git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
-```
+We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used by those looking to contribute to the code base or various gym packages.
 
 ### 1. Install uv and pyenv
 
@@ -72,6 +75,12 @@ Install the required Python version - note you can use 3.12 if you prefer.
 pyenv install 3.10
 pyenv virtualenv 3.10 cares_rl_310
 pyenv activate cares_rl_310
+```
+
+### 2. Clone the Main branch (unstable)
+Clone the latest main of CARES Reinforcement Learning.
+```bash
+git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
 ```
 
 ### 3. Install Requirements (UV)
