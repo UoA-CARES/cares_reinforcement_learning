@@ -46,6 +46,8 @@ class MPE2Environment(MARLEnvironment):
 
         self.possible_agents: list[AgentID] = self.env.possible_agents
 
+        self.agent_teams = self._split_agents_by_team(self.possible_agents)
+
         self.observation: MARLObservation
 
         self.set_seed(self.seed)
@@ -94,6 +96,7 @@ class MPE2Environment(MARLEnvironment):
             "obs": obs_spaces,  # dict[str → obs_dim_i]
             "state": state_shape,  # scalar int
             "num_agents": num_agents,  # int
+            "teams": self.agent_teams,  # dict[str → list of agent ids]
         }
 
     @cached_property

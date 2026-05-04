@@ -48,7 +48,9 @@ class SMAC2Environment(MARLEnvironment):
 
         self.env_info = self.env.get_env_info()
 
-        self.agent_ids = [f"agent_{i}" for i in range(self.env_info["n_agents"])]
+        self.possible_agents = [f"agent_{i}" for i in range(self.env_info["n_agents"])]
+
+        self.agent_teams = self._split_agents_by_team(self.possible_agents)
 
         self.observation: MARLObservation
 
@@ -73,13 +75,15 @@ class SMAC2Environment(MARLEnvironment):
         observation_space: dict[str, Any] = {}
 
         obs_dict = {}
-        for agent_id in self.agent_ids:
+        for agent_id in self.possible_agents:
             obs_dict[agent_id] = self.env_info["obs_shape"]
 
         observation_space["obs"] = obs_dict
 
         observation_space["state"] = self.env_info["state_shape"]
         observation_space["num_agents"] = self.env_info["n_agents"]
+
+        observation_space["teams"] = self.agent_teams
 
         return observation_space
 
@@ -127,7 +131,7 @@ class SMAC2Environment(MARLEnvironment):
         obs, state = self.env.reset()
 
         # Convert obs list → dict[str -> obs_i]
-        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.agent_ids)}
+        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.possible_agents)}
 
         self.observation = MARLObservation(
             global_state=state,
@@ -142,7 +146,7 @@ class SMAC2Environment(MARLEnvironment):
 
         obs = self.env.get_obs()
         # Convert obs list → dict[str -> obs_i]
-        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.agent_ids)}
+        obs_dict = {agent_id: obs[i] for i, agent_id in enumerate(self.possible_agents)}
 
         next_observation = MARLObservation(
             global_state=self.env.get_state(),

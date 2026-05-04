@@ -1517,3 +1517,17 @@ class DADSConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
         ]
     )
+
+
+###################################
+#      MultiMarl Algorithms       #
+###################################
+
+
+class MultiMARLConfig(AlgorithmConfig):
+    algorithm: str = "MultiMARL"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    agents_team: list[str] = Field(default_factory=list)
+    agents_config: list[AlgorithmConfig] = Field(default_factory=list)

@@ -14,11 +14,10 @@ import cares_reinforcement_learning.util.helpers as hlp
 # pylint: disable=import-outside-toplevel
 # pylint: disable=invalid-name
 
+
 ###################################
 #         DQN Algorithms          #
 ###################################
-
-
 def create_DQN(observation_size, action_num, config: acf.DQNConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
@@ -939,6 +938,58 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
 
     ippo_agent = IPPO(agents=agents, config=config, device=device)
     return ippo_agent
+
+
+###################################
+#       MultiMARL Algorithms      #
+###################################
+
+
+def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
+    from cares_reinforcement_learning.algorithm.marl import MultiMARL
+
+    device = hlp.get_device()
+
+    env_teams = observation_size["teams"]  # dict[str → list[str]]
+    learning_team = config.agents_team[0]  # dict[str → str]
+
+    learning_agents = env_teams[learning_team]  # list[str]
+
+    learning_obs_shapes = {
+        "obs": {
+            agent_name: observation_size["obs"][agent_name]
+            for agent_name in learning_agents
+        },
+        "state": observation_size["state"],
+        "num_agents": len(learning_agents),
+    }
+
+    algorithm_factory = AlgorithmFactory()
+
+    agents = []
+
+    learning_agent = algorithm_factory.create_network(
+        observation_size=learning_obs_shapes,
+        action_num=action_num,
+        config=config.agents_config[0],
+    )
+    agents.append(learning_agent)
+
+    for i in range(1, len(config.agents_team)):
+        trained_agent = algorithm_factory.create_network(
+            observation_size=observation_size,
+            action_num=action_num,
+            config=config.agents_config[i],
+        )
+        agents.append(trained_agent)
+
+    multimarl_agent = MultiMARL(agent_networks=agents, config=config, device=device)
+    return multimarl_agent
+
+
+####################################
+#      Algorithm Factory Utils     #
+####################################
 
 
 def _compare_mlp_parts(obj1: acf.AlgorithmConfig, obj2: acf.AlgorithmConfig) -> bool:
