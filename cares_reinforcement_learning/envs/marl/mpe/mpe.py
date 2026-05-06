@@ -158,17 +158,17 @@ class MPE2Environment(MARLEnvironment):
         return self.observation
 
     def step(self, action: dict[str, np.ndarray]) -> MultiAgentExperience:
-        envrionment_action = action.copy()
+        environment_action = action.copy()
         if self.apply_action_normalization:
             for agent in action.keys():
-                envrionment_action[agent] = hlp.denormalize(
+                environment_action[agent] = hlp.denormalize(
                     action[agent],
                     self.max_action_value[agent],
                     self.min_action_value[agent],
                 )
 
         agent_states, rewards, dones, truncations, infos = self.env.step(
-            envrionment_action
+            environment_action
         )
 
         next_observation = MARLObservation(

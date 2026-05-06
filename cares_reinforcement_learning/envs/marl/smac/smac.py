@@ -67,16 +67,16 @@ class SMACEnvironment(MARLEnvironment):
     def get_available_actions(self) -> dict[str, np.ndarray]:
         actions = {}
         for agent_index, agent_id in enumerate(self.possible_agents):
-            avail_actions = self.env.get_avail_agent_actions(agent_index)
-            actions[agent_id] = avail_actions
+            available_actions = self.env.get_avail_agent_actions(agent_index)
+            actions[agent_id] = available_actions
         return actions
 
     def sample_action(self) -> dict[str, np.ndarray]:
         actions = {}
         for agent_index, agent_id in enumerate(self.possible_agents):
-            avail_actions = self.env.get_avail_agent_actions(agent_index)
-            avail_actions_ind = np.nonzero(avail_actions)[0]
-            action = np.random.choice(avail_actions_ind)
+            available_actions = self.env.get_avail_agent_actions(agent_index)
+            available_actions_ind = np.nonzero(available_actions)[0]
+            action = np.random.choice(available_actions_ind)
             actions[agent_id] = np.array(action)
         return actions  # type: ignore
 
@@ -101,8 +101,11 @@ class SMACEnvironment(MARLEnvironment):
 
         return self.observation
 
-    def step(self, action: dict[str, int]) -> MultiAgentExperience:  # type: ignore[override]
-        reward, done, info = self.env.step(list(action.values()))
+    def step(self, action: dict[str, np.ndarray]) -> MultiAgentExperience:  # type: ignore[override]
+
+        ordered_actions = [int(action[agent_id]) for agent_id in self.possible_agents]
+
+        reward, done, info = self.env.step(ordered_actions)
 
         obs = self.env.get_obs()
         # Convert obs list → dict[str -> obs_i]

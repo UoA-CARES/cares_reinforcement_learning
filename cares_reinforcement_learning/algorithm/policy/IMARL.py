@@ -113,7 +113,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
             agent_observation = SARLObservation(
                 vector_state=obs_i,
-                avail_actions=avail_i,
+                available_actions=avail_i,
             )
 
             agent_sample = agent.act(agent_observation, evaluation)

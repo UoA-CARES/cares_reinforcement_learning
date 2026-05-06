@@ -102,7 +102,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
             agent_observation = SARLObservation(
                 vector_state=obs_i,
-                avail_actions=avail_i,
+                available_actions=avail_i,
             )
 
             agent_sample = agent.act(agent_observation, evaluation)

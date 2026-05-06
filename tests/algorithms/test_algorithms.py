@@ -42,7 +42,7 @@ def create_marl_observation(observation_size: dict, action_num: int) -> MARLObse
         for agent_id, obs_dim in observation_size["obs"].items()
     }
 
-    avail_actions = {
+    available_actions = {
         agent_id: np.ones(action_num, dtype=np.float32)
         for agent_id in observation_size["obs"].keys()
     }
@@ -50,7 +50,7 @@ def create_marl_observation(observation_size: dict, action_num: int) -> MARLObse
     return MARLObservation(
         global_state=global_state,
         agent_states=agent_states,
-        available_actions=avail_actions,
+        available_actions=available_actions,
     )
 
 

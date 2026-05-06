@@ -10,48 +10,10 @@ from cares_reinforcement_learning.types.experience import (
     MultiAgentExperience,
     SingleAgentExperience,
 )
-from cares_reinforcement_learning.types.observation import (
-    MARLObservation,
-    SARLObservation,
+from tests.memory.helpers import (
+    get_indexed_marl_observation,
+    get_indexed_sarl_observation,
 )
-
-
-def get_sarl_observation(state_size: int = 4) -> SARLObservation:
-    """Create a dummy SARL observation for testing."""
-    return SARLObservation(vector_state=np.array([1.0] * state_size), image_state=None)
-
-
-def get_indexed_sarl_observation(index: int, state_size: int = 4) -> SARLObservation:
-    """Create an indexed SARL observation for testing (uses index as state value)."""
-    return SARLObservation(
-        vector_state=np.array([float(index)] * state_size), image_state=None
-    )
-
-
-def get_marl_observation(state_size: int = 4, num_agents: int = 2) -> MARLObservation:
-    """Create a dummy MARL observation for testing."""
-    agent_states = {
-        f"agent_{i}": np.array([1.0] * state_size) for i in range(num_agents)
-    }
-    return MARLObservation(
-        global_state=np.array([1.0] * state_size),
-        agent_states=agent_states,
-        avail_actions=np.ones((num_agents,), dtype=bool),
-    )
-
-
-def get_indexed_marl_observation(
-    index: int, state_size: int = 4, num_agents: int = 2
-) -> MARLObservation:
-    """Create an indexed MARL observation for testing (uses index as state value)."""
-    agent_states = {
-        f"agent_{i}": np.array([float(index)] * state_size) for i in range(num_agents)
-    }
-    return MARLObservation(
-        global_state=np.array([float(index)] * state_size),
-        agent_states=agent_states,
-        avail_actions=np.ones((num_agents,), dtype=bool),
-    )
 
 
 def _images_the_same(image_one, image_two):

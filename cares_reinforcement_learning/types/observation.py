@@ -12,14 +12,16 @@ class SARLObservation:
     # Image Based
     image_state: np.ndarray | None = None
 
-    avail_actions: np.ndarray | None = None
+    available_actions: np.ndarray | None = None
 
     def clone(self) -> "SARLObservation":
         return SARLObservation(
             vector_state=self.vector_state.copy(),
             image_state=None if self.image_state is None else self.image_state.copy(),
-            avail_actions=(
-                None if self.avail_actions is None else self.avail_actions.copy()
+            available_actions=(
+                None
+                if self.available_actions is None
+                else self.available_actions.copy()
             ),
         )
 
