@@ -37,9 +37,6 @@ class BaseEnvironment(ABC, Generic[ObsType]):
     def set_log_path(self, log_path: str, step_count: int) -> None:
         pass
 
-    def get_available_actions(self) -> np.ndarray:
-        return np.array([])
-
     @cached_property
     def num_agents(self) -> int:
         return 1

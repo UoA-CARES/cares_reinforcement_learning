@@ -270,13 +270,6 @@ class PPO(SARLAlgorithm[np.ndarray]):
         log_ratio = curr_log_probs - old_logp_mb
         ratios = torch.exp(curr_log_probs - old_logp_mb)
 
-        # ---- Optional KL early stopping ----
-        if self.target_kl is not None:
-            with torch.no_grad():
-                approx_kl = (ratios - 1 - log_ratio).mean()
-                if approx_kl > self.target_kl:
-                    return True, {"approx_kl": float(approx_kl.item())}
-
         unclipped_objective = ratios * advantages_mb
         clipped_ratio = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip)
         clipped_objective = clipped_ratio * advantages_mb
@@ -300,29 +293,45 @@ class PPO(SARLAlgorithm[np.ndarray]):
         with torch.no_grad():
             self.log_std.clamp_(self.min_log_std, self.max_log_std)
 
-        # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
+        # ---- Post-update diagnostics / KL early stop ----
         with torch.no_grad():
-            # action saturation rate
+            new_mean = self.actor_net(states_mb)
+            new_dist = self._dist(new_mean)
+            new_log_probs = self._squashed_log_prob(new_dist, u_mb)
+
+            new_log_ratio = new_log_probs - old_logp_mb
+            new_ratios = torch.exp(new_log_ratio)
+
+            approx_kl = (new_ratios - 1.0 - new_log_ratio).mean()
+
+            kl_early_stop = (
+                self.target_kl is not None and approx_kl.item() > self.target_kl
+            )
+
             clip_frac = (
-                ((ratios > 1.0 + self.eps_clip) | (ratios < 1.0 - self.eps_clip))
+                (
+                    (new_ratios > 1.0 + self.eps_clip)
+                    | (new_ratios < 1.0 - self.eps_clip)
+                )
                 .float()
                 .mean()
             )
+
             sat_rate = (actions_mb.abs() > 0.99).float().mean()
             u_abs_mean = u_mb.abs().mean()
             u_abs_max = u_mb.abs().max()
 
-            log_ratio_mean = log_ratio.mean()
-            log_ratio_std = log_ratio.std(unbiased=False)
-            log_ratio_max_abs = log_ratio.abs().max()
+            log_ratio_mean = new_log_ratio.mean()
+            log_ratio_std = new_log_ratio.std(unbiased=False)
+            log_ratio_max_abs = new_log_ratio.abs().max()
 
         info = {
             "actor_loss": float(actor_loss.item()),
             "entropy": float(entropy.item()),
-            "approx_kl": float(approx_kl.item()) if self.target_kl is not None else 0.0,
+            "approx_kl": float(approx_kl.item()),
             "clip_frac": float(clip_frac.item()),
-            "ratio_mean": float(ratios.mean().item()),
-            "ratio_std": float(ratios.std(unbiased=False).item()),
+            "ratio_mean": float(new_ratios.mean().item()),
+            "ratio_std": float(new_ratios.std(unbiased=False).item()),
             "action_sat_rate": float(sat_rate.item()),
             "u_abs_mean": float(u_abs_mean.item()),
             "u_abs_max": float(u_abs_max.item()),
@@ -331,7 +340,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
             "log_ratio_max_abs": float(log_ratio_max_abs.item()),
         }
 
-        return False, info
+        return kl_early_stop, info
 
     def update_critic_minibatch(
         self,
@@ -480,24 +489,23 @@ class PPO(SARLAlgorithm[np.ndarray]):
                     max_kl_seen = max(max_kl_seen, actor_info.get("approx_kl", 0.0))
 
                     # ---- Debug stats: saturation, pre-tanh magnitude, log-ratio stats ----
-                    if not kl_early_stop:
-                        sum_kl += actor_info["approx_kl"]
-                        sum_sat_rate += actor_info["action_sat_rate"]
-                        sum_u_abs_mean += actor_info["u_abs_mean"]
-                        sum_u_abs_max += actor_info["u_abs_max"]
+                    sum_kl += actor_info["approx_kl"]
+                    sum_sat_rate += actor_info["action_sat_rate"]
+                    sum_u_abs_mean += actor_info["u_abs_mean"]
+                    sum_u_abs_max += actor_info["u_abs_max"]
 
-                        sum_log_ratio_mean += actor_info["log_ratio_mean"]
-                        sum_log_ratio_std += actor_info["log_ratio_std"]
-                        sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
+                    sum_log_ratio_mean += actor_info["log_ratio_mean"]
+                    sum_log_ratio_std += actor_info["log_ratio_std"]
+                    sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
 
-                        sum_clip_frac += actor_info["clip_frac"]
-                        sum_ratio_mean += actor_info["ratio_mean"]
-                        sum_ratio_std += actor_info["ratio_std"]
-                        sum_entropy += actor_info["entropy"]
+                    sum_clip_frac += actor_info["clip_frac"]
+                    sum_ratio_mean += actor_info["ratio_mean"]
+                    sum_ratio_std += actor_info["ratio_std"]
+                    sum_entropy += actor_info["entropy"]
 
-                        sum_actor_loss += actor_info["actor_loss"]
+                    sum_actor_loss += actor_info["actor_loss"]
 
-                        num_actor_mbs += 1
+                    num_actor_mbs += 1
 
                 # ---- Critic ----
                 critic_info = self.update_critic_minibatch(states_mb, returns_mb)

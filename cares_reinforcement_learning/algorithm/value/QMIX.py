@@ -68,7 +68,7 @@ from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import MARLObservation
 
 
-class QMIX(MARLAlgorithm[list[int]]):
+class QMIX(MARLAlgorithm[dict[str, int]]):
     def __init__(
         self,
         network: SharedMultiAgentNetwork,
@@ -134,12 +134,16 @@ class QMIX(MARLAlgorithm[list[int]]):
 
     def act(
         self, observation: MARLObservation, evaluation: bool = False
-    ) -> ActionSample[list[int]]:
+    ) -> ActionSample[dict[str, int]]:
         """
         Epsilon-greedy per-agent action selection.
         Each agent decides independently whether to explore or exploit.
         """
-        actions = []
+        actions = {}
+
+        agent_states = observation.agent_states
+        agent_ids = list(agent_states.keys())
+        available_actions = observation.available_actions
 
         # Get greedy actions for all agents once
         observation_tensors = memory_sampler.observation_to_tensors(
@@ -157,18 +161,17 @@ class QMIX(MARLAlgorithm[list[int]]):
         self.network.train()
 
         for agent_id in range(self.num_agents):
+            agent_name = agent_ids[agent_id]  # consistent ordering in dict
             if evaluation:
                 # Always exploit in evaluation mode
-                actions.append(int(greedy_actions[agent_id]))
+                actions[agent_name] = int(greedy_actions[agent_id])
             else:
                 # Each agent decides independently
                 if random.random() < self.epsilon:
-                    avail_actions_ind = np.nonzero(observation.avail_actions[agent_id])[
-                        0
-                    ]
-                    actions.append(int(np.random.choice(avail_actions_ind)))
+                    avail_actions_ind = np.nonzero(available_actions[agent_name])[0]
+                    actions[agent_name] = int(np.random.choice(avail_actions_ind))
                 else:
-                    actions.append(int(greedy_actions[agent_id]))
+                    actions[agent_name] = int(greedy_actions[agent_id])
 
         return ActionSample(action=actions, source="policy")
 

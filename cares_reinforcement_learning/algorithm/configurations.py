@@ -442,25 +442,25 @@ class MAPPOConfig(PPOConfig):
 
     marl_observation: Literal[1] = Field(default=1)
 
-    actor_lr: float = 3e-4
+    actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
     gamma: float = 0.99
     eps_clip: float = 0.2
     gae_lambda: float = 0.95
-    target_kl: float | None = 0.05
+    target_kl: float | None = 0.1
 
     entropy_start: float = 0.01
-    entropy_end: float = 1e-4
-    entropy_decay: int = 500000
+    entropy_end: float = 0.001
+    entropy_decay: int = 300000
 
     max_grad_norm: float | None = 0.5
-    log_std_bounds: list[float] = [-5.0, -1.0]
+    log_std_bounds: list[float] = [-3.0, -0.5]
 
-    updates_per_iteration: int = 6
+    updates_per_iteration: int = 5
 
-    minibatch_size: int = 1000
-    number_steps_per_train_policy: int = 10000
+    minibatch_size: int = 512
+    number_steps_per_train_policy: int = 4096
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
