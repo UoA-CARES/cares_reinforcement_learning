@@ -42,17 +42,15 @@ def create_marl_observation(observation_size: dict, action_num: int) -> MARLObse
         for agent_id, obs_dim in observation_size["obs"].items()
     }
 
-    avail_actions = np.asarray(
-        [
-            np.ones(action_num, dtype=np.float32)
-            for _ in range(observation_size["num_agents"])
-        ]
-    )
+    avail_actions = {
+        agent_id: np.ones(action_num, dtype=np.float32)
+        for agent_id in observation_size["obs"].keys()
+    }
 
     return MARLObservation(
         global_state=global_state,
         agent_states=agent_states,
-        avail_actions=avail_actions,
+        available_actions=avail_actions,
     )
 
 
@@ -103,24 +101,34 @@ def populate_buffer_marl(
         observation = create_marl_observation(observation_size, action_num)
         next_observation = create_marl_observation(observation_size, action_num)
 
-        if discrete:
-            actions = [np.array(randrange(action_num)) for _ in range(num_agents)]
-        else:
-            actions = [
-                np.array(list(range(action_num)), dtype=np.float32)
-                for _ in range(num_agents)
-            ]
+        actions = {}
+        reward = {}
+        done = {}
+        truncated = {}
+        for agent in observation.agent_states.keys():
+            reward[agent] = 10.0
+            done[agent] = False
+            truncated[agent] = False
+
+            if discrete:
+                action = np.array(randrange(action_num))
+            else:
+                action = np.array(list(range(action_num)), dtype=np.float32)
+
+            actions[agent] = action
 
         experience = MultiAgentExperience(
             observation=observation,
             next_observation=next_observation,
             action=actions,
-            reward=[10.0] * num_agents,
-            done=[False] * num_agents,
-            truncated=[False] * num_agents,
+            reward=reward,
+            done=done,
+            truncated=truncated,
             train_data={
-                "log_prob": [-0.5] * num_agents,
-                "value": [0.1] * num_agents,
+                # MAPPO
+                "log_prob": {agent: -0.5 for agent in observation.agent_states.keys()},
+                "value": {agent: 0.1 for agent in observation.agent_states.keys()},
+                # IMARL
                 "agent_0": {"log_prob": -0.5, "value": 0.1},
                 "agent_1": {"log_prob": -0.5, "value": 0.1},
                 "agent_2": {"log_prob": -0.5, "value": 0.1},
