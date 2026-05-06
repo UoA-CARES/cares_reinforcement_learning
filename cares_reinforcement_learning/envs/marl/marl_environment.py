@@ -24,12 +24,12 @@ class MARLEnvironment(BaseEnvironment[MARLObservation]):
 
     @cached_property
     @abc.abstractmethod
-    def min_action_value(self) -> list[np.ndarray]:
+    def min_action_value(self) -> dict[str, np.ndarray]:
         raise NotImplementedError("Override this method")
 
     @cached_property
     @abc.abstractmethod
-    def max_action_value(self) -> list[np.ndarray]:
+    def max_action_value(self) -> dict[str, np.ndarray]:
         raise NotImplementedError("Override this method")
 
     @cached_property
@@ -48,10 +48,10 @@ class MARLEnvironment(BaseEnvironment[MARLObservation]):
         raise NotImplementedError("Override this method")
 
     @abc.abstractmethod
-    def sample_action(self) -> list[int] | list[np.ndarray]:
+    def sample_action(self) -> dict[str, np.ndarray]:
         """
         Sample random actions for all agents.
-        Returns: List of actions, one per agent
+        Returns: Dictionary of actions, keyed by agent ID
         """
         raise NotImplementedError("Override this method")
 
@@ -68,7 +68,7 @@ class MARLEnvironment(BaseEnvironment[MARLObservation]):
         raise NotImplementedError("Override this method")
 
     @abc.abstractmethod
-    def step(self, action: list[int] | list[np.ndarray]) -> MultiAgentExperience:
+    def step(self, action: dict[str, np.ndarray]) -> MultiAgentExperience:
         raise NotImplementedError("Override this method")
 
     def grab_frame(self, height: int = 240, width: int = 300) -> np.ndarray:

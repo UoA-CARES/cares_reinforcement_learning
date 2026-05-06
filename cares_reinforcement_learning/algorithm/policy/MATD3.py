@@ -39,7 +39,6 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import MATD3Config
@@ -54,7 +53,7 @@ from cares_reinforcement_learning.types.observation import (
 )
 
 
-class MATD3(MARLAlgorithm[list[np.ndarray]]):
+class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
         agents: list[TD3],
@@ -89,17 +88,17 @@ class MATD3(MARLAlgorithm[list[np.ndarray]]):
         self,
         observation: MARLObservation,
         evaluation: bool = False,
-    ) -> ActionSample[list[np.ndarray]]:
+    ) -> ActionSample[dict[str, np.ndarray]]:
         agent_states = observation.agent_states
-        avail_actions = observation.avail_actions
+        avail_actions = observation.available_actions
 
         agent_ids = list(agent_states.keys())
-        actions = []
+        actions = {}
 
         for i, agent in enumerate(self.agent_networks):
             agent_name = agent_ids[i]  # consistent ordering in dict
             obs_i = agent_states[agent_name]
-            avail_i = avail_actions[i]
+            avail_i = avail_actions[agent_name]
 
             agent_observation = SARLObservation(
                 vector_state=obs_i,
@@ -107,7 +106,7 @@ class MATD3(MARLAlgorithm[list[np.ndarray]]):
             )
 
             agent_sample = agent.act(agent_observation, evaluation)
-            actions.append(agent_sample.action)
+            actions[agent_name] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
 

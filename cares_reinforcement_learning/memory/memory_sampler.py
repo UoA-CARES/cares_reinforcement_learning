@@ -24,6 +24,10 @@ from cares_reinforcement_learning.types.observation import (
 )
 
 
+def _dict_to_ordered_array(d: dict[str, Any], agent_ids: list[str]) -> np.ndarray:
+    return np.stack([d[agent_id] for agent_id in agent_ids])
+
+
 def is_sarl_sample(
     buffer_sample: Sample[SingleAgentExperience] | Sample[MultiAgentExperience],
 ) -> TypeGuard[Sample[SingleAgentExperience]]:
@@ -84,7 +88,10 @@ def observation_to_tensors(
                 device=device,
             )
 
-        avail_actions = [obs.avail_actions for obs in observations]
+        avail_actions = [
+            _dict_to_ordered_array(obs.available_actions, agent_names)
+            for obs in observations
+        ]
         avail_actions_tensor = torch.as_tensor(
             np.stack(avail_actions, axis=0),
             dtype=torch.float32,
@@ -199,12 +206,18 @@ def _sample_to_tensors_marl(
     list[dict[str, Any]],
 ]:
     states, actions, rewards, next_states, dones, train_data = [], [], [], [], [], []
+
+    # define consistent agent ordering once
+    agent_ids = list(buffer_sample.experiences[0].observation.agent_states.keys())
+
     for exp in buffer_sample.experiences:
         states.append(exp.observation)
-        actions.append(exp.action)
-        rewards.append(exp.reward)
         next_states.append(exp.next_observation)
-        dones.append(exp.done)
+
+        actions.append(_dict_to_ordered_array(exp.action, agent_ids))
+        rewards.append(_dict_to_ordered_array(exp.reward, agent_ids))
+        dones.append(_dict_to_ordered_array(exp.done, agent_ids))
+
         train_data.append(exp.train_data)
 
     states_tensor = observation_to_tensors(states, device, states_dtype)

@@ -31,7 +31,7 @@ class MARLObservation:
     # Per-Agent States
     agent_states: dict[str, np.ndarray]
 
-    avail_actions: np.ndarray
+    available_actions: dict[str, np.ndarray]
 
     def clone(self) -> "MARLObservation":
         return MARLObservation(
@@ -39,7 +39,10 @@ class MARLObservation:
             agent_states={
                 agent_id: state.copy() for agent_id, state in self.agent_states.items()
             },
-            avail_actions=self.avail_actions.copy(),
+            available_actions={
+                agent_id: actions.copy()
+                for agent_id, actions in self.available_actions.items()
+            },
         )
 
 

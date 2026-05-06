@@ -83,7 +83,7 @@ from cares_reinforcement_learning.types.observation import (
 AgentType = TypeVar("AgentType", bound=SARLAlgorithm)
 
 
-class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
+class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
     def __init__(
         self,
         agents: list[AgentType],
@@ -99,17 +99,17 @@ class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
         self,
         observation: MARLObservation,
         evaluation: bool = False,
-    ) -> ActionSample[list[np.ndarray]]:
+    ) -> ActionSample[dict[str, np.ndarray]]:
         agent_states = observation.agent_states
-        avail_actions = observation.avail_actions
+        avail_actions = observation.available_actions
 
         agent_ids = list(agent_states.keys())
-        actions = []
+        actions = {}
         agent_extras = {}
         for i, agent in enumerate(self.agent_networks):
             agent_name = agent_ids[i]  # consistent ordering in dict
             obs_i = agent_states[agent_name]
-            avail_i = avail_actions[i]
+            avail_i = avail_actions[agent_name]
 
             agent_observation = SARLObservation(
                 vector_state=obs_i,
@@ -117,7 +117,7 @@ class IMARL(MARLAlgorithm[list[np.ndarray]], Generic[AgentType]):
             )
 
             agent_sample = agent.act(agent_observation, evaluation)
-            actions.append(agent_sample.action)
+            actions[agent_name] = agent_sample.action
             agent_extras[agent_name] = agent_sample.extras
 
         return ActionSample(action=actions, source="policy", extras=agent_extras)
