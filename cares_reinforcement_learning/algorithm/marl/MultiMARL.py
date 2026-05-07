@@ -13,10 +13,10 @@ from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import MARLObservation
 
 
-class MultiMARL(MARLAlgorithm[list[np.ndarray]]):
+class MultiMARL(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
-        agent_networks: list[MARLAlgorithm[list[np.ndarray]]],
+        agent_networks: list[MARLAlgorithm[dict[str, np.ndarray]]],
         teams: dict[str, list[str]],
         config: MultiMARLConfig,
         device: torch.device,
@@ -39,29 +39,29 @@ class MultiMARL(MARLAlgorithm[list[np.ndarray]]):
         team_agents: list[str],
         global_observation: MARLObservation,
     ) -> MARLObservation:
-        agent_ids = list(global_observation.agent_states.keys())
-        agent_index = {agent_id: i for i, agent_id in enumerate(agent_ids)}
 
-        team_indices = [agent_index[agent_id] for agent_id in team_agents]
+        agent_states = {}
+        available_actions = {}
+        for agent_id in team_agents:
+            agent_states[agent_id] = global_observation.agent_states[agent_id]
+            available_actions[agent_id] = global_observation.available_actions[agent_id]
 
         return MARLObservation(
-            agent_states={
-                agent_id: global_observation.agent_states[agent_id]
-                for agent_id in team_agents
-            },
+            agent_states=agent_states,
             global_state=global_observation.global_state,
-            avail_actions=global_observation.avail_actions[team_indices],
+            available_actions=available_actions,
         )
 
     def act(
         self,
         observation: MARLObservation,
         evaluation: bool = False,
-    ) -> ActionSample[list[np.ndarray]]:
+    ) -> ActionSample[dict[str, np.ndarray]]:
         agent_ids = list(observation.agent_states.keys())
-        agent_index = {agent_id: i for i, agent_id in enumerate(agent_ids)}
 
-        full_actions: list[np.ndarray | None] = [None] * len(agent_ids)
+        full_actions: dict[str, np.ndarray | None] = {
+            agent_id: None for agent_id in agent_ids
+        }
 
         # Learning agent only sees/acts for its team
         learning_observation = self._observation_for_team(
@@ -74,9 +74,8 @@ class MultiMARL(MARLAlgorithm[list[np.ndarray]]):
             evaluation=evaluation,
         )
 
-        for local_index, agent_id in enumerate(self.learning_agent_team):
-            global_index = agent_index[agent_id]
-            full_actions[global_index] = learning_action_sample.action[local_index]
+        for agent_id in self.learning_agent_team:
+            full_actions[agent_id] = learning_action_sample.action[agent_id]
 
         # Pretrained/full-task algorithms see full observation,
         # but we only use actions for their assigned team.
@@ -87,14 +86,11 @@ class MultiMARL(MARLAlgorithm[list[np.ndarray]]):
             )
 
             for agent_id in team_agents:
-                global_index = agent_index[agent_id]
-                full_actions[global_index] = action_sample.action[global_index]
+                full_actions[agent_id] = action_sample.action[agent_id]
 
-        if any(action is None for action in full_actions):
+        if any(action is None for action in full_actions.values()):
             missing_agents = [
-                agent_id
-                for agent_id, action in zip(agent_ids, full_actions)
-                if action is None
+                agent_id for agent_id, action in full_actions.items() if action is None
             ]
             raise ValueError(f"No action provided for agents: {missing_agents}")
 
