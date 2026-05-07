@@ -37,12 +37,12 @@ class EpisodeStats:
     def step(self) -> None:
         self.steps += 1
 
-    def update_reward(self, reward: float | list[float] | np.ndarray) -> None:
-        if np.isscalar(reward):
+    def update_reward(self, reward: float | dict[str, float]) -> None:
+        if isinstance(reward, (int, float)):
             # Single-agent case (broadcast to all)
             reward_vector = np.full(self.n_agents, reward, dtype=np.float32)
         else:
-            reward_vector = np.asarray(reward, dtype=np.float32)
+            reward_vector = np.asarray(list(reward.values()), dtype=np.float32)
 
         self.rewards += np.asarray(reward_vector)
 

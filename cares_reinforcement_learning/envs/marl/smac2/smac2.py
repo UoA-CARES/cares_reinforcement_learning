@@ -57,17 +57,17 @@ class SMAC2Environment(MARLEnvironment):
         self.reset()
 
     @cached_property
-    def max_action_value(self) -> list[np.ndarray]:
-        max_action_values = []
-        for _ in range(self.env_info["n_agents"]):
-            max_action_values.append(np.array(1.0))
+    def max_action_value(self) -> dict[str, np.ndarray]:
+        max_action_values = {}
+        for agent_id in self.possible_agents:
+            max_action_values[agent_id] = np.array(1.0)
         return max_action_values
 
     @cached_property
-    def min_action_value(self) -> list[np.ndarray]:
-        min_action_values = []
-        for _ in range(self.env_info["n_agents"]):
-            min_action_values.append(np.array(0.0))
+    def min_action_value(self) -> dict[str, np.ndarray]:
+        min_action_values = {}
+        for agent_id in self.possible_agents:
+            min_action_values[agent_id] = np.array(0.0)
         return min_action_values
 
     @cached_property
@@ -95,21 +95,21 @@ class SMAC2Environment(MARLEnvironment):
     def action_num(self) -> int:
         return self.env_info["n_actions"]
 
-    def get_available_actions(self) -> np.ndarray:
-        actions = []
-        for agent_id in range(self.env_info["n_agents"]):
-            avail_actions = self.env.get_avail_agent_actions(agent_id)
-            actions.append(avail_actions)
-        return np.array(actions)
-
-    def sample_action(self) -> list[int]:
-        actions = []
-        for agent_id in range(self.env_info["n_agents"]):
-            avail_actions = self.env.get_avail_agent_actions(agent_id)
-            avail_actions_ind = np.nonzero(avail_actions)[0]
-            action = np.random.choice(avail_actions_ind)
-            actions.append(action)
+    def get_available_actions(self) -> dict[str, np.ndarray]:
+        actions = {}
+        for agent_index, agent_id in enumerate(self.possible_agents):
+            available_actions = self.env.get_avail_agent_actions(agent_index)
+            actions[agent_id] = available_actions
         return actions
+
+    def sample_action(self) -> dict[str, np.ndarray]:
+        actions = {}
+        for agent_index, agent_id in enumerate(self.possible_agents):
+            available_actions = self.env.get_avail_agent_actions(agent_index)
+            available_actions_ind = np.nonzero(available_actions)[0]
+            action = np.random.choice(available_actions_ind)
+            actions[agent_id] = np.array(action)
+        return actions  # type: ignore
 
     def set_seed(self, seed: int) -> None:
         self.env = StarCraftCapabilityEnvWrapper(
@@ -136,13 +136,15 @@ class SMAC2Environment(MARLEnvironment):
         self.observation = MARLObservation(
             global_state=state,
             agent_states=obs_dict,
-            avail_actions=self.env.get_avail_actions(),
+            available_actions=self.get_available_actions(),
         )
 
         return self.observation
 
-    def step(self, action: list[int]) -> MultiAgentExperience:  # type: ignore[override]
-        reward, done, info = self.env.step(action)
+    def step(self, action: dict[str, int]) -> MultiAgentExperience:  # type: ignore[override]
+
+        ordered_actions = [int(action[agent_id]) for agent_id in self.possible_agents]
+        reward, done, info = self.env.step(ordered_actions)
 
         obs = self.env.get_obs()
         # Convert obs list → dict[str -> obs_i]
@@ -151,12 +153,14 @@ class SMAC2Environment(MARLEnvironment):
         next_observation = MARLObservation(
             global_state=self.env.get_state(),
             agent_states=obs_dict,
-            avail_actions=self.env.get_avail_actions(),
+            available_actions=self.get_available_actions(),
         )
 
-        rewards = [0.0] * self.env_info["n_agents"]
-        rewards[0] = reward  # Assuming reward is for all agents equally
-        dones = [done] * self.env_info["n_agents"]
+        rewards: dict[str, float] = {}
+        dones: dict[str, bool] = {}
+        for agent_id in self.possible_agents:
+            rewards[agent_id] = reward
+            dones[agent_id] = done
 
         experience = MultiAgentExperience(
             observation=self.observation,

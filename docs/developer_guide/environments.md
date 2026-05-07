@@ -97,13 +97,13 @@ class ExampleMARLEnvironment(MARLEnvironment):
         # Create the environment as per normal here
         self.env = ...
 
-    def step(self, action: list[int] | list[np.ndarray]) -> MultiAgentExperience:
+    def step(self, action: dict[str, np.ndarray]) -> MultiAgentExperience:
         ...
 
     def reset(self, training: bool = True) -> MARLObservation:
         ...
 
-    def sample_action(self) -> list[int] | list[np.ndarray]:
+    def sample_action(self) -> dict[str, np.ndarray]:
         ...
 
     def observation_space(self) -> dict[str, Any]:

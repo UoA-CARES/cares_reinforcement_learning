@@ -269,6 +269,7 @@ class TrainingRunner(BaseRunner):
 
         # Main training loop
         train_step_counter = self.start_training_step
+        train_info = {}
         for train_step_counter in range(
             self.start_training_step, int(self.max_steps_training)
         ):
@@ -330,7 +331,6 @@ class TrainingRunner(BaseRunner):
                     episode_stats.get_episode_reward(),
                     episode_end,
                 )
-                info |= train_info
 
             # Evaluate agent periodically
             if (train_step_counter + 1) % self.number_steps_per_evaluation == 0:
@@ -342,6 +342,9 @@ class TrainingRunner(BaseRunner):
             # Handle episode completion
             if episode_end:
                 episode_time = time.time() - episode_start
+
+                info |= train_info
+                train_info = {}
 
                 info.update(episode_stats.summary())
 

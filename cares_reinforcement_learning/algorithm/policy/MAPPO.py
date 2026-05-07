@@ -74,7 +74,7 @@ from cares_reinforcement_learning.types.observation import (
 )
 
 
-class MAPPO(MARLAlgorithm[list[np.ndarray]]):
+class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
         agents: list[PPO],
@@ -114,29 +114,29 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
         self,
         observation: MARLObservation,
         evaluation: bool = False,
-    ) -> ActionSample[list[np.ndarray]]:
+    ) -> ActionSample[dict[str, np.ndarray]]:
         agent_states = observation.agent_states
-        avail_actions = observation.avail_actions
+        available_actions = observation.available_actions
 
         agent_ids = list(agent_states.keys())
-        actions = []
-        log_probs = []
+        actions = {}
+        log_probs = {}
 
         for i, agent in enumerate(self.agent_networks):
             agent_name = agent_ids[i]  # consistent ordering in dict
             obs_i = agent_states[agent_name]
-            avail_i = avail_actions[i]
+            avail_i = available_actions[agent_name]
 
             agent_observation = SARLObservation(
                 vector_state=obs_i,
-                avail_actions=avail_i,
+                available_actions=avail_i,
             )
 
             agent_sample = agent.act(
                 agent_observation, evaluation, calculate_value=False
             )
-            actions.append(agent_sample.action)
-            log_probs.append(agent_sample.extras["log_prob"])
+            actions[agent_name] = agent_sample.action
+            log_probs[agent_name] = agent_sample.extras["log_prob"]
 
         return ActionSample(
             action=actions, source="policy", extras={"log_prob": log_probs}
@@ -185,15 +185,17 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
         # IMPORTANT: dones are per-agent for generic case
         dones = dones_tensor.squeeze(-1).float()  # [T, N]
 
+        agent_ids = list(agent_states.keys())
+
         # Old log_probs + values stored at action time
         old_log_probs = [
-            experience.train_data["log_prob"] for experience in sample.experiences
+            [experience.train_data["log_prob"][agent_id] for agent_id in agent_ids]
+            for experience in sample.experiences
         ]
+
         old_log_probs_tensor = torch.tensor(
             np.asarray(old_log_probs), dtype=torch.float32, device=self.device
         )
-
-        agent_ids = list(agent_states.keys())
 
         # ---------- Central critic values ----------
         with torch.no_grad():
@@ -267,13 +269,11 @@ class MAPPO(MARLAlgorithm[list[np.ndarray]]):
                         entropy_coef=self.entropy_coef,
                     )
 
-                    # Accumulate only if update happened
-                    if not kl_early_stop:
-                        agent_updates[agent_idx] += 1
-                        for k in actor_info.keys():
-                            if k not in agent_actor_sums[agent_idx]:
-                                agent_actor_sums[agent_idx][k] = 0.0
-                            agent_actor_sums[agent_idx][k] += float(actor_info[k])
+                    agent_updates[agent_idx] += 1
+                    for k in actor_info.keys():
+                        if k not in agent_actor_sums[agent_idx]:
+                            agent_actor_sums[agent_idx][k] = 0.0
+                        agent_actor_sums[agent_idx][k] += float(actor_info[k])
 
                     # Track max KL seen regardless (if target_kl is enabled, approx_kl is meaningful)
                     if self.target_kl is not None:

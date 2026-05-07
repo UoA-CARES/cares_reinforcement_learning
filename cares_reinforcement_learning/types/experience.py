@@ -43,24 +43,24 @@ class SingleAgentExperience(Experience[SARLObservation]):
 
 @dataclass(frozen=True, slots=True)
 class MultiAgentExperience(Experience[MARLObservation]):
-    action: list[np.ndarray]
-    reward: list[float]
-    done: list[bool]
-    truncated: list[bool]
+    action: dict[str, np.ndarray]
+    reward: dict[str, float]
+    done: dict[str, bool]
+    truncated: dict[str, bool]
 
     @property
     def done_flag(self) -> bool:
         # terminal when *all* agents are done
-        return all(self.done)
+        return all(self.done.values())
 
     @property
     def truncated_flag(self) -> bool:
         # truncated when *all* agents are truncated
-        return all(self.truncated)
+        return all(self.truncated.values())
 
     @property
     def reward_sum(self) -> float:
-        return float(sum(self.reward))
+        return float(sum(self.reward.values()))
 
 
 ExperienceType = SingleAgentExperience | MultiAgentExperience
