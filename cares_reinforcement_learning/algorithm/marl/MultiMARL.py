@@ -59,9 +59,7 @@ class MultiMARL(MARLAlgorithm[dict[str, np.ndarray]]):
     ) -> ActionSample[dict[str, np.ndarray]]:
         agent_ids = list(observation.agent_states.keys())
 
-        full_actions: dict[str, np.ndarray | None] = {
-            agent_id: None for agent_id in agent_ids
-        }
+        full_actions: dict[str, np.ndarray] = {}
 
         # Learning agent only sees/acts for its team
         learning_observation = self._observation_for_team(
@@ -88,11 +86,10 @@ class MultiMARL(MARLAlgorithm[dict[str, np.ndarray]]):
             for agent_id in team_agents:
                 full_actions[agent_id] = action_sample.action[agent_id]
 
-        if any(action is None for action in full_actions.values()):
-            missing_agents = [
-                agent_id for agent_id, action in full_actions.items() if action is None
-            ]
-            raise ValueError(f"No action provided for agents: {missing_agents}")
+        missing_agent_ids = set(agent_ids) - set(full_actions.keys())
+        if missing_agent_ids:
+            missing_keys = ", ".join(sorted(missing_agent_ids))
+            raise KeyError(f"Missing actions for agents: {missing_keys}")
 
         return ActionSample(action=full_actions, source="policy")
 
