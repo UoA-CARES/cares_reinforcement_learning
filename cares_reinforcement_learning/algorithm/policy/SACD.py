@@ -294,16 +294,7 @@ class SACD(SARLAlgorithm[int]):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,
-            _,
-            _,
-        ) = memory_sampler.sample(
+        sample_tensor, _ = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -314,18 +305,18 @@ class SACD(SARLAlgorithm[int]):
 
         # Update the Critic
         critic_info = self._update_critic(
-            observation_tensor.vector_state_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
-            dones_tensor,
+            sample_tensor.observation.vector_state,
+            sample_tensor.action,
+            sample_tensor.reward,
+            sample_tensor.next_observation.vector_state,
+            sample_tensor.done,
         )
         info.update(critic_info)
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor_alpha(
-                observation_tensor.vector_state_tensor
+                sample_tensor.observation.vector_state
             )
             info.update(actor_info)
 

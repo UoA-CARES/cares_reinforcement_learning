@@ -270,11 +270,11 @@ class EncoderPolicy(nn.Module):
         self, state: SARLObservationTensors, detach_encoder: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state.image_state_tensor, detach_cnn=detach_encoder)
+        state_latent = self.encoder(state.image_state, detach_cnn=detach_encoder)
 
         actor_input = state_latent
         if self.add_vector_observation:
-            actor_input = torch.cat([state.vector_state_tensor, actor_input], dim=1)
+            actor_input = torch.cat([state.vector_state, actor_input], dim=1)
 
         return self.actor(actor_input)
 
@@ -302,11 +302,11 @@ class EncoderCritic(nn.Module):
         detach_encoder: bool = False,
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         # Detach at the CNN layer to prevent backpropagation through the encoder
-        state_latent = self.encoder(state.image_state_tensor, detach_cnn=detach_encoder)
+        state_latent = self.encoder(state.image_state, detach_cnn=detach_encoder)
 
         critic_input = state_latent
         if self.add_vector_observation:
-            critic_input = torch.cat([state.vector_state_tensor, critic_input], dim=1)
+            critic_input = torch.cat([state.vector_state, critic_input], dim=1)
 
         return self.critic(critic_input, action)
 
@@ -335,16 +335,16 @@ class AEActor(nn.Module):
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
             # take the mean value for stability
             z_vector, _, _ = self.autoencoder.encoder(
-                state.image_state_tensor, detach_output=detach_encoder
+                state.image_state, detach_output=detach_encoder
             )
         else:
             z_vector = self.autoencoder.encoder(
-                state.image_state_tensor, detach_output=detach_encoder
+                state.image_state, detach_output=detach_encoder
             )
 
         actor_input = z_vector
         if self.add_vector_observation:
-            actor_input = torch.cat([state.vector_state_tensor, actor_input], dim=1)
+            actor_input = torch.cat([state.vector_state, actor_input], dim=1)
 
         return self.actor(actor_input)
 
@@ -375,15 +375,15 @@ class AECritc(nn.Module):
         if self.autoencoder.ae_type == Autoencoders.BURGESS:
             # take the mean value for stability
             z_vector, _, _ = self.autoencoder.encoder(
-                state.image_state_tensor, detach_output=detach_encoder
+                state.image_state, detach_output=detach_encoder
             )
         else:
             z_vector = self.autoencoder.encoder(
-                state.image_state_tensor, detach_output=detach_encoder
+                state.image_state, detach_output=detach_encoder
             )
 
         critic_input = z_vector
         if self.add_vector_observation:
-            critic_input = torch.cat([state.vector_state_tensor, critic_input], dim=1)
+            critic_input = torch.cat([state.vector_state, critic_input], dim=1)
 
         return self.critic(critic_input, action)

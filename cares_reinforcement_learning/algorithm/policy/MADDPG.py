@@ -477,16 +477,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 current_agent.action_noise
             )
 
-            (
-                observation_tensor,
-                actions_tensor,
-                rewards_tensor,
-                next_observation_tensor,
-                dones_tensor,
-                _,
-                _,
-                indices,
-            ) = memory_sampler.sample(
+            sample_tensor, indices = memory_sampler.sample(
                 memory=memory_buffer,
                 batch_size=self.batch_size,
                 device=self.device,

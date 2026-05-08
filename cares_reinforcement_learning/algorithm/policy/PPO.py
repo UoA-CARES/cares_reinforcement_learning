@@ -268,7 +268,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
         curr_log_probs = self._squashed_log_prob(dist, u_mb)
 
         log_ratio = curr_log_probs - old_logp_mb
-        ratios = torch.exp(curr_log_probs - old_logp_mb)
+        ratios = torch.exp(log_ratio)
 
         unclipped_objective = ratios * advantages_mb
         clipped_ratio = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip)
@@ -372,13 +372,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
         train_data: list[dict[str, Any]],
     ) -> dict[str, Any]:
 
-        batch_size = len(observation_tensor.vector_state_tensor)
+        batch_size = len(observation_tensor.vector_state)
 
         self.entropy_coef = self.epsilon_scheduler.get_value(
             episode_context.training_step
         )
 
-        states = observation_tensor.vector_state_tensor  # shape [B, obs_dim]
+        states = observation_tensor.vector_state  # shape [B, obs_dim]
 
         # Old log_probs + values stored at action time
         old_log_probs = [data["log_prob"] for data in train_data]
@@ -395,7 +395,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
         # Boot Strap next_value for the final step in the buffer - zero out if it is a terminal state,
         # otherwise use critic estimate for V(s_T)
         with torch.no_grad():
-            last_next_state = next_observation_tensor.vector_state_tensor[-1].unsqueeze(
+            last_next_state = next_observation_tensor.vector_state[-1].unsqueeze(
                 0
             )  # [1, obs_dim]
             last_value = self.critic_net(last_next_state).view(-1)[0]  # scalar
@@ -620,24 +620,16 @@ class PPO(SARLAlgorithm[np.ndarray]):
             return {}
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,
-            train_data,
-        ) = memory_sampler.sample_to_tensors(sample, self.device)
+        sample_tensor = memory_sampler.sample_to_tensors(sample, self.device)
 
         info = self.update_from_batch(
             episode_context=episode_context,
-            observation_tensor=observation_tensor,
-            actions_tensor=actions_tensor,
-            rewards_tensor=rewards_tensor,
-            next_observation_tensor=next_observation_tensor,
-            dones_tensor=dones_tensor,
-            train_data=train_data,
+            observation_tensor=sample_tensor.observation,
+            actions_tensor=sample_tensor.action,
+            rewards_tensor=sample_tensor.reward,
+            next_observation_tensor=sample_tensor.next_observation,
+            dones_tensor=sample_tensor.done,
+            train_data=sample_tensor.train_data,
         )
 
         return info

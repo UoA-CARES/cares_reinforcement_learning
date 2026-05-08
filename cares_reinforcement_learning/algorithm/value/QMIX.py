@@ -150,12 +150,12 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
             [observation], self.device
         )
 
-        obs_tensors = self._stack_obs(observation_tensors.agent_states_tensor)
+        obs_tensors = self._stack_obs(observation_tensors.agent_states)
 
         self.network.eval()
         with torch.no_grad():
             q_values = self.network(obs_tensors)  # [1, num_agents, num_actions]
-            mask = observation_tensors.avail_actions_tensor == 0
+            mask = observation_tensors.available_actions == 0
             q_values = q_values.masked_fill(mask, -1e9)
             greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
         self.network.train()

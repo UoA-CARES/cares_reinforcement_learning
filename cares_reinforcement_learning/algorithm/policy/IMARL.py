@@ -174,7 +174,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
             indices,
         ) = self._sample(memory_buffer=memory_buffer)
 
-        agent_states = observation_tensor.agent_states_tensor
+        agent_states = observation_tensor.agent_states
         agent_ids = list(agent_states.keys())
         batch_size = len(indices)
 
@@ -190,14 +190,12 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         for i, agent in enumerate(self.agent_networks):
             agent_name = agent_ids[i]
             states_i = SARLObservationTensors(
-                vector_state_tensor=observation_tensor.agent_states_tensor[agent_name],
+                vector_state=observation_tensor.agent_states[agent_name],
             )
             actions_i = actions_tensor[:, i, :]
             rewards_i = rewards_tensor[:, i]
             next_states_i = SARLObservationTensors(
-                vector_state_tensor=next_observation_tensor.agent_states_tensor[
-                    agent_name
-                ],
+                vector_state=next_observation_tensor.agent_states[agent_name],
             )
             dones_i = dones_tensor[:, i]
             train_data_i = agent_train_data[i]

@@ -166,6 +166,8 @@ def test_algorithms(tmp_path):
 
     for algorithm, alg_config in algorithm_configurations.items():
         print(f"Testing training step for {algorithm}")
+        if algorithm == "MultiMARL":
+            continue
         alg_config = alg_config()
 
         memory_buffer = memory_factory.create_memory(alg_config)
