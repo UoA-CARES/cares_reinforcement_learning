@@ -55,13 +55,14 @@ from cares_reinforcement_learning.algorithm.configurations import MADDPGConfig
 class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
-        agents: list[DDPG],
+        agents: dict[str, DDPG],
         config: MADDPGConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
         self.agent_networks = agents
+        self.agent_ids = list(self.agent_networks.keys())
         self.num_agents = len(agents)
 
         self.gamma = config.gamma
@@ -86,7 +87,6 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         self.learn_counter = 0
 
-    # TODO verify that the ordering of agents is consistent
     def act(
         self,
         observation: MARLObservation,
@@ -95,11 +95,9 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_states = observation.agent_states
         avail_actions = observation.available_actions
 
-        agent_ids = list(agent_states.keys())
         actions = {}
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_name = agent_ids[i]  # consistent ordering in dict
+        for agent_name, agent_network in self.agent_networks.items():
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[agent_name]
 
@@ -108,7 +106,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 available_actions=avail_i,
             )
 
-            agent_sample = agent.act(agent_observation, evaluation)
+            agent_sample = agent_network.act(agent_observation, evaluation)
             actions[agent_name] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
@@ -324,7 +322,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
     def _update_actor(
         self,
         agent: DDPG,
-        agent_index: int,
+        agent_name: str,
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
         actions_tensor: torch.Tensor,  # (B, N, act_dim)
@@ -336,8 +334,9 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         """
         info: dict[str, Any] = {}
 
-        agent_ids = list(obs_tensors.keys())
         batch_size = global_states.shape[0]
+
+        agent_index = self.agent_ids.index(agent_name)
 
         # ---------------------------------------------------------
         # Step 1: Start from replay-buffer joint actions
@@ -348,7 +347,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         # ---------------------------------------------------------
         # Step 2: Replace ONLY agent_i action with differentiable action
         # ---------------------------------------------------------
-        obs_i = obs_tensors[agent_ids[agent_index]]  # (B, obs_dim_i)
+        obs_i = obs_tensors[agent_name]  # (B, obs_dim_i)
         actions_i = agent.actor_net(obs_i)  # differentiable
 
         actions_all[:, agent_index, :] = actions_i  # keep others from buffer
@@ -463,60 +462,79 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         info: dict[str, Any] = {}
 
-        for agent_index, current_agent in enumerate(self.agent_networks):
-            # ---------------------------------------------------------
-            # Update each agent
-            # ---------------------------------------------------------
+        # ---------------------------------------------------------
+        # Update each agent
+        # ---------------------------------------------------------
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_index = self.agent_ids.index(agent_name)
 
             # Update action noise for exploration (decayed over training)
-            current_agent.action_noise = current_agent.action_noise_scheduler.get_value(
+            agent_network.action_noise = agent_network.action_noise_scheduler.get_value(
                 episode_context.training_step
             )
 
-            info[f"action_noise_agent_{agent_index}"] = float(
-                current_agent.action_noise
-            )
+            info[f"action_noise_agent_{agent_name}"] = float(agent_network.action_noise)
 
-            sample_tensor, indices = memory_sampler.sample(
+            sample_tensor, _ = memory_sampler.sample(
                 memory=memory_buffer,
                 batch_size=self.batch_size,
                 device=self.device,
                 use_per_buffer=0,
             )
 
-            sample_size = len(indices)
+            states_tensors = sample_tensor.observation.global_state
+            next_states_tensors = sample_tensor.next_observation.global_state
 
-            states_tensors = observation_tensor.global_state_tensor
-            next_states_tensors = next_observation_tensor.global_state_tensor
+            agent_states_tensors = sample_tensor.observation.agent_states
+            next_agent_states_tensors = sample_tensor.next_observation.agent_states
 
-            agent_states_tensors = observation_tensor.agent_states_tensor
-            next_agent_states_tensors = next_observation_tensor.agent_states_tensor
-
-            agent_ids = list(agent_states_tensors.keys())
+            actions_tensor_dict = sample_tensor.action
+            rewards_tensor_dict = sample_tensor.reward
+            dones_tensor_dict = sample_tensor.done
 
             # ---------------------------------------------------------
-            # Build next_actions_tensor using TARGET actors
+            # Build tensors from dictionaries
             # ---------------------------------------------------------
-            next_actions = []
-            for agent, agent_id in zip(self.agent_networks, agent_ids):
-                obs_next_j = next_agent_states_tensors[agent_id]
-                next_action_j = agent.target_actor_net(obs_next_j)
-                next_actions.append(next_action_j)
+            # Flatten replay-buffer actions to (B, N, A) for critic input
+            actions_tensor = torch.stack(
+                [actions_tensor_dict[a] for a in self.agent_ids],
+                dim=1,
+            )
 
-            next_actions_tensor = torch.stack(next_actions, dim=1)
+            next_actions = {}
+            for next_agent_name, next_agent_network in self.agent_networks.items():
+                obs_next_j = next_agent_states_tensors[next_agent_name]
+                next_action_j = next_agent_network.target_actor_net(obs_next_j)
+                next_actions[next_agent_name] = next_action_j
 
-            # Flatten replay-buffer actions for this batch
-            joint_actions = actions_tensor.reshape(sample_size, -1)
+            # Flatten next actions to (B, N, A) for critic input
+            next_actions_tensor = torch.stack(
+                [next_actions[a] for a in self.agent_ids],
+                dim=1,
+            )
+
+            rewards_tensor = torch.stack(
+                [rewards_tensor_dict[a] for a in self.agent_ids],
+                dim=1,
+            )
+
+            dones_tensor = torch.stack(
+                [dones_tensor_dict[a] for a in self.agent_ids],
+                dim=1,
+            )
+
+            # Flatten replay-buffer actions for this batch - all agents
+            joint_actions = actions_tensor.reshape(actions_tensor.shape[0], -1)
 
             with torch.no_grad():
                 # ---------------------------------------------------------
                 # Batch-level multi-agent diagnostics (this agent's draw)
                 # ---------------------------------------------------------
                 # Joint action volatility in the replay batch (all agents)
-                info[f"agent_{agent_index}_joint_action_mean"] = (
+                info[f"agent_{agent_name}_joint_action_mean"] = (
                     actions_tensor.mean().item()
                 )
-                info[f"agent_{agent_index}_joint_action_std"] = actions_tensor.std(
+                info[f"agent_{agent_name}_joint_action_std"] = actions_tensor.std(
                     unbiased=False
                 ).item()
 
@@ -525,45 +543,46 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 per_agent_abs_mean = actions_tensor.abs().mean(dim=(0, 2))  # (N,)
                 per_agent_std = actions_tensor.std(dim=(0, 2), unbiased=False)  # (N,)
 
-                info[f"agent_{agent_index}_replay_action_abs_mean"] = (
+                info[f"agent_{agent_name}_replay_action_abs_mean"] = (
                     per_agent_abs_mean.mean().item()
                 )
-                info[f"agent_{agent_index}_replay_action_abs_std_across_agents"] = (
+                info[f"agent_{agent_name}_replay_action_abs_std_across_agents"] = (
                     per_agent_abs_mean.std(unbiased=False).item()
                 )
-                info[f"agent_{agent_index}_replay_action_std_mean"] = (
+                info[f"agent_{agent_name}_replay_action_std_mean"] = (
                     per_agent_std.mean().item()
                 )
 
                 # Coordination proxy: how aligned are agents' actions? (cheap)
                 # Cos similarity between agents' action vectors per sample, averaged.
                 # Flatten each agent action: (B, N, A) -> (B, N, A)
-                a = actions_tensor  # (B,N,A)
-                a_norm = a / a.norm(dim=2, keepdim=True).clamp_min(1e-6)
+                a_norm = actions_tensor / actions_tensor.norm(
+                    dim=2, keepdim=True
+                ).clamp_min(1e-6)
 
                 # pairwise cosine for all agent pairs
                 cos = torch.einsum("bna,bma->bnm", a_norm, a_norm)  # (B,N,N)
                 # ignore diagonal
                 n = cos.shape[1]
                 mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
-                info[f"agent_{agent_index}_replay_action_cos_mean"] = (
+                info[f"agent_{agent_name}_replay_action_cos_mean"] = (
                     cos[:, mask].mean().item()
                 )
 
                 # Reward/done scale sanity for this agent (helps catch mis-scaling)
-                info[f"agent_{agent_index}_reward_mean"] = rewards_tensor.mean().item()
-                info[f"agent_{agent_index}_done_frac"] = (
+                info[f"agent_{agent_name}_reward_mean"] = rewards_tensor.mean().item()
+                info[f"agent_{agent_name}_done_frac"] = (
                     dones_tensor.float().mean().item()
                 )
 
             # ---------------------------------------------------------
             # Critic update for this agent
             # ---------------------------------------------------------
-            rewards_i = rewards_tensor[:, agent_index]
-            dones_i = dones_tensor[:, agent_index]
+            rewards_i = rewards_tensor_dict[agent_name]
+            dones_i = dones_tensor_dict[agent_name]
 
             critic_info = self._update_critic(
-                agent=current_agent,
+                agent=agent_network,
                 agent_index=agent_index,
                 global_states=states_tensors,
                 joint_actions=joint_actions,
@@ -572,32 +591,35 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 next_actions_tensor=next_actions_tensor,
                 dones_i=dones_i,
             )
-            info.update({f"agent_{agent_index}_{k}": v for k, v in critic_info.items()})
+            info.update({f"agent_{agent_name}_{k}": v for k, v in critic_info.items()})
 
             # ---------------------------------------------------------
             # Actor update
             # ---------------------------------------------------------
             actor_info = self._update_actor(
-                agent=current_agent,
-                agent_index=agent_index,
+                agent=agent_network,
+                agent_name=agent_name,
                 obs_tensors=agent_states_tensors,
                 global_states=states_tensors,
                 actions_tensor=actions_tensor,
             )
-            info.update({f"agent_{agent_index}_{k}": v for k, v in actor_info.items()})
+            info.update({f"agent_{agent_name}_{k}": v for k, v in actor_info.items()})
 
         # --- Cross-agent diagnostics ---
         metrics = list(critic_info.keys()) + list(actor_info.keys())
         for metric in metrics:
-            values = [info[f"agent_{i}_{metric}"] for i in range(self.num_agents)]
+            values = [
+                info[f"agent_{agent_name}_{metric}"]
+                for agent_name in self.agent_networks.keys()
+            ]
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
             info[f"min_{metric}"] = float(np.min(values))
 
         # Update Target networks with soft update
-        for current_agent in self.agent_networks:
-            current_agent.update_target_networks()
+        for agent_network in self.agent_networks.values():
+            agent_network.update_target_networks()
 
         return info
 
@@ -605,17 +627,17 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
-            agent.save_models(agent_filepath, agent_filename)
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_filepath = os.path.join(filepath, f"agent_{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+            agent_network.save_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
-            agent.load_models(agent_filepath, agent_filename)
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_filepath = os.path.join(filepath, f"agent_{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+            agent_network.load_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been loaded...")

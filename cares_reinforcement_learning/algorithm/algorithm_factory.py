@@ -549,7 +549,7 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
-    agents = []
+    agents = {}
     device = hlp.get_device()
 
     # KEEP THE ACTOR ORDER CONSISTENT
@@ -575,7 +575,7 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
             config=config,
             device=device,
         )
-        agents.append(agent)
+        agents[agent_name] = agent
 
     maddpg_agent = MADDPG(agents=agents, config=config, device=device)
     return maddpg_agent
@@ -945,46 +945,46 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
 ###################################
 
 
-def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
-    from cares_reinforcement_learning.algorithm.marl import MultiMARL
+# def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
+#     from cares_reinforcement_learning.algorithm.marl import MultiMARL
 
-    device = hlp.get_device()
+#     device = hlp.get_device()
 
-    env_teams = observation_size["teams"]  # dict[str → list[str]]
-    learning_team = config.agents_team[0]  # dict[str → str]
+#     env_teams = observation_size["teams"]  # dict[str → list[str]]
+#     learning_team = config.agents_team[0]  # dict[str → str]
 
-    learning_agents = env_teams[learning_team]  # list[str]
+#     learning_agents = env_teams[learning_team]  # list[str]
 
-    learning_obs_shapes = {
-        "obs": {
-            agent_name: observation_size["obs"][agent_name]
-            for agent_name in learning_agents
-        },
-        "state": observation_size["state"],
-        "num_agents": len(learning_agents),
-    }
+#     learning_obs_shapes = {
+#         "obs": {
+#             agent_name: observation_size["obs"][agent_name]
+#             for agent_name in learning_agents
+#         },
+#         "state": observation_size["state"],
+#         "num_agents": len(learning_agents),
+#     }
 
-    algorithm_factory = AlgorithmFactory()
+#     algorithm_factory = AlgorithmFactory()
 
-    agents = []
+#     agents = []
 
-    learning_agent = algorithm_factory.create_network(
-        observation_size=learning_obs_shapes,
-        action_num=action_num,
-        config=config.agents_config[0],
-    )
-    agents.append(learning_agent)
+#     learning_agent = algorithm_factory.create_network(
+#         observation_size=learning_obs_shapes,
+#         action_num=action_num,
+#         config=config.agents_config[0],
+#     )
+#     agents.append(learning_agent)
 
-    for i in range(1, len(config.agents_team)):
-        trained_agent = algorithm_factory.create_network(
-            observation_size=observation_size,
-            action_num=action_num,
-            config=config.agents_config[i],
-        )
-        agents.append(trained_agent)
+#     for i in range(1, len(config.agents_team)):
+#         trained_agent = algorithm_factory.create_network(
+#             observation_size=observation_size,
+#             action_num=action_num,
+#             config=config.agents_config[i],
+#         )
+#         agents.append(trained_agent)
 
-    multimarl_agent = MultiMARL(agent_networks=agents, config=config, device=device)
-    return multimarl_agent
+#     multimarl_agent = MultiMARL(agent_networks=agents, config=config, device=device)
+#     return multimarl_agent
 
 
 ####################################
