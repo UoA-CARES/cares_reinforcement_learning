@@ -77,7 +77,7 @@ from cares_reinforcement_learning.types.observation import (
 class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
-        agents: list[PPO],
+        agents: dict[str, PPO],
         central_critic: Critic,
         config: MAPPOConfig,
         device: torch.device,
@@ -85,6 +85,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         super().__init__(policy_type="policy", config=config, device=device)
 
         self.agent_networks = agents
+        self.agent_ids = list(self.agent_networks.keys())
         self.num_agents = len(agents)
 
         self.minibatch_size = config.minibatch_size
@@ -122,8 +123,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         actions = {}
         log_probs = {}
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_name = agent_ids[i]  # consistent ordering in dict
+        for agent_name in agent_ids:
             obs_i = agent_states[agent_name]
             avail_i = available_actions[agent_name]
 
@@ -132,7 +132,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 available_actions=avail_i,
             )
 
-            agent_sample = agent.act(
+            agent_sample = self.agent_networks[agent_name].act(
                 agent_observation, evaluation, calculate_value=False
             )
             actions[agent_name] = agent_sample.action
@@ -167,29 +167,44 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             return {}
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,  # weights not needed
-            _,
-        ) = memory_sampler.sample_to_tensors(sample, self.device)
+        sample_tensor = memory_sampler.sample_to_tensors(sample, self.device)
 
-        global_states = observation_tensor.global_state_tensor
-        next_global_states = next_observation_tensor.global_state_tensor
+        global_states = sample_tensor.observation.global_state
+        next_global_states = sample_tensor.next_observation.global_state
 
-        agent_states = observation_tensor.agent_states_tensor
+        agent_states = sample_tensor.observation.agent_states
+
+        actions_tensor_dict = sample_tensor.action
+        rewards_tensor_dict = sample_tensor.reward
+        dones_tensor_dict = sample_tensor.done
+
+        # actions_tensor: (T, N, act_dim)
+        actions_tensor = torch.stack(
+            [actions_tensor_dict[a] for a in self.agent_ids],
+            dim=1,
+        )
 
         # IMPORTANT: dones are per-agent for generic case
-        dones = dones_tensor.squeeze(-1).float()  # [T, N]
+        # Stack per-agent rewards/dones into canonical order
+        # rewards_tensor: (T, N)
+        rewards_tensor = torch.stack(
+            [rewards_tensor_dict[a] for a in self.agent_ids],
+            dim=1,
+        ).squeeze(-1)
 
-        agent_ids = list(agent_states.keys())
+        # dones: (T, N)
+        dones = (
+            torch.stack(
+                [dones_tensor_dict[a] for a in self.agent_ids],
+                dim=1,
+            )
+            .squeeze(-1)
+            .float()
+        )
 
         # Old log_probs + values stored at action time
         old_log_probs = [
-            [experience.train_data["log_prob"][agent_id] for agent_id in agent_ids]
+            [experience.train_data["log_prob"][agent_id] for agent_id in self.agent_ids]
             for experience in sample.experiences
         ]
 
@@ -208,21 +223,20 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             last_done = dones[-1].bool()
             last_value = last_value * (~last_done).to(last_value.dtype)
 
-        rewards_tensor = rewards_tensor.view(batch_size, self.num_agents)
-
         advantages_all = torch.zeros((batch_size, self.num_agents), device=self.device)
         returns_all = torch.zeros((batch_size, self.num_agents), device=self.device)
 
-        for i in range(self.num_agents):
-            adv_i, ret_i = self.agent_networks[i]._calculate_gae(
-                rewards=rewards_tensor[:, i],
-                dones=dones[:, i],
-                values=values[:, i],
-                last_value=last_value[i],
+        for agent_index, agent_id in enumerate(self.agent_ids):
+            adv_i, ret_i = self.agent_networks[agent_id]._calculate_gae(
+                rewards=rewards_tensor[:, agent_index],
+                dones=dones[:, agent_index],
+                values=values[:, agent_index],
+                last_value=last_value[agent_index],
                 gae_lambda=self.gae_lambda,
             )
-            advantages_all[:, i] = adv_i
-            returns_all[:, i] = ret_i
+
+            advantages_all[:, agent_index] = adv_i
+            returns_all[:, agent_index] = ret_i
 
         adv_flat = advantages_all.view(-1)
         adv_flat = (adv_flat - adv_flat.mean()) / (adv_flat.std(unbiased=False) + 1e-8)
@@ -231,16 +245,18 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         mb_size = min(self.minibatch_size, batch_size)
 
         # Track per-agent KL early-stop (actor-only)
-        agent_kl_early_stop = [False] * self.num_agents
+        agent_kl_early_stop = {agent_id: False for agent_id in self.agent_ids}
 
         # Track critic loss
         critic_loss_sum = 0.0
         num_critic_mb = 0
 
-        agent_actor_sums: list[dict[str, float]] = [{} for _ in range(self.num_agents)]
-        agent_max_kl = [0.0 for _ in range(self.num_agents)]
+        agent_actor_sums: dict[str, dict[str, float]] = {
+            agent_id: {} for agent_id in self.agent_ids
+        }
+        agent_max_kl = {agent_id: 0.0 for agent_id in self.agent_ids}
         # minibatches that actually updated (for averaging stats)
-        agent_updates = [0 for _ in range(self.num_agents)]
+        agent_updates = {agent_id: 0 for agent_id in self.agent_ids}
 
         # ---------- Epochs / minibatches ----------
         for _ in range(self.updates_per_iteration):
@@ -250,18 +266,18 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 mb = idx[start : start + mb_size]
 
                 # ----- Actor updates (same mb across agents) -----
-                for agent_idx, agent in enumerate(self.agent_networks):
-                    if agent_kl_early_stop[agent_idx]:
+                for agent_name, agent_network in self.agent_networks.items():
+                    agent_idx = self.agent_ids.index(agent_name)
+                    if agent_kl_early_stop[agent_name]:
                         continue  # this agent already KL-stopped this rollout
 
-                    agent_name = agent_ids[agent_idx]
                     states_mb = agent_states[agent_name][mb]  # [mb, obs_dim]
                     actions_mb = actions_tensor[mb, agent_idx, :]  # [mb, act_dim]
                     old_logp_mb = old_log_probs_tensor[mb, agent_idx]  # [mb]
                     advantages_mb = advantages_all[mb, agent_idx]  # [mb]
 
                     # Use the new PPO helper (includes KL pre-check + may skip update)
-                    kl_early_stop, actor_info = agent.update_actor_minibatch(
+                    kl_early_stop, actor_info = agent_network.update_actor_minibatch(
                         states_mb=states_mb,
                         actions_mb=actions_mb,
                         old_logp_mb=old_logp_mb,
@@ -269,20 +285,20 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                         entropy_coef=self.entropy_coef,
                     )
 
-                    agent_updates[agent_idx] += 1
+                    agent_updates[agent_name] += 1
                     for k in actor_info.keys():
-                        if k not in agent_actor_sums[agent_idx]:
-                            agent_actor_sums[agent_idx][k] = 0.0
-                        agent_actor_sums[agent_idx][k] += float(actor_info[k])
+                        if k not in agent_actor_sums[agent_name]:
+                            agent_actor_sums[agent_name][k] = 0.0
+                        agent_actor_sums[agent_name][k] += float(actor_info[k])
 
                     # Track max KL seen regardless (if target_kl is enabled, approx_kl is meaningful)
                     if self.target_kl is not None:
-                        agent_max_kl[agent_idx] = max(
-                            agent_max_kl[agent_idx], float(actor_info["approx_kl"])
+                        agent_max_kl[agent_name] = max(
+                            agent_max_kl[agent_name], float(actor_info["approx_kl"])
                         )
 
                     # If the helper skipped the update due to KL, stop this agent for remainder
-                    agent_kl_early_stop[agent_idx] = kl_early_stop
+                    agent_kl_early_stop[agent_name] = kl_early_stop
 
                 # ----- Central critic update (same mb indices) -----
                 v_pred = self.central_critic(global_states[mb])  # [mb, N]
@@ -307,47 +323,51 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             # returns vs values
             td_err = returns_all - values  # [T, N]
 
-            for i in range(self.num_agents):
-                info[f"agent_{i}_adv_mean"] = float(advantages_all[:, i].mean().item())
-                info[f"agent_{i}_adv_std"] = float(
+            for i, agent_name in enumerate(self.agent_ids):
+                info[f"{agent_name}_adv_mean"] = float(
+                    advantages_all[:, i].mean().item()
+                )
+                info[f"{agent_name}_adv_std"] = float(
                     advantages_all[:, i].std(unbiased=False).item()
                 )
 
-                info[f"agent_{i}_ret_mean"] = float(returns_all[:, i].mean().item())
-                info[f"agent_{i}_ret_std"] = float(
+                info[f"{agent_name}_ret_mean"] = float(returns_all[:, i].mean().item())
+                info[f"{agent_name}_ret_std"] = float(
                     returns_all[:, i].std(unbiased=False).item()
                 )
 
-                info[f"agent_{i}_v_mean"] = float(values[:, i].mean().item())
-                info[f"agent_{i}_v_std"] = float(
+                info[f"{agent_name}_v_mean"] = float(values[:, i].mean().item())
+                info[f"{agent_name}_v_std"] = float(
                     values[:, i].std(unbiased=False).item()
                 )
 
-                info[f"agent_{i}_td_mean"] = float(td_err[:, i].mean().item())
-                info[f"agent_{i}_td_std"] = float(
+                info[f"{agent_name}_td_mean"] = float(td_err[:, i].mean().item())
+                info[f"{agent_name}_td_std"] = float(
                     td_err[:, i].std(unbiased=False).item()
                 )
-                info[f"agent_{i}_td_mae"] = float(td_err[:, i].abs().mean().item())
+                info[f"{agent_name}_td_mae"] = float(td_err[:, i].abs().mean().item())
 
                 y = returns_all[:, i]
                 yhat = values[:, i]
                 var_y = torch.var(y, unbiased=False)
                 ev = 1.0 - torch.var(y - yhat, unbiased=False) / (var_y + 1e-8)
-                info[f"agent_{i}_explained_var"] = float(ev.item())
+                info[f"{agent_name}_explained_var"] = float(ev.item())
 
-                denom = max(agent_updates[i], 1)
+                denom = max(agent_updates[agent_name], 1)
 
-                info[f"agent_{i}_actor_updates"] = int(agent_updates[i])
-                info[f"agent_{i}_kl_early_stop"] = int(agent_kl_early_stop[i])
+                info[f"{agent_name}_actor_updates"] = int(agent_updates[agent_name])
+                info[f"{agent_name}_kl_early_stop"] = int(
+                    agent_kl_early_stop[agent_name]
+                )
 
-                for k, v in agent_actor_sums[i].items():
-                    info[f"agent_{i}_{k}"] = v / denom
+                for k, v in agent_actor_sums[agent_name].items():
+                    info[f"{agent_name}_{k}"] = v / denom
 
                 if self.target_kl is not None:
-                    info[f"agent_{i}_max_kl_seen"] = agent_max_kl[i]
+                    info[f"{agent_name}_max_kl_seen"] = agent_max_kl[agent_name]
 
-        for k in agent_actor_sums[0].keys():
-            values = [info[f"agent_{i}_{k}"] for i in range(self.num_agents)]
+        for k in agent_actor_sums[self.agent_ids[0]].keys():
+            values = [info[f"{agent_name}_{k}"] for agent_name in self.agent_ids]
             info[f"mean_{k}"] = float(np.mean(values))
 
         for metric in [
@@ -358,13 +378,13 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             "td_mae",
             "explained_var",
         ]:
-            values = [info[f"agent_{i}_{metric}"] for i in range(self.num_agents)]
+            values = [info[f"{agent_name}_{metric}"] for agent_name in self.agent_ids]
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
             info[f"min_{metric}"] = float(np.min(values))
 
-        stopped = sum(int(x) for x in agent_kl_early_stop)
+        stopped = sum(int(x) for x in agent_kl_early_stop.values())
         info["num_agents_kl_stopped"] = stopped
         info["any_agent_kl_stopped"] = int(stopped > 0)
         info["all_agents_kl_stopped"] = int(stopped == self.num_agents)
@@ -375,10 +395,10 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
-            agent.save_models(agent_filepath, agent_filename)
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+            agent_network.save_models(agent_filepath, agent_filename)
 
         # Save central critic
         critic_filepath = os.path.join(filepath, "central_critic")
@@ -396,10 +416,10 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
-            agent.load_models(agent_filepath, agent_filename)
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+            agent_network.load_models(agent_filepath, agent_filename)
 
         # Load central critic
         critic_filepath = os.path.join(filepath, "central_critic")

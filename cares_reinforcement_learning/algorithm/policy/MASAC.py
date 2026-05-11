@@ -55,13 +55,14 @@ from cares_reinforcement_learning.types.observation import (
 class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
-        agents: list[SAC],
+        agents: dict[str, SAC],
         config: MASACConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
         self.agent_networks = agents
+        self.agent_ids = list(self.agent_networks.keys())
         self.num_agents = len(agents)
 
         self.gamma = config.gamma
@@ -85,8 +86,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_ids = list(agent_states.keys())
         actions = {}
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_name = agent_ids[i]  # consistent ordering in dict
+        for agent_name in agent_ids:
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[agent_name]
 
@@ -95,7 +95,9 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                 available_actions=avail_i,
             )
 
-            agent_sample = agent.act(agent_observation, evaluation)
+            agent_sample = self.agent_networks[agent_name].act(
+                agent_observation, evaluation
+            )
             actions[agent_name] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
@@ -208,22 +210,23 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
     def _update_actor_alpha(
         self,
         agent: SAC,
-        agent_index: int,
+        agent_name: str,
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
         current_actions_tensor: torch.Tensor,  # (B, N, act_dim) sampled under no_grad
     ):
         info: dict[str, Any] = {}
 
-        agent_ids = list(obs_tensors.keys())
         batch_size = global_states.shape[0]
+
+        agent_index = self.agent_ids.index(agent_name)
 
         actions_all = current_actions_tensor.clone()  # no graphs carried
 
         # ---------------------------------------------------------
         # Sample CURRENT actions for all agents (detach others)
         # ---------------------------------------------------------
-        obs_i = obs_tensors[agent_ids[agent_index]]
+        obs_i = obs_tensors[agent_name]
         pi_i, log_pi_i, _ = agent.actor_net(obs_i)  # grads for i only
 
         actions_all[:, agent_index, :] = pi_i  # only i is live
@@ -341,16 +344,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
         # keeping joint transitions consistent for centralized critics.
         # ---------------------------------------------------------
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,
-            _,
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -359,15 +353,23 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         batch_size = len(indices)
 
-        global_states = observation_tensor.global_state_tensor
-        next_global_states = next_observation_tensor.global_state_tensor
+        global_states = sample_tensor.observation.global_state
+        next_global_states = sample_tensor.next_observation.global_state
 
-        agent_states = observation_tensor.agent_states_tensor
-        next_agent_states = next_observation_tensor.agent_states_tensor
+        agent_states = sample_tensor.observation.agent_states
+        next_agent_states = sample_tensor.next_observation.agent_states
 
-        agent_ids = list(agent_states.keys())
+        actions_tensor_dict = sample_tensor.action
+        rewards_tensor_dict = sample_tensor.reward
+        dones_tensor_dict = sample_tensor.done
 
-        # Flatten replay-buffer joint actions (used for critic current Q)
+        # Stack replay-buffer actions into (B, N, A) using canonical agent order
+        actions_tensor = torch.stack(
+            [actions_tensor_dict[a] for a in self.agent_ids],
+            dim=1,
+        )
+
+        # Flatten sampled next actions into joint action vectors for target critic input: (B, N * A)
         joint_actions = actions_tensor.reshape(batch_size, -1)
 
         # ---------------------------------------------------------
@@ -375,39 +377,43 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         # ---------------------------------------------------------
         # In SAC, targets use a' ~ pi(·|o') (reparameterized), then evaluate target critics.
         # Computing next_joint_actions once outside ensures every agent sees the same bootstrapping sample for that minibatch.
-        next_actions = []
-        next_logps = []
+        next_actions_dict: dict[str, torch.Tensor] = {}
+        next_logps_dict: dict[str, torch.Tensor] = {}
 
-        for agent, agent_id in zip(self.agent_networks, agent_ids):
+        for agent_id, agent_network in self.agent_networks.items():
             obs_next = next_agent_states[agent_id]
 
             with torch.no_grad():
-                with fnc.evaluating(agent.actor_net):
-                    next_action_j, next_logp_j, _ = agent.actor_net(
-                        obs_next
-                    )  # (B, act_dim), (B, 1)
+                with fnc.evaluating(agent_network.actor_net):
+                    next_action_j, next_logp_j, _ = agent_network.actor_net(obs_next)
 
-            next_actions.append(next_action_j)
-            next_logps.append(next_logp_j)
+            next_actions_dict[agent_id] = next_action_j
+            next_logps_dict[agent_id] = next_logp_j
 
-        # (B, N, act_dim) and (B, N, 1)
-        next_actions_tensor = torch.stack(next_actions, dim=1)
-        next_logps_tensor = torch.stack(next_logps, dim=1)
+        next_logps_tensor = torch.stack(
+            [next_logps_dict[a] for a in self.agent_ids],
+            dim=1,
+        )
 
-        next_joint_actions = next_actions_tensor.view(batch_size, -1)
+        next_actions_tensor = torch.stack(
+            [next_actions_dict[agent_id] for agent_id in self.agent_ids],
+            dim=1,
+        )
+
+        next_joint_actions = next_actions_tensor.reshape(batch_size, -1)
 
         # ---------------------------------------------------------
         # CRITIC UPDATES (every step)
         # ---------------------------------------------------------
-        for agent_index, agent in enumerate(self.agent_networks):
-            rewards_i = rewards_tensor[:, agent_index]
-            dones_i = dones_tensor[:, agent_index]
+        for agent_name, agent_network in self.agent_networks.items():
+            rewards_i = rewards_tensor_dict[agent_name]
+            dones_i = dones_tensor_dict[agent_name]
 
             # For MASAC, entropy term typically uses ONLY agent i's logp (common)
-            next_logp_i = next_logps_tensor[:, agent_index, :]  # (B, 1)
+            next_logp_i = next_logps_dict[agent_name]  # (B, 1)
 
             critic_info = self._update_critic(
-                agent=agent,
+                agent=agent_network,
                 global_states=global_states,
                 joint_actions=joint_actions,  # from replay at time t
                 rewards_i=rewards_i,
@@ -418,7 +424,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             )
 
             for key, value in critic_info.items():
-                info[f"agent_{agent_index}_{key}"] = value
+                info[f"{agent_name}_{key}"] = value
 
         # ---------------------------------------------------------
         # ACTOR + ALPHA UPDATES — usually every step in SAC
@@ -426,36 +432,46 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         update_actor = self.learn_counter % self.policy_update_freq == 0
         if update_actor:
             # ---------------------------------------------------------
-            # For MASAC, we sample current actions from all agents when
-            # computing each agent’s actor loss, detaching other agents’ samples.
-            # This aligns the update with SAC’s maximum-entropy objective,
-            # which is an expectation over actions drawn from the current stochastic policy.
+            # For MASAC, sample current actions from all agents when
+            # computing each agent’s actor loss.
+            # Other agents’ actions are treated as fixed (no gradients).
+            # This approximates the expectation over joint actions under
+            # the current stochastic policy.
             # ---------------------------------------------------------
             with torch.no_grad():
-                current_actions = []
-                for agent_j, agent_id_j in zip(self.agent_networks, agent_ids):
-                    obs_j = agent_states[agent_id_j]
-                    a_j, _, _ = agent_j.actor_net(obs_j)
-                    current_actions.append(a_j)
-                # (B, N, act_dim)
-                current_actions_tensor = torch.stack(current_actions, dim=1)
+                current_actions_list = []
 
-            for agent_index, agent in enumerate(self.agent_networks):
+                for agent_name in self.agent_ids:
+                    agent_network = self.agent_networks[agent_name]
+                    obs_j = agent_states[agent_name]
+
+                    action_j, _, _ = agent_network.actor_net(obs_j)
+                    current_actions_list.append(action_j)
+
+                current_actions_tensor = torch.stack(current_actions_list, dim=1)
+
+                # Stack into (B, N, act_dim) using canonical agent order
+                current_actions_tensor = torch.stack(
+                    current_actions_list,
+                    dim=1,
+                )
+
+            for agent_name, agent_network in self.agent_networks.items():
                 actor_info = self._update_actor_alpha(
-                    agent=agent,
-                    agent_index=agent_index,
+                    agent=agent_network,
+                    agent_name=agent_name,
                     obs_tensors=agent_states,
                     global_states=global_states,
                     current_actions_tensor=current_actions_tensor,
                 )
                 for key, value in actor_info.items():
-                    info[f"agent_{agent_index}_{key}"] = value
+                    info[f"{agent_name}_{key}"] = value
 
         # ---------------------------------------------------------
         # Target critic updates (Polyak) — usually every step in SAC
         # ---------------------------------------------------------
         if self.learn_counter % self.target_update_freq == 0:
-            for agent in self.agent_networks:
+            for agent in self.agent_networks.values():
                 agent.update_target_networks()
 
         with torch.no_grad():
@@ -499,8 +515,9 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         metrics = list(critic_info.keys())
         if update_actor:
             metrics += list(actor_info.keys())
+
         for metric in metrics:
-            values = [info[f"agent_{i}_{metric}"] for i in range(self.num_agents)]
+            values = [info[f"{agent_name}_{metric}"] for agent_name in self.agent_ids]
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
@@ -512,17 +529,17 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
-            agent.save_models(agent_filepath, agent_filename)
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+            agent_network.save_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
-            agent.load_models(agent_filepath, agent_filename)
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+            agent_network.load_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been loaded...")

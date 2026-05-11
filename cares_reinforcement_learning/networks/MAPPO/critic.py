@@ -45,7 +45,7 @@ class Critic(BaseCritic):
     def __init__(self, observation_size: dict, config: MAPPOConfig):
         # Q architecture
         input_size = observation_size["state"]
-        output_size = len(observation_size.keys())
+        output_size = observation_size["num_agents"]
 
         # pylint: disable-next=invalid-name
         Q = MLP(

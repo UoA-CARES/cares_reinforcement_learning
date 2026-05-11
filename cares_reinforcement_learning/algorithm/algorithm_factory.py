@@ -160,7 +160,7 @@ def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
-    agents = []
+    agents = {}
     device = hlp.get_device()
 
     # KEEP THE ACTOR ORDER CONSISTENT
@@ -186,7 +186,7 @@ def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
             config=config,
             device=device,
         )
-        agents.append(agent)
+        agents[agent_name] = agent
 
     central_critic = Critic(observation_size=observation_size, config=config)
 
@@ -225,7 +225,7 @@ def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
-    agents = []
+    agents = {}
     device = hlp.get_device()
 
     # KEEP THE ACTOR ORDER CONSISTENT
@@ -251,7 +251,7 @@ def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
             config=config,
             device=device,
         )
-        agents.append(agent)
+        agents[agent_name] = agent
 
     masac_agent = MASAC(agents=agents, config=config, device=device)
     return masac_agent
@@ -588,7 +588,7 @@ def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
-    agents = []
+    agents = {}
     device = hlp.get_device()
 
     # KEEP THE ACTOR ORDER CONSISTENT
@@ -618,7 +618,7 @@ def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
             config=config,
             device=device,
         )
-        agents.append(agent)
+        agents[agent_name] = agent
 
     m3ddpg_agent = M3DDPG(agents=agents, config=config, device=device)
     return m3ddpg_agent
@@ -648,7 +648,7 @@ def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
-    agents = []
+    agents = {}
     device = hlp.get_device()
 
     # KEEP THE ACTOR ORDER CONSISTENT
@@ -674,7 +674,7 @@ def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
             config=config,
             device=device,
         )
-        agents.append(agent)
+        agents[agent_name] = agent
 
     matd3_agent = MATD3(agents=agents, config=config, device=device)
     return matd3_agent
@@ -878,7 +878,7 @@ def _create_independant_agents(
 ):
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
-    agents = []
+    agents = {}
     for agent_name in obs_shapes.keys():
         agent_obs = {}
         agent_obs["vector"] = obs_shapes[agent_name]
@@ -887,7 +887,7 @@ def _create_independant_agents(
             action_num=action_num,
             config=config,
         )
-        agents.append(network)
+        agents[agent_name] = network
 
     return agents
 

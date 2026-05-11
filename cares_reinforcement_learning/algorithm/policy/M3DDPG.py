@@ -70,7 +70,7 @@ from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 class M3DDPG(MADDPG):
     def __init__(
         self,
-        agents: list[DDPG],
+        agents: dict[str, DDPG],
         config: M3DDPGConfig,
         device: torch.device,
     ):

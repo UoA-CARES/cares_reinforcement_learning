@@ -152,10 +152,15 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
 
         obs_tensors = self._stack_obs(observation_tensors.agent_states)
 
+        avail_actions_tensors = torch.stack(
+            [observation_tensors.available_actions[a] for a in agent_ids],
+            dim=1,
+        )
+
         self.network.eval()
         with torch.no_grad():
             q_values = self.network(obs_tensors)  # [1, num_agents, num_actions]
-            mask = observation_tensors.available_actions == 0
+            mask = avail_actions_tensors == 0
             q_values = q_values.masked_fill(mask, -1e9)
             greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
         self.network.train()
@@ -343,16 +348,7 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
             return {}
 
         # Use training_utils to sample and prepare batch
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            _,  # extras ignored
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -361,6 +357,37 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
             per_weight_normalisation=self.per_weight_normalisation,
             action_dtype=torch.long,  # DQN uses discrete actions
         )
+
+        agent_ids = list(sample_tensor.observation.agent_states.keys())
+
+        observation_tensor = sample_tensor.observation
+        next_observation_tensor = sample_tensor.next_observation
+
+        # Convert per-agent action dictionary to [B, N] discrete action tensor.
+        actions_tensor = torch.stack(
+            [sample_tensor.action[agent_id] for agent_id in agent_ids], dim=1
+        )
+
+        # Convert per-agent availability dictionaries to [B, N, A].
+        avail_actions_tensor = torch.stack(
+            [observation_tensor.available_actions[agent_id] for agent_id in agent_ids],
+            dim=1,
+        )
+        next_avail_actions_tensor = torch.stack(
+            [
+                next_observation_tensor.available_actions[agent_id]
+                for agent_id in agent_ids
+            ],
+            dim=1,
+        )
+
+        rewards_tensor = torch.stack(
+            [sample_tensor.reward[agent_id] for agent_id in agent_ids], dim=1
+        )
+        dones_tensor = torch.stack(
+            [sample_tensor.done[agent_id] for agent_id in agent_ids], dim=1
+        )
+        weights_tensor = sample_tensor.weights
 
         # Compress rewards and dones to 1D tensors for cooperative setting
         rewards_tensor = rewards_tensor.sum(dim=1, keepdim=True)
@@ -371,19 +398,19 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
         dones_tensor = dones_tensor.view(-1)
         weights_tensor = weights_tensor.view(-1)
 
-        obs_tensors = self._stack_obs(observation_tensor.agent_states_tensor)
-        next_obs_tensors = self._stack_obs(next_observation_tensor.agent_states_tensor)
+        obs_tensors = self._stack_obs(observation_tensor.agent_states)
+        next_obs_tensors = self._stack_obs(next_observation_tensor.agent_states)
 
         # Calculate loss - overriden by C51
         elementwise_loss, loss_info = self._compute_loss(
             obs_tensors=obs_tensors,
             next_obs_tensors=next_obs_tensors,
-            states_tensors=observation_tensor.global_state_tensor,
-            next_states_tensors=next_observation_tensor.global_state_tensor,
+            states_tensors=observation_tensor.global_state,
+            next_states_tensors=next_observation_tensor.global_state,
             actions_tensors=actions_tensor,
             rewards_tensors=rewards_tensor,
-            avail_actions=observation_tensor.avail_actions_tensor,
-            next_avail_actions_tensors=next_observation_tensor.avail_actions_tensor,
+            avail_actions=avail_actions_tensor,
+            next_avail_actions_tensors=next_avail_actions_tensor,
             dones_tensors=dones_tensor,
         )
         info |= loss_info

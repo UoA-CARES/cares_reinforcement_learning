@@ -95,9 +95,10 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_states = observation.agent_states
         avail_actions = observation.available_actions
 
+        agent_ids = list(agent_states.keys())
         actions = {}
 
-        for agent_name, agent_network in self.agent_networks.items():
+        for agent_name in agent_ids:
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[agent_name]
 
@@ -106,7 +107,9 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 available_actions=avail_i,
             )
 
-            agent_sample = agent_network.act(agent_observation, evaluation)
+            agent_sample = self.agent_networks[agent_name].act(
+                agent_observation, evaluation
+            )
             actions[agent_name] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
