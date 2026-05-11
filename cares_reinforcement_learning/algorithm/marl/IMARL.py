@@ -105,7 +105,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
         actions = {}
         agent_extras = {}
-        for agent_name in self.agent_ids:
+        for agent_name, agent_network in self.agent_networks.items():
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[agent_name]
 
@@ -114,9 +114,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
                 available_actions=avail_i,
             )
 
-            agent_sample = self.agent_networks[agent_name].act(
-                agent_observation, evaluation
-            )
+            agent_sample = agent_network.act(agent_observation, evaluation)
             actions[agent_name] = agent_sample.action
             agent_extras[agent_name] = agent_sample.extras
 

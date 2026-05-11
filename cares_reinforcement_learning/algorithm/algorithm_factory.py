@@ -111,7 +111,7 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
 
 
 def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
-    from cares_reinforcement_learning.algorithm.value import QMIX
+    from cares_reinforcement_learning.algorithm.marl import QMIX
     from cares_reinforcement_learning.networks.QMIX import (
         SharedMultiAgentNetwork,
         QMixer,
@@ -153,7 +153,7 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
 
 
 def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
-    from cares_reinforcement_learning.algorithm.policy import MAPPO
+    from cares_reinforcement_learning.algorithm.marl import MAPPO
     from cares_reinforcement_learning.algorithm.policy.PPO import PPO
     from cares_reinforcement_learning.networks.MAPPO import Actor, Critic
     from cares_reinforcement_learning.networks.PPO import Critic as PPOCritic
@@ -219,7 +219,7 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
 
 
 def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
-    from cares_reinforcement_learning.algorithm.policy import MASAC
+    from cares_reinforcement_learning.algorithm.marl import MASAC
     from cares_reinforcement_learning.algorithm.policy.SAC import SAC
     from cares_reinforcement_learning.networks.MASAC import Actor, Critic
 
@@ -543,7 +543,7 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
 
 
 def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
-    from cares_reinforcement_learning.algorithm.policy import MADDPG
+    from cares_reinforcement_learning.algorithm.marl import MADDPG
     from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
     from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
 
@@ -582,7 +582,7 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
 
 
 def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
-    from cares_reinforcement_learning.algorithm.policy import M3DDPG
+    from cares_reinforcement_learning.algorithm.marl import M3DDPG
     from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
     from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
 
@@ -642,7 +642,7 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
 
 
 def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
-    from cares_reinforcement_learning.algorithm.policy import MATD3
+    from cares_reinforcement_learning.algorithm.marl import MATD3
     from cares_reinforcement_learning.algorithm.policy.TD3 import TD3
     from cares_reinforcement_learning.networks.MATD3 import Actor, Critic
 
@@ -893,7 +893,7 @@ def _create_independant_agents(
 
 
 def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
-    from cares_reinforcement_learning.algorithm.policy import IDDPG
+    from cares_reinforcement_learning.algorithm.marl import IDDPG
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -905,7 +905,7 @@ def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
 
 
 def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
-    from cares_reinforcement_learning.algorithm.policy import ITD3
+    from cares_reinforcement_learning.algorithm.marl import ITD3
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -917,7 +917,7 @@ def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
 
 
 def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
-    from cares_reinforcement_learning.algorithm.policy import ISAC
+    from cares_reinforcement_learning.algorithm.marl import ISAC
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -929,7 +929,7 @@ def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
 
 
 def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
-    from cares_reinforcement_learning.algorithm.policy import IPPO
+    from cares_reinforcement_learning.algorithm.marl import IPPO
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -945,46 +945,46 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
 ###################################
 
 
-# def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
-#     from cares_reinforcement_learning.algorithm.marl import MultiMARL
+def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
+    from cares_reinforcement_learning.algorithm.marl import MultiMARL
 
-#     device = hlp.get_device()
+    device = hlp.get_device()
 
-#     env_teams = observation_size["teams"]  # dict[str → list[str]]
-#     learning_team = config.agents_team[0]  # dict[str → str]
+    env_teams = observation_size["teams"]  # dict[str → list[str]]
 
-#     learning_agents = env_teams[learning_team]  # list[str]
+    learning_team_name = config.learning_team_name
+    learning_team = env_teams[learning_team_name]  # list[str]
 
-#     learning_obs_shapes = {
-#         "obs": {
-#             agent_name: observation_size["obs"][agent_name]
-#             for agent_name in learning_agents
-#         },
-#         "state": observation_size["state"],
-#         "num_agents": len(learning_agents),
-#     }
+    learning_obs_shapes = {
+        "obs": {
+            agent_name: observation_size["obs"][agent_name]
+            for agent_name in learning_team
+        },
+        "state": observation_size["state"],
+        "num_agents": len(learning_team),
+        "teams": env_teams,
+    }
 
-#     algorithm_factory = AlgorithmFactory()
+    algorithm_factory = AlgorithmFactory()
 
-#     agents = []
+    agents = {}
 
-#     learning_agent = algorithm_factory.create_network(
-#         observation_size=learning_obs_shapes,
-#         action_num=action_num,
-#         config=config.agents_config[0],
-#     )
-#     agents.append(learning_agent)
+    for team_name in env_teams.keys():
+        agent_obs = observation_size
+        if team_name == learning_team_name:
+            agent_obs = learning_obs_shapes
 
-#     for i in range(1, len(config.agents_team)):
-#         trained_agent = algorithm_factory.create_network(
-#             observation_size=observation_size,
-#             action_num=action_num,
-#             config=config.agents_config[i],
-#         )
-#         agents.append(trained_agent)
+        agent = algorithm_factory.create_network(
+            observation_size=agent_obs,
+            action_num=action_num,
+            config=config.agents_config[team_name],
+        )
+        agents[team_name] = agent
 
-#     multimarl_agent = MultiMARL(agent_networks=agents, config=config, device=device)
-#     return multimarl_agent
+    multimarl_agent = MultiMARL(
+        agent_networks=agents, env_teams=env_teams, config=config, device=device
+    )
+    return multimarl_agent
 
 
 ####################################

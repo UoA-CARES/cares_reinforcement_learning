@@ -178,47 +178,37 @@ class DADS(SARLAlgorithm[np.ndarray]):
         if len(memory_buffer) < self.batch_size:
             return info
 
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            train_data,
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, _ = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # DADS does not use PER
         )
+        train_data = sample_tensor.train_data
+        observation_tensor = sample_tensor.observation
+        next_observation_tensor = sample_tensor.next_observation
+        actions_tensor = sample_tensor.action
+        dones_tensor = sample_tensor.done
+        weights_tensor = sample_tensor.weights
 
         z_list = [extra["z"] for extra in train_data]
         z_tensor = torch.tensor(
             np.asarray(z_list), dtype=torch.float32, device=self.device
         )  # (B, z_dim)
 
-        states_z_tensor = torch.cat(
-            [observation_tensor.vector_state_tensor, z_tensor], dim=1
-        )
+        states_z_tensor = torch.cat([observation_tensor.vector_state, z_tensor], dim=1)
         next_states_z_tensor = torch.cat(
-            [next_observation_tensor.vector_state_tensor, z_tensor], dim=1
+            [next_observation_tensor.vector_state, z_tensor], dim=1
         )
 
         # Predict next-state distribution
-        mean, logvar = self.discriminator_net(
-            observation_tensor.vector_state_tensor, z_tensor
-        )
+        mean, logvar = self.discriminator_net(observation_tensor.vector_state, z_tensor)
 
         use_delta_s = True
         target = (
-            (
-                next_observation_tensor.vector_state_tensor
-                - observation_tensor.vector_state_tensor
-            )
+            (next_observation_tensor.vector_state - observation_tensor.vector_state)
             if use_delta_s
-            else next_observation_tensor.vector_state_tensor
+            else next_observation_tensor.vector_state
         )
 
         # Compute Gaussian log-likelihood (sum over state dims)
@@ -228,14 +218,14 @@ class DADS(SARLAlgorithm[np.ndarray]):
         # TF-faithful marginal estimate
         # current + per-transition alternates (excluding current)
         num_skills = 16
-        batch_size, state_dim = observation_tensor.vector_state_tensor.shape
+        batch_size, state_dim = observation_tensor.vector_state.shape
 
         z_alt = torch.randn(
             batch_size, num_skills, self.z_dim, device=self.device
         )  # (N, M, dz)
 
         states_rep = (
-            observation_tensor.vector_state_tensor.unsqueeze(1)
+            observation_tensor.vector_state.unsqueeze(1)
             .expand(batch_size, num_skills, state_dim)
             .reshape(batch_size * num_skills, state_dim)
         )
@@ -291,11 +281,11 @@ class DADS(SARLAlgorithm[np.ndarray]):
 
         observation_z_tensor = replace(
             observation_tensor,
-            vector_state_tensor=states_z_tensor,
+            vector_state=states_z_tensor,
         )
         next_observation_z_tensor = replace(
             next_observation_tensor,
-            vector_state_tensor=next_states_z_tensor,
+            vector_state=next_states_z_tensor,
         )
 
         agent_info, _ = self.skills_agent.update_from_batch(

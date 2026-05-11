@@ -62,7 +62,7 @@ for improved robustness under worst-case interaction.
 
 import torch
 
-from cares_reinforcement_learning.algorithm.policy import MADDPG
+from cares_reinforcement_learning.algorithm.marl import MADDPG
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
 from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 

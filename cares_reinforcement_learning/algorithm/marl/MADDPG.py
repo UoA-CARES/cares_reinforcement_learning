@@ -95,10 +95,9 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_states = observation.agent_states
         avail_actions = observation.available_actions
 
-        agent_ids = list(agent_states.keys())
         actions = {}
 
-        for agent_name in agent_ids:
+        for agent_name, agent_network in self.agent_networks.items():
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[agent_name]
 
@@ -107,9 +106,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 available_actions=avail_i,
             )
 
-            agent_sample = self.agent_networks[agent_name].act(
-                agent_observation, evaluation
-            )
+            agent_sample = agent_network.act(agent_observation, evaluation)
             actions[agent_name] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
@@ -534,10 +531,8 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 # Batch-level multi-agent diagnostics (this agent's draw)
                 # ---------------------------------------------------------
                 # Joint action volatility in the replay batch (all agents)
-                info[f"agent_{agent_name}_joint_action_mean"] = (
-                    actions_tensor.mean().item()
-                )
-                info[f"agent_{agent_name}_joint_action_std"] = actions_tensor.std(
+                info[f"{agent_name}_joint_action_mean"] = actions_tensor.mean().item()
+                info[f"{agent_name}_joint_action_std"] = actions_tensor.std(
                     unbiased=False
                 ).item()
 
@@ -546,13 +541,13 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 per_agent_abs_mean = actions_tensor.abs().mean(dim=(0, 2))  # (N,)
                 per_agent_std = actions_tensor.std(dim=(0, 2), unbiased=False)  # (N,)
 
-                info[f"agent_{agent_name}_replay_action_abs_mean"] = (
+                info[f"{agent_name}_replay_action_abs_mean"] = (
                     per_agent_abs_mean.mean().item()
                 )
-                info[f"agent_{agent_name}_replay_action_abs_std_across_agents"] = (
+                info[f"{agent_name}_replay_action_abs_std_across_agents"] = (
                     per_agent_abs_mean.std(unbiased=False).item()
                 )
-                info[f"agent_{agent_name}_replay_action_std_mean"] = (
+                info[f"{agent_name}_replay_action_std_mean"] = (
                     per_agent_std.mean().item()
                 )
 
@@ -568,15 +563,13 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 # ignore diagonal
                 n = cos.shape[1]
                 mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
-                info[f"agent_{agent_name}_replay_action_cos_mean"] = (
+                info[f"{agent_name}_replay_action_cos_mean"] = (
                     cos[:, mask].mean().item()
                 )
 
                 # Reward/done scale sanity for this agent (helps catch mis-scaling)
-                info[f"agent_{agent_name}_reward_mean"] = rewards_tensor.mean().item()
-                info[f"agent_{agent_name}_done_frac"] = (
-                    dones_tensor.float().mean().item()
-                )
+                info[f"{agent_name}_reward_mean"] = rewards_tensor.mean().item()
+                info[f"{agent_name}_done_frac"] = dones_tensor.float().mean().item()
 
             # ---------------------------------------------------------
             # Critic update for this agent
@@ -594,7 +587,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 next_actions_tensor=next_actions_tensor,
                 dones_i=dones_i,
             )
-            info.update({f"agent_{agent_name}_{k}": v for k, v in critic_info.items()})
+            info.update({f"{agent_name}_{k}": v for k, v in critic_info.items()})
 
             # ---------------------------------------------------------
             # Actor update
@@ -606,13 +599,13 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 global_states=states_tensors,
                 actions_tensor=actions_tensor,
             )
-            info.update({f"agent_{agent_name}_{k}": v for k, v in actor_info.items()})
+            info.update({f"{agent_name}_{k}": v for k, v in actor_info.items()})
 
         # --- Cross-agent diagnostics ---
         metrics = list(critic_info.keys()) + list(actor_info.keys())
         for metric in metrics:
             values = [
-                info[f"agent_{agent_name}_{metric}"]
+                info[f"{agent_name}_{metric}"]
                 for agent_name in self.agent_networks.keys()
             ]
             info[f"mean_{metric}"] = float(np.mean(values))
@@ -631,7 +624,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             os.makedirs(filepath)
 
         for agent_name, agent_network in self.agent_networks.items():
-            agent_filepath = os.path.join(filepath, f"agent_{agent_name}")
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
             agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
             agent_network.save_models(agent_filepath, agent_filename)
 
@@ -639,7 +632,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def load_models(self, filepath: str, filename: str) -> None:
         for agent_name, agent_network in self.agent_networks.items():
-            agent_filepath = os.path.join(filepath, f"agent_{agent_name}")
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
             agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
             agent_network.load_models(agent_filepath, agent_filename)
 

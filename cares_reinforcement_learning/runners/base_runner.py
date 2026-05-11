@@ -28,8 +28,10 @@ from cares_reinforcement_learning.util.record import Record
 @dataclass
 class EpisodeStats:
     n_agents: int
-    rewards: np.ndarray = field(init=False)
+    _agent_ids: list[str] | None = field(init=False, default=None)
+
     steps: int = 0
+    rewards: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
         self.rewards = np.zeros(self.n_agents, dtype=np.float32)
@@ -42,6 +44,7 @@ class EpisodeStats:
             # Single-agent case (broadcast to all)
             reward_vector = np.full(self.n_agents, reward, dtype=np.float32)
         else:
+            self._agent_ids = list(reward.keys())
             reward_vector = np.asarray(list(reward.values()), dtype=np.float32)
 
         self.rewards += np.asarray(reward_vector)
@@ -50,12 +53,20 @@ class EpisodeStats:
         return float(np.sum(self.rewards))
 
     def summary(self) -> dict[str, float]:
-        return {
+        stats = {
             "episode_steps": self.steps,
             "episode_reward": self.get_episode_reward(),
-            "episode_reward_mean": float(np.mean(self.rewards)),
-            **{f"agent_{i}_reward": float(r) for i, r in enumerate(self.rewards)},
         }
+
+        if self._agent_ids is not None:
+            # Multi-agent: use actual agent names
+            for agent_name, reward in zip(self._agent_ids, self.rewards):
+                stats[f"{agent_name}_reward"] = float(reward)
+        else:
+            # Single-agent: just return the single reward
+            stats["episode_reward"] = float(self.rewards[0])
+
+        return stats
 
     def reset(self) -> None:
         self.rewards[:] = 0

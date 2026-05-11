@@ -1,33 +1,33 @@
 """
-MASAC (Multi-Agent Soft Actor-Critic) implementation notes
-----------------------------------------------------------
+MATD3 (Multi-Agent TD3) implementation notes
+--------------------------------------------
 
-This algorithm extends SAC to the multi-agent setting using centralized critics
-and decentralized stochastic actors.
+This algorithm extends MADDPG with TD3 improvements:
+twin critics, delayed policy updates, and target policy smoothing.
 
 Replay sampling:
 - A single minibatch is sampled per training iteration and reused across agents.
-- This provides an unbiased estimate of each agent's update while reducing
-  sampling-induced variance and ensuring consistency of joint transitions.
+- This preserves unbiased updates while reducing variance and keeping joint
+  transitions consistent for centralized critics.
+- TD3 introduces explicit variance-reduction mechanisms (twin critics and
+  target smoothing), making shared minibatch updates more stable than the
+  original MADDPG per-agent sampling scheme.
 
 Critic updates:
-- Next-state actions are sampled from the current stochastic policies.
-- Target critics are used to compute TD targets including the entropy term.
-- Each agent's entropy contribution is handled independently.
+- Twin critics are trained using TD3-style targets with target policy smoothing.
+- Noise is applied only to NEXT actions for critic targets to reduce
+  overestimation bias.
 
 Actor updates:
-- Policies are stochastic and optimized under a maximum-entropy objective.
-- For actor updates, current actions are sampled for ALL agents.
-- When updating agent i, gradients flow only through agent i's action;
-  other agents' actions are detached.
-- This aligns the update with the expectation under the current joint policy
-  distribution, which is required by SAC's objective.
+- Actors are deterministic and updated with a delayed frequency.
+- When updating agent i, only agent i's action is replaced with the current
+  actor output; other agents' actions come from the replay buffer.
+- This mirrors MADDPG and avoids unnecessary coupling of agent updates.
 
-Rationale:
-- Unlike deterministic methods (MADDPG/MATD3), SAC optimizes an expectation
-  over actions drawn from the current policy.
-- Using replay actions for other agents would evaluate Q under a stale joint
-  behavior distribution, introducing additional bias as policies evolve.
+No joint action resampling:
+- TD3's stochasticity is confined to target policy smoothing.
+- Resampling other agents' current actions is unnecessary and can increase
+  variance without benefit for deterministic policy gradients.
 """
 
 import logging
@@ -39,11 +39,12 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
-from cares_reinforcement_learning.algorithm.configurations import MASACConfig
-from cares_reinforcement_learning.algorithm.policy.SAC import SAC
-from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import MATD3Config
+from cares_reinforcement_learning.algorithm.policy.TD3 import TD3
+from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
+from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
@@ -52,11 +53,11 @@ from cares_reinforcement_learning.types.observation import (
 )
 
 
-class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
+class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
-        agents: dict[str, SAC],
-        config: MASACConfig,
+        agents: dict[str, TD3],
+        config: MATD3Config,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
@@ -69,7 +70,15 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         self.tau = config.tau
 
         self.policy_update_freq = config.policy_update_freq
-        self.target_update_freq = config.target_update_freq
+
+        # Policy noise
+        self.policy_noise_clip = config.policy_noise_clip
+        self.policy_noise_scheduler = ExponentialScheduler(
+            start_value=config.policy_noise_start,
+            end_value=config.policy_noise_end,
+            decay_steps=config.policy_noise_decay,
+        )
+        self.policy_noise = self.policy_noise_scheduler.get_value(0)
 
         self.max_grad_norm = config.max_grad_norm
 
@@ -83,10 +92,9 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_states = observation.agent_states
         avail_actions = observation.available_actions
 
-        agent_ids = list(agent_states.keys())
         actions = {}
 
-        for agent_name in agent_ids:
+        for agent_name, agent_network in self.agent_networks.items():
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[agent_name]
 
@@ -95,36 +103,32 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                 available_actions=avail_i,
             )
 
-            agent_sample = self.agent_networks[agent_name].act(
-                agent_observation, evaluation
-            )
+            agent_sample = agent_network.act(agent_observation, evaluation)
             actions[agent_name] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
 
     def _update_critic(
         self,
-        agent: SAC,
+        agent: TD3,
         global_states: torch.Tensor,
         joint_actions: torch.Tensor,  # (B, N * act_dim) from replay
-        rewards_i: torch.Tensor,  # (B,) or (B, 1)
+        rewards_i: torch.Tensor,  # (B, 1)
         next_global_states: torch.Tensor,
-        next_joint_actions: torch.Tensor,  # (B, N * act_dim) from target policies (SAMPLED)
-        next_logp_i: torch.Tensor,  # (B, 1) log pi_i(a_i' | o_i') for NEXT state
-        dones_i: torch.Tensor,  # (B,) or (B, 1)
+        next_actions_tensor: torch.Tensor,  # (B, N, act_dim) from target actors
+        dones_i: torch.Tensor,
     ):
         info: dict[str, Any] = {}
+        # --- Step 1: build next joint actions ---
+        next_joint_actions = next_actions_tensor.view(next_actions_tensor.size(0), -1)
 
-        # ---- Step 1: TD target with entropy term ----
+        # --- Step 2: TD target ---
         with torch.no_grad():
             target_q_values_one, target_q_values_two = agent.target_critic_net(
                 next_global_states, next_joint_actions
             )
             target_q = torch.min(target_q_values_one, target_q_values_two)
-
-            q_target = rewards_i + self.gamma * (1.0 - dones_i) * (
-                target_q - agent.alpha * next_logp_i
-            )
+            q_target = rewards_i + self.gamma * (1 - dones_i) * target_q
 
         # --- Step 3: critic regression on *current* joint_actions (unperturbed) ---
         q_values_one, q_values_two = agent.critic_net(global_states, joint_actions)
@@ -144,9 +148,6 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         agent.critic_net_optimiser.step()
 
-        # ---------------------------------------------------------
-        # Step 3: diagnostics (collated at bottom)
-        # ---------------------------------------------------------
         with torch.no_grad():
             # --- Twin critic disagreement (stability/uncertainty) ---
             # If this grows over training, critics are diverging / becoming inconsistent.
@@ -163,24 +164,6 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             info["target_q_twin_gap_abs_mean"] = (
                 (target_q_values_one - target_q_values_two).abs().mean().item()
             )
-
-            # --- Soft target decomposition (SAC-specific) ---
-            # min_target_q_mean: the conservative bootstrap value from twin critics (pre-entropy)
-            # entropy_term_mean: magnitude of entropy regularization in the target (alpha * log_pi is usually negative)
-            # soft_target_value_mean: the exact term used inside the Bellman target before reward/discount
-            min_target_q = torch.minimum(target_q_values_one, target_q_values_two)
-
-            # alpha_log_pi is typically negative; entropy_bonus is typically positive
-            alpha_log_pi = agent.alpha * next_logp_i
-            # this is what gets ADDED to minQ in the target
-            entropy_bonus = -agent.alpha * next_logp_i
-
-            soft_target_value = min_target_q + entropy_bonus  # == minQ - alpha*log_pi
-
-            info["target_min_q_mean"] = min_target_q.mean().item()
-            info["alpha_log_pi_mean"] = alpha_log_pi.mean().item()
-            info["entropy_bonus_mean"] = entropy_bonus.mean().item()
-            info["soft_target_value_mean"] = soft_target_value.mean().item()
 
             # --- Bellman target scale (reward scaling / discount sanity) ---
             # If q_target drifts upward without reward improvement, suspect reward_scale, gamma, or instability.
@@ -207,63 +190,63 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         return info
 
-    def _update_actor_alpha(
+    def _update_actor(
         self,
-        agent: SAC,
+        agent: TD3,
         agent_name: str,
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        current_actions_tensor: torch.Tensor,  # (B, N, act_dim) sampled under no_grad
+        actions_tensor: torch.Tensor,  # (B, N, act_dim)
     ):
+        """
+        Paper-faithful MATD3 actor update:
+        - For j ≠ agent_index: use replay-buffer actions
+        - For j == agent_index: use current actor output
+        """
         info: dict[str, Any] = {}
 
         batch_size = global_states.shape[0]
 
         agent_index = self.agent_ids.index(agent_name)
 
-        actions_all = current_actions_tensor.clone()  # no graphs carried
+        # ---------------------------------------------------------
+        # Step 1: Start from replay-buffer joint actions
+        #         actions_all: (B, N, A)
+        # ---------------------------------------------------------
+        actions_all = actions_tensor.clone()  # clone so we can overwrite
 
         # ---------------------------------------------------------
-        # Sample CURRENT actions for all agents (detach others)
+        # Step 2: Replace ONLY agent_i action with differentiable action
         # ---------------------------------------------------------
-        obs_i = obs_tensors[agent_name]
-        pi_i, log_pi_i, _ = agent.actor_net(obs_i)  # grads for i only
+        obs_i = obs_tensors[agent_name]  # (B, obs_dim_i)
+        actions_i = agent.actor_net(obs_i)  # differentiable
 
-        actions_all[:, agent_index, :] = pi_i  # only i is live
-
-        joint_actions_flat = actions_all.reshape(batch_size, -1)
+        actions_all[:, agent_index, :] = actions_i  # keep others from buffer
 
         # ---------------------------------------------------------
         # Step 4: Compute actor loss: -Q_i(x, a_1,...,a_i,...,a_N)
         # ---------------------------------------------------------
-        with fnc.evaluating(agent.critic_net):
-            qf_pi_one, q_pi_two = agent.critic_net(global_states, joint_actions_flat)
+        joint_actions_flat = actions_all.reshape(batch_size, -1)
+        actor_q_values, _ = agent.critic_net(global_states, joint_actions_flat)
 
-        min_qf_pi = torch.min(qf_pi_one, q_pi_two)
-
-        actor_loss = (agent.alpha * log_pi_i - min_qf_pi).mean()
+        actor_loss = -actor_q_values.mean()
 
         # ---------------------------------------------------------
-        # Stochastic Policy Gradient Strength (∇a [α log π(a|s) − Q(s,a)])
+        # Deterministic Policy Gradient Strength (∇a Q(s,a))
         # ---------------------------------------------------------
-        # Measures how steep the entropy-regularized critic objective is
-        # w.r.t. the sampled policy actions.
-        #
-        # ~0 early  -> critic surface and entropy term nearly flat;
-        #              actor receives weak learning signal.
-        #
-        # Very large -> critic or entropy term is very sharp around policy
-        #               actions; can lead to unstable or overly aggressive
-        #               actor updates.
+        # Measures how steep the critic surface is w.r.t. actions.
+        # ~0 early  -> critic flat, actor receives no learning signal.
+        # Very large -> critic overly sharp, can cause unstable actor updates.
         dq_da = torch.autograd.grad(
             outputs=actor_loss,
-            inputs=pi_i,
-            retain_graph=True,
-            create_graph=False,
+            inputs=actions_i,
+            retain_graph=True,  # because we do backward(actor_loss) next
+            create_graph=False,  # diagnostic only
             allow_unused=False,
         )[0]
-
         with torch.no_grad():
+            # - ~0 early: critic surface flat around actor actions (weak learning signal)
+            # - very large: critic surface sharp -> unstable / exploitative actor updates
             info["dq_da_abs_mean"] = dq_da.abs().mean().item()
             info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
             info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
@@ -281,50 +264,23 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         agent.actor_net_optimiser.step()
 
-        # ---------------------------------------------------------
-        # Step 6: Alpha loss and update
-        # ---------------------------------------------------------
-        alpha_loss = -(
-            agent.log_alpha * (log_pi_i + agent.target_entropy).detach()
-        ).mean()
-
-        agent.log_alpha_optimizer.zero_grad(set_to_none=True)
-        alpha_loss.backward()
-        agent.log_alpha_optimizer.step()
-
         with torch.no_grad():
-            # --- Policy entropy diagnostics (exploration health) ---
-            # log_pi more negative -> higher entropy (more stochastic). Less negative -> lower entropy (more deterministic).
-            info["log_pi_mean"] = log_pi_i.mean().item()
-            info["log_pi_std"] = log_pi_i.std().item()
-
-            # --- Action magnitude/saturation (tanh policies) ---
-            # High saturation fraction can indicate the policy is slamming bounds; may reduce effective gradients.
-            info["pi_action_abs_mean"] = pi_i.abs().mean().item()
-            info["pi_action_std"] = pi_i.std().item()
+            # Policy Action Health (tanh policies in [-1, 1])
+            # pi_action_saturation_frac:
+            # High values (>0.8 early) often mean the actor is slamming bounds,
+            # reducing effective gradient flow through tanh.
+            info["pi_action_mean"] = actions_i.mean().item()
+            info["pi_action_std"] = actions_i.std().item()
+            info["pi_action_abs_mean"] = actions_i.abs().mean().item()
             info["pi_action_saturation_frac"] = (
-                (pi_i.abs() > 0.95).float().mean().item()
+                (actions_i.abs() > 0.95).float().mean().item()
             )
 
-            # --- On-policy critic signal ---
-            # min_qf_pi_mean should generally increase as the policy improves (higher value actions under the policy).
-            info["min_qf_pi_mean"] = min_qf_pi.mean().item()
-
-            # --- Twin critics disagreement at policy actions (more relevant than replay actions) ---
-            # Large gap here means critics disagree on what the current policy is doing (can destabilize actor updates).
-            info["qf_pi_gap_abs_mean"] = (qf_pi_one - q_pi_two).abs().mean().item()
-
-            # --- Entropy gap (alpha tuning health) ---
-            # entropy_gap ~ 0 means entropy matches target.
-            # > 0: entropy too low -> alpha should increase; < 0: entropy too high -> alpha should decrease.
-            entropy_gap = -(log_pi_i + agent.target_entropy)
-            info["entropy_gap_mean"] = entropy_gap.mean().item()
-
-            # --- Losses and temperature ---
+            # actor_q_mean should generally increase over training.
+            # actor_q_std large + unstable may indicate critic inconsistency.
             info["actor_loss"] = actor_loss.item()
-            info["alpha_loss"] = alpha_loss.item()
-            info["alpha"] = agent.alpha.item()
-            info["log_alpha"] = agent.log_alpha.item()
+            info["actor_q_mean"] = actor_q_values.mean().item()
+            info["actor_q_std"] = actor_q_values.std().item()
 
         return info
 
@@ -337,6 +293,19 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         self.learn_counter += 1
 
         info: dict[str, Any] = {}
+
+        # Update per agent action noise for exploration (decayed over training)
+        for agent_name, agent_network in self.agent_networks.items():
+            agent_network.action_noise = agent_network.action_noise_scheduler.get_value(
+                episode_context.training_step
+            )
+            info[f"{agent_name}_current_action_noise"] = agent_network.action_noise
+
+        # Update TD3 target policy smoothing noise (decayed over training)
+        self.policy_noise = self.policy_noise_scheduler.get_value(
+            episode_context.training_step
+        )
+        info["current_policy_noise"] = self.policy_noise
 
         # ---------------------------------------------------------
         # Sample ONCE for all agents (recommended for TD3/SAC)
@@ -369,38 +338,52 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             dim=1,
         )
 
-        # Flatten sampled next actions into joint action vectors for target critic input: (B, N * A)
+        # Flatten replay-buffer joint actions (used for critic current Q)
         joint_actions = actions_tensor.reshape(batch_size, -1)
 
         # ---------------------------------------------------------
-        # Build NEXT actions by sampling from CURRENT policies (not target)
+        # Build NEXT actions using TARGET actors (clean)
         # ---------------------------------------------------------
-        # In SAC, targets use a' ~ pi(·|o') (reparameterized), then evaluate target critics.
-        # Computing next_joint_actions once outside ensures every agent sees the same bootstrapping sample for that minibatch.
         next_actions_dict: dict[str, torch.Tensor] = {}
-        next_logps_dict: dict[str, torch.Tensor] = {}
 
         for agent_id, agent_network in self.agent_networks.items():
             obs_next = next_agent_states[agent_id]
 
             with torch.no_grad():
-                with fnc.evaluating(agent_network.actor_net):
-                    next_action_j, next_logp_j, _ = agent_network.actor_net(obs_next)
+                with fnc.evaluating(agent_network.target_actor_net):
+                    next_action_j = agent_network.target_actor_net(obs_next)
 
             next_actions_dict[agent_id] = next_action_j
-            next_logps_dict[agent_id] = next_logp_j
 
-        next_logps_tensor = torch.stack(
-            [next_logps_dict[a] for a in self.agent_ids],
-            dim=1,
-        )
-
+        # (B, N, act_dim)
         next_actions_tensor = torch.stack(
             [next_actions_dict[agent_id] for agent_id in self.agent_ids],
             dim=1,
         )
 
-        next_joint_actions = next_actions_tensor.reshape(batch_size, -1)
+        # ---------------------------------------------------------
+        # TD3 TARGET POLICY SMOOTHING (ONCE)
+        # ---------------------------------------------------------
+        # This affects ONLY critic targets
+        target_noise = torch.randn_like(next_actions_tensor) * self.policy_noise
+        target_noise = target_noise.clamp(
+            -self.policy_noise_clip, self.policy_noise_clip
+        )
+
+        # --- TD3-style smoothing diagnostics ---
+        # Noise diagnostics
+        # What it tells you:
+        # - target_noise_abs_mean: effective smoothing magnitude.
+        # - target_noise_clip_frac high early: noise often clipped (clip too small or noise too large).
+        target_noise_abs_mean = target_noise.abs().mean().item()
+        target_noise_clip_frac = (
+            (target_noise.abs() >= self.policy_noise_clip).float().mean().item()
+        )
+        info["target_noise_abs_mean"] = float(target_noise_abs_mean)
+        info["target_noise_clip_frac"] = float(target_noise_clip_frac)
+
+        # assumes tanh policy -> [-1, 1]
+        next_actions_noisy = (next_actions_tensor + target_noise).clamp(-1.0, 1.0)
 
         # ---------------------------------------------------------
         # CRITIC UPDATES (every step)
@@ -409,68 +392,35 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             rewards_i = rewards_tensor_dict[agent_name]
             dones_i = dones_tensor_dict[agent_name]
 
-            # For MASAC, entropy term typically uses ONLY agent i's logp (common)
-            next_logp_i = next_logps_dict[agent_name]  # (B, 1)
-
             critic_info = self._update_critic(
                 agent=agent_network,
                 global_states=global_states,
-                joint_actions=joint_actions,  # from replay at time t
+                joint_actions=joint_actions,
                 rewards_i=rewards_i,
                 next_global_states=next_global_states,
-                next_joint_actions=next_joint_actions,  # sampled at t+1
-                next_logp_i=next_logp_i,
+                next_actions_tensor=next_actions_noisy,  # <-- noisy version
                 dones_i=dones_i,
             )
-
             for key, value in critic_info.items():
                 info[f"{agent_name}_{key}"] = value
 
         # ---------------------------------------------------------
-        # ACTOR + ALPHA UPDATES — usually every step in SAC
+        # ACTOR + TARGET UPDATES (DELAYED — TD3)
         # ---------------------------------------------------------
         update_actor = self.learn_counter % self.policy_update_freq == 0
         if update_actor:
-            # ---------------------------------------------------------
-            # For MASAC, sample current actions from all agents when
-            # computing each agent’s actor loss.
-            # Other agents’ actions are treated as fixed (no gradients).
-            # This approximates the expectation over joint actions under
-            # the current stochastic policy.
-            # ---------------------------------------------------------
-            with torch.no_grad():
-                current_actions_list = []
-
-                for agent_name in self.agent_ids:
-                    agent_network = self.agent_networks[agent_name]
-                    obs_j = agent_states[agent_name]
-
-                    action_j, _, _ = agent_network.actor_net(obs_j)
-                    current_actions_list.append(action_j)
-
-                current_actions_tensor = torch.stack(current_actions_list, dim=1)
-
-                # Stack into (B, N, act_dim) using canonical agent order
-                current_actions_tensor = torch.stack(
-                    current_actions_list,
-                    dim=1,
-                )
-
             for agent_name, agent_network in self.agent_networks.items():
-                actor_info = self._update_actor_alpha(
+                actor_info = self._update_actor(
                     agent=agent_network,
                     agent_name=agent_name,
                     obs_tensors=agent_states,
                     global_states=global_states,
-                    current_actions_tensor=current_actions_tensor,
+                    actions_tensor=actions_tensor,
                 )
                 for key, value in actor_info.items():
                     info[f"{agent_name}_{key}"] = value
 
-        # ---------------------------------------------------------
-        # Target critic updates (Polyak) — usually every step in SAC
-        # ---------------------------------------------------------
-        if self.learn_counter % self.target_update_freq == 0:
+            # TD3: target networks updated on SAME cadence as actor
             for agent in self.agent_networks.values():
                 agent.update_target_networks()
 
@@ -493,14 +443,6 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             info["replay_action_cos_mean"] = cos[:, mask].mean().item()
             info["replay_action_cos_p95"] = cos[:, mask].quantile(0.95).item()
 
-            # --- Next-policy sampling health (SAC target actions) ---
-            # These catch entropy collapse and alpha/logp pathologies early
-            info["next_logp_mean_all_agents"] = next_logps_tensor.mean().item()
-            info["next_logp_std_all_agents"] = next_logps_tensor.std(
-                unbiased=False
-            ).item()
-            info["next_entropy_mean_all_agents"] = (-next_logps_tensor).mean().item()
-
             info["next_action_abs_mean_all_agents"] = (
                 next_actions_tensor.abs().mean().item()
             )
@@ -515,7 +457,6 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         metrics = list(critic_info.keys())
         if update_actor:
             metrics += list(actor_info.keys())
-
         for metric in metrics:
             values = [info[f"{agent_name}_{metric}"] for agent_name in self.agent_ids]
             info[f"mean_{metric}"] = float(np.mean(values))

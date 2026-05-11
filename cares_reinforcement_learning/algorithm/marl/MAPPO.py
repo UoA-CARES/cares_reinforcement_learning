@@ -119,11 +119,10 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_states = observation.agent_states
         available_actions = observation.available_actions
 
-        agent_ids = list(agent_states.keys())
         actions = {}
         log_probs = {}
 
-        for agent_name in agent_ids:
+        for agent_name, agent_network in self.agent_networks.items():
             obs_i = agent_states[agent_name]
             avail_i = available_actions[agent_name]
 
@@ -132,7 +131,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 available_actions=avail_i,
             )
 
-            agent_sample = self.agent_networks[agent_name].act(
+            agent_sample = agent_network.act(
                 agent_observation, evaluation, calculate_value=False
             )
             actions[agent_name] = agent_sample.action

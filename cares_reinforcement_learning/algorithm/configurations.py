@@ -974,6 +974,8 @@ class MADDPGConfig(DDPGConfig):
 
     marl_observation: Literal[1] = Field(default=1)
 
+    sharing_mode: Literal["separate", "team", "team-role"] = "separate"
+
     actor_lr: float = 1e-2
     critic_lr: float = 1e-2
 
@@ -1529,5 +1531,5 @@ class MultiMARLConfig(AlgorithmConfig):
 
     marl_observation: Literal[1] = Field(default=1)
 
-    agents_team: list[str] = Field(default_factory=list)
-    agents_config: list[AlgorithmConfig] = Field(default_factory=list)
+    learning_team_name: str
+    agents_config: dict[str, AlgorithmConfig] = Field(default_factory=dict)
