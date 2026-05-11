@@ -462,121 +462,110 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         info: dict[str, Any] = {}
 
+        for agent_name, agent_network in self.agent_networks.items():
+            # Update action noise for exploration (decayed over training)
+            agent_network.action_noise = agent_network.action_noise_scheduler.get_value(
+                episode_context.training_step
+            )
+            info[f"action_noise_agent_{agent_name}"] = float(agent_network.action_noise)
+
+        # ---------------------------------------------------------
+        # Sample ONCE for all agents (recommended for MADDPG)
+        # Shared minibatch: We draw one minibatch per training iteration and reuse it across agent updates.
+        # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
+        # keeping joint transitions consistent for centralized critics.
+        sample_tensor, _ = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
+            use_per_buffer=0,
+        )
+
+        states_tensors = sample_tensor.observation.global_state
+        next_states_tensors = sample_tensor.next_observation.global_state
+
+        agent_states_tensors = sample_tensor.observation.agent_states
+        next_agent_states_tensors = sample_tensor.next_observation.agent_states
+
+        actions_tensor_dict = sample_tensor.action
+        rewards_tensor_dict = sample_tensor.reward
+        dones_tensor_dict = sample_tensor.done
+
+        # ---------------------------------------------------------
+        # Build tensors from dictionaries
+        # ---------------------------------------------------------
+        # Flatten replay-buffer actions to (B, N, A) for critic input
+        actions_tensor = torch.stack(
+            [actions_tensor_dict[a] for a in self.agent_ids],
+            dim=1,
+        )
+
+        next_actions = {}
+        for next_agent_name, next_agent_network in self.agent_networks.items():
+            obs_next_j = next_agent_states_tensors[next_agent_name]
+            next_action_j = next_agent_network.target_actor_net(obs_next_j)
+            next_actions[next_agent_name] = next_action_j
+
+        # Flatten next actions to (B, N, A) for critic input
+        next_actions_tensor = torch.stack(
+            [next_actions[a] for a in self.agent_ids],
+            dim=1,
+        )
+
+        rewards_tensor = torch.stack(
+            [rewards_tensor_dict[a] for a in self.agent_ids],
+            dim=1,
+        )
+
+        dones_tensor = torch.stack(
+            [dones_tensor_dict[a] for a in self.agent_ids],
+            dim=1,
+        )
+
+        # Flatten replay-buffer actions for this batch - all agents
+        joint_actions = actions_tensor.reshape(actions_tensor.shape[0], -1)
+
+        # ---------------------------------------------------------
+        # Batch-level diagnostics once
+        # ---------------------------------------------------------
+        with torch.no_grad():
+            info["joint_action_mean"] = actions_tensor.mean().item()
+            info["joint_action_std"] = actions_tensor.std(unbiased=False).item()
+
+            per_agent_abs_mean = actions_tensor.abs().mean(dim=(0, 2))
+            per_agent_std = actions_tensor.std(dim=(0, 2), unbiased=False)
+
+            info["replay_action_abs_mean"] = per_agent_abs_mean.mean().item()
+            info["replay_action_abs_std_across_agents"] = per_agent_abs_mean.std(
+                unbiased=False
+            ).item()
+            info["replay_action_std_mean"] = per_agent_std.mean().item()
+
+            a_norm = actions_tensor / actions_tensor.norm(
+                dim=2, keepdim=True
+            ).clamp_min(1e-6)
+
+            cos = torch.einsum("bna,bma->bnm", a_norm, a_norm)
+            n = cos.shape[1]
+            mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
+
+            info["replay_action_cos_mean"] = cos[:, mask].mean().item()
+
+            info["reward_mean"] = rewards_tensor.mean().item()
+            info["done_frac"] = dones_tensor.float().mean().item()
+
         # ---------------------------------------------------------
         # Update each agent
         # ---------------------------------------------------------
         for agent_name, agent_network in self.agent_networks.items():
             agent_index = self.agent_ids.index(agent_name)
 
-            # Update action noise for exploration (decayed over training)
-            agent_network.action_noise = agent_network.action_noise_scheduler.get_value(
-                episode_context.training_step
-            )
-
-            info[f"action_noise_agent_{agent_name}"] = float(agent_network.action_noise)
-
-            sample_tensor, _ = memory_sampler.sample(
-                memory=memory_buffer,
-                batch_size=self.batch_size,
-                device=self.device,
-                use_per_buffer=0,
-            )
-
-            states_tensors = sample_tensor.observation.global_state
-            next_states_tensors = sample_tensor.next_observation.global_state
-
-            agent_states_tensors = sample_tensor.observation.agent_states
-            next_agent_states_tensors = sample_tensor.next_observation.agent_states
-
-            actions_tensor_dict = sample_tensor.action
-            rewards_tensor_dict = sample_tensor.reward
-            dones_tensor_dict = sample_tensor.done
-
-            # ---------------------------------------------------------
-            # Build tensors from dictionaries
-            # ---------------------------------------------------------
-            # Flatten replay-buffer actions to (B, N, A) for critic input
-            actions_tensor = torch.stack(
-                [actions_tensor_dict[a] for a in self.agent_ids],
-                dim=1,
-            )
-
-            next_actions = {}
-            for next_agent_name, next_agent_network in self.agent_networks.items():
-                obs_next_j = next_agent_states_tensors[next_agent_name]
-                next_action_j = next_agent_network.target_actor_net(obs_next_j)
-                next_actions[next_agent_name] = next_action_j
-
-            # Flatten next actions to (B, N, A) for critic input
-            next_actions_tensor = torch.stack(
-                [next_actions[a] for a in self.agent_ids],
-                dim=1,
-            )
-
-            rewards_tensor = torch.stack(
-                [rewards_tensor_dict[a] for a in self.agent_ids],
-                dim=1,
-            )
-
-            dones_tensor = torch.stack(
-                [dones_tensor_dict[a] for a in self.agent_ids],
-                dim=1,
-            )
-
-            # Flatten replay-buffer actions for this batch - all agents
-            joint_actions = actions_tensor.reshape(actions_tensor.shape[0], -1)
-
-            with torch.no_grad():
-                # ---------------------------------------------------------
-                # Batch-level multi-agent diagnostics (this agent's draw)
-                # ---------------------------------------------------------
-                # Joint action volatility in the replay batch (all agents)
-                info[f"{agent_name}_joint_action_mean"] = actions_tensor.mean().item()
-                info[f"{agent_name}_joint_action_std"] = actions_tensor.std(
-                    unbiased=False
-                ).item()
-
-                # Per-agent action magnitude (detect frozen/saturated agent in replay)
-                # actions_tensor: (B, N, A)
-                per_agent_abs_mean = actions_tensor.abs().mean(dim=(0, 2))  # (N,)
-                per_agent_std = actions_tensor.std(dim=(0, 2), unbiased=False)  # (N,)
-
-                info[f"{agent_name}_replay_action_abs_mean"] = (
-                    per_agent_abs_mean.mean().item()
-                )
-                info[f"{agent_name}_replay_action_abs_std_across_agents"] = (
-                    per_agent_abs_mean.std(unbiased=False).item()
-                )
-                info[f"{agent_name}_replay_action_std_mean"] = (
-                    per_agent_std.mean().item()
-                )
-
-                # Coordination proxy: how aligned are agents' actions? (cheap)
-                # Cos similarity between agents' action vectors per sample, averaged.
-                # Flatten each agent action: (B, N, A) -> (B, N, A)
-                a_norm = actions_tensor / actions_tensor.norm(
-                    dim=2, keepdim=True
-                ).clamp_min(1e-6)
-
-                # pairwise cosine for all agent pairs
-                cos = torch.einsum("bna,bma->bnm", a_norm, a_norm)  # (B,N,N)
-                # ignore diagonal
-                n = cos.shape[1]
-                mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
-                info[f"{agent_name}_replay_action_cos_mean"] = (
-                    cos[:, mask].mean().item()
-                )
-
-                # Reward/done scale sanity for this agent (helps catch mis-scaling)
-                info[f"{agent_name}_reward_mean"] = rewards_tensor.mean().item()
-                info[f"{agent_name}_done_frac"] = dones_tensor.float().mean().item()
+            rewards_i = rewards_tensor_dict[agent_name]
+            dones_i = dones_tensor_dict[agent_name]
 
             # ---------------------------------------------------------
             # Critic update for this agent
             # ---------------------------------------------------------
-            rewards_i = rewards_tensor_dict[agent_name]
-            dones_i = dones_tensor_dict[agent_name]
-
             critic_info = self._update_critic(
                 agent=agent_network,
                 agent_index=agent_index,
