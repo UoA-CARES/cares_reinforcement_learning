@@ -548,19 +548,49 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
     from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
 
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
+    env_teams = observation_size["teams"]  # dict[str, list[str]]
+    env_agent_ids = list(obs_shapes.keys())
 
-    agents = {}
+    sharing_mode = config.sharing_mode
+
+    # ---------------------------------------------------------
+    # Build learning-unit mappings
+    # ---------------------------------------------------------
+    if sharing_mode == "separate":
+
+        learning_unit_to_agents = {agent_id: [agent_id] for agent_id in env_agent_ids}
+
+        agent_to_learning_unit = {agent_id: agent_id for agent_id in env_agent_ids}
+
+    elif sharing_mode == "team":
+
+        learning_unit_to_agents = env_teams
+
+        agent_to_learning_unit = {}
+
+        for team_name, team_agent_ids in env_teams.items():
+            for agent_id in team_agent_ids:
+                agent_to_learning_unit[agent_id] = team_name
+
+    else:
+        raise ValueError(f"Unknown MADDPG sharing_mode: {sharing_mode}")
+
     device = hlp.get_device()
 
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
+    # ---------------------------------------------------------
+    # Create learning-unit networks
+    # ---------------------------------------------------------
+    agents = {}
 
-    for agent_name in agent_ids:
+    for learning_unit_id, controlled_agent_ids in learning_unit_to_agents.items():
+
+        representative_agent_id = controlled_agent_ids[0]
+
         actor = Actor(
             observation_size=observation_size,
             num_actions=action_num,
             config=config,
-            agent_id=agent_name,
+            agent_id=representative_agent_id,
         )
 
         critic = Critic(
@@ -575,9 +605,17 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
             config=config,
             device=device,
         )
-        agents[agent_name] = agent
 
-    maddpg_agent = MADDPG(agents=agents, config=config, device=device)
+        agents[learning_unit_id] = agent
+
+    maddpg_agent = MADDPG(
+        agents=agents,
+        agent_ids=env_agent_ids,
+        agent_to_learning_unit=agent_to_learning_unit,
+        learning_unit_to_agents=learning_unit_to_agents,
+        config=config,
+        device=device,
+    )
     return maddpg_agent
 
 

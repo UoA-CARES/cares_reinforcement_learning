@@ -974,7 +974,7 @@ class MADDPGConfig(DDPGConfig):
 
     marl_observation: Literal[1] = Field(default=1)
 
-    sharing_mode: Literal["separate", "team", "team-role"] = "separate"
+    sharing_mode: Literal["separate", "team"] = "separate"
 
     actor_lr: float = 1e-2
     critic_lr: float = 1e-2
