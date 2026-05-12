@@ -6,6 +6,16 @@ Original Paper: https://arxiv.org/pdf/1706.02275
 
 Original Code (TensorFlow): https://github.com/openai/maddpg/tree/master
 
+Vocabulary
+----------
+
+This implementation separates environment agents from learnable units:
+
+Learning unit: a trainable DDPG bundle (actor + critic)
+  - in "separate" mode: one learning unit per environment agent
+  - in "team" mode: one shared learning unit per environment team
+  (e.g. one for all adversaries, one for all good agents)
+
 Modernisation Notes
 -------------------
 
@@ -15,45 +25,46 @@ training conventions commonly used in contemporary MARL frameworks.
 
 Replay sampling:
 - A single minibatch is sampled once per training iteration and shared across
-  all agent updates.
+  all learning unit updates.
 - The original MADDPG paper and reference implementation sampled
   independently per-agent. However, shared replay sampling is now common in
   modern MARL implementations because it:
     - reduces sampling overhead,
-    - improves consistency between agent updates,
+    - improves consistency between updates,
     - simplifies diagnostics and batching,
-    - and aligns naturally with shared-policy/team-based training setups.
-- Agents are still updated independently using their own critic targets and
-  actor objectives.
+    - and aligns naturally with team-based training setups.
+- Learning units are still updated independently using their own critic targets.
 
 Critic updates:
-- Each agent's critic is updated using:
+- Each learning unit's critic is updated using:
     - the centralized global state,
-    - replay-buffer joint actions,
+    - replay-buffer joint actions (one action per environment agent),
     - and target joint actions generated from all target actors.
 - This preserves the original MADDPG centralized critic formulation:
-      Q_i(s, a_1, ..., a_n)
-- Critic updates remain fully agent-specific.
+      Q_i(s, a_1, ..., a_n)  where a_j are environment agent actions
+- Critic updates remain fully learning-unit-specific.
 
 Actor updates:
 - Policies are deterministic.
-- When updating agent i, the joint action is constructed by replacing only
-  agent i's replay-buffer action with the current actor output:
-      [a_1, ..., π_i(o_i), ..., a_n]
-- All other agents' actions are taken directly from the replay buffer.
-- This follows the original MADDPG actor-gradient formulation.
+- When updating learning unit i controlling env agent(s) in set C_i:
+  - for each env agent in C_i, replace its replay-buffer action with the current actor output
+  - all other env agent actions are taken directly from the replay buffer
+  - this constructs [a_1, ..., π_i(o_j), ..., a_n] for each agent j in C_i
+- This follows the original MADDPG actor-gradient formulation, generalized to teams.
 
 Adversarial Extensions:
-- M3DDPG-style adversarial perturbations can be applied to other agents'
+- M3DDPG-style adversarial perturbations can be applied to other learning units'
   actions during critic and actor updates.
 - ERNIE-style adversarial observation regularization can be applied to actor
   observations during policy optimisation.
 
 Rationale:
+- Team-based training allows policy sharing across coordinated agents while
+  maintaining centralized critic access to all agents' observations and actions.
 - Shared replay sampling improves implementation simplicity and training
   consistency without changing the underlying MADDPG optimization objective.
-- Actor and critic updates remain decentralized per-agent even though replay
-  sampling is shared across agents.
+- Actor and critic updates remain decentralized per learning-unit even though
+  replay sampling is shared across learning units.
 """
 
 import logging

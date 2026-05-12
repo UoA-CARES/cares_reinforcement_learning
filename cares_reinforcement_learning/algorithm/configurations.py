@@ -976,11 +976,15 @@ class MADDPGConfig(DDPGConfig):
 
     sharing_mode: Literal["separate", "team"] = "separate"
 
-    actor_lr: float = 1e-2
-    critic_lr: float = 1e-2
+    # Future modes
+    # actor_sharing_mode: Literal["separate", "team"]
+    # critic_sharing_mode: Literal["separate", "team", "global"]
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
 
     gamma: float = 0.95
-    tau: float = 0.01
+    tau: float = 0.005
 
     # M3DDPG specific
     use_m3: int = 0
@@ -993,8 +997,8 @@ class MADDPGConfig(DDPGConfig):
     ernie_k_steps: int = 1
     ernie_norm: Literal["linf", "l2"] = "linf"
 
-    batch_size: int = 1024
-    number_steps_per_train_policy: int = 100
+    batch_size: int = 256
+    number_steps_per_train_policy: int = 1
 
     max_steps_exploration: int = 10000
 
@@ -1028,21 +1032,7 @@ class M3DDPGConfig(MADDPGConfig):
     marl_observation: Literal[1] = Field(default=1)
 
     use_m3: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-
-    gamma: float = 0.95
-    tau: float = 0.01
-
-    alpha: float = 0.05
-
-    batch_size: int = 1024
-    number_steps_per_train_policy: int = 100
-
-    max_steps_exploration: int = 10000
-
-    max_grad_norm: float | None = 1.0
+    m3_alpha: float = 0.05
 
 
 class TD3Config(AlgorithmConfig):

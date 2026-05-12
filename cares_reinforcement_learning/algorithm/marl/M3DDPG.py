@@ -70,8 +70,18 @@ from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 class M3DDPG(MADDPG):
     def __init__(
         self,
-        agents: dict[str, DDPG],
+        learning_units: dict[str, DDPG],
+        all_agent_ids: list[str],
+        agent_id_to_learning_unit_id: dict[str, str],
+        learning_unit_to_agent_ids: dict[str, list[str]],
         config: M3DDPGConfig,
         device: torch.device,
     ):
-        super().__init__(agents, config, device)
+        super().__init__(
+            learning_units=learning_units,
+            all_agent_ids=all_agent_ids,
+            agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+            learning_unit_to_agent_ids=learning_unit_to_agent_ids,
+            config=config,
+            device=device,
+        )
