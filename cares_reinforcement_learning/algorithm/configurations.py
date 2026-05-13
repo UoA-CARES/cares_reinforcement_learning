@@ -1266,6 +1266,7 @@ class MADDPGConfig(DDPGConfig):
     marl_observation: Literal[1] = Field(default=1)
 
     sharing_mode: Literal["separate", "team"] = "separate"
+    team_actor_update_mode: Literal["individual", "joint"] = "joint"
 
     # Future modes
     # actor_sharing_mode: Literal["separate", "team"]
@@ -1273,9 +1274,6 @@ class MADDPGConfig(DDPGConfig):
 
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
-
-    gamma: float = 0.95
-    tau: float = 0.005
 
     # M3DDPG specific
     use_m3: int = 0
@@ -1333,7 +1331,7 @@ class MATD3Config(TD3Config):
 
     sharing_mode: Literal["separate", "team"] = "separate"
 
-    actor_lr: float = 1e-3
+    actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
     max_grad_norm: float | None = 0.5

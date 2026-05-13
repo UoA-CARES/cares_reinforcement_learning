@@ -8,7 +8,7 @@ Vocabulary
 This implementation separates environment agents from learnable units:
 
 Learning unit: a trainable DDPG bundle (actor + critic)
-  - in "separate" mode: one learning unit per environment agent
+  - in "individual" mode: one learning unit per environment agent
   - in "team" mode: one shared learning unit per environment team
   (e.g. one for all adversaries, one for all good agents)
 
@@ -102,7 +102,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         self.learning_units = learning_units
 
-        # Shared Actor/Critic per team or separate Actor/Critic per agent
+        # Shared Actor/Critic per team or individual Actor/Critic per agent
         self.sharing_mode = config.sharing_mode
 
         # All environment agent IDs and counts, e.g.
@@ -111,14 +111,14 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         self.num_agents = len(all_agent_ids)
 
         # Maps env agent -> learning unit.
-        # separate:
+        # individual:
         #   adversary_0 -> adversary_0
         # team:
         #   adversary_0 -> adversary
         self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
 
         # Maps learning unit -> env agents controlled by it.
-        # separate:
+        # individual:
         #   adversary_0 -> [adversary_0]
         # team:
         #   adversary -> [adversary_0, adversary_1, adversary_2]
@@ -322,7 +322,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         """
         Unified MASAC actor + alpha update.
 
-        In separate mode `controlled_agent_ids` contains one agent ID.
+        In individual mode `controlled_agent_ids` contains one agent ID.
         In team mode it contains every agent ID controlled by the shared learning unit.
         """
         info: dict[str, Any] = {}
@@ -581,10 +581,10 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
             # ---------------------------------------------------------
             # Build learning-unit rewards/dones from controlled agents
-            # separate: direct per-agent tensors
+            # individual: direct per-agent tensors
             # team: aggregate across controlled agents
             # ---------------------------------------------------------
-            if self.sharing_mode == "separate":
+            if self.sharing_mode == "individual":
                 controlled_agent_id = controlled_agent_ids[0]
                 learning_unit_rewards = rewards_by_agent[controlled_agent_id]
                 learning_unit_dones = dones_by_agent[controlled_agent_id]
