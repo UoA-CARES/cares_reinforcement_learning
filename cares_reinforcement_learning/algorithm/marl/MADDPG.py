@@ -173,9 +173,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         self.learn_counter = 0
 
     def act(
-        self,
-        observation: MARLObservation,
-        evaluation: bool = False,
+        self, observation: MARLObservation, evaluation: bool = False
     ) -> ActionSample[dict[str, np.ndarray]]:
         agent_states = observation.agent_states
         avail_actions = observation.available_actions
@@ -338,7 +336,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         joint_actions: torch.Tensor,  # (B, N * act_dim) from replay
         rewards_i: torch.Tensor,  # (B, 1)
         next_global_states: torch.Tensor,
-        next_actions_tensor: torch.Tensor,  # (B, N, act_dim) from target actors
+        next_actions: torch.Tensor,  # (B, N, act_dim) from target actors
         dones_i: torch.Tensor,
     ):
         info: dict[str, Any] = {}
@@ -348,16 +346,14 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             # M3DDPG: perturb OTHER agents' target actions for agent i
             next_actions_adv, eps = self._compute_adversarial_actions(
                 unperturbed_agent_indices=unperturbed_agent_indices,
-                actions=next_actions_tensor,  # (B, N, act_dim)
+                actions=next_actions,  # (B, N, act_dim)
                 global_states=next_global_states,  # (B, state_dim)
                 critic=learning_unit.target_critic_net,  # target critic
             )
             next_joint_actions = next_actions_adv.view(next_actions_adv.size(0), -1)
         else:
             # Plain MADDPG
-            next_joint_actions = next_actions_tensor.view(
-                next_actions_tensor.size(0), -1
-            )
+            next_joint_actions = next_actions.view(next_actions.size(0), -1)
 
         # --- Step 2: TD target ---
         with torch.no_grad():
@@ -699,8 +695,8 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_states_tensors = samples.agent_states
         rewards_by_agent = samples.rewards_by_agent
         dones_by_agent = samples.dones_by_agent
-        actions_tensor = samples.actions
-        next_actions_tensor = samples.next_actions
+        actions = samples.actions
+        next_actions = samples.next_actions
         joint_actions = samples.joint_actions
 
         # ---------------------------------------------------------
@@ -722,7 +718,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 joint_actions=joint_actions,
                 rewards_i=rewards_i,
                 next_global_states=next_global_states,
-                next_actions_tensor=next_actions_tensor,
+                next_actions=next_actions,
                 dones_i=dones_i,
             )
             info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
@@ -735,7 +731,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 controlled_agent_ids=[learning_unit_id],
                 obs_tensors=agent_states_tensors,
                 global_states=global_states,
-                replay_actions=actions_tensor,
+                replay_actions=actions,
             )
             info.update({f"{learning_unit_id}_{k}": v for k, v in actor_info.items()})
 
@@ -778,7 +774,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         rewards_by_agent = samples.rewards_by_agent
         dones_by_agent = samples.dones_by_agent
         actions_tensor = samples.actions
-        next_actions_tensor = samples.next_actions
+        next_actions = samples.next_actions
         joint_actions = samples.joint_actions
 
         # ---------------------------------------------------------
@@ -827,7 +823,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 joint_actions=joint_actions,
                 rewards_i=learning_unit_rewards,
                 next_global_states=next_global_states,
-                next_actions_tensor=next_actions_tensor,
+                next_actions=next_actions,
                 dones_i=learning_unit_dones,
             )
 
