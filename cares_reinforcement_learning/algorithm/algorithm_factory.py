@@ -656,7 +656,7 @@ def _build_learning_unit_mappings(
     algo_name: str,
 ) -> tuple[dict[str, str], dict[str, list[str]]]:
     """Return ``(agent_id_to_learning_unit_id, learning_unit_to_agent_ids)``."""
-    if sharing_mode == "separate":
+    if sharing_mode == "individual":
         learning_unit_to_agent_ids = {aid: [aid] for aid in all_agent_ids}
         agent_id_to_learning_unit_id = {aid: aid for aid in all_agent_ids}
 

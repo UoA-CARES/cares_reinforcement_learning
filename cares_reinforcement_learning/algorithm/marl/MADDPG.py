@@ -124,6 +124,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         # Shared Actor/Critic per team or individual Actor/Critic per agent
         self.sharing_mode = config.sharing_mode
+        self.team_actor_update_mode = config.team_actor_update_mode
 
         # All environment agent IDs and counts, e.g.
         # ["adversary_0", "adversary_1", "adversary_2", "agent_0"]
@@ -338,7 +339,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         next_global_states: torch.Tensor,
         next_actions: torch.Tensor,  # (B, N, act_dim) from target actors
         dones_i: torch.Tensor,
-    ):
+    ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
         # --- Step 1: build (possibly adversarial) next joint actions ---
@@ -409,30 +410,44 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
     def _build_actor_contribution(
         self,
         learning_unit: DDPG,
-        controlled_agent_id: str,
+        controlled_agent_ids: list[str],
         unperturbed_agent_indices: list[int],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
         replay_actions: torch.Tensor,  # (B, N, act_dim)
     ) -> tuple[
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor,
-        torch.Tensor | None,
+        list[torch.Tensor],  # actions_i_all
+        torch.Tensor,  # actor_q_values
+        torch.Tensor,  # actor_objective
+        torch.Tensor,  # ernie_reg
+        torch.Tensor | None,  # eps_norm_mean
     ]:
-        """
-        Build the actor contribution for one controlled environment agent.
-        """
         batch_size = global_states.shape[0]
-        agent_index = self.all_agent_ids.index(controlled_agent_id)
 
         actions_all = replay_actions.clone()
+        actions_i_all = []
+        ernie_regs = []
 
-        obs_i = obs_tensors[controlled_agent_id]
-        actions_i = learning_unit.actor_net(obs_i)
+        for controlled_agent_id in controlled_agent_ids:
+            agent_index = self.all_agent_ids.index(controlled_agent_id)
 
-        actions_all[:, agent_index, :] = actions_i
+            obs_i = obs_tensors[controlled_agent_id]
+            actions_i = learning_unit.actor_net(obs_i)
+
+            actions_all[:, agent_index, :] = actions_i
+            actions_i_all.append(actions_i)
+
+            if self.use_ernie:
+                delta_adv = self._ernie_adv_delta(
+                    actor_net=learning_unit.actor_net,
+                    obs=obs_i,
+                    eps=self.ernie_eps,
+                    k_steps=self.ernie_k_steps,
+                    step_size=self.ernie_step_size,
+                    norm=self.ernie_norm,
+                )
+                pred_action_adv = learning_unit.actor_net(obs_i + delta_adv)
+                ernie_regs.append((pred_action_adv - actions_i).pow(2).mean())
 
         eps_norm_mean = None
         if self.use_m3:
@@ -443,29 +458,28 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 critic=learning_unit.critic_net,
             )
 
-            actions_adv[:, agent_index, :] = actions_i
+            for controlled_agent_id, actions_i in zip(
+                controlled_agent_ids, actions_i_all
+            ):
+                agent_index = self.all_agent_ids.index(controlled_agent_id)
+                actions_adv[:, agent_index, :] = actions_i
+
             actions_all = actions_adv
             eps_norm_mean = eps.norm(dim=-1).mean()
 
-        ernie_reg = torch.tensor(0.0, device=obs_i.device)
-        if self.use_ernie:
-            delta_adv = self._ernie_adv_delta(
-                actor_net=learning_unit.actor_net,
-                obs=obs_i,
-                eps=self.ernie_eps,
-                k_steps=self.ernie_k_steps,
-                step_size=self.ernie_step_size,
-                norm=self.ernie_norm,
-            )
-            pred_action_adv = learning_unit.actor_net(obs_i + delta_adv)
-            ernie_reg = (pred_action_adv - actions_i).pow(2).mean()
-
         joint_actions_flat = actions_all.reshape(batch_size, -1)
+
         with fnc.evaluating(learning_unit.critic_net):
             actor_q_values = learning_unit.critic_net(global_states, joint_actions_flat)
 
         actor_objective = -actor_q_values.mean()
-        return actions_i, actor_q_values, actor_objective, ernie_reg, eps_norm_mean
+
+        if self.use_ernie and ernie_regs:
+            ernie_reg = torch.stack(ernie_regs).mean()
+        else:
+            ernie_reg = torch.tensor(0.0, device=global_states.device)
+
+        return actions_i_all, actor_q_values, actor_objective, ernie_reg, eps_norm_mean
 
     def _update_actor(
         self,
@@ -473,53 +487,77 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        replay_actions: torch.Tensor,  # (B, N, act_dim)
-    ):
+        replay_actions: torch.Tensor,
+    ) -> dict[str, Any]:
         """
-        Unified MADDPG actor update.
+        Actor updates are performed per learning unit, but can be configured to use either:
 
-        In individual mode `controlled_agent_ids` contains one agent ID.
-        In team mode it contains every agent ID controlled by the shared learning unit.
+        individual actor update:
+            evaluate one controlled agent's new action at a time
+            average losses
+
+            Q_1 = Q_team(s, [π(o_1), replay(a_2), replay(a_3)])
+            Q_2 = Q_team(s, [replay(a_1), π(o_2), replay(a_3)])
+            Q_3 = Q_team(s, [replay(a_1), replay(a_2), π(o_3)])
+
+            actor_loss = mean(-Q_1.mean(), -Q_2.mean(), -Q_3.mean())
+
+        joint actor update:
+            evaluate all controlled agents' new actions together
+            one team loss
+
+            actor_loss = -Q_team(s, [π(o_1), π(o_2), π(o_3)]).mean()
         """
+
         info: dict[str, Any] = {}
 
         unperturbed_agent_indices = [
             self.all_agent_ids.index(agent_id) for agent_id in controlled_agent_ids
         ]
 
-        actions_all = []
-        actor_q_values_all = []
-        actor_objectives_all = []
+        use_joint_update = (
+            self.sharing_mode == "team"
+            and self.team_actor_update_mode == "joint"
+            and len(controlled_agent_ids) > 1
+        )
 
-        ernie_regs_all = []
-        m3_eps_norm_means_all = []
+        actions_all: list[torch.Tensor] = []
+        contribution_actions_all: list[list[torch.Tensor]] = []
 
-        for controlled_agent_id in controlled_agent_ids:
-            (
-                actions_i,
-                actor_q_values_i,
-                actor_objective_i,
-                ernie_reg_i,
-                eps_norm_mean_i,
-            ) = self._build_actor_contribution(
-                learning_unit=learning_unit,
-                controlled_agent_id=controlled_agent_id,
-                unperturbed_agent_indices=unperturbed_agent_indices,
-                obs_tensors=obs_tensors,
-                global_states=global_states,
-                replay_actions=replay_actions,
+        actor_q_values_all: list[torch.Tensor] = []
+        actor_objectives_all: list[torch.Tensor] = []
+        ernie_regs_all: list[torch.Tensor] = []
+        m3_eps_norm_means_all: list[torch.Tensor] = []
+
+        if use_joint_update:
+            contribution_groups = [controlled_agent_ids]
+        else:
+            contribution_groups = [[agent_id] for agent_id in controlled_agent_ids]
+
+        for contribution_agent_ids in contribution_groups:
+            actions_i_all, actor_q_values, actor_objective, ernie_reg, eps_norm_mean = (
+                self._build_actor_contribution(
+                    learning_unit=learning_unit,
+                    controlled_agent_ids=contribution_agent_ids,
+                    unperturbed_agent_indices=unperturbed_agent_indices,
+                    obs_tensors=obs_tensors,
+                    global_states=global_states,
+                    replay_actions=replay_actions,
+                )
             )
 
-            actions_all.append(actions_i)
-            actor_q_values_all.append(actor_q_values_i)
-            actor_objectives_all.append(actor_objective_i)
+            actions_all.extend(actions_i_all)
+            contribution_actions_all.append(actions_i_all)
+
+            actor_q_values_all.append(actor_q_values)
+            actor_objectives_all.append(actor_objective)
 
             if self.use_ernie:
-                ernie_regs_all.append(ernie_reg_i)
-            if self.use_m3 and eps_norm_mean_i is not None:
-                m3_eps_norm_means_all.append(eps_norm_mean_i)
+                ernie_regs_all.append(ernie_reg)
+            if self.use_m3 and eps_norm_mean is not None:
+                m3_eps_norm_means_all.append(eps_norm_mean)
 
-        actor_objective_i = torch.stack(actor_objectives_all).mean()
+        actor_objective = torch.stack(actor_objectives_all).mean()
 
         actions_cat = torch.cat(actions_all, dim=0)
         actor_q_cat = torch.cat(actor_q_values_all, dim=0)
@@ -527,21 +565,27 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         reg = (actions_cat**2).mean() * 1e-3
 
         if self.use_ernie and ernie_regs_all:
-            ernie_reg_i = torch.stack(ernie_regs_all).mean()
+            ernie_reg = torch.stack(ernie_regs_all).mean()
         else:
-            ernie_reg_i = torch.tensor(0.0, device=global_states.device)
+            ernie_reg = torch.tensor(0.0, device=global_states.device)
 
-        actor_loss = actor_objective_i + reg + (self.ernie_lambda * ernie_reg_i)
+        actor_loss = actor_objective + reg + (self.ernie_lambda * ernie_reg)
 
-        dq_da_values = []
-        for actor_q_values_i, actions_i in zip(actor_q_values_all, actions_all):
-            dq_da = torch.autograd.grad(
-                outputs=-actor_q_values_i.mean(),
-                inputs=actions_i,
-                retain_graph=True,
-                create_graph=False,
-            )[0]
-            dq_da_values.append(dq_da.detach())
+        dq_da_values: list[torch.Tensor] = []
+
+        for actor_q_values_i, contribution_actions in zip(
+            actor_q_values_all,
+            contribution_actions_all,
+        ):
+            for actions_i in contribution_actions:
+                dq_da = torch.autograd.grad(
+                    outputs=-actor_q_values_i.mean(),  # NOTE: uses Q-term only, excludes regularizers
+                    inputs=actions_i,
+                    retain_graph=True,
+                    create_graph=False,
+                )[0]
+
+                dq_da_values.append(dq_da.detach())
 
         dq_da_cat = torch.cat(dq_da_values, dim=0)
 
@@ -573,7 +617,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             info["actor_q_std"] = actor_q_cat.std().item()
 
             if self.use_ernie:
-                info["ernie_reg"] = ernie_reg_i.item()
+                info["ernie_reg"] = ernie_reg.item()
 
             if self.use_m3 and m3_eps_norm_means_all:
                 m3_eps_norms_tensor = torch.stack(m3_eps_norm_means_all)
