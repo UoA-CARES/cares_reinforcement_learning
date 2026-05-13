@@ -28,7 +28,9 @@ def make_env(env_name: str, render_mode=None, continuous_actions=False) -> Paral
 
     module = ALL_ENV_MODULES[f"mpe/{env_name}"]
     return (module.parallel_env)(
-        render_mode=render_mode, continuous_actions=continuous_actions
+        render_mode=render_mode,
+        continuous_actions=continuous_actions,
+        dynamic_rescaling=True,
     )
 
 

@@ -674,18 +674,17 @@ def _build_learning_unit_mappings(
     return agent_id_to_learning_unit_id, learning_unit_to_agent_ids
 
 
-def _build_ddpg_learning_units(
+def _build_algorithm_learning_units(
     learning_unit_to_agent_ids: dict[str, list[str]],
     observation_size,
     action_num: int,
     config,
     device,
+    Algorithm,
     Actor,
     Critic,
 ) -> dict:
     """Instantiate one DDPG learning unit per entry in *learning_unit_to_agent_ids*."""
-    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-
     learning_units = {}
     for learning_unit_id, controlled_agent_ids in learning_unit_to_agent_ids.items():
         representative_agent_id = controlled_agent_ids[0]
@@ -701,7 +700,7 @@ def _build_ddpg_learning_units(
             num_actions=action_num,
             config=config,
         )
-        learning_units[learning_unit_id] = DDPG(
+        learning_units[learning_unit_id] = Algorithm(
             actor_network=actor,
             critic_network=critic,
             config=config,
@@ -713,6 +712,7 @@ def _build_ddpg_learning_units(
 def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
     from cares_reinforcement_learning.algorithm.marl import MADDPG
     from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
 
     all_agent_ids = list(observation_size["obs"].keys())
     env_teams = observation_size["teams"]
@@ -723,12 +723,13 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
             all_agent_ids, env_teams, config.sharing_mode, "MADDPG"
         )
     )
-    learning_units = _build_ddpg_learning_units(
+    learning_units = _build_algorithm_learning_units(
         learning_unit_to_agent_ids,
         observation_size,
         action_num,
         config,
         device,
+        DDPG,
         Actor,
         Critic,
     )
@@ -745,6 +746,7 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
 
 def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
     from cares_reinforcement_learning.algorithm.marl import M3DDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
     from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
 
     all_agent_ids = list(observation_size["obs"].keys())
@@ -756,12 +758,13 @@ def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
             all_agent_ids, env_teams, config.sharing_mode, "M3DDPG"
         )
     )
-    learning_units = _build_ddpg_learning_units(
+    learning_units = _build_algorithm_learning_units(
         learning_unit_to_agent_ids,
         observation_size,
         action_num,
         config,
         device,
+        DDPG,
         Actor,
         Critic,
     )

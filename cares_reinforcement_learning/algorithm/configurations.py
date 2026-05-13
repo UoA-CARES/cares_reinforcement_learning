@@ -334,57 +334,6 @@ class RainbowConfig(C51Config):
     )
 
 
-class QMIXConfig(DQNConfig):
-    algorithm: str = "QMIX"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    lr: float = 1e-4
-    gamma: float = 0.99
-    tau: float = 1.0
-
-    batch_size: int = 32
-
-    target_update_freq: int = 10000
-
-    # network type
-    share_agent_weights: int = 1
-
-    # Double DQN
-    use_double_dqn: int = 0
-
-    # PER
-    per_sampling_strategy: str = "stratified"
-    per_weight_normalisation: str = "batch"
-    use_per_buffer: int = 0
-    min_priority: float = 1e-6
-    per_alpha: float = 0.6
-
-    # n-step
-    n_step: int = 1
-
-    max_grad_norm: float | None = None
-
-    # Exploration via Epsilon Greedy
-    max_steps_exploration: int = 0
-    start_epsilon: float = 1.0
-    end_epsilon: float = 0.05
-    decay_steps: int = 100000
-
-    # Mixer
-    embed_dim: int = 32
-
-    network_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64),
-        ]
-    )
-
-
 ###################################
 #         PPO Algorithms          #
 ###################################
@@ -433,42 +382,6 @@ class PPOConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
-        ]
-    )
-
-
-class MAPPOConfig(PPOConfig):
-    algorithm: str = "MAPPO"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
-
-    gamma: float = 0.99
-    eps_clip: float = 0.2
-    gae_lambda: float = 0.95
-    target_kl: float | None = 0.1
-
-    entropy_start: float = 0.01
-    entropy_end: float = 0.001
-    entropy_decay: int = 300000
-
-    max_grad_norm: float | None = 0.5
-    log_std_bounds: list[float] = [-3.0, -0.5]
-
-    updates_per_iteration: int = 5
-
-    minibatch_size: int = 512
-    number_steps_per_train_policy: int = 4096
-
-    critic_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=256),
         ]
     )
 
@@ -523,18 +436,6 @@ class SACConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
-
-
-class MASACConfig(SACConfig):
-    algorithm: str = "MASAC"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-    alpha_lr: float = 1e-3
-
-    max_grad_norm: float | None = 0.5
 
 
 class SACAEConfig(SACConfig):
@@ -969,72 +870,6 @@ class DDPGConfig(AlgorithmConfig):
     )
 
 
-class MADDPGConfig(DDPGConfig):
-    algorithm: str = "MADDPG"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    sharing_mode: Literal["separate", "team"] = "separate"
-
-    # Future modes
-    # actor_sharing_mode: Literal["separate", "team"]
-    # critic_sharing_mode: Literal["separate", "team", "global"]
-
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
-
-    gamma: float = 0.95
-    tau: float = 0.005
-
-    # M3DDPG specific
-    use_m3: int = 0
-    m3_alpha: float = 0.05
-
-    # ERNIE specific
-    use_ernie: int = 0
-    ernie_lambda: float = 1e-3
-    ernie_eps: float = 0.05
-    ernie_k_steps: int = 1
-    ernie_norm: Literal["linf", "l2"] = "linf"
-
-    batch_size: int = 256
-    number_steps_per_train_policy: int = 1
-
-    max_steps_exploration: int = 10000
-
-    max_grad_norm: float | None = 0.5
-
-    actor_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64),
-            FunctionLayer(layer_type="Tanh"),
-        ]
-    )
-
-    critic_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
-        ]
-    )
-
-
-class M3DDPGConfig(MADDPGConfig):
-    algorithm: str = "M3DDPG"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    use_m3: Literal[1] = Field(default=1)
-    m3_alpha: float = 0.05
-
-
 class TD3Config(AlgorithmConfig):
     algorithm: str = "TD3"
 
@@ -1088,17 +923,6 @@ class TD3Config(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
-
-
-class MATD3Config(TD3Config):
-    algorithm: str = "MATD3"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-
-    max_grad_norm: float | None = 0.5
 
 
 class TD3AEConfig(TD3Config):
@@ -1432,8 +1256,186 @@ class TD7Config(TD3Config):
 
 
 ###################################
-#         IMARL Algorithms        #
+#          MARL Algorithms        #
 ###################################
+
+
+class MADDPGConfig(DDPGConfig):
+    algorithm: str = "MADDPG"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    sharing_mode: Literal["separate", "team"] = "separate"
+
+    # Future modes
+    # actor_sharing_mode: Literal["separate", "team"]
+    # critic_sharing_mode: Literal["separate", "team", "global"]
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.95
+    tau: float = 0.005
+
+    # M3DDPG specific
+    use_m3: int = 0
+    m3_alpha: float = 0.05
+
+    # ERNIE specific
+    use_ernie: int = 0
+    ernie_lambda: float = 1e-3
+    ernie_eps: float = 0.05
+    ernie_k_steps: int = 1
+    ernie_norm: Literal["linf", "l2"] = "linf"
+
+    batch_size: int = 256
+    number_steps_per_train_policy: int = 1
+
+    max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 0.5
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+            FunctionLayer(layer_type="Tanh"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
+        ]
+    )
+
+
+class M3DDPGConfig(MADDPGConfig):
+    algorithm: str = "M3DDPG"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    use_m3: Literal[1] = Field(default=1)
+    m3_alpha: float = 0.05
+
+
+class MATD3Config(TD3Config):
+    algorithm: str = "MATD3"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    sharing_mode: Literal["separate", "team"] = "separate"
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+
+    max_grad_norm: float | None = 0.5
+
+
+class MASACConfig(SACConfig):
+    algorithm: str = "MASAC"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-3
+    critic_lr: float = 1e-3
+    alpha_lr: float = 1e-3
+
+    max_grad_norm: float | None = 0.5
+
+
+class MAPPOConfig(PPOConfig):
+    algorithm: str = "MAPPO"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.99
+    eps_clip: float = 0.2
+    gae_lambda: float = 0.95
+    target_kl: float | None = 0.1
+
+    entropy_start: float = 0.01
+    entropy_end: float = 0.001
+    entropy_decay: int = 300000
+
+    max_grad_norm: float | None = 0.5
+    log_std_bounds: list[float] = [-3.0, -0.5]
+
+    updates_per_iteration: int = 5
+
+    minibatch_size: int = 512
+    number_steps_per_train_policy: int = 4096
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
+class QMIXConfig(DQNConfig):
+    algorithm: str = "QMIX"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    lr: float = 1e-4
+    gamma: float = 0.99
+    tau: float = 1.0
+
+    batch_size: int = 32
+
+    target_update_freq: int = 10000
+
+    # network type
+    share_agent_weights: int = 1
+
+    # Double DQN
+    use_double_dqn: int = 0
+
+    # PER
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
+    use_per_buffer: int = 0
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # n-step
+    n_step: int = 1
+
+    max_grad_norm: float | None = None
+
+    # Exploration via Epsilon Greedy
+    max_steps_exploration: int = 0
+    start_epsilon: float = 1.0
+    end_epsilon: float = 0.05
+    decay_steps: int = 100000
+
+    # Mixer
+    embed_dim: int = 32
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+        ]
+    )
 
 
 class IDDPGConfig(DDPGConfig):
