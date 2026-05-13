@@ -486,11 +486,13 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         info: dict[str, Any] = {}
 
         # Update per agent action noise for exploration (decayed over training)
-        for agent_name, agent_network in self.learning_units.items():
-            agent_network.action_noise = agent_network.action_noise_scheduler.get_value(
+        for learning_unit_id, learning_unit in self.learning_units.items():
+            learning_unit.action_noise = learning_unit.action_noise_scheduler.get_value(
                 episode_context.training_step
             )
-            info[f"{agent_name}_current_action_noise"] = agent_network.action_noise
+            info[f"{learning_unit_id}_current_action_noise"] = (
+                learning_unit.action_noise
+            )
 
         # Update TD3 target policy smoothing noise (decayed over training)
         self.policy_noise = self.policy_noise_scheduler.get_value(
@@ -519,7 +521,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         actor_info: dict[str, Any] = {}
 
         # ---------------------------------------------------------
-        # Update each learning unit
+        # Critic update
         # ---------------------------------------------------------
         for learning_unit_id, learning_unit in self.learning_units.items():
             controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
@@ -553,9 +555,6 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
                     learning_unit_dones.float().mean().item()
                 )
 
-            # ---------------------------------------------------------
-            # Critic update for this learning unit
-            # ---------------------------------------------------------
             critic_info = self._update_critic(
                 learning_unit=learning_unit,
                 global_states=global_states,
@@ -567,10 +566,12 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
             )
             info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
 
-            # ---------------------------------------------------------
-            # Actor update for this learning unit (delayed TD3 cadence)
-            # ---------------------------------------------------------
-            if update_actor:
+        # ---------------------------------------------------------
+        # Actor update
+        # ---------------------------------------------------------
+        if update_actor:
+            for learning_unit_id, learning_unit in self.learning_units.items():
+                controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
                 actor_info = self._update_actor(
                     learning_unit=learning_unit,
                     controlled_agent_ids=controlled_agent_ids,

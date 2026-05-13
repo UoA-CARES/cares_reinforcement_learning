@@ -2,6 +2,19 @@
 MASAC (Multi-Agent Soft Actor-Critic) implementation notes
 ----------------------------------------------------------
 
+Vocabulary
+----------
+
+This implementation separates environment agents from learnable units:
+
+Learning unit: a trainable DDPG bundle (actor + critic)
+  - in "separate" mode: one learning unit per environment agent
+  - in "team" mode: one shared learning unit per environment team
+  (e.g. one for all adversaries, one for all good agents)
+
+Modernisation Notes
+-------------------
+
 This algorithm extends SAC to the multi-agent setting using centralized critics
 and decentralized stochastic actors.
 
@@ -32,6 +45,7 @@ Rationale:
 
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
@@ -52,18 +66,69 @@ from cares_reinforcement_learning.types.observation import (
 )
 
 
+@dataclass(frozen=True, slots=True)
+class MASACBatch:
+    global_states: torch.Tensor
+    next_global_states: torch.Tensor
+    agent_states: dict[str, torch.Tensor]
+    next_agent_states: dict[str, torch.Tensor]
+
+    actions_by_agent: dict[str, torch.Tensor]
+    rewards_by_agent: dict[str, torch.Tensor]
+    dones_by_agent: dict[str, torch.Tensor]
+
+    actions: torch.Tensor  # (B, N, A)
+    rewards: torch.Tensor  # (B, N, 1)
+    dones: torch.Tensor  # (B, N, 1)
+    next_actions: torch.Tensor  # (B, N, A)
+    next_logps: torch.Tensor  # (B, N, 1)
+    next_actions_by_agent: dict[str, torch.Tensor]
+    next_logps_by_agent: dict[str, torch.Tensor]
+    joint_actions: torch.Tensor  # (B, N * A)
+    next_joint_actions: torch.Tensor  # (B, N * A)
+
+
 class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
-        agents: dict[str, SAC],
+        learning_units: dict[str, SAC],
+        all_agent_ids: list[str],
+        agent_id_to_learning_unit_id: dict[str, str],
+        learning_unit_to_agent_ids: dict[str, list[str]],
         config: MASACConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
-        self.agent_networks = agents
-        self.agent_ids = list(self.agent_networks.keys())
-        self.num_agents = len(agents)
+        self.learning_units = learning_units
+
+        # Shared Actor/Critic per team or separate Actor/Critic per agent
+        self.sharing_mode = config.sharing_mode
+
+        # All environment agent IDs and counts, e.g.
+        # ["adversary_0", "adversary_1", "adversary_2", "agent_0"]
+        self.all_agent_ids = all_agent_ids
+        self.num_agents = len(all_agent_ids)
+
+        # Maps env agent -> learning unit.
+        # separate:
+        #   adversary_0 -> adversary_0
+        # team:
+        #   adversary_0 -> adversary
+        self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
+
+        # Maps learning unit -> env agents controlled by it.
+        # separate:
+        #   adversary_0 -> [adversary_0]
+        # team:
+        #   adversary -> [adversary_0, adversary_1, adversary_2]
+        self.learning_unit_to_agent_ids = learning_unit_to_agent_ids
+
+        self.controlled_agent_ids = [
+            agent_id
+            for controlled_agents in self.learning_unit_to_agent_ids.values()
+            for agent_id in controlled_agents
+        ]
 
         self.gamma = config.gamma
         self.tau = config.tau
@@ -85,17 +150,20 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         actions = {}
 
-        for agent_name, agent_network in self.agent_networks.items():
-            obs_i = agent_states[agent_name]
-            avail_i = avail_actions[agent_name]
+        for agent_id in self.controlled_agent_ids:
+            learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
+            learning_unit = self.learning_units[learning_unit_id]
+
+            obs_i = agent_states[agent_id]
+            avail_i = avail_actions[agent_id]
 
             agent_observation = SARLObservation(
                 vector_state=obs_i,
                 available_actions=avail_i,
             )
 
-            agent_sample = agent_network.act(agent_observation, evaluation)
-            actions[agent_name] = agent_sample.action
+            agent_sample = learning_unit.act(agent_observation, evaluation)
+            actions[agent_id] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
 
@@ -204,126 +272,278 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         return info
 
-    def _update_actor_alpha(
+    def _build_actor_alpha_contribution(
         self,
-        agent: SAC,
-        agent_name: str,
+        learning_unit: SAC,
+        controlled_agent_id: str,
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        current_actions_tensor: torch.Tensor,  # (B, N, act_dim) sampled under no_grad
-    ):
-        info: dict[str, Any] = {}
-
+        current_actions_tensor: torch.Tensor,  # (B, N, act_dim), sampled under no_grad
+    ) -> tuple[
+        torch.Tensor,  # pi_i
+        torch.Tensor,  # log_pi_i
+        torch.Tensor,  # min_qf_pi
+        torch.Tensor,  # qf_pi_one
+        torch.Tensor,  # qf_pi_two
+        torch.Tensor,  # actor_loss_i
+    ]:
         batch_size = global_states.shape[0]
+        agent_index = self.all_agent_ids.index(controlled_agent_id)
 
-        agent_index = self.agent_ids.index(agent_name)
+        actions_all = current_actions_tensor.clone()
 
-        actions_all = current_actions_tensor.clone()  # no graphs carried
+        obs_i = obs_tensors[controlled_agent_id]
+        pi_i, log_pi_i, _ = learning_unit.actor_net(obs_i)
 
-        # ---------------------------------------------------------
-        # Sample CURRENT actions for all agents (detach others)
-        # ---------------------------------------------------------
-        obs_i = obs_tensors[agent_name]
-        pi_i, log_pi_i, _ = agent.actor_net(obs_i)  # grads for i only
-
-        actions_all[:, agent_index, :] = pi_i  # only i is live
+        actions_all[:, agent_index, :] = pi_i
 
         joint_actions_flat = actions_all.reshape(batch_size, -1)
 
-        # ---------------------------------------------------------
-        # Step 4: Compute actor loss: -Q_i(x, a_1,...,a_i,...,a_N)
-        # ---------------------------------------------------------
-        with fnc.evaluating(agent.critic_net):
-            qf_pi_one, q_pi_two = agent.critic_net(global_states, joint_actions_flat)
+        with fnc.evaluating(learning_unit.critic_net):
+            qf_pi_one, qf_pi_two = learning_unit.critic_net(
+                global_states,
+                joint_actions_flat,
+            )
 
-        min_qf_pi = torch.min(qf_pi_one, q_pi_two)
+        min_qf_pi = torch.min(qf_pi_one, qf_pi_two)
 
-        actor_loss = (agent.alpha * log_pi_i - min_qf_pi).mean()
+        actor_loss_i = (learning_unit.alpha * log_pi_i - min_qf_pi).mean()
 
-        # ---------------------------------------------------------
-        # Stochastic Policy Gradient Strength (∇a [α log π(a|s) − Q(s,a)])
-        # ---------------------------------------------------------
-        # Measures how steep the entropy-regularized critic objective is
-        # w.r.t. the sampled policy actions.
-        #
-        # ~0 early  -> critic surface and entropy term nearly flat;
-        #              actor receives weak learning signal.
-        #
-        # Very large -> critic or entropy term is very sharp around policy
-        #               actions; can lead to unstable or overly aggressive
-        #               actor updates.
-        dq_da = torch.autograd.grad(
-            outputs=actor_loss,
-            inputs=pi_i,
-            retain_graph=True,
-            create_graph=False,
-            allow_unused=False,
-        )[0]
+        return pi_i, log_pi_i, min_qf_pi, qf_pi_one, qf_pi_two, actor_loss_i
 
-        with torch.no_grad():
-            info["dq_da_abs_mean"] = dq_da.abs().mean().item()
-            info["dq_da_norm_mean"] = dq_da.norm(dim=1).mean().item()
-            info["dq_da_norm_p95"] = dq_da.norm(dim=1).quantile(0.95).item()
+    def _update_actor_alpha(
+        self,
+        learning_unit: SAC,
+        controlled_agent_ids: list[str],
+        obs_tensors: dict[str, torch.Tensor],
+        global_states: torch.Tensor,
+        current_actions_tensor: torch.Tensor,  # (B, N, act_dim), sampled under no_grad
+    ) -> dict[str, Any]:
+        """
+        Unified MASAC actor + alpha update.
 
-        # ---------------------------------------------------------
-        # Step 5: Backprop
-        # ---------------------------------------------------------
-        agent.actor_net_optimiser.zero_grad()
+        In separate mode `controlled_agent_ids` contains one agent ID.
+        In team mode it contains every agent ID controlled by the shared learning unit.
+        """
+        info: dict[str, Any] = {}
+
+        pi_all: list[torch.Tensor] = []
+        log_pi_all: list[torch.Tensor] = []
+        min_q_all: list[torch.Tensor] = []
+        q1_all: list[torch.Tensor] = []
+        q2_all: list[torch.Tensor] = []
+        actor_losses_all: list[torch.Tensor] = []
+
+        for controlled_agent_id in controlled_agent_ids:
+            (
+                pi_i,
+                log_pi_i,
+                min_qf_pi_i,
+                qf_pi_one_i,
+                qf_pi_two_i,
+                actor_loss_i,
+            ) = self._build_actor_alpha_contribution(
+                learning_unit=learning_unit,
+                controlled_agent_id=controlled_agent_id,
+                obs_tensors=obs_tensors,
+                global_states=global_states,
+                current_actions_tensor=current_actions_tensor,
+            )
+
+            pi_all.append(pi_i)
+            log_pi_all.append(log_pi_i)
+            min_q_all.append(min_qf_pi_i)
+            q1_all.append(qf_pi_one_i)
+            q2_all.append(qf_pi_two_i)
+            actor_losses_all.append(actor_loss_i)
+
+        actor_loss = torch.stack(actor_losses_all).mean()
+
+        pi_cat = torch.cat(pi_all, dim=0)
+        log_pi_cat = torch.cat(log_pi_all, dim=0)
+        min_q_cat = torch.cat(min_q_all, dim=0)
+        q1_cat = torch.cat(q1_all, dim=0)
+        q2_cat = torch.cat(q2_all, dim=0)
+
+        dq_da_values: list[torch.Tensor] = []
+
+        for actor_loss_i, pi_i in zip(actor_losses_all, pi_all):
+            dq_da = torch.autograd.grad(
+                outputs=actor_loss_i,
+                inputs=pi_i,
+                retain_graph=True,
+                create_graph=False,
+                allow_unused=False,
+            )[0]
+            dq_da_values.append(dq_da.detach())
+
+        dq_da_cat = torch.cat(dq_da_values, dim=0)
+
+        learning_unit.actor_net_optimiser.zero_grad()
         actor_loss.backward()
 
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
-                agent.actor_net.parameters(), self.max_grad_norm
+                learning_unit.actor_net.parameters(),
+                self.max_grad_norm,
             )
 
-        agent.actor_net_optimiser.step()
+        learning_unit.actor_net_optimiser.step()
 
-        # ---------------------------------------------------------
-        # Step 6: Alpha loss and update
-        # ---------------------------------------------------------
         alpha_loss = -(
-            agent.log_alpha * (log_pi_i + agent.target_entropy).detach()
+            learning_unit.log_alpha
+            * (log_pi_cat + learning_unit.target_entropy).detach()
         ).mean()
 
-        agent.log_alpha_optimizer.zero_grad(set_to_none=True)
+        learning_unit.log_alpha_optimizer.zero_grad(set_to_none=True)
         alpha_loss.backward()
-        agent.log_alpha_optimizer.step()
+        learning_unit.log_alpha_optimizer.step()
 
         with torch.no_grad():
-            # --- Policy entropy diagnostics (exploration health) ---
-            # log_pi more negative -> higher entropy (more stochastic). Less negative -> lower entropy (more deterministic).
-            info["log_pi_mean"] = log_pi_i.mean().item()
-            info["log_pi_std"] = log_pi_i.std().item()
+            info["dq_da_abs_mean"] = dq_da_cat.abs().mean().item()
+            info["dq_da_norm_mean"] = dq_da_cat.norm(dim=1).mean().item()
+            info["dq_da_norm_p95"] = dq_da_cat.norm(dim=1).quantile(0.95).item()
 
-            # --- Action magnitude/saturation (tanh policies) ---
-            # High saturation fraction can indicate the policy is slamming bounds; may reduce effective gradients.
-            info["pi_action_abs_mean"] = pi_i.abs().mean().item()
-            info["pi_action_std"] = pi_i.std().item()
+            info["log_pi_mean"] = log_pi_cat.mean().item()
+            info["log_pi_std"] = log_pi_cat.std(unbiased=False).item()
+
+            info["pi_action_abs_mean"] = pi_cat.abs().mean().item()
+            info["pi_action_std"] = pi_cat.std(unbiased=False).item()
             info["pi_action_saturation_frac"] = (
-                (pi_i.abs() > 0.95).float().mean().item()
+                (pi_cat.abs() > 0.95).float().mean().item()
             )
 
-            # --- On-policy critic signal ---
-            # min_qf_pi_mean should generally increase as the policy improves (higher value actions under the policy).
-            info["min_qf_pi_mean"] = min_qf_pi.mean().item()
+            info["min_qf_pi_mean"] = min_q_cat.mean().item()
+            info["qf_pi_gap_abs_mean"] = (q1_cat - q2_cat).abs().mean().item()
 
-            # --- Twin critics disagreement at policy actions (more relevant than replay actions) ---
-            # Large gap here means critics disagree on what the current policy is doing (can destabilize actor updates).
-            info["qf_pi_gap_abs_mean"] = (qf_pi_one - q_pi_two).abs().mean().item()
-
-            # --- Entropy gap (alpha tuning health) ---
-            # entropy_gap ~ 0 means entropy matches target.
-            # > 0: entropy too low -> alpha should increase; < 0: entropy too high -> alpha should decrease.
-            entropy_gap = -(log_pi_i + agent.target_entropy)
+            entropy_gap = -(log_pi_cat + learning_unit.target_entropy)
             info["entropy_gap_mean"] = entropy_gap.mean().item()
 
-            # --- Losses and temperature ---
             info["actor_loss"] = actor_loss.item()
             info["alpha_loss"] = alpha_loss.item()
-            info["alpha"] = agent.alpha.item()
-            info["log_alpha"] = agent.log_alpha.item()
+            info["alpha"] = learning_unit.alpha.item()
+            info["log_alpha"] = learning_unit.log_alpha.item()
 
         return info
+
+    def _sample_training_batch(
+        self,
+        memory_buffer: MARLMemoryBuffer,
+    ) -> tuple[MASACBatch, dict[str, Any]]:
+        info: dict[str, Any] = {}
+
+        sample_tensor, _ = memory_sampler.sample(
+            memory=memory_buffer,
+            batch_size=self.batch_size,
+            device=self.device,
+            use_per_buffer=0,
+        )
+
+        actions_by_agent = sample_tensor.action
+        rewards_by_agent = sample_tensor.reward
+        dones_by_agent = sample_tensor.done
+
+        actions_tensor = torch.stack(
+            [actions_by_agent[a] for a in self.all_agent_ids],
+            dim=1,
+        )
+
+        rewards_tensor = torch.stack(
+            [rewards_by_agent[a] for a in self.all_agent_ids],
+            dim=1,
+        )
+
+        dones_tensor = torch.stack(
+            [dones_by_agent[a] for a in self.all_agent_ids],
+            dim=1,
+        )
+
+        joint_actions = actions_tensor.reshape(actions_tensor.shape[0], -1)
+
+        next_actions_by_agent: dict[str, torch.Tensor] = {}
+        next_logps_by_agent: dict[str, torch.Tensor] = {}
+
+        for agent_id in self.all_agent_ids:
+            learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
+            learning_unit = self.learning_units[learning_unit_id]
+
+            obs_next_i = sample_tensor.next_observation.agent_states[agent_id]
+
+            with torch.no_grad():
+                with fnc.evaluating(learning_unit.actor_net):
+                    next_action_i, next_logp_i, _ = learning_unit.actor_net(obs_next_i)
+
+            next_actions_by_agent[agent_id] = next_action_i
+            next_logps_by_agent[agent_id] = next_logp_i
+
+        next_actions_tensor = torch.stack(
+            [next_actions_by_agent[a] for a in self.all_agent_ids],
+            dim=1,
+        )
+
+        next_logps_tensor = torch.stack(
+            [next_logps_by_agent[a] for a in self.all_agent_ids],
+            dim=1,
+        )
+
+        next_joint_actions = next_actions_tensor.reshape(
+            next_actions_tensor.shape[0], -1
+        )
+
+        with torch.no_grad():
+            info["joint_action_abs_mean"] = actions_tensor.abs().mean().item()
+            info["joint_action_std"] = actions_tensor.std(unbiased=False).item()
+            info["action_saturation_frac"] = (
+                (actions_tensor.abs() > 0.95).float().mean().item()
+            )
+
+            a_norm = actions_tensor / (actions_tensor.norm(dim=2, keepdim=True) + 1e-12)
+            cos = torch.einsum("bna,bma->bnm", a_norm, a_norm)
+            n = cos.shape[1]
+            mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
+
+            info["replay_action_cos_mean"] = cos[:, mask].mean().item()
+            info["replay_action_cos_p95"] = cos[:, mask].quantile(0.95).item()
+
+            info["next_logp_mean_all_agents"] = next_logps_tensor.mean().item()
+            info["next_logp_std_all_agents"] = next_logps_tensor.std(
+                unbiased=False
+            ).item()
+            info["next_entropy_mean_all_agents"] = (-next_logps_tensor).mean().item()
+
+            info["next_action_abs_mean_all_agents"] = (
+                next_actions_tensor.abs().mean().item()
+            )
+            info["next_action_std_all_agents"] = next_actions_tensor.std(
+                unbiased=False
+            ).item()
+            info["next_action_saturation_frac_all_agents"] = (
+                (next_actions_tensor.abs() > 0.95).float().mean().item()
+            )
+
+            info["reward_mean"] = rewards_tensor.mean().item()
+            info["done_frac"] = dones_tensor.float().mean().item()
+
+        batch_data = MASACBatch(
+            global_states=sample_tensor.observation.global_state,
+            next_global_states=sample_tensor.next_observation.global_state,
+            agent_states=sample_tensor.observation.agent_states,
+            next_agent_states=sample_tensor.next_observation.agent_states,
+            actions_by_agent=actions_by_agent,
+            rewards_by_agent=rewards_by_agent,
+            dones_by_agent=dones_by_agent,
+            actions=actions_tensor,
+            rewards=rewards_tensor,
+            dones=dones_tensor,
+            next_actions=next_actions_tensor,
+            next_logps=next_logps_tensor,
+            next_actions_by_agent=next_actions_by_agent,
+            next_logps_by_agent=next_logps_by_agent,
+            joint_actions=joint_actions,
+            next_joint_actions=next_joint_actions,
+        )
+
+        return batch_data, info
 
     def train(
         self,
@@ -341,87 +561,73 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
         # keeping joint transitions consistent for centralized critics.
         # ---------------------------------------------------------
-        sample_tensor, indices = memory_sampler.sample(
-            memory=memory_buffer,
-            batch_size=self.batch_size,
-            device=self.device,
-            use_per_buffer=0,
-        )
+        samples, batch_info = self._sample_training_batch(memory_buffer)
+        info |= batch_info
 
-        batch_size = len(indices)
-
-        global_states = sample_tensor.observation.global_state
-        next_global_states = sample_tensor.next_observation.global_state
-
-        agent_states = sample_tensor.observation.agent_states
-        next_agent_states = sample_tensor.next_observation.agent_states
-
-        actions_tensor_dict = sample_tensor.action
-        rewards_tensor_dict = sample_tensor.reward
-        dones_tensor_dict = sample_tensor.done
-
-        # Stack replay-buffer actions into (B, N, A) using canonical agent order
-        actions_tensor = torch.stack(
-            [actions_tensor_dict[a] for a in self.agent_ids],
-            dim=1,
-        )
-
-        # Flatten sampled next actions into joint action vectors for target critic input: (B, N * A)
-        joint_actions = actions_tensor.reshape(batch_size, -1)
+        global_states = samples.global_states
+        next_global_states = samples.next_global_states
+        agent_states = samples.agent_states
+        rewards_by_agent = samples.rewards_by_agent
+        dones_by_agent = samples.dones_by_agent
+        next_logps_by_agent = samples.next_logps_by_agent
+        joint_actions = samples.joint_actions
+        next_joint_actions = samples.next_joint_actions
 
         # ---------------------------------------------------------
-        # Build NEXT actions by sampling from CURRENT policies (not target)
+        # Critic update
         # ---------------------------------------------------------
-        # In SAC, targets use a' ~ pi(·|o') (reparameterized), then evaluate target critics.
-        # Computing next_joint_actions once outside ensures every agent sees the same bootstrapping sample for that minibatch.
-        next_actions_dict: dict[str, torch.Tensor] = {}
-        next_logps_dict: dict[str, torch.Tensor] = {}
+        for learning_unit_id, learning_unit in self.learning_units.items():
+            controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
 
-        for agent_id, agent_network in self.agent_networks.items():
-            obs_next = next_agent_states[agent_id]
+            # ---------------------------------------------------------
+            # Build learning-unit rewards/dones from controlled agents
+            # separate: direct per-agent tensors
+            # team: aggregate across controlled agents
+            # ---------------------------------------------------------
+            if self.sharing_mode == "separate":
+                controlled_agent_id = controlled_agent_ids[0]
+                learning_unit_rewards = rewards_by_agent[controlled_agent_id]
+                learning_unit_dones = dones_by_agent[controlled_agent_id]
+                next_logp_i = next_logps_by_agent[controlled_agent_id]  # (B, 1)
+            elif self.sharing_mode == "team":
+                learning_unit_rewards = torch.stack(
+                    [rewards_by_agent[a] for a in controlled_agent_ids],
+                    dim=1,
+                ).mean(dim=1)
+                learning_unit_dones = torch.stack(
+                    [dones_by_agent[a] for a in controlled_agent_ids],
+                    dim=1,
+                ).amax(dim=1)
+                # Team/shared actor: aggregate entropy contribution across controlled agents
+                next_logp_i = torch.stack(
+                    [next_logps_by_agent[a] for a in controlled_agent_ids],
+                    dim=1,
+                ).mean(dim=1)
+            else:
+                raise ValueError(f"Invalid sharing_mode: {self.sharing_mode}")
 
             with torch.no_grad():
-                with fnc.evaluating(agent_network.actor_net):
-                    next_action_j, next_logp_j, _ = agent_network.actor_net(obs_next)
-
-            next_actions_dict[agent_id] = next_action_j
-            next_logps_dict[agent_id] = next_logp_j
-
-        next_logps_tensor = torch.stack(
-            [next_logps_dict[a] for a in self.agent_ids],
-            dim=1,
-        )
-
-        next_actions_tensor = torch.stack(
-            [next_actions_dict[agent_id] for agent_id in self.agent_ids],
-            dim=1,
-        )
-
-        next_joint_actions = next_actions_tensor.reshape(batch_size, -1)
-
-        # ---------------------------------------------------------
-        # CRITIC UPDATES (every step)
-        # ---------------------------------------------------------
-        for agent_name, agent_network in self.agent_networks.items():
-            rewards_i = rewards_tensor_dict[agent_name]
-            dones_i = dones_tensor_dict[agent_name]
-
-            # For MASAC, entropy term typically uses ONLY agent i's logp (common)
-            next_logp_i = next_logps_dict[agent_name]  # (B, 1)
+                info[f"{learning_unit_id}_reward_mean"] = (
+                    learning_unit_rewards.mean().item()
+                )
+                info[f"{learning_unit_id}_done_frac"] = (
+                    learning_unit_dones.float().mean().item()
+                )
+                info[f"{learning_unit_id}_next_logp_mean"] = next_logp_i.mean().item()
 
             critic_info = self._update_critic(
-                agent=agent_network,
+                agent=learning_unit,
                 global_states=global_states,
                 joint_actions=joint_actions,  # from replay at time t
-                rewards_i=rewards_i,
+                rewards_i=learning_unit_rewards,
                 next_global_states=next_global_states,
                 next_joint_actions=next_joint_actions,  # sampled at t+1
                 next_logp_i=next_logp_i,
-                dones_i=dones_i,
+                dones_i=learning_unit_dones,
             )
 
             for key, value in critic_info.items():
-                info[f"{agent_name}_{key}"] = value
+                info[f"{learning_unit_id}_{key}"] = value
 
         # ---------------------------------------------------------
         # ACTOR + ALPHA UPDATES — usually every step in SAC
@@ -438,75 +644,36 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             with torch.no_grad():
                 current_actions_list = []
 
-                for agent_name in self.agent_ids:
-                    agent_network = self.agent_networks[agent_name]
-                    obs_j = agent_states[agent_name]
+                for agent_id in self.all_agent_ids:
+                    learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
+                    learning_unit = self.learning_units[learning_unit_id]
 
-                    action_j, _, _ = agent_network.actor_net(obs_j)
+                    obs_j = agent_states[agent_id]
+                    action_j, _, _ = learning_unit.actor_net(obs_j)
+
                     current_actions_list.append(action_j)
 
                 current_actions_tensor = torch.stack(current_actions_list, dim=1)
 
-                # Stack into (B, N, act_dim) using canonical agent order
-                current_actions_tensor = torch.stack(
-                    current_actions_list,
-                    dim=1,
-                )
+            for learning_unit_id, learning_unit in self.learning_units.items():
+                controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
 
-            for agent_name, agent_network in self.agent_networks.items():
                 actor_info = self._update_actor_alpha(
-                    agent=agent_network,
-                    agent_name=agent_name,
+                    learning_unit=learning_unit,
+                    controlled_agent_ids=controlled_agent_ids,
                     obs_tensors=agent_states,
                     global_states=global_states,
                     current_actions_tensor=current_actions_tensor,
                 )
                 for key, value in actor_info.items():
-                    info[f"{agent_name}_{key}"] = value
+                    info[f"{learning_unit_id}_{key}"] = value
 
         # ---------------------------------------------------------
         # Target critic updates (Polyak) — usually every step in SAC
         # ---------------------------------------------------------
         if self.learn_counter % self.target_update_freq == 0:
-            for agent in self.agent_networks.values():
-                agent.update_target_networks()
-
-        with torch.no_grad():
-            # --- Joint action distribution (from replay) ---
-            # Detects action collapse / saturation / scaling issues across agents
-            info["joint_action_abs_mean"] = actions_tensor.abs().mean().item()
-            info["joint_action_std"] = actions_tensor.std(unbiased=False).item()
-            info["action_saturation_frac"] = (
-                (actions_tensor.abs() > 0.95).float().mean().item()
-            )
-
-            # --- Coordination proxy on replay actions ---
-            # Cos similarity between agents' action vectors per sample (mean over pairs)
-            a = actions_tensor  # (B,N,A)
-            a_norm = a / (a.norm(dim=2, keepdim=True) + 1e-12)
-            cos = torch.einsum("bna,bma->bnm", a_norm, a_norm)  # (B,N,N)
-            n = cos.shape[1]
-            mask = ~torch.eye(n, device=cos.device, dtype=torch.bool)
-            info["replay_action_cos_mean"] = cos[:, mask].mean().item()
-            info["replay_action_cos_p95"] = cos[:, mask].quantile(0.95).item()
-
-            # --- Next-policy sampling health (SAC target actions) ---
-            # These catch entropy collapse and alpha/logp pathologies early
-            info["next_logp_mean_all_agents"] = next_logps_tensor.mean().item()
-            info["next_logp_std_all_agents"] = next_logps_tensor.std(
-                unbiased=False
-            ).item()
-            info["next_entropy_mean_all_agents"] = (-next_logps_tensor).mean().item()
-
-            info["next_action_abs_mean_all_agents"] = (
-                next_actions_tensor.abs().mean().item()
-            )
-            info["next_action_std_all_agents"] = next_actions_tensor.std(
-                unbiased=False
-            ).item()
-            info["next_action_saturation_frac_all_agents"] = (
-                (next_actions_tensor.abs() > 0.95).float().mean().item()
-            )
+            for learning_unit in self.learning_units.values():
+                learning_unit.update_target_networks()
 
         # --- Cross-agent diagnostics ---
         metrics = list(critic_info.keys())
@@ -514,7 +681,10 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             metrics += list(actor_info.keys())
 
         for metric in metrics:
-            values = [info[f"{agent_name}_{metric}"] for agent_name in self.agent_ids]
+            values = [
+                info[f"{learning_unit_id}_{metric}"]
+                for learning_unit_id in self.learning_units.keys()
+            ]
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
@@ -526,17 +696,17 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for agent_name, agent_network in self.agent_networks.items():
-            agent_filepath = os.path.join(filepath, f"{agent_name}")
-            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
-            agent_network.save_models(agent_filepath, agent_filename)
+        for learning_unit_id, learning_unit in self.learning_units.items():
+            agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
+            agent_filename = f"{filename}_agent_{learning_unit_id}_checkpoint"
+            learning_unit.save_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for agent_name, agent_network in self.agent_networks.items():
-            agent_filepath = os.path.join(filepath, f"{agent_name}")
-            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
-            agent_network.load_models(agent_filepath, agent_filename)
+        for learning_unit_id, learning_unit in self.learning_units.items():
+            agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
+            agent_filename = f"{filename}_agent_{learning_unit_id}_checkpoint"
+            learning_unit.load_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been loaded...")

@@ -720,7 +720,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         joint_actions = samples.joint_actions
 
         # ---------------------------------------------------------
-        # Update each learning unit
+        # Critic updates
         # ---------------------------------------------------------
         for learning_unit_id, learning_unit in self.learning_units.items():
             controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
@@ -759,9 +759,6 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                     learning_unit_dones.float().mean().item()
                 )
 
-            # ---------------------------------------------------------
-            # Critic update for this learning unit
-            # ---------------------------------------------------------
             critic_info = self._update_critic(
                 learning_unit=learning_unit,
                 unperturbed_agent_indices=unperturbed_agent_indices,
@@ -775,9 +772,12 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
             info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
 
-            # ---------------------------------------------------------
-            # Actor update for this learning unit
-            # ---------------------------------------------------------
+        # ---------------------------------------------------------
+        # Actor updates
+        # ---------------------------------------------------------
+        for learning_unit_id, learning_unit in self.learning_units.items():
+            controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
+
             actor_info = self._update_actor(
                 learning_unit=learning_unit,
                 controlled_agent_ids=controlled_agent_ids,
@@ -787,6 +787,12 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             )
 
             info.update({f"{learning_unit_id}_{k}": v for k, v in actor_info.items()})
+
+        # ---------------------------------------------------------
+        # Target network updates
+        # ---------------------------------------------------------
+        for learning_unit in self.learning_units.values():
+            learning_unit.update_target_networks()
 
         # ---------------------------------------------------------
         # Cross-learning-unit diagnostics
@@ -801,12 +807,6 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
             info[f"min_{metric}"] = float(np.min(values))
-
-        # ---------------------------------------------------------
-        # Target network updates
-        # ---------------------------------------------------------
-        for learning_unit in self.learning_units.values():
-            learning_unit.update_target_networks()
 
         return info
 

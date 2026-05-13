@@ -1344,6 +1344,8 @@ class MASACConfig(SACConfig):
 
     marl_observation: Literal[1] = Field(default=1)
 
+    sharing_mode: Literal["separate", "team"] = "separate"
+
     actor_lr: float = 1e-3
     critic_lr: float = 1e-3
     alpha_lr: float = 1e-3

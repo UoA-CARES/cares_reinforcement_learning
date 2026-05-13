@@ -816,42 +816,39 @@ def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
 
 
 def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
-    from cares_reinforcement_learning.algorithm.marl import MASAC
+    from cares_reinforcement_learning.algorithm.marl.MASAC import MASAC
     from cares_reinforcement_learning.algorithm.policy.SAC import SAC
     from cares_reinforcement_learning.networks.MASAC import Actor, Critic
 
-    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-
-    agents = {}
     device = hlp.get_device()
+    all_agent_ids = list(observation_size["obs"].keys())
+    env_teams = observation_size["teams"]
 
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
-
-    for agent_name in agent_ids:
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=agent_name,
+    agent_id_to_learning_unit_id, learning_unit_to_agent_ids = (
+        _build_learning_unit_mappings(
+            all_agent_ids, env_teams, config.sharing_mode, "MASAC"
         )
+    )
 
-        critic = Critic(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-        )
+    learning_units = _build_algorithm_learning_units(
+        learning_unit_to_agent_ids,
+        observation_size,
+        action_num,
+        config,
+        device,
+        SAC,
+        Actor,
+        Critic,
+    )
 
-        agent = SAC(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-        agents[agent_name] = agent
-
-    masac_agent = MASAC(agents=agents, config=config, device=device)
-    return masac_agent
+    return MASAC(
+        learning_units=learning_units,
+        all_agent_ids=all_agent_ids,
+        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+        learning_unit_to_agent_ids=learning_unit_to_agent_ids,
+        config=config,
+        device=device,
+    )
 
 
 def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
