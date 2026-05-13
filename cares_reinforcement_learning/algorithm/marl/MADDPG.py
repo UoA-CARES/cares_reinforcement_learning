@@ -621,7 +621,10 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             learning_unit = self.learning_units[learning_unit_id]
 
             obs_next_i = sample_tensor.next_observation.agent_states[agent_id]
-            next_actions[agent_id] = learning_unit.target_actor_net(obs_next_i)
+
+            with torch.no_grad():
+                with fnc.evaluating(learning_unit.target_actor_net):
+                    next_actions[agent_id] = learning_unit.target_actor_net(obs_next_i)
 
         next_actions_tensor = torch.stack(
             [next_actions[a] for a in self.all_agent_ids],
@@ -676,93 +679,32 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         return (batch_data, info)
 
-    def _train_separate(
+    def train(
         self,
         memory_buffer: MARLMemoryBuffer,
+        episode_context: EpisodeContext,
     ) -> dict[str, Any]:
+        self.learn_counter += 1
+
         info: dict[str, Any] = {}
 
         # ---------------------------------------------------------
-        # Sample ONCE for all agents (recommended for MADDPG)
-        # Shared minibatch: We draw one minibatch per training iteration and reuse it across agent updates.
-        # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
-        # keeping joint transitions consistent for centralized critics.
-        samples, batch_info = self._sample_training_batch(memory_buffer)
-        info |= batch_info
-
-        global_states = samples.global_states
-        next_global_states = samples.next_global_states
-        agent_states_tensors = samples.agent_states
-        rewards_by_agent = samples.rewards_by_agent
-        dones_by_agent = samples.dones_by_agent
-        actions = samples.actions
-        next_actions = samples.next_actions
-        joint_actions = samples.joint_actions
-
-        # ---------------------------------------------------------
-        # Update each agent
+        # Update action noise schedules
         # ---------------------------------------------------------
         for learning_unit_id, learning_unit in self.learning_units.items():
-            agent_index = self.all_agent_ids.index(learning_unit_id)
 
-            rewards_i = rewards_by_agent[learning_unit_id]
-            dones_i = dones_by_agent[learning_unit_id]
-
-            # ---------------------------------------------------------
-            # Critic update for this agent
-            # ---------------------------------------------------------
-            critic_info = self._update_critic(
-                learning_unit=learning_unit,
-                unperturbed_agent_indices=[agent_index],
-                global_states=global_states,
-                joint_actions=joint_actions,
-                rewards_i=rewards_i,
-                next_global_states=next_global_states,
-                next_actions=next_actions,
-                dones_i=dones_i,
+            learning_unit.action_noise = learning_unit.action_noise_scheduler.get_value(
+                episode_context.training_step
             )
-            info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
 
-            # ---------------------------------------------------------
-            # Actor update
-            # ---------------------------------------------------------
-            actor_info = self._update_actor(
-                learning_unit=learning_unit,
-                controlled_agent_ids=[learning_unit_id],
-                obs_tensors=agent_states_tensors,
-                global_states=global_states,
-                replay_actions=actions,
-            )
-            info.update({f"{learning_unit_id}_{k}": v for k, v in actor_info.items()})
+            info[f"action_noise_{learning_unit_id}"] = float(learning_unit.action_noise)
 
-        # --- Cross-agent diagnostics ---
-        metrics = list(critic_info.keys()) + list(actor_info.keys())
-        for metric in metrics:
-            values = [
-                info[f"{learning_unit_id}_{metric}"]
-                for learning_unit_id in self.learning_units.keys()
-            ]
-            info[f"mean_{metric}"] = float(np.mean(values))
-            info[f"std_{metric}"] = float(np.std(values))
-            info[f"max_{metric}"] = float(np.max(values))
-            info[f"min_{metric}"] = float(np.min(values))
-
-        # Update Target networks with soft update
-        for learning_unit in self.learning_units.values():
-            learning_unit.update_target_networks()
-
-        return info
-
-    def _train_team(
-        self,
-        memory_buffer: MARLMemoryBuffer,
-    ) -> dict[str, Any]:
-
-        info: dict[str, Any] = {}
+        if self.sharing_mode not in {"team", "separate"}:
+            raise ValueError(f"Invalid sharing_mode: {self.sharing_mode}")
 
         # ---------------------------------------------------------
-        # Sample ONCE for all teams (recommended for MADDPG)
-        # Shared minibatch: We draw one minibatch per training iteration and reuse it across team updates.
+        # Sample ONCE for all learning units
+        # Shared minibatch: We draw one minibatch per training iteration and reuse it across updates.
         # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
         # keeping joint transitions consistent for centralized critics.
         samples, batch_info = self._sample_training_batch(memory_buffer)
@@ -778,7 +720,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         joint_actions = samples.joint_actions
 
         # ---------------------------------------------------------
-        # Update each TEAM
+        # Update each learning unit
         # ---------------------------------------------------------
         for learning_unit_id, learning_unit in self.learning_units.items():
             controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
@@ -788,33 +730,37 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             ]
 
             # ---------------------------------------------------------
-            # Aggregate rewards/dones across team
+            # Build learning-unit rewards/dones from controlled agents
+            # separate: direct per-agent tensors
+            # team: aggregate across controlled agents
             # ---------------------------------------------------------
-            learning_unit_rewards = torch.stack(
-                [rewards_by_agent[a] for a in controlled_agent_ids],
-                dim=1,
-            ).mean(dim=1)
+            if self.sharing_mode == "separate":
+                controlled_agent_id = controlled_agent_ids[0]
+                learning_unit_rewards = rewards_by_agent[controlled_agent_id]
+                learning_unit_dones = dones_by_agent[controlled_agent_id]
+            elif self.sharing_mode == "team":
+                learning_unit_rewards = torch.stack(
+                    [rewards_by_agent[a] for a in controlled_agent_ids],
+                    dim=1,
+                ).mean(dim=1)
 
-            learning_unit_dones = torch.stack(
-                [dones_by_agent[a] for a in controlled_agent_ids],
-                dim=1,
-            ).amax(dim=1)
+                learning_unit_dones = torch.stack(
+                    [dones_by_agent[a] for a in controlled_agent_ids],
+                    dim=1,
+                ).amax(dim=1)
+            else:
+                raise ValueError(f"Invalid sharing_mode: {self.sharing_mode}")
 
-            # ---------------------------------------------------------
-            # Team diagnostics
-            # ---------------------------------------------------------
             with torch.no_grad():
-
                 info[f"{learning_unit_id}_reward_mean"] = (
                     learning_unit_rewards.mean().item()
                 )
-
                 info[f"{learning_unit_id}_done_frac"] = (
                     learning_unit_dones.float().mean().item()
                 )
 
             # ---------------------------------------------------------
-            # Critic update
+            # Critic update for this learning unit
             # ---------------------------------------------------------
             critic_info = self._update_critic(
                 learning_unit=learning_unit,
@@ -830,7 +776,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
 
             # ---------------------------------------------------------
-            # Actor update
+            # Actor update for this learning unit
             # ---------------------------------------------------------
             actor_info = self._update_actor(
                 learning_unit=learning_unit,
@@ -843,17 +789,14 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             info.update({f"{learning_unit_id}_{k}": v for k, v in actor_info.items()})
 
         # ---------------------------------------------------------
-        # Cross-team diagnostics
+        # Cross-learning-unit diagnostics
         # ---------------------------------------------------------
         metrics = list(critic_info.keys()) + list(actor_info.keys())
-
         for metric in metrics:
-
             values = [
                 info[f"{learning_unit_id}_{metric}"]
                 for learning_unit_id in self.learning_units.keys()
             ]
-
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
@@ -864,36 +807,6 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         # ---------------------------------------------------------
         for learning_unit in self.learning_units.values():
             learning_unit.update_target_networks()
-
-        return info
-
-    def train(
-        self,
-        memory_buffer: MARLMemoryBuffer,
-        episode_context: EpisodeContext,
-    ) -> dict[str, Any]:
-
-        info: dict[str, Any] = {}
-
-        # ---------------------------------------------------------
-        # Update action noise schedules
-        # ---------------------------------------------------------
-        for learning_unit_id, learning_unit in self.learning_units.items():
-
-            learning_unit.action_noise = learning_unit.action_noise_scheduler.get_value(
-                episode_context.training_step
-            )
-
-            info[f"action_noise_{learning_unit_id}"] = float(learning_unit.action_noise)
-
-        self.learn_counter += 1
-
-        if self.sharing_mode == "team":
-            info |= self._train_team(memory_buffer)
-        elif self.sharing_mode == "separate":
-            info |= self._train_separate(memory_buffer)
-        else:
-            raise ValueError(f"Invalid sharing_mode: {self.sharing_mode}")
 
         return info
 

@@ -2,6 +2,18 @@
 MATD3 (Multi-Agent TD3) implementation notes
 --------------------------------------------
 
+Vocabulary
+----------
+
+This implementation separates environment agents from learnable units:
+
+Learning unit: a trainable DDPG bundle (actor + critic)
+  - in "separate" mode: one learning unit per environment agent
+  - in "team" mode: one shared learning unit per environment team
+  (e.g. one for all adversaries, one for all good agents)
+
+Modernisation Notes
+-------------------
 This algorithm extends MADDPG with TD3 improvements:
 twin critics, delayed policy updates, and target policy smoothing.
 
@@ -465,199 +477,11 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         return batch_data, info
 
-    def _train_separate(self, memory_buffer: MARLMemoryBuffer):
-        info: dict[str, Any] = {}
-
-        # ---------------------------------------------------------
-        # Sample ONCE for all agents (recommended for TD3/SAC)
-        # Shared minibatch: We draw one minibatch per training iteration and reuse it across agent updates.
-        # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
-        # keeping joint transitions consistent for centralized critics.
-        # ---------------------------------------------------------
-        samples, batch_info = self._sample_training_batch(memory_buffer)
-        info |= batch_info
-
-        global_states = samples.global_states
-        next_global_states = samples.next_global_states
-        agent_states = samples.agent_states
-        rewards_by_agent = samples.rewards_by_agent
-        dones_by_agent = samples.dones_by_agent
-        actions = samples.actions
-        next_actions_noisy = samples.next_actions_noisy
-        joint_actions = samples.joint_actions
-
-        # ---------------------------------------------------------
-        # CRITIC UPDATES (every step)
-        # ---------------------------------------------------------
-        for learning_unit_id, learning_unit in self.learning_units.items():
-            rewards_i = rewards_by_agent[learning_unit_id]
-            dones_i = dones_by_agent[learning_unit_id]
-
-            critic_info = self._update_critic(
-                learning_unit=learning_unit,
-                global_states=global_states,
-                joint_actions=joint_actions,
-                rewards_i=rewards_i,
-                next_global_states=next_global_states,
-                next_actions_noisy=next_actions_noisy,  # <-- noisy version
-                dones_i=dones_i,
-            )
-            for key, value in critic_info.items():
-                info[f"{learning_unit_id}_{key}"] = value
-
-        # ---------------------------------------------------------
-        # ACTOR + TARGET UPDATES (DELAYED — TD3)
-        # ---------------------------------------------------------
-        update_actor = self.learn_counter % self.policy_update_freq == 0
-        if update_actor:
-            for learning_unit_id, learning_unit in self.learning_units.items():
-                actor_info = self._update_actor(
-                    learning_unit=learning_unit,
-                    controlled_agent_ids=[learning_unit_id],
-                    obs_tensors=agent_states,
-                    global_states=global_states,
-                    replay_actions=actions,
-                )
-                for key, value in actor_info.items():
-                    info[f"{learning_unit_id}_{key}"] = value
-
-            # TD3: target networks updated on SAME cadence as actor
-            for agent in self.learning_units.values():
-                agent.update_target_networks()
-
-        # --- Cross-agent diagnostics ---
-        metrics = list(critic_info.keys())
-        if update_actor:
-            metrics += list(actor_info.keys())
-        for metric in metrics:
-            values = [
-                info[f"{learning_unit_id}_{metric}"]
-                for learning_unit_id in self.learning_units.keys()
-            ]
-            info[f"mean_{metric}"] = float(np.mean(values))
-            info[f"std_{metric}"] = float(np.std(values))
-            info[f"max_{metric}"] = float(np.max(values))
-            info[f"min_{metric}"] = float(np.min(values))
-
-        return info
-
-    def _train_team(
-        self,
-        memory_buffer: MARLMemoryBuffer,
-    ) -> dict[str, Any]:
-
-        info: dict[str, Any] = {}
-
-        # ---------------------------------------------------------
-        # Sample ONCE for all teams (recommended for MATD3)
-        # Shared minibatch: We draw one minibatch per training iteration and reuse it across team updates.
-        # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
-        # keeping joint transitions consistent for centralized critics.
-        samples, batch_info = self._sample_training_batch(memory_buffer)
-        info |= batch_info
-
-        global_states = samples.global_states
-        next_global_states = samples.next_global_states
-        agent_states = samples.agent_states
-        rewards_by_agent = samples.rewards_by_agent
-        dones_by_agent = samples.dones_by_agent
-        actions = samples.actions
-        next_actions_noisy = samples.next_actions_noisy
-        joint_actions = samples.joint_actions
-
-        # ---------------------------------------------------------
-        # Update each TEAM
-        # ---------------------------------------------------------
-        for learning_unit_id, learning_unit in self.learning_units.items():
-            controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
-
-            # ---------------------------------------------------------
-            # Aggregate rewards/dones across team
-            # ---------------------------------------------------------
-            learning_unit_rewards = torch.stack(
-                [rewards_by_agent[a] for a in controlled_agent_ids],
-                dim=1,
-            ).mean(dim=1)
-
-            learning_unit_dones = torch.stack(
-                [dones_by_agent[a] for a in controlled_agent_ids],
-                dim=1,
-            ).amax(dim=1)
-
-            # ---------------------------------------------------------
-            # Team diagnostics
-            # ---------------------------------------------------------
-            with torch.no_grad():
-
-                info[f"{learning_unit_id}_reward_mean"] = (
-                    learning_unit_rewards.mean().item()
-                )
-
-                info[f"{learning_unit_id}_done_frac"] = (
-                    learning_unit_dones.float().mean().item()
-                )
-
-            # ---------------------------------------------------------
-            # Critic update
-            # ---------------------------------------------------------
-            critic_info = self._update_critic(
-                learning_unit=learning_unit,
-                global_states=global_states,
-                joint_actions=joint_actions,
-                rewards_i=learning_unit_rewards,
-                next_global_states=next_global_states,
-                next_actions_noisy=next_actions_noisy,
-                dones_i=learning_unit_dones,
-            )
-
-            info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
-
-            # ---------------------------------------------------------
-            # ACTOR + TARGET UPDATES (DELAYED — TD3)
-            # ---------------------------------------------------------
-            update_actor = self.learn_counter % self.policy_update_freq == 0
-            if update_actor:
-                actor_info = self._update_actor(
-                    learning_unit=learning_unit,
-                    controlled_agent_ids=controlled_agent_ids,
-                    obs_tensors=agent_states,
-                    global_states=global_states,
-                    replay_actions=actions,
-                )
-
-                info.update(
-                    {f"{learning_unit_id}_{k}": v for k, v in actor_info.items()}
-                )
-
-                # TD3: target networks updated on SAME cadence as actor
-                for learning_unit in self.learning_units.values():
-                    learning_unit.update_target_networks()
-
-        # ---------------------------------------------------------
-        # Cross-team diagnostics
-        # ---------------------------------------------------------
-        metrics = list(critic_info.keys()) + list(actor_info.keys())
-
-        for metric in metrics:
-
-            values = [
-                info[f"{learning_unit_id}_{metric}"]
-                for learning_unit_id in self.learning_units.keys()
-            ]
-
-            info[f"mean_{metric}"] = float(np.mean(values))
-            info[f"std_{metric}"] = float(np.std(values))
-            info[f"max_{metric}"] = float(np.max(values))
-            info[f"min_{metric}"] = float(np.min(values))
-
-        return info
-
     def train(
         self,
         memory_buffer: MARLMemoryBuffer,
         episode_context: EpisodeContext,
     ) -> dict[str, Any]:
-
         self.learn_counter += 1
         info: dict[str, Any] = {}
 
@@ -674,14 +498,113 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         )
         info["current_policy_noise"] = self.policy_noise
 
-        if self.sharing_mode == "separate":
-            info |= self._train_separate(memory_buffer)
-        elif self.sharing_mode == "team":
-            info |= self._train_team(memory_buffer)
-        else:
-            raise NotImplementedError(
-                f"Sharing mode {self.sharing_mode} not implemented"
+        # ---------------------------------------------------------
+        # Sample ONCE for all learning units
+        # Shared minibatch: We draw one minibatch per training iteration and reuse it across updates.
+        # This preserves an unbiased estimator of each update while reducing sampling-induced variance and
+        # keeping joint transitions consistent for centralized critics.
+        samples, batch_info = self._sample_training_batch(memory_buffer)
+        info |= batch_info
+
+        global_states = samples.global_states
+        next_global_states = samples.next_global_states
+        agent_states = samples.agent_states
+        rewards_by_agent = samples.rewards_by_agent
+        dones_by_agent = samples.dones_by_agent
+        actions = samples.actions
+        next_actions_noisy = samples.next_actions_noisy
+        joint_actions = samples.joint_actions
+
+        update_actor = self.learn_counter % self.policy_update_freq == 0
+        actor_info: dict[str, Any] = {}
+
+        # ---------------------------------------------------------
+        # Update each learning unit
+        # ---------------------------------------------------------
+        for learning_unit_id, learning_unit in self.learning_units.items():
+            controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
+
+            # ---------------------------------------------------------
+            # Build learning-unit rewards/dones from controlled agents
+            # separate: direct per-agent tensors
+            # team: aggregate across controlled agents
+            # ---------------------------------------------------------
+            if self.sharing_mode == "separate":
+                controlled_agent_id = controlled_agent_ids[0]
+                learning_unit_rewards = rewards_by_agent[controlled_agent_id]
+                learning_unit_dones = dones_by_agent[controlled_agent_id]
+            elif self.sharing_mode == "team":
+                learning_unit_rewards = torch.stack(
+                    [rewards_by_agent[a] for a in controlled_agent_ids],
+                    dim=1,
+                ).mean(dim=1)
+                learning_unit_dones = torch.stack(
+                    [dones_by_agent[a] for a in controlled_agent_ids],
+                    dim=1,
+                ).amax(dim=1)
+            else:
+                raise ValueError(f"Invalid sharing_mode: {self.sharing_mode}")
+
+            with torch.no_grad():
+                info[f"{learning_unit_id}_reward_mean"] = (
+                    learning_unit_rewards.mean().item()
+                )
+                info[f"{learning_unit_id}_done_frac"] = (
+                    learning_unit_dones.float().mean().item()
+                )
+
+            # ---------------------------------------------------------
+            # Critic update for this learning unit
+            # ---------------------------------------------------------
+            critic_info = self._update_critic(
+                learning_unit=learning_unit,
+                global_states=global_states,
+                joint_actions=joint_actions,
+                rewards_i=learning_unit_rewards,
+                next_global_states=next_global_states,
+                next_actions_noisy=next_actions_noisy,
+                dones_i=learning_unit_dones,
             )
+            info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
+
+            # ---------------------------------------------------------
+            # Actor update for this learning unit (delayed TD3 cadence)
+            # ---------------------------------------------------------
+            if update_actor:
+                actor_info = self._update_actor(
+                    learning_unit=learning_unit,
+                    controlled_agent_ids=controlled_agent_ids,
+                    obs_tensors=agent_states,
+                    global_states=global_states,
+                    replay_actions=actions,
+                )
+                info.update(
+                    {f"{learning_unit_id}_{k}": v for k, v in actor_info.items()}
+                )
+
+        # ---------------------------------------------------------
+        # Target network updates (same cadence as actor updates)
+        # ---------------------------------------------------------
+        if update_actor:
+            for learning_unit in self.learning_units.values():
+                learning_unit.update_target_networks()
+
+        # ---------------------------------------------------------
+        # Cross-learning-unit diagnostics
+        # ---------------------------------------------------------
+        metrics = list(critic_info.keys())
+        if update_actor:
+            metrics += list(actor_info.keys())
+
+        for metric in metrics:
+            values = [
+                info[f"{learning_unit_id}_{metric}"]
+                for learning_unit_id in self.learning_units.keys()
+            ]
+            info[f"mean_{metric}"] = float(np.mean(values))
+            info[f"std_{metric}"] = float(np.std(values))
+            info[f"max_{metric}"] = float(np.max(values))
+            info[f"min_{metric}"] = float(np.min(values))
 
         return info
 
