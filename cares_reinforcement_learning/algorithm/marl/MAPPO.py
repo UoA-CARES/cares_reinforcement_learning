@@ -78,7 +78,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
     def __init__(
         self,
         agents: dict[str, PPO],
-        central_critic: Critic,
+        shared_critic: Critic,
         config: MAPPOConfig,
         device: torch.device,
     ):
@@ -106,7 +106,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         self.gae_lambda = config.gae_lambda
 
         # For MAPPO, we assume a shared critic architecture where all agents share the same critic network.
-        self.central_critic = central_critic.to(device)
+        self.central_critic = shared_critic.to(device)
         self.central_critic_optimiser = torch.optim.Adam(
             self.central_critic.parameters(), lr=config.critic_lr
         )

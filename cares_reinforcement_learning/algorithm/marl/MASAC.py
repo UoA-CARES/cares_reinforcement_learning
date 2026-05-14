@@ -1,46 +1,185 @@
 """
-MASAC (Multi-Agent Soft Actor-Critic) implementation notes
-----------------------------------------------------------
+MASAC implementation overview
+-----------------------------
 
-Vocabulary
-----------
+MASAC extends SAC to the multi-agent setting using:
 
-This implementation separates environment agents from learnable units:
+    - centralized twin critics,
+    - decentralized stochastic actors,
+    - entropy-regularized policy optimization,
+    - and optional team-based parameter sharing.
 
-Learning unit: a trainable DDPG bundle (actor + critic)
-  - in "individual" mode: one learning unit per environment agent
-  - in "team" mode: one shared learning unit per environment team
-  (e.g. one for all adversaries, one for all good agents)
+Unlike MADDPG/MATD3, MASAC optimizes stochastic policies under the current
+joint policy distribution. This changes how actor updates are constructed in
+team-sharing settings.
 
-Modernisation Notes
--------------------
+This implementation supports two main parameter-sharing modes:
 
-This algorithm extends SAC to the multi-agent setting using centralized critics
-and decentralized stochastic actors.
+    sharing_mode:
+        "individual" -> one SAC learning unit per environment agent
+        "team"       -> one shared SAC learning unit per environment team
 
-Replay sampling:
-- A single minibatch is sampled per training iteration and reused across agents.
-- This provides an unbiased estimate of each agent's update while reducing
-  sampling-induced variance and ensuring consistency of joint transitions.
+Terminology
+-----------
 
-Critic updates:
-- Next-state actions are sampled from the current stochastic policies.
-- Target critics are used to compute TD targets including the entropy term.
-- Each agent's entropy contribution is handled independently.
+Environment agent:
+    An agent that exists in the environment, e.g.
+        adversary_0, adversary_1, agent_0
 
-Actor updates:
-- Policies are stochastic and optimized under a maximum-entropy objective.
-- For actor updates, current actions are sampled for ALL agents.
-- When updating agent i, gradients flow only through agent i's action;
-  other agents' actions are detached.
-- This aligns the update with the expectation under the current joint policy
-  distribution, which is required by SAC's objective.
+Learning unit:
+    A trainable SAC bundle containing:
+        actor, twin critics, target critics, entropy tuning, and optimisers.
 
-Rationale:
-- Unlike deterministic methods (MADDPG/MATD3), SAC optimizes an expectation
-  over actions drawn from the current policy.
-- Using replay actions for other agents would evaluate Q under a stale joint
-  behavior distribution, introducing additional bias as policies evolve.
+    In individual mode:
+        each environment agent has its own learning unit.
+
+    In team mode:
+        all agents in the same team share one learning unit.
+
+Controlled agents:
+    The environment agents assigned to a learning unit.
+
+Centralized training, decentralized execution
+---------------------------------------------
+
+MASAC follows the CTDE (centralized training, decentralized execution)
+paradigm.
+
+Training:
+    critics receive:
+        - the global state,
+        - and the joint action of all environment agents.
+
+Execution:
+    actors receive only the local observation of the environment agent they are
+    producing an action for.
+
+Even in team mode, actions are still produced independently per environment
+agent. The shared team actor is simply reused across multiple agents belonging
+to the same team.
+
+Soft Actor-Critic extensions
+----------------------------
+
+Twin critics:
+    MASAC uses two critics per learning unit and minimizes the target over both
+    critics:
+
+        target_q = min(Q1_target, Q2_target)
+
+    This reduces overestimation bias.
+
+Entropy regularization:
+    MASAC optimizes a maximum-entropy objective:
+
+        J_pi = E[alpha * log_pi(a|s) - Q(s, a)]
+
+    This encourages stochastic exploration and improves robustness.
+
+Automatic entropy tuning:
+    The entropy temperature alpha is learned automatically using:
+
+        target_entropy
+
+    This adapts exploration pressure during training.
+
+Stochastic policies:
+    Actors output:
+        - sampled actions,
+        - action log probabilities,
+        - and latent distribution parameters.
+
+    Actions are sampled using the reparameterization trick for low-variance
+    policy gradients.
+
+Shared replay sampling
+----------------------
+
+A single replay minibatch is sampled once per training step and reused for all
+learning-unit updates.
+
+This keeps all critics and actors training against the same set of joint
+transitions during that iteration. It also reduces sampling overhead and makes
+diagnostics easier to compare across learning units.
+
+Critic update
+-------------
+
+For each learning unit:
+
+    1. Sample NEXT actions from current target policies.
+    2. Build the NEXT joint action from sampled stochastic actions.
+    3. Compute the soft target:
+
+            y = r_i + gamma * (1 - done_i)
+                * (min(Q1_target, Q2_target) - alpha * log_pi_i)
+
+    4. Regress both critics against the replay-buffer joint action:
+
+            Q1_i(s, a_replay_joint)
+            Q2_i(s, a_replay_joint)
+
+In individual mode:
+    r_i and done_i are the controlled agent's own reward/done.
+
+In team mode:
+    r_i and done_i are aggregated across the controlled agents.
+
+Actor update
+------------
+
+Unlike deterministic methods such as MADDPG/MATD3, MASAC optimizes an
+expectation under the CURRENT stochastic joint policy distribution.
+
+For actor optimisation:
+
+    1. Current stochastic actions are sampled for ALL environment agents.
+    2. Controlled agents' sampled actions are inserted into the joint action.
+    3. The centralized critic evaluates the resulting joint action.
+    4. Gradients flow only through the controlled agents' sampled actions.
+
+This answers the question:
+
+    "Under the current stochastic joint policy, would changing the actions of
+    the agents controlled by this learning unit increase the expected soft
+    value?"
+
+Replay actions are NOT used during actor optimisation because SAC's objective
+is defined under the current policy distribution rather than replay behaviour.
+
+Entropy aggregation in team mode
+--------------------------------
+
+When using team sharing:
+
+    - team rewards are aggregated using the mean reward,
+    - and team entropy contributions are aggregated using the mean log-probability.
+
+This keeps the entropy and value scales approximately aligned with the team
+critic objective.
+
+Practical notes
+---------------
+
+For cooperative environments such as simple_spread:
+
+    individual:
+        closest to standard MASAC, with one stochastic policy per environment
+        agent.
+
+    team:
+        often improves coordination consistency because all controlled agents
+        share:
+            - one actor,
+            - one entropy objective,
+            - and one centralized team critic.
+
+Compared to MADDPG/MATD3, MASAC is typically:
+    - more exploratory,
+    - more robust to noisy environments,
+    - less sensitive to local optima,
+    - but potentially less sample efficient due to stochastic policies and
+      entropy regularization.
 """
 
 import logging
@@ -275,27 +414,48 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
     def _build_actor_alpha_contribution(
         self,
         learning_unit: SAC,
-        controlled_agent_id: str,
+        controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        current_actions_tensor: torch.Tensor,  # (B, N, act_dim), sampled under no_grad
+        current_actions_tensor: torch.Tensor,
     ) -> tuple[
-        torch.Tensor,  # pi_i
-        torch.Tensor,  # log_pi_i
-        torch.Tensor,  # min_qf_pi
-        torch.Tensor,  # qf_pi_one
-        torch.Tensor,  # qf_pi_two
-        torch.Tensor,  # actor_loss_i
+        list[torch.Tensor],
+        list[torch.Tensor],
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
     ]:
-        batch_size = global_states.shape[0]
-        agent_index = self.all_agent_ids.index(controlled_agent_id)
+        """
+        Build the MASAC actor/alpha contribution for one learning unit.
 
+        individual sharing:
+            controlled_agent_ids contains one environment agent.
+
+        team sharing:
+            controlled_agent_ids contains all agents controlled by the shared team
+            actor, and all of their current policy actions are inserted into the
+            joint action together.
+
+        This gives MASAC the natural SAC-style objective under the current joint
+        policy, rather than a MADDPG-style one-action-at-a-time counterfactual.
+        """
+        batch_size = global_states.shape[0]
         actions_all = current_actions_tensor.clone()
 
-        obs_i = obs_tensors[controlled_agent_id]
-        pi_i, log_pi_i, _ = learning_unit.actor_net(obs_i)
+        pi_all: list[torch.Tensor] = []
+        log_pi_all: list[torch.Tensor] = []
 
-        actions_all[:, agent_index, :] = pi_i
+        for controlled_agent_id in controlled_agent_ids:
+            agent_index = self.all_agent_ids.index(controlled_agent_id)
+
+            obs_i = obs_tensors[controlled_agent_id]
+            pi_i, log_pi_i, _ = learning_unit.actor_net(obs_i)
+
+            actions_all[:, agent_index, :] = pi_i
+
+            pi_all.append(pi_i)
+            log_pi_all.append(log_pi_i)
 
         joint_actions_flat = actions_all.reshape(batch_size, -1)
 
@@ -307,9 +467,14 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         min_qf_pi = torch.min(qf_pi_one, qf_pi_two)
 
-        actor_loss_i = (learning_unit.alpha * log_pi_i - min_qf_pi).mean()
+        # For a team-shared actor, aggregate the entropy contribution across the
+        # controlled agents while keeping the reward/Q scale comparable to the
+        # team critic target, which also uses mean team reward.
+        log_pi = torch.stack(log_pi_all, dim=1).mean(dim=1)
 
-        return pi_i, log_pi_i, min_qf_pi, qf_pi_one, qf_pi_two, actor_loss_i
+        actor_loss = (learning_unit.alpha * log_pi - min_qf_pi).mean()
+
+        return pi_all, log_pi_all, min_qf_pi, qf_pi_one, qf_pi_two, actor_loss
 
     def _update_actor_alpha(
         self,
@@ -317,59 +482,46 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        current_actions_tensor: torch.Tensor,  # (B, N, act_dim), sampled under no_grad
+        current_actions_tensor: torch.Tensor,
     ) -> dict[str, Any]:
         """
-        Unified MASAC actor + alpha update.
+        MASAC actor + alpha update.
 
-        In individual mode `controlled_agent_ids` contains one agent ID.
-        In team mode it contains every agent ID controlled by the shared learning unit.
+        SAC optimises an expectation under the current stochastic policy. Therefore,
+        when a learning unit controls multiple agents in team sharing mode, all
+        controlled agents' current policy actions are evaluated together under one
+        shared actor objective.
+
+        evaluate all controlled agents' new actions together
+            one team loss
+
+            actor_loss = -Q_team(s, [π(o_1), π(o_2), π(o_3)]).mean()
         """
         info: dict[str, Any] = {}
 
-        pi_all: list[torch.Tensor] = []
-        log_pi_all: list[torch.Tensor] = []
-        min_q_all: list[torch.Tensor] = []
-        q1_all: list[torch.Tensor] = []
-        q2_all: list[torch.Tensor] = []
-        actor_losses_all: list[torch.Tensor] = []
-
-        for controlled_agent_id in controlled_agent_ids:
-            (
-                pi_i,
-                log_pi_i,
-                min_qf_pi_i,
-                qf_pi_one_i,
-                qf_pi_two_i,
-                actor_loss_i,
-            ) = self._build_actor_alpha_contribution(
-                learning_unit=learning_unit,
-                controlled_agent_id=controlled_agent_id,
-                obs_tensors=obs_tensors,
-                global_states=global_states,
-                current_actions_tensor=current_actions_tensor,
-            )
-
-            pi_all.append(pi_i)
-            log_pi_all.append(log_pi_i)
-            min_q_all.append(min_qf_pi_i)
-            q1_all.append(qf_pi_one_i)
-            q2_all.append(qf_pi_two_i)
-            actor_losses_all.append(actor_loss_i)
-
-        actor_loss = torch.stack(actor_losses_all).mean()
+        (
+            pi_all,
+            log_pi_all,
+            min_qf_pi,
+            qf_pi_one,
+            qf_pi_two,
+            actor_loss,
+        ) = self._build_actor_alpha_contribution(
+            learning_unit=learning_unit,
+            controlled_agent_ids=controlled_agent_ids,
+            obs_tensors=obs_tensors,
+            global_states=global_states,
+            current_actions_tensor=current_actions_tensor,
+        )
 
         pi_cat = torch.cat(pi_all, dim=0)
         log_pi_cat = torch.cat(log_pi_all, dim=0)
-        min_q_cat = torch.cat(min_q_all, dim=0)
-        q1_cat = torch.cat(q1_all, dim=0)
-        q2_cat = torch.cat(q2_all, dim=0)
 
         dq_da_values: list[torch.Tensor] = []
 
-        for actor_loss_i, pi_i in zip(actor_losses_all, pi_all):
+        for pi_i in pi_all:
             dq_da = torch.autograd.grad(
-                outputs=actor_loss_i,
+                outputs=actor_loss,
                 inputs=pi_i,
                 retain_graph=True,
                 create_graph=False,
@@ -413,8 +565,8 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                 (pi_cat.abs() > 0.95).float().mean().item()
             )
 
-            info["min_qf_pi_mean"] = min_q_cat.mean().item()
-            info["qf_pi_gap_abs_mean"] = (q1_cat - q2_cat).abs().mean().item()
+            info["min_qf_pi_mean"] = min_qf_pi.mean().item()
+            info["qf_pi_gap_abs_mean"] = (qf_pi_one - qf_pi_two).abs().mean().item()
 
             entropy_gap = -(log_pi_cat + learning_unit.target_entropy)
             info["entropy_gap_mean"] = entropy_gap.mean().item()

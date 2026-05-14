@@ -4,18 +4,6 @@ MADDPG (Multi-Agent DDPG) implementation notes
 
 Original Paper: https://arxiv.org/pdf/1706.02275
 
-Original Code (TensorFlow): https://github.com/openai/maddpg/tree/master
-
-Vocabulary
-----------
-
-This implementation separates environment agents from learnable units:
-
-Learning unit: a trainable DDPG bundle (actor + critic)
-  - in "individual" mode: one learning unit per environment agent
-  - in "team" mode: one shared learning unit per environment team
-  (e.g. one for all adversaries, one for all good agents)
-
 Modernisation Notes
 -------------------
 
@@ -23,48 +11,142 @@ This implementation preserves the original MADDPG centralized-training /
 decentralized-execution (CTDE) formulation while adopting several modern
 training conventions commonly used in contemporary MARL frameworks.
 
-Replay sampling:
-- A single minibatch is sampled once per training iteration and shared across
-  all learning unit updates.
-- The original MADDPG paper and reference implementation sampled
-  independently per-agent. However, shared replay sampling is now common in
-  modern MARL implementations because it:
-    - reduces sampling overhead,
-    - improves consistency between updates,
-    - simplifies diagnostics and batching,
-    - and aligns naturally with team-based training setups.
-- Learning units are still updated independently using their own critic targets.
+Implementation overview
+----------
 
-Critic updates:
-- Each learning unit's critic is updated using:
-    - the centralized global state,
-    - replay-buffer joint actions (one action per environment agent),
-    - and target joint actions generated from all target actors.
-- This preserves the original MADDPG centralized critic formulation:
-      Q_i(s, a_1, ..., a_n)  where a_j are environment agent actions
-- Critic updates remain fully learning-unit-specific.
+This implementation supports several MADDPG-style training variants through two
+main configuration options:
 
-Actor updates:
-- Policies are deterministic.
-- When updating learning unit i controlling env agent(s) in set C_i:
-  - for each env agent in C_i, replace its replay-buffer action with the current actor output
-  - all other env agent actions are taken directly from the replay buffer
-  - this constructs [a_1, ..., π_i(o_j), ..., a_n] for each agent j in C_i
-- This follows the original MADDPG actor-gradient formulation, generalized to teams.
+    sharing_mode:
+        "individual" -> one DDPG learning unit per environment agent
+        "team"       -> one shared DDPG learning unit per team of agents
 
-Adversarial Extensions:
-- M3DDPG-style adversarial perturbations can be applied to other learning units'
-  actions during critic and actor updates.
-- ERNIE-style adversarial observation regularization can be applied to actor
-  observations during policy optimisation.
+    actor_optimisation_mode:
+        "individual" -> when using team sharing, update the shared actor by
+                        evaluating each controlled agent's action contribution
+                        separately and averaging the actor objectives
 
-Rationale:
-- Team-based training allows policy sharing across coordinated agents while
-  maintaining centralized critic access to all agents' observations and actions.
-- Shared replay sampling improves implementation simplicity and training
-  consistency without changing the underlying MADDPG optimization objective.
-- Actor and critic updates remain decentralized per learning-unit even though
-  replay sampling is shared across learning units.
+        "joint"      -> when using team sharing, update the shared actor by
+                        replacing all controlled agents' replay actions with
+                        current actor outputs at the same time
+
+Terminology
+-----------
+
+Environment agent:
+    An agent that exists in the environment, e.g.
+        adversary_0, adversary_1, agent_0
+
+Learning unit:
+    A trainable DDPG bundle containing:
+        actor, critic, target_actor, target_critic, optimisers, noise schedule
+
+    In individual mode:
+        each environment agent has its own learning unit.
+
+    In team mode:
+        all agents in the same team share one learning unit.
+
+Controlled agents:
+    The environment agents assigned to a learning unit.
+
+Centralised training, decentralised execution
+---------------------------------------------
+
+MADDPG follows CTDE:
+
+    Training:
+        critics receive the global state and the joint action of all agents.
+
+    Execution:
+        each actor receives only the local observation of the environment agent
+        it is producing an action for.
+
+Even in team mode, actions are still produced per environment agent. The shared
+team actor is simply reused across multiple agents in the same team.
+
+Shared replay sampling
+----------------------
+
+A single replay minibatch is sampled once per training step and reused for all
+learning-unit updates.
+
+This keeps all critics and actors training against the same set of joint
+transitions during that iteration. It also reduces sampling overhead and makes
+diagnostics easier to compare across learning units.
+
+Critic update
+-------------
+
+For each learning unit:
+
+    1. Build target actions for every environment agent using target actors.
+    2. Flatten the target joint action into shape (B, N * action_dim).
+    3. Compute the TD target:
+
+            y = r_i + gamma * (1 - done_i) * Q_target(s_next, a_next_joint)
+
+    4. Regress the critic against the replay-buffer joint action:
+
+            Q_i(s, a_replay_joint)
+
+In individual mode, r_i and done_i are the controlled agent's own reward/done.
+
+In team mode, r_i and done_i are aggregated over the controlled agents.
+
+Actor update
+------------
+
+The actor update follows the deterministic policy gradient logic used by MADDPG.
+
+Replay actions are used as a fixed baseline joint action. The current actor's
+output replaces one or more controlled agents' replay actions depending on the
+configured update mode. The critic then evaluates the resulting counterfactual
+joint action.
+
+This answers the question:
+
+    "If this learning unit changed the actions of the agents it controls, while
+    the rest of the sampled transition stayed fixed, would the critic assign a
+    higher value?"
+
+M3DDPG extension
+----------------
+
+If enabled, M3DDPG-style adversarial action perturbations are applied to the
+other agents' actions during critic/actor updates.
+
+The controlled agents' own actions are left unperturbed. This trains the critic
+and actor under a more conservative assumption about the behaviour of other
+agents.
+
+ERNIE extension
+---------------
+
+If enabled, ERNIE-style observation perturbation regularisation is applied to
+the actor.
+
+The actor is encouraged to produce similar actions for small adversarial
+perturbations of its observation. This can improve policy smoothness and
+robustness.
+
+Practical notes
+---------------
+
+For cooperative environments such as simple_spread:
+
+    team + individual actor contributions:
+        often stable and effective because the team critic learns a shared
+        objective while actor updates remain relatively conservative.
+
+    team + joint actor:
+        can improve coordination, but may require lower learning rates because
+        the full team policy is updated together.
+
+    individual:
+        closest to original MADDPG, but each critic optimises a more local
+        learning signal and may be less aligned with fully cooperative team
+        coordination.
 """
 
 import logging
@@ -124,7 +206,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         # Shared Actor/Critic per team or individual Actor/Critic per agent
         self.sharing_mode = config.sharing_mode
-        self.team_actor_update_mode = config.team_actor_update_mode
+        self.actor_optimisation_mode = config.actor_optimisation_mode
 
         # All environment agent IDs and counts, e.g.
         # ["adversary_0", "adversary_1", "adversary_2", "agent_0"]
@@ -492,7 +574,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         """
         Actor updates are performed per learning unit, but can be configured to use either:
 
-        individual actor update:
+        Uncoupled actor update:
             evaluate one controlled agent's new action at a time
             average losses
 
@@ -502,7 +584,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
             actor_loss = mean(-Q_1.mean(), -Q_2.mean(), -Q_3.mean())
 
-        joint actor update:
+        Coupled actor update:
             evaluate all controlled agents' new actions together
             one team loss
 
@@ -515,9 +597,9 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             self.all_agent_ids.index(agent_id) for agent_id in controlled_agent_ids
         ]
 
-        use_joint_update = (
+        use_coupled_update = (
             self.sharing_mode == "team"
-            and self.team_actor_update_mode == "joint"
+            and self.actor_optimisation_mode == "coupled"
             and len(controlled_agent_ids) > 1
         )
 
@@ -529,7 +611,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         ernie_regs_all: list[torch.Tensor] = []
         m3_eps_norm_means_all: list[torch.Tensor] = []
 
-        if use_joint_update:
+        if use_coupled_update:
             contribution_groups = [controlled_agent_ids]
         else:
             contribution_groups = [[agent_id] for agent_id in controlled_agent_ids]
@@ -817,7 +899,17 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
 
         # ---------------------------------------------------------
-        # Actor updates
+        # Actor update
+        #
+        # individual sharing:
+        #     one actor update per environment agent.
+        #
+        # team + individual actor update:
+        #     evaluate one controlled agent contribution at a time.
+        #
+        # team + joint actor update:
+        #     evaluate all controlled agents together using one
+        #     shared team objective.
         # ---------------------------------------------------------
         for learning_unit_id, learning_unit in self.learning_units.items():
             controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]

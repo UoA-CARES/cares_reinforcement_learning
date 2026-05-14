@@ -929,10 +929,10 @@ def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
         )
         agents[agent_name] = agent
 
-    central_critic = Critic(observation_size=observation_size, config=config)
+    shared_critic = Critic(observation_size=observation_size, config=config)
 
     mappo_agent = MAPPO(
-        agents=agents, central_critic=central_critic, config=config, device=device
+        agents=agents, shared_critic=shared_critic, config=config, device=device
     )
     return mappo_agent
 

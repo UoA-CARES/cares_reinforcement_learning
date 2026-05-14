@@ -1266,17 +1266,25 @@ class MADDPGConfig(DDPGConfig):
     marl_observation: Literal[1] = Field(default=1)
 
     sharing_mode: Literal["individual", "team"] = "individual"
-    team_actor_update_mode: Literal["individual", "joint"] = "joint"
-
-    # Future modes
-    # actor_sharing_mode: Literal["individual", "team"]
-    # critic_sharing_mode: Literal["individual", "team", "global"]
+    actor_optimisation_mode: Literal["uncoupled", "coupled"] = "uncoupled"
 
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
 
     gamma: float = 0.95
     tau: float = 0.005
+
+    batch_size: int = 256
+
+    action_noise_start: float = 0.2
+    action_noise_end: float = 0.05
+    action_noise_decay: int = 500_000
+
+    number_steps_per_train_policy: int = 1
+
+    max_steps_exploration: int = 10000
+
+    max_grad_norm: float | None = 0.5
 
     # M3DDPG specific
     use_m3: int = 0
@@ -1288,13 +1296,6 @@ class MADDPGConfig(DDPGConfig):
     ernie_eps: float = 0.05
     ernie_k_steps: int = 1
     ernie_norm: Literal["linf", "l2"] = "linf"
-
-    batch_size: int = 256
-    number_steps_per_train_policy: int = 1
-
-    max_steps_exploration: int = 10000
-
-    max_grad_norm: float | None = 0.5
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -1333,9 +1334,20 @@ class MATD3Config(TD3Config):
     marl_observation: Literal[1] = Field(default=1)
 
     sharing_mode: Literal["individual", "team"] = "individual"
+    actor_optimisation_mode: Literal["uncoupled", "coupled"] = "uncoupled"
 
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3
+
+    gamma: float = 0.95
+    tau: float = 0.005
+
+    # Exploration noise
+    action_noise_start: float = 0.2
+    action_noise_end: float = 0.05
+    action_noise_decay: int = 500_000
+
+    policy_noise_clip: float = 0.5
 
     max_grad_norm: float | None = 0.5
 
@@ -1347,9 +1359,12 @@ class MASACConfig(SACConfig):
 
     sharing_mode: Literal["individual", "team"] = "individual"
 
-    actor_lr: float = 1e-3
+    actor_lr: float = 1e-4
     critic_lr: float = 1e-3
-    alpha_lr: float = 1e-3
+    alpha_lr: float = 1e-4
+
+    gamma: float = 0.95
+    tau: float = 0.005
 
     max_grad_norm: float | None = 0.5
 

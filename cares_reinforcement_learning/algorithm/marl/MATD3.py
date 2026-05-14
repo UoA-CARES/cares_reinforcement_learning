@@ -1,45 +1,182 @@
 """
-MATD3 (Multi-Agent TD3) implementation notes
---------------------------------------------
+MATD3 implementation overview
+-----------------------------
 
-Vocabulary
-----------
+MATD3 extends MADDPG with the core TD3 stabilisation mechanisms:
 
-This implementation separates environment agents from learnable units:
+    - twin critics,
+    - delayed actor updates,
+    - and target policy smoothing.
 
-Learning unit: a trainable DDPG bundle (actor + critic)
-  - in "separate" mode: one learning unit per environment agent
-  - in "team" mode: one shared learning unit per environment team
-  (e.g. one for all adversaries, one for all good agents)
+This implementation additionally supports several multi-agent coordination and
+parameter-sharing variants through two main configuration options:
 
-Modernisation Notes
--------------------
-This algorithm extends MADDPG with TD3 improvements:
-twin critics, delayed policy updates, and target policy smoothing.
+    sharing_mode:
+        "individual" -> one TD3 learning unit per environment agent
+        "team"       -> one shared TD3 learning unit per environment team
 
-Replay sampling:
-- A single minibatch is sampled per training iteration and reused across agents.
-- This preserves unbiased updates while reducing variance and keeping joint
-  transitions consistent for centralized critics.
-- TD3 introduces explicit variance-reduction mechanisms (twin critics and
-  target smoothing), making shared minibatch updates more stable than the
-  original MADDPG per-agent sampling scheme.
+    actor_optimisation_mode:
+        "individual" -> when using team sharing, update the shared actor by
+                        evaluating each controlled agent's action contribution
+                        separately and averaging the actor objectives
 
-Critic updates:
-- Twin critics are trained using TD3-style targets with target policy smoothing.
-- Noise is applied only to NEXT actions for critic targets to reduce
-  overestimation bias.
+        "joint"      -> when using team sharing, update the shared actor by
+                        replacing all controlled agents' replay actions with
+                        current actor outputs simultaneously
 
-Actor updates:
-- Actors are deterministic and updated with a delayed frequency.
-- When updating agent i, only agent i's action is replaced with the current
-  actor output; other agents' actions come from the replay buffer.
-- This mirrors MADDPG and avoids unnecessary coupling of agent updates.
+Terminology
+-----------
 
-No joint action resampling:
-- TD3's stochasticity is confined to target policy smoothing.
-- Resampling other agents' current actions is unnecessary and can increase
-  variance without benefit for deterministic policy gradients.
+Environment agent:
+    An agent that exists in the environment, e.g.
+        adversary_0, adversary_1, agent_0
+
+Learning unit:
+    A trainable TD3 bundle containing:
+        actor, twin critics, target networks, optimisers, and exploration noise.
+
+    In individual mode:
+        each environment agent has its own learning unit.
+
+    In team mode:
+        all agents in the same team share one learning unit.
+
+Controlled agents:
+    The environment agents assigned to a learning unit.
+
+Centralised training, decentralised execution
+---------------------------------------------
+
+MATD3 follows the CTDE (centralised training, decentralised execution)
+paradigm inherited from MADDPG.
+
+Training:
+    critics receive:
+        - the global state,
+        - and the joint action of all environment agents.
+
+Execution:
+    actors receive only the local observation of the environment agent they are
+    producing an action for.
+
+Even in team mode, actions are still produced independently per environment
+agent. The shared team actor is simply reused across multiple agents belonging
+to the same team.
+
+TD3 extensions
+--------------
+
+Twin critics:
+    MATD3 uses two critics per learning unit and minimises the target over both
+    critics:
+
+        target_q = min(Q1_target, Q2_target)
+
+    This reduces overestimation bias compared to MADDPG.
+
+Delayed actor updates:
+    Actor and target-network updates are performed less frequently than critic
+    updates using:
+
+        policy_update_freq
+
+    This allows critics to stabilise before the actor is updated.
+
+Target policy smoothing:
+    Gaussian noise is added to NEXT target actions during critic target
+    computation:
+
+        a_next = pi_target(o_next) + noise
+
+    The noise is clipped and only applied to target actions used in the TD
+    target computation.
+
+    This discourages critics from exploiting narrow peaks in the learned value
+    function and improves stability.
+
+Shared replay sampling
+----------------------
+
+A single replay minibatch is sampled once per training step and reused for all
+learning-unit updates.
+
+This keeps all critics and actors training against the same set of joint
+transitions during that iteration. It also reduces sampling overhead and makes
+diagnostics easier to compare across learning units.
+
+Critic update
+-------------
+
+For each learning unit:
+
+    1. Build target actions for every environment agent using target actors.
+    2. Apply TD3 target policy smoothing noise to NEXT actions.
+    3. Flatten the noisy joint target action into shape (B, N * action_dim).
+    4. Compute the TD target using the minimum target critic:
+
+            y = r_i + gamma * (1 - done_i) * min(Q1_target, Q2_target)
+
+    5. Regress both critics against the replay-buffer joint action:
+
+            Q1_i(s, a_replay_joint)
+            Q2_i(s, a_replay_joint)
+
+In individual mode, r_i and done_i are the controlled agent's own reward/done.
+
+In team mode, r_i and done_i are aggregated across the controlled agents.
+
+Actor update
+------------
+
+The actor update follows deterministic policy gradient logic inherited from
+MADDPG.
+
+Replay actions are used as a fixed baseline joint action. The current actor's
+output replaces one or more controlled agents' replay actions depending on the
+configured update mode. The critic then evaluates the resulting counterfactual
+joint action.
+
+This answers the question:
+
+    "If this learning unit changed the actions of the agents it controls, while
+    the rest of the sampled transition stayed fixed, would the critic assign a
+    higher value?"
+
+Only the first critic is used for actor optimisation, matching standard TD3
+practice.
+
+No joint action resampling
+--------------------------
+
+TD3 stochasticity is confined to target policy smoothing applied to NEXT target
+actions.
+
+Current replay actions from other agents are intentionally kept fixed during
+actor optimisation. This reduces variance and preserves the counterfactual-style
+deterministic policy gradient structure inherited from MADDPG.
+
+Practical notes
+---------------
+
+For cooperative environments such as simple_spread:
+
+    team + individual actor contributions:
+        often stable and effective because the team critic learns a shared
+        objective while actor updates remain relatively conservative.
+
+    team + joint actor:
+        can improve coordination, but may require lower learning rates because
+        the full team policy is updated together.
+
+    individual:
+        closest to original MADDPG/MATD3, but each critic optimises a more local
+        learning signal and may be less aligned with fully cooperative team
+        coordination.
+
+Compared to MADDPG, MATD3 is typically:
+    - more stable,
+    - less sensitive to critic overestimation,
+    - and better behaved under larger replay buffers or noisier environments.
 """
 
 import logging
@@ -99,8 +236,9 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         self.learning_units = learning_units
 
-        # Shared Actor/Critic per team or separate Actor/Critic per agent
+        # Shared Actor/Critic per team or individual Actor/Critic per agent
         self.sharing_mode = config.sharing_mode
+        self.actor_optimisation_mode = config.actor_optimisation_mode
 
         # All environment agent IDs and counts, e.g.
         # ["adversary_0", "adversary_1", "adversary_2", "agent_0"]
@@ -108,14 +246,14 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         self.num_agents = len(all_agent_ids)
 
         # Maps env agent -> learning unit.
-        # separate:
+        # individual:
         #   adversary_0 -> adversary_0
         # team:
         #   adversary_0 -> adversary
         self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
 
         # Maps learning unit -> env agents controlled by it.
-        # separate:
+        # individual:
         #   adversary_0 -> [adversary_0]
         # team:
         #   adversary -> [adversary_0, adversary_1, adversary_2]
@@ -259,23 +397,33 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
     def _build_actor_contribution(
         self,
         learning_unit: TD3,
-        controlled_agent_id: str,
+        controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        replay_actions: torch.Tensor,  # (B, N, act_dim)
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        replay_actions: torch.Tensor,
+    ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
         """
-        Build the actor contribution for one controlled environment agent.
+        Build an actor contribution for one or more controlled agents.
+
+        If controlled_agent_ids contains one agent, this is the standard MATD3
+        individual-contribution update.
+
+        If controlled_agent_ids contains multiple agents, all of their replay
+        actions are replaced together, giving a joint team actor update.
         """
         batch_size = global_states.shape[0]
-        agent_index = self.all_agent_ids.index(controlled_agent_id)
-
         actions_all = replay_actions.clone()
 
-        obs_i = obs_tensors[controlled_agent_id]
-        actions_i = learning_unit.actor_net(obs_i)
+        actions_i_all = []
 
-        actions_all[:, agent_index, :] = actions_i
+        for controlled_agent_id in controlled_agent_ids:
+            agent_index = self.all_agent_ids.index(controlled_agent_id)
+
+            obs_i = obs_tensors[controlled_agent_id]
+            actions_i = learning_unit.actor_net(obs_i)
+
+            actions_all[:, agent_index, :] = actions_i
+            actions_i_all.append(actions_i)
 
         joint_actions_flat = actions_all.reshape(batch_size, -1)
 
@@ -286,7 +434,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         actor_objective = -actor_q_values.mean()
 
-        return actions_i, actor_q_values, actor_objective
+        return actions_i_all, actor_q_values, actor_objective
 
     def _update_actor(
         self,
@@ -294,49 +442,80 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
-        replay_actions: torch.Tensor,  # (B, N, act_dim)
+        replay_actions: torch.Tensor,
     ) -> dict[str, Any]:
         """
-        Unified MATD3 actor update.
+        Actor updates are performed per learning unit, but can be configured to use either:
 
-        In separate mode `controlled_agent_ids` contains one agent ID.
-        In team mode it contains every agent ID controlled by the shared learning unit.
+        Uncoupled actor update:
+            evaluate one controlled agent's new action at a time
+            average losses
+
+            Q_1 = Q_team(s, [π(o_1), replay(a_2), replay(a_3)])
+            Q_2 = Q_team(s, [replay(a_1), π(o_2), replay(a_3)])
+            Q_3 = Q_team(s, [replay(a_1), replay(a_2), π(o_3)])
+
+            actor_loss = mean(-Q_1.mean(), -Q_2.mean(), -Q_3.mean())
+
+        Coupled actor update:
+            evaluate all controlled agents' new actions together
+            one team loss
+
+            actor_loss = -Q_team(s, [π(o_1), π(o_2), π(o_3)]).mean()
         """
         info: dict[str, Any] = {}
 
+        use_coupled_update = (
+            self.sharing_mode == "team"
+            and self.actor_optimisation_mode == "coupled"
+            and len(controlled_agent_ids) > 1
+        )
+
+        if use_coupled_update:
+            contribution_groups = [controlled_agent_ids]
+        else:
+            contribution_groups = [[agent_id] for agent_id in controlled_agent_ids]
+
         actions_all: list[torch.Tensor] = []
+        contribution_actions_all: list[list[torch.Tensor]] = []
         actor_q_values_all: list[torch.Tensor] = []
         actor_objectives_all: list[torch.Tensor] = []
 
-        for controlled_agent_id in controlled_agent_ids:
-            actions_i, actor_q_values_i, actor_objective_i = (
+        for contribution_agent_ids in contribution_groups:
+            actions_i_all, actor_q_values, actor_objective = (
                 self._build_actor_contribution(
                     learning_unit=learning_unit,
-                    controlled_agent_id=controlled_agent_id,
+                    controlled_agent_ids=contribution_agent_ids,
                     obs_tensors=obs_tensors,
                     global_states=global_states,
                     replay_actions=replay_actions,
                 )
             )
 
-            actions_all.append(actions_i)
-            actor_q_values_all.append(actor_q_values_i)
-            actor_objectives_all.append(actor_objective_i)
+            actions_all.extend(actions_i_all)
+            contribution_actions_all.append(actions_i_all)
+            actor_q_values_all.append(actor_q_values)
+            actor_objectives_all.append(actor_objective)
 
         actor_loss = torch.stack(actor_objectives_all).mean()
 
         actions_cat = torch.cat(actions_all, dim=0)
         actor_q_cat = torch.cat(actor_q_values_all, dim=0)
 
-        dq_da_values = []
-        for actor_q_values_i, actions_i in zip(actor_q_values_all, actions_all):
-            dq_da = torch.autograd.grad(
-                outputs=-actor_q_values_i.mean(),
-                inputs=actions_i,
-                retain_graph=True,
-                create_graph=False,
-            )[0]
-            dq_da_values.append(dq_da.detach())
+        dq_da_values: list[torch.Tensor] = []
+
+        for actor_q_values_i, contribution_actions in zip(
+            actor_q_values_all,
+            contribution_actions_all,
+        ):
+            for actions_i in contribution_actions:
+                dq_da = torch.autograd.grad(
+                    outputs=-actor_q_values_i.mean(),
+                    inputs=actions_i,
+                    retain_graph=True,
+                    create_graph=False,
+                )[0]
+                dq_da_values.append(dq_da.detach())
 
         dq_da_cat = torch.cat(dq_da_values, dim=0)
 
@@ -528,10 +707,10 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
             # ---------------------------------------------------------
             # Build learning-unit rewards/dones from controlled agents
-            # separate: direct per-agent tensors
+            # individual: direct per-agent tensors
             # team: aggregate across controlled agents
             # ---------------------------------------------------------
-            if self.sharing_mode == "separate":
+            if self.sharing_mode == "individual":
                 controlled_agent_id = controlled_agent_ids[0]
                 learning_unit_rewards = rewards_by_agent[controlled_agent_id]
                 learning_unit_dones = dones_by_agent[controlled_agent_id]
@@ -568,6 +747,16 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         # ---------------------------------------------------------
         # Actor update
+        #
+        # individual sharing:
+        #     one actor update per environment agent.
+        #
+        # team + individual actor update:
+        #     evaluate one controlled agent contribution at a time.
+        #
+        # team + joint actor update:
+        #     evaluate all controlled agents together using one
+        #     shared team objective.
         # ---------------------------------------------------------
         if update_actor:
             for learning_unit_id, learning_unit in self.learning_units.items():
