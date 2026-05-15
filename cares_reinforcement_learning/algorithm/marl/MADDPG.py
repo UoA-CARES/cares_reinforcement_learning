@@ -597,6 +597,11 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         learning_unit.critic_net_optimiser.step()
 
+        print("target_q", target_q.mean().item(), target_q.std().item())
+        print("q_target", q_target.mean().item(), q_target.std().item())
+        print("q_values", q_values.mean().item(), q_values.std().item())
+        print("critic_loss", loss.item())
+
         with torch.no_grad():
 
             td = q_values - q_target
@@ -845,6 +850,11 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         actor_unit.actor_net_optimiser.step()
 
+        print("use_coupled_update", use_coupled_update)
+        print("contribution_groups", contribution_groups)
+        print("actor_objective", actor_objective.item())
+        print("actor_loss", actor_loss.item())
+
         with torch.no_grad():
             info["dq_da_abs_mean"] = dq_da_cat.abs().mean().item()
             info["dq_da_norm_mean"] = dq_da_cat.norm(dim=1).mean().item()
@@ -1026,6 +1036,12 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         next_actions = samples.next_actions
         joint_actions = samples.joint_actions
 
+        print(
+            "actions_tensor", actions_tensor.mean().item(), actions_tensor.std().item()
+        )
+        print("next_actions", next_actions.mean().item(), next_actions.std().item())
+        print("joint_actions", joint_actions.mean().item(), joint_actions.std().item())
+
         # ---------------------------------------------------------
         # Critic updates are grouped by CRITIC ownership, not actor ownership.
         #
@@ -1162,6 +1178,8 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
             info[f"min_{metric}"] = float(np.min(values))
+
+        exit()
 
         return info
 
