@@ -1266,9 +1266,9 @@ class MADDPGConfig(DDPGConfig):
     marl_observation: Literal[1] = Field(default=1)
 
     """
-    - "individual": One actor + critic per agent
+    - "individual": One actor + critic per agent (default)
     - "team_critic": One shared critic per team, separate actor per agent
-    - "team_all": One shared actor + critic per team
+    - "team_all": One shared actor + critic per team (experimental - coupled actors)
     """
     parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
         "individual"
@@ -1288,7 +1288,7 @@ class MADDPGConfig(DDPGConfig):
 
     number_steps_per_train_policy: int = 1
 
-    max_steps_exploration: int = 10000
+    max_steps_exploration: int = 10_000
 
     max_grad_norm: float | None = 0.5
 
