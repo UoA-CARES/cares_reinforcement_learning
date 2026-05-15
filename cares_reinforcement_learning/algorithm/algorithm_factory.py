@@ -918,8 +918,10 @@ def _build_learning_units(
     #
     # Therefore we build the union of all actor/critic IDs that require a
     # physical learning-unit container.
-    learning_unit_ids = sorted(
-        set(actor_id_to_agent_ids.keys()) | set(critic_id_to_agent_ids.keys())
+    learning_unit_ids = list(
+        dict.fromkeys(
+            list(actor_id_to_agent_ids.keys()) + list(critic_id_to_agent_ids.keys())
+        )
     )
 
     for learning_unit_id in learning_unit_ids:
