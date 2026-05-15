@@ -232,40 +232,183 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         self,
         learning_units: dict[str, SAC],
         all_agent_ids: list[str],
-        agent_id_to_learning_unit_id: dict[str, str],
-        learning_unit_to_agent_ids: dict[str, list[str]],
+        env_teams: dict[str, list[str]],
+        agent_id_to_actor_id: dict[str, str],
+        actor_id_to_agent_ids: dict[str, list[str]],
+        agent_id_to_critic_id: dict[str, str],
+        critic_id_to_agent_ids: dict[str, list[str]],
         config: MASACConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
+        # Physical trainable containers.
+        #
+        # Each learning unit is a DDPG bundle containing:
+        #   - actor
+        #   - target actor
+        #   - critic
+        #   - target critic
+        #   - optimisers
+        #   - exploration schedule
+        #
+        # IMPORTANT:
+        #   Actor ownership and critic ownership are now decoupled.
+        #
+        #   A learning unit may therefore be used:
+        #       - only as an actor provider,
+        #       - only as a critic provider,
+        #       - or as both.
+        #
+        # Example:
+        #
+        #   team_critic:
+        #
+        #       actor units:
+        #           adversary_0
+        #           adversary_1
+        #           adversary_2
+        #
+        #       critic unit:
+        #           adversary
+        #
+        #       Here:
+        #           adversary_0 actor updates use:
+        #               actor from learning_units["adversary_0"]
+        #               critic from learning_units["adversary"]
+        #
+        # This separation allows:
+        #   - per-agent actors
+        #   - shared team critics
+        #   - shared team actors
+        #
+        # while still reusing the underlying DDPG container abstraction.
         self.learning_units = learning_units
 
         # Shared Actor/Critic per team or individual Actor/Critic per agent
-        self.sharing_mode = config.sharing_mode
+        self.parameter_sharing_scope = config.parameter_sharing_scope
 
         # All environment agent IDs and counts, e.g.
         # ["adversary_0", "adversary_1", "adversary_2", "agent_0"]
         self.all_agent_ids = all_agent_ids
         self.num_agents = len(all_agent_ids)
 
-        # Maps env agent -> learning unit.
-        # individual:
-        #   adversary_0 -> adversary_0
-        # team:
-        #   adversary_0 -> adversary
-        self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
+        self.env_teams = env_teams
 
-        # Maps learning unit -> env agents controlled by it.
+        # Maps env agent -> actor learning unit.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
+        # individual or team_critic:
+        #   {
+        #       "adversary_0": "adversary_0",
+        #       "adversary_1": "adversary_1",
+        #       "adversary_2": "adversary_2",
+        #       "agent_0": "agent_0",
+        #   }
+        #
+        # team_all:
+        #   {
+        #       "adversary_0": "adversary",
+        #       "adversary_1": "adversary",
+        #       "adversary_2": "adversary",
+        #       "agent_0": "agent",
+        #   }
+        #
+        # Used for:
+        #   - action selection
+        #   - actor updates
+        self.agent_id_to_actor_id = agent_id_to_actor_id
+
+        # Maps actor learning unit -> env agents controlled by that actor.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
+        # individual or team_critic:
+        #   {
+        #       "adversary_0": ["adversary_0"],
+        #       "adversary_1": ["adversary_1"],
+        #       "adversary_2": ["adversary_2"],
+        #       "agent_0": ["agent_0"],
+        #   }
+        #
+        # team_all:
+        #   {
+        #       "adversary": [
+        #           "adversary_0",
+        #           "adversary_1",
+        #           "adversary_2",
+        #       ],
+        #       "agent": ["agent_0"],
+        #   }
+        #
+        # Used for:
+        #   - actor update grouping
+        #   - determining which agents' actions are replaced during
+        #     deterministic policy gradient updates
+        self.actor_id_to_agent_ids = actor_id_to_agent_ids
+
+        # Maps env agent -> critic learning unit.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
         # individual:
-        #   adversary_0 -> [adversary_0]
-        # team:
-        #   adversary -> [adversary_0, adversary_1, adversary_2]
-        self.learning_unit_to_agent_ids = learning_unit_to_agent_ids
+        #   {
+        #       "adversary_0": "adversary_0",
+        #       "adversary_1": "adversary_1",
+        #       "adversary_2": "adversary_2",
+        #       "agent_0": "agent_0",
+        #   }
+        #
+        # team_critic or team_all:
+        #   {
+        #       "adversary_0": "adversary",
+        #       "adversary_1": "adversary",
+        #       "adversary_2": "adversary",
+        #       "agent_0": "agent",
+        #   }
+        #
+        # Used for:
+        #   - critic updates
+        #   - reward/done aggregation
+        #   - critic evaluation during actor optimisation
+        self.agent_id_to_critic_id = agent_id_to_critic_id
+
+        # Maps critic learning unit -> env agents assigned to that critic.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
+        # individual:
+        #   {
+        #       "adversary_0": ["adversary_0"],
+        #       "adversary_1": ["adversary_1"],
+        #       "adversary_2": ["adversary_2"],
+        #       "agent_0": ["agent_0"],
+        #   }
+        #
+        # team_critic or team_all:
+        #   {
+        #       "adversary": [
+        #           "adversary_0",
+        #           "adversary_1",
+        #           "adversary_2",
+        #       ],
+        #       "agent": ["agent_0"],
+        #   }
+        #
+        # Used for:
+        #   - team reward aggregation
+        #   - team done aggregation
+        #   - critic update grouping
+        self.critic_id_to_agent_ids = critic_id_to_agent_ids
 
         self.controlled_agent_ids = [
             agent_id
-            for controlled_agents in self.learning_unit_to_agent_ids.values()
+            for controlled_agents in self.actor_id_to_agent_ids.values()
             for agent_id in controlled_agents
         ]
 
@@ -290,7 +433,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         actions = {}
 
         for agent_id in self.controlled_agent_ids:
-            learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
+            learning_unit_id = self.agent_id_to_actor_id[agent_id]
             learning_unit = self.learning_units[learning_unit_id]
 
             obs_i = agent_states[agent_id]
@@ -413,7 +556,8 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def _build_actor_alpha_contribution(
         self,
-        learning_unit: SAC,
+        actor_unit: SAC,
+        critic_unit: SAC,
         controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
@@ -450,7 +594,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             agent_index = self.all_agent_ids.index(controlled_agent_id)
 
             obs_i = obs_tensors[controlled_agent_id]
-            pi_i, log_pi_i, _ = learning_unit.actor_net(obs_i)
+            pi_i, log_pi_i, _ = actor_unit.actor_net(obs_i)
 
             actions_all[:, agent_index, :] = pi_i
 
@@ -459,8 +603,8 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         joint_actions_flat = actions_all.reshape(batch_size, -1)
 
-        with fnc.evaluating(learning_unit.critic_net):
-            qf_pi_one, qf_pi_two = learning_unit.critic_net(
+        with fnc.evaluating(critic_unit.critic_net):
+            qf_pi_one, qf_pi_two = critic_unit.critic_net(
                 global_states,
                 joint_actions_flat,
             )
@@ -472,13 +616,14 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         # team critic target, which also uses mean team reward.
         log_pi = torch.stack(log_pi_all, dim=1).mean(dim=1)
 
-        actor_loss = (learning_unit.alpha * log_pi - min_qf_pi).mean()
+        actor_loss = (actor_unit.alpha * log_pi - min_qf_pi).mean()
 
         return pi_all, log_pi_all, min_qf_pi, qf_pi_one, qf_pi_two, actor_loss
 
     def _update_actor_alpha(
         self,
-        learning_unit: SAC,
+        actor_unit: SAC,
+        critic_unit: SAC,
         controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
@@ -507,7 +652,8 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             qf_pi_two,
             actor_loss,
         ) = self._build_actor_alpha_contribution(
-            learning_unit=learning_unit,
+            actor_unit=actor_unit,
+            critic_unit=critic_unit,
             controlled_agent_ids=controlled_agent_ids,
             obs_tensors=obs_tensors,
             global_states=global_states,
@@ -531,25 +677,24 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         dq_da_cat = torch.cat(dq_da_values, dim=0)
 
-        learning_unit.actor_net_optimiser.zero_grad()
+        actor_unit.actor_net_optimiser.zero_grad()
         actor_loss.backward()
 
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
-                learning_unit.actor_net.parameters(),
+                actor_unit.actor_net.parameters(),
                 self.max_grad_norm,
             )
 
-        learning_unit.actor_net_optimiser.step()
+        actor_unit.actor_net_optimiser.step()
 
         alpha_loss = -(
-            learning_unit.log_alpha
-            * (log_pi_cat + learning_unit.target_entropy).detach()
+            actor_unit.log_alpha * (log_pi_cat + actor_unit.target_entropy).detach()
         ).mean()
 
-        learning_unit.log_alpha_optimizer.zero_grad(set_to_none=True)
+        actor_unit.log_alpha_optimizer.zero_grad(set_to_none=True)
         alpha_loss.backward()
-        learning_unit.log_alpha_optimizer.step()
+        actor_unit.log_alpha_optimizer.step()
 
         with torch.no_grad():
             info["dq_da_abs_mean"] = dq_da_cat.abs().mean().item()
@@ -568,13 +713,13 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             info["min_qf_pi_mean"] = min_qf_pi.mean().item()
             info["qf_pi_gap_abs_mean"] = (qf_pi_one - qf_pi_two).abs().mean().item()
 
-            entropy_gap = -(log_pi_cat + learning_unit.target_entropy)
+            entropy_gap = -(log_pi_cat + actor_unit.target_entropy)
             info["entropy_gap_mean"] = entropy_gap.mean().item()
 
             info["actor_loss"] = actor_loss.item()
             info["alpha_loss"] = alpha_loss.item()
-            info["alpha"] = learning_unit.alpha.item()
-            info["log_alpha"] = learning_unit.log_alpha.item()
+            info["alpha"] = actor_unit.alpha.item()
+            info["log_alpha"] = actor_unit.log_alpha.item()
 
         return info
 
@@ -616,14 +761,14 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         next_logps_by_agent: dict[str, torch.Tensor] = {}
 
         for agent_id in self.all_agent_ids:
-            learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
-            learning_unit = self.learning_units[learning_unit_id]
+            actor_id = self.agent_id_to_actor_id[agent_id]
+            actor_unit = self.learning_units[actor_id]
 
             obs_next_i = sample_tensor.next_observation.agent_states[agent_id]
 
             with torch.no_grad():
-                with fnc.evaluating(learning_unit.actor_net):
-                    next_action_i, next_logp_i, _ = learning_unit.actor_net(obs_next_i)
+                with fnc.evaluating(actor_unit.actor_net):
+                    next_action_i, next_logp_i, _ = actor_unit.actor_net(obs_next_i)
 
             next_actions_by_agent[agent_id] = next_action_i
             next_logps_by_agent[agent_id] = next_logp_i
@@ -728,47 +873,44 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         # ---------------------------------------------------------
         # Critic update
         # ---------------------------------------------------------
-        for learning_unit_id, learning_unit in self.learning_units.items():
-            controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
+        for critic_id, critic_agent_ids in self.critic_id_to_agent_ids.items():
+            critic_unit = self.learning_units[critic_id]
 
             # ---------------------------------------------------------
             # Build learning-unit rewards/dones from controlled agents
             # individual: direct per-agent tensors
             # team: aggregate across controlled agents
             # ---------------------------------------------------------
-            if self.sharing_mode == "individual":
-                controlled_agent_id = controlled_agent_ids[0]
+            if self.parameter_sharing_scope == "individual":
+                controlled_agent_id = critic_agent_ids[0]
                 learning_unit_rewards = rewards_by_agent[controlled_agent_id]
                 learning_unit_dones = dones_by_agent[controlled_agent_id]
-                next_logp_i = next_logps_by_agent[controlled_agent_id]  # (B, 1)
-            elif self.sharing_mode == "team":
+                next_logp_i = next_logps_by_agent[controlled_agent_id]
+            else:
                 learning_unit_rewards = torch.stack(
-                    [rewards_by_agent[a] for a in controlled_agent_ids],
+                    [rewards_by_agent[a] for a in critic_agent_ids],
                     dim=1,
                 ).mean(dim=1)
+
                 learning_unit_dones = torch.stack(
-                    [dones_by_agent[a] for a in controlled_agent_ids],
+                    [dones_by_agent[a] for a in critic_agent_ids],
                     dim=1,
                 ).amax(dim=1)
-                # Team/shared actor: aggregate entropy contribution across controlled agents
+
                 next_logp_i = torch.stack(
-                    [next_logps_by_agent[a] for a in controlled_agent_ids],
+                    [next_logps_by_agent[a] for a in critic_agent_ids],
                     dim=1,
                 ).mean(dim=1)
-            else:
-                raise ValueError(f"Invalid sharing_mode: {self.sharing_mode}")
 
             with torch.no_grad():
-                info[f"{learning_unit_id}_reward_mean"] = (
-                    learning_unit_rewards.mean().item()
-                )
-                info[f"{learning_unit_id}_done_frac"] = (
+                info[f"{critic_id}_reward_mean"] = learning_unit_rewards.mean().item()
+                info[f"{critic_id}_done_frac"] = (
                     learning_unit_dones.float().mean().item()
                 )
-                info[f"{learning_unit_id}_next_logp_mean"] = next_logp_i.mean().item()
+                info[f"{critic_id}_next_logp_mean"] = next_logp_i.mean().item()
 
             critic_info = self._update_critic(
-                agent=learning_unit,
+                agent=critic_unit,
                 global_states=global_states,
                 joint_actions=joint_actions,  # from replay at time t
                 rewards_i=learning_unit_rewards,
@@ -779,7 +921,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             )
 
             for key, value in critic_info.items():
-                info[f"{learning_unit_id}_{key}"] = value
+                info[f"{critic_id}_{key}"] = value
 
         # ---------------------------------------------------------
         # ACTOR + ALPHA UPDATES — usually every step in SAC
@@ -797,28 +939,32 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                 current_actions_list = []
 
                 for agent_id in self.all_agent_ids:
-                    learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
-                    learning_unit = self.learning_units[learning_unit_id]
+                    actor_id = self.agent_id_to_actor_id[agent_id]
+                    actor_unit = self.learning_units[actor_id]
 
                     obs_j = agent_states[agent_id]
-                    action_j, _, _ = learning_unit.actor_net(obs_j)
+                    action_j, _, _ = actor_unit.actor_net(obs_j)
 
                     current_actions_list.append(action_j)
 
                 current_actions_tensor = torch.stack(current_actions_list, dim=1)
 
-            for learning_unit_id, learning_unit in self.learning_units.items():
-                controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
+            for actor_id, actor_agent_ids in self.actor_id_to_agent_ids.items():
+                actor_unit = self.learning_units[actor_id]
+
+                critic_id = self.agent_id_to_critic_id[actor_agent_ids[0]]
+                critic_unit = self.learning_units[critic_id]
 
                 actor_info = self._update_actor_alpha(
-                    learning_unit=learning_unit,
-                    controlled_agent_ids=controlled_agent_ids,
+                    actor_unit=actor_unit,
+                    critic_unit=critic_unit,
+                    controlled_agent_ids=actor_agent_ids,
                     obs_tensors=agent_states,
                     global_states=global_states,
                     current_actions_tensor=current_actions_tensor,
                 )
                 for key, value in actor_info.items():
-                    info[f"{learning_unit_id}_{key}"] = value
+                    info[f"{actor_id}_{key}"] = value
 
         # ---------------------------------------------------------
         # Target critic updates (Polyak) — usually every step in SAC
@@ -834,8 +980,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         for metric in metrics:
             values = [
-                info[f"{learning_unit_id}_{metric}"]
-                for learning_unit_id in self.learning_units.keys()
+                value for key, value in info.items() if key.endswith(f"_{metric}")
             ]
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))
@@ -850,7 +995,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         for learning_unit_id, learning_unit in self.learning_units.items():
             agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
-            agent_filename = f"{filename}_agent_{learning_unit_id}_checkpoint"
+            agent_filename = f"{filename}_{learning_unit_id}_checkpoint"
             learning_unit.save_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been saved...")
@@ -858,7 +1003,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
     def load_models(self, filepath: str, filename: str) -> None:
         for learning_unit_id, learning_unit in self.learning_units.items():
             agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
-            agent_filename = f"{filename}_agent_{learning_unit_id}_checkpoint"
+            agent_filename = f"{filename}_{learning_unit_id}_checkpoint"
             learning_unit.load_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been loaded...")

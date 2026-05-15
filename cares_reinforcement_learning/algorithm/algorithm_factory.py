@@ -1138,28 +1138,38 @@ def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
     all_agent_ids = list(observation_size["obs"].keys())
     env_teams = observation_size["teams"]
 
-    agent_id_to_learning_unit_id, learning_unit_to_agent_ids = (
-        _build_learning_unit_mappings(
-            all_agent_ids, env_teams, config.sharing_mode, "MASAC"
-        )
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="MATD3",
     )
 
-    learning_units = _build_algorithm_learning_units(
-        learning_unit_to_agent_ids,
-        observation_size,
-        action_num,
-        config,
-        device,
-        SAC,
-        Actor,
-        Critic,
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=SAC,
+        Actor=Actor,
+        Critic=Critic,
     )
 
     return MASAC(
         learning_units=learning_units,
         all_agent_ids=all_agent_ids,
-        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
-        learning_unit_to_agent_ids=learning_unit_to_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
         device=device,
     )

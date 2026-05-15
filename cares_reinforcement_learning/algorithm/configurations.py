@@ -1369,13 +1369,20 @@ class MASACConfig(SACConfig):
 
     marl_observation: Literal[1] = Field(default=1)
 
-    sharing_mode: Literal["individual", "team"] = "individual"
+    """
+    - "individual": One actor + critic per agent (default)
+    - "team_critic": One shared critic per team, separate actor per agent
+    - "team_all": One shared actor + critic per team (experimental - coupled actors)
+    """
+    parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
+        "team_critic"
+    )
 
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
-    alpha_lr: float = 1e-4
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
 
-    gamma: float = 0.95
+    gamma: float = 0.99
     tau: float = 0.005
 
     max_grad_norm: float | None = 0.5
