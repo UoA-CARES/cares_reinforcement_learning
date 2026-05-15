@@ -11,18 +11,13 @@ MATD3 extends MADDPG with the core TD3 stabilisation mechanisms:
 This implementation additionally supports several multi-agent coordination and
 parameter-sharing variants through two main configuration options:
 
-    sharing_mode:
-        "individual" -> one TD3 learning unit per environment agent
-        "team"       -> one shared TD3 learning unit per environment team
-
-    actor_optimisation_mode:
-        "individual" -> when using team sharing, update the shared actor by
-                        evaluating each controlled agent's action contribution
-                        separately and averaging the actor objectives
-
-        "joint"      -> when using team sharing, update the shared actor by
+    parameter_sharing_scope:
+        "individual" -> one DDPG learning unit per environment agent (default)
+        "team_critic" -> one shared critic per team, separate actor per agent
+        "team_all"   -> one shared DDPG learning unit per team of agents
+                        when using team sharing, update the shared actor by
                         replacing all controlled agents' replay actions with
-                        current actor outputs simultaneously
+                        current actor outputs at the same time (coupled)
 
 Terminology
 -----------
@@ -160,18 +155,38 @@ Practical notes
 
 For cooperative environments such as simple_spread:
 
-    team + individual actor contributions:
-        often stable and effective because the team critic learns a shared
-        objective while actor updates remain relatively conservative.
+    team_critic:
+        often a strong default because:
+            - the shared team critic learns a cooperative objective,
+            - while actors remain agent-specific and relatively conservative.
 
-    team + joint actor:
-        can improve coordination, but may require lower learning rates because
-        the full team policy is updated together.
+        This typically provides a good balance between:
+            - coordination,
+            - stability,
+            - and optimisation simplicity.
+
+    team_all:
+        can produce stronger coordinated behaviour because:
+            - both the actor and critic are shared across the team,
+            - and actor updates optimise a fully coupled team objective.
+
+        However, this configuration is usually more sensitive to:
+            - actor learning rate,
+            - replay variance,
+            - and critic instability.
+
+        Lower actor learning rates and larger batch sizes are often beneficial.
 
     individual:
-        closest to original MADDPG/MATD3, but each critic optimises a more local
-        learning signal and may be less aligned with fully cooperative team
-        coordination.
+        closest to the original MATD3 formulation.
+
+        Each agent learns:
+            - its own actor,
+            - and its own critic.
+
+        This provides the strongest agent specialisation, but critics optimise
+        more local objectives and may learn cooperative coordination more slowly
+        in fully cooperative environments.
 
 Compared to MADDPG, MATD3 is typically:
     - more stable,
@@ -227,41 +242,183 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         self,
         learning_units: dict[str, TD3],
         all_agent_ids: list[str],
-        agent_id_to_learning_unit_id: dict[str, str],
-        learning_unit_to_agent_ids: dict[str, list[str]],
+        env_teams: dict[str, list[str]],
+        agent_id_to_actor_id: dict[str, str],
+        actor_id_to_agent_ids: dict[str, list[str]],
+        agent_id_to_critic_id: dict[str, str],
+        critic_id_to_agent_ids: dict[str, list[str]],
         config: MATD3Config,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
+        # Physical trainable containers.
+        #
+        # Each learning unit is a DDPG bundle containing:
+        #   - actor
+        #   - target actor
+        #   - critic
+        #   - target critic
+        #   - optimisers
+        #   - exploration schedule
+        #
+        # IMPORTANT:
+        #   Actor ownership and critic ownership are now decoupled.
+        #
+        #   A learning unit may therefore be used:
+        #       - only as an actor provider,
+        #       - only as a critic provider,
+        #       - or as both.
+        #
+        # Example:
+        #
+        #   team_critic:
+        #
+        #       actor units:
+        #           adversary_0
+        #           adversary_1
+        #           adversary_2
+        #
+        #       critic unit:
+        #           adversary
+        #
+        #       Here:
+        #           adversary_0 actor updates use:
+        #               actor from learning_units["adversary_0"]
+        #               critic from learning_units["adversary"]
+        #
+        # This separation allows:
+        #   - per-agent actors
+        #   - shared team critics
+        #   - shared team actors
+        #
+        # while still reusing the underlying DDPG container abstraction.
         self.learning_units = learning_units
 
         # Shared Actor/Critic per team or individual Actor/Critic per agent
-        self.sharing_mode = config.sharing_mode
-        self.actor_optimisation_mode = config.actor_optimisation_mode
+        self.parameter_sharing_scope = config.parameter_sharing_scope
 
         # All environment agent IDs and counts, e.g.
         # ["adversary_0", "adversary_1", "adversary_2", "agent_0"]
         self.all_agent_ids = all_agent_ids
         self.num_agents = len(all_agent_ids)
 
-        # Maps env agent -> learning unit.
-        # individual:
-        #   adversary_0 -> adversary_0
-        # team:
-        #   adversary_0 -> adversary
-        self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
+        self.env_teams = env_teams
 
-        # Maps learning unit -> env agents controlled by it.
+        # Maps env agent -> actor learning unit.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
+        # individual or team_critic:
+        #   {
+        #       "adversary_0": "adversary_0",
+        #       "adversary_1": "adversary_1",
+        #       "adversary_2": "adversary_2",
+        #       "agent_0": "agent_0",
+        #   }
+        #
+        # team_all:
+        #   {
+        #       "adversary_0": "adversary",
+        #       "adversary_1": "adversary",
+        #       "adversary_2": "adversary",
+        #       "agent_0": "agent",
+        #   }
+        #
+        # Used for:
+        #   - action selection
+        #   - actor updates
+        self.agent_id_to_actor_id = agent_id_to_actor_id
+
+        # Maps actor learning unit -> env agents controlled by that actor.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
+        # individual or team_critic:
+        #   {
+        #       "adversary_0": ["adversary_0"],
+        #       "adversary_1": ["adversary_1"],
+        #       "adversary_2": ["adversary_2"],
+        #       "agent_0": ["agent_0"],
+        #   }
+        #
+        # team_all:
+        #   {
+        #       "adversary": [
+        #           "adversary_0",
+        #           "adversary_1",
+        #           "adversary_2",
+        #       ],
+        #       "agent": ["agent_0"],
+        #   }
+        #
+        # Used for:
+        #   - actor update grouping
+        #   - determining which agents' actions are replaced during
+        #     deterministic policy gradient updates
+        self.actor_id_to_agent_ids = actor_id_to_agent_ids
+
+        # Maps env agent -> critic learning unit.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
         # individual:
-        #   adversary_0 -> [adversary_0]
-        # team:
-        #   adversary -> [adversary_0, adversary_1, adversary_2]
-        self.learning_unit_to_agent_ids = learning_unit_to_agent_ids
+        #   {
+        #       "adversary_0": "adversary_0",
+        #       "adversary_1": "adversary_1",
+        #       "adversary_2": "adversary_2",
+        #       "agent_0": "agent_0",
+        #   }
+        #
+        # team_critic or team_all:
+        #   {
+        #       "adversary_0": "adversary",
+        #       "adversary_1": "adversary",
+        #       "adversary_2": "adversary",
+        #       "agent_0": "agent",
+        #   }
+        #
+        # Used for:
+        #   - critic updates
+        #   - reward/done aggregation
+        #   - critic evaluation during actor optimisation
+        self.agent_id_to_critic_id = agent_id_to_critic_id
+
+        # Maps critic learning unit -> env agents assigned to that critic.
+        #
+        # Example environment:
+        #   adversary_0, adversary_1, adversary_2, agent_0
+        #
+        # individual:
+        #   {
+        #       "adversary_0": ["adversary_0"],
+        #       "adversary_1": ["adversary_1"],
+        #       "adversary_2": ["adversary_2"],
+        #       "agent_0": ["agent_0"],
+        #   }
+        #
+        # team_critic or team_all:
+        #   {
+        #       "adversary": [
+        #           "adversary_0",
+        #           "adversary_1",
+        #           "adversary_2",
+        #       ],
+        #       "agent": ["agent_0"],
+        #   }
+        #
+        # Used for:
+        #   - team reward aggregation
+        #   - team done aggregation
+        #   - critic update grouping
+        self.critic_id_to_agent_ids = critic_id_to_agent_ids
 
         self.controlled_agent_ids = [
             agent_id
-            for controlled_agents in self.learning_unit_to_agent_ids.values()
+            for controlled_agents in self.actor_id_to_agent_ids.values()
             for agent_id in controlled_agents
         ]
 
@@ -292,7 +449,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         actions = {}
 
         for agent_id in self.controlled_agent_ids:
-            learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
+            learning_unit_id = self.agent_id_to_actor_id[agent_id]
             learning_unit = self.learning_units[learning_unit_id]
 
             obs_i = agent_states[agent_id]
@@ -396,21 +553,32 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def _build_actor_contribution(
         self,
-        learning_unit: TD3,
+        actor_unit: TD3,
+        critic_unit: TD3,
         controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
         replay_actions: torch.Tensor,
     ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
-        """
-        Build an actor contribution for one or more controlled agents.
-
-        If controlled_agent_ids contains one agent, this is the standard MATD3
-        individual-contribution update.
-
-        If controlled_agent_ids contains multiple agents, all of their replay
-        actions are replaced together, giving a joint team actor update.
-        """
+        # Build a counterfactual joint action for actor optimisation.
+        #
+        # Replay actions act as the fixed baseline joint action.
+        #
+        # Controlled agents' replay actions are replaced with current
+        # policy outputs from the actor under optimisation.
+        #
+        # Example:
+        #
+        #   replay:
+        #       [a_0_replay, a_1_replay, a_2_replay]
+        #
+        #   uncoupled:
+        #       [pi(o_0), a_1_replay, a_2_replay]
+        #
+        #   coupled:
+        #       [pi(o_0), pi(o_1), pi(o_2)]
+        #
+        # The critic then evaluates the resulting counterfactual joint action.
         batch_size = global_states.shape[0]
         actions_all = replay_actions.clone()
 
@@ -420,14 +588,14 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
             agent_index = self.all_agent_ids.index(controlled_agent_id)
 
             obs_i = obs_tensors[controlled_agent_id]
-            actions_i = learning_unit.actor_net(obs_i)
+            actions_i = actor_unit.actor_net(obs_i)
 
             actions_all[:, agent_index, :] = actions_i
             actions_i_all.append(actions_i)
 
         joint_actions_flat = actions_all.reshape(batch_size, -1)
 
-        actor_q_values, _ = learning_unit.critic_net(
+        actor_q_values, _ = critic_unit.critic_net(
             global_states,
             joint_actions_flat,
         )
@@ -438,38 +606,44 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def _update_actor(
         self,
-        learning_unit: TD3,
+        actor_unit: TD3,
+        critic_unit: TD3,
         controlled_agent_ids: list[str],
         obs_tensors: dict[str, torch.Tensor],
         global_states: torch.Tensor,
         replay_actions: torch.Tensor,
     ) -> dict[str, Any]:
-        """
-        Actor updates are performed per learning unit, but can be configured to use either:
-
-        Uncoupled actor update:
-            evaluate one controlled agent's new action at a time
-            average losses
-
-            Q_1 = Q_team(s, [π(o_1), replay(a_2), replay(a_3)])
-            Q_2 = Q_team(s, [replay(a_1), π(o_2), replay(a_3)])
-            Q_3 = Q_team(s, [replay(a_1), replay(a_2), π(o_3)])
-
-            actor_loss = mean(-Q_1.mean(), -Q_2.mean(), -Q_3.mean())
-
-        Coupled actor update:
-            evaluate all controlled agents' new actions together
-            one team loss
-
-            actor_loss = -Q_team(s, [π(o_1), π(o_2), π(o_3)]).mean()
-        """
         info: dict[str, Any] = {}
 
-        use_coupled_update = (
-            self.sharing_mode == "team"
-            and self.actor_optimisation_mode == "coupled"
-            and len(controlled_agent_ids) > 1
-        )
+        # Coupled updates are only meaningful when multiple agents share
+        # the SAME actor parameters.
+        #
+        # team_all:
+        #     shared actor per team
+        #     -> evaluate all controlled agents' policy actions together
+        #
+        # individual / team_critic:
+        #     separate actor per agent
+        #     -> use counterfactual one-agent-at-a-time updates
+        #
+        # This mirrors the original MADDPG deterministic policy gradient logic.
+        #
+        # Uncoupled actor update:
+        #     evaluate one controlled agent's new action at a time
+        #     average losses
+        #
+        #     Q_1 = Q_team(s, [π(o_1), replay(a_2), replay(a_3)])
+        #     Q_2 = Q_team(s, [replay(a_1), π(o_2), replay(a_3)])
+        #     Q_3 = Q_team(s, [replay(a_1), replay(a_2), π(o_3)])
+        #
+        #     actor_loss = mean(-Q_1.mean(), -Q_2.mean(), -Q_3.mean())
+        #
+        # Coupled actor update:
+        #     evaluate all controlled agents' new actions together
+        #     one team loss
+        #
+        #     actor_loss = -Q_team(s, [π(o_1), π(o_2), π(o_3)]).mean()
+        use_coupled_update = self.parameter_sharing_scope == "team_all"
 
         if use_coupled_update:
             contribution_groups = [controlled_agent_ids]
@@ -484,7 +658,8 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         for contribution_agent_ids in contribution_groups:
             actions_i_all, actor_q_values, actor_objective = (
                 self._build_actor_contribution(
-                    learning_unit=learning_unit,
+                    actor_unit=actor_unit,
+                    critic_unit=critic_unit,
                     controlled_agent_ids=contribution_agent_ids,
                     obs_tensors=obs_tensors,
                     global_states=global_states,
@@ -519,16 +694,16 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         dq_da_cat = torch.cat(dq_da_values, dim=0)
 
-        learning_unit.actor_net_optimiser.zero_grad()
+        actor_unit.actor_net_optimiser.zero_grad()
         actor_loss.backward()
 
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
-                learning_unit.actor_net.parameters(),
+                actor_unit.actor_net.parameters(),
                 self.max_grad_norm,
             )
 
-        learning_unit.actor_net_optimiser.step()
+        actor_unit.actor_net_optimiser.step()
 
         with torch.no_grad():
             info["dq_da_abs_mean"] = dq_da_cat.abs().mean().item()
@@ -580,17 +755,27 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
             dim=1,
         )
 
+        # Build NEXT actions using the actor assigned to each env agent.
+        #
+        # individual:
+        #     each agent uses its own target actor
+        #
+        # team_critic:
+        #     each agent still uses its own target actor
+        #
+        # team_all:
+        #     multiple env agents may reuse the same shared target actor
         next_actions: dict[str, torch.Tensor] = {}
 
         for agent_id in self.all_agent_ids:
-            learning_unit_id = self.agent_id_to_learning_unit_id[agent_id]
-            learning_unit = self.learning_units[learning_unit_id]
+            actor_id = self.agent_id_to_actor_id[agent_id]
+            actor_unit = self.learning_units[actor_id]
 
             obs_next_i = sample_tensor.next_observation.agent_states[agent_id]
 
             with torch.no_grad():
-                with fnc.evaluating(learning_unit.target_actor_net):
-                    next_actions[agent_id] = learning_unit.target_actor_net(obs_next_i)
+                with fnc.evaluating(actor_unit.target_actor_net):
+                    next_actions[agent_id] = actor_unit.target_actor_net(obs_next_i)
 
         next_actions_tensor = torch.stack(
             [next_actions[a] for a in self.all_agent_ids],
@@ -664,14 +849,20 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         self.learn_counter += 1
         info: dict[str, Any] = {}
 
-        # Update per agent action noise for exploration (decayed over training)
-        for learning_unit_id, learning_unit in self.learning_units.items():
-            learning_unit.action_noise = learning_unit.action_noise_scheduler.get_value(
+        # ---------------------------------------------------------
+        # Update action noise schedules
+        #
+        # Noise is actor-owned, so only actor units need meaningful
+        # action-noise values.
+        # ---------------------------------------------------------
+        for actor_id in self.actor_id_to_agent_ids.keys():
+            actor_unit = self.learning_units[actor_id]
+
+            actor_unit.action_noise = actor_unit.action_noise_scheduler.get_value(
                 episode_context.training_step
             )
-            info[f"{learning_unit_id}_current_action_noise"] = (
-                learning_unit.action_noise
-            )
+
+            info[f"action_noise_{actor_id}"] = float(actor_unit.action_noise)
 
         # Update TD3 target policy smoothing noise (decayed over training)
         self.policy_noise = self.policy_noise_scheduler.get_value(
@@ -700,42 +891,61 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         actor_info: dict[str, Any] = {}
 
         # ---------------------------------------------------------
-        # Critic update
+        # Critic updates are grouped by CRITIC ownership, not actor ownership.
+        #
+        # individual:
+        #     one critic update per agent
+        #
+        # team_critic:
+        #     one critic update per team
+        #
+        # team_all:
+        #     one critic update per team
         # ---------------------------------------------------------
-        for learning_unit_id, learning_unit in self.learning_units.items():
-            controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
+        for critic_id, critic_agent_ids in self.critic_id_to_agent_ids.items():
+            critic_unit = self.learning_units[critic_id]
 
             # ---------------------------------------------------------
             # Build learning-unit rewards/dones from controlled agents
             # individual: direct per-agent tensors
             # team: aggregate across controlled agents
             # ---------------------------------------------------------
-            if self.sharing_mode == "individual":
-                controlled_agent_id = controlled_agent_ids[0]
+            if self.parameter_sharing_scope == "individual":
+                controlled_agent_id = critic_agent_ids[0]
                 learning_unit_rewards = rewards_by_agent[controlled_agent_id]
                 learning_unit_dones = dones_by_agent[controlled_agent_id]
-            elif self.sharing_mode == "team":
+            else:
+                # Team critics optimise a shared cooperative objective.
+                #
+                # Rewards:
+                #     mean reward across the controlled agents
+                #
+                # Dones:
+                #     max(done_i)
+                #
+                # This means the team transition is considered terminal if ANY
+                # controlled agent terminates.
+                #
+                # For fully cooperative environments this produces a team-level
+                # learning signal while preserving centralized critic structure.
                 learning_unit_rewards = torch.stack(
-                    [rewards_by_agent[a] for a in controlled_agent_ids],
+                    [rewards_by_agent[a] for a in critic_agent_ids],
                     dim=1,
                 ).mean(dim=1)
+
                 learning_unit_dones = torch.stack(
-                    [dones_by_agent[a] for a in controlled_agent_ids],
+                    [dones_by_agent[a] for a in critic_agent_ids],
                     dim=1,
                 ).amax(dim=1)
-            else:
-                raise ValueError(f"Invalid sharing_mode: {self.sharing_mode}")
 
             with torch.no_grad():
-                info[f"{learning_unit_id}_reward_mean"] = (
-                    learning_unit_rewards.mean().item()
-                )
-                info[f"{learning_unit_id}_done_frac"] = (
+                info[f"{critic_id}_reward_mean"] = learning_unit_rewards.mean().item()
+                info[f"{critic_id}_done_frac"] = (
                     learning_unit_dones.float().mean().item()
                 )
 
             critic_info = self._update_critic(
-                learning_unit=learning_unit,
+                learning_unit=critic_unit,
                 global_states=global_states,
                 joint_actions=joint_actions,
                 rewards_i=learning_unit_rewards,
@@ -743,7 +953,8 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
                 next_actions_noisy=next_actions_noisy,
                 dones_i=learning_unit_dones,
             )
-            info.update({f"{learning_unit_id}_{k}": v for k, v in critic_info.items()})
+
+            info.update({f"{critic_id}_{k}": v for k, v in critic_info.items()})
 
         # ---------------------------------------------------------
         # Actor update
@@ -759,18 +970,22 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         #     shared team objective.
         # ---------------------------------------------------------
         if update_actor:
-            for learning_unit_id, learning_unit in self.learning_units.items():
-                controlled_agent_ids = self.learning_unit_to_agent_ids[learning_unit_id]
+            for actor_id, actor_agent_ids in self.actor_id_to_agent_ids.items():
+                actor_unit = self.learning_units[actor_id]
+
+                critic_id = self.agent_id_to_critic_id[actor_agent_ids[0]]
+                critic_unit = self.learning_units[critic_id]
+
                 actor_info = self._update_actor(
-                    learning_unit=learning_unit,
-                    controlled_agent_ids=controlled_agent_ids,
+                    actor_unit=actor_unit,
+                    critic_unit=critic_unit,
+                    controlled_agent_ids=actor_agent_ids,
                     obs_tensors=agent_states,
                     global_states=global_states,
                     replay_actions=actions,
                 )
-                info.update(
-                    {f"{learning_unit_id}_{k}": v for k, v in actor_info.items()}
-                )
+
+                info.update({f"{actor_id}_{k}": v for k, v in actor_info.items()})
 
         # ---------------------------------------------------------
         # Target network updates (same cadence as actor updates)
@@ -788,8 +1003,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         for metric in metrics:
             values = [
-                info[f"{learning_unit_id}_{metric}"]
-                for learning_unit_id in self.learning_units.keys()
+                value for key, value in info.items() if key.endswith(f"_{metric}")
             ]
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))

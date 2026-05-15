@@ -1339,8 +1339,14 @@ class MATD3Config(TD3Config):
 
     marl_observation: Literal[1] = Field(default=1)
 
-    sharing_mode: Literal["individual", "team"] = "individual"
-    actor_optimisation_mode: Literal["uncoupled", "coupled"] = "uncoupled"
+    """
+    - "individual": One actor + critic per agent (default)
+    - "team_critic": One shared critic per team, separate actor per agent
+    - "team_all": One shared actor + critic per team (experimental - coupled actors)
+    """
+    parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
+        "individual"
+    )
 
     actor_lr: float = 1e-4
     critic_lr: float = 1e-3

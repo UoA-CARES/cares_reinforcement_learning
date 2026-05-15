@@ -130,18 +130,38 @@ Practical notes
 
 For cooperative environments such as simple_spread:
 
-    team + individual actor contributions:
-        often stable and effective because the team critic learns a shared
-        objective while actor updates remain relatively conservative.
+    team_critic:
+        often a strong default because:
+            - the shared team critic learns a cooperative objective,
+            - while actors remain agent-specific and relatively conservative.
 
-    team + joint actor:
-        can improve coordination, but may require lower learning rates because
-        the full team policy is updated together.
+        This typically provides a good balance between:
+            - coordination,
+            - stability,
+            - and optimisation simplicity.
+
+    team_all:
+        can produce stronger coordinated behaviour because:
+            - both the actor and critic are shared across the team,
+            - and actor updates optimise a fully coupled team objective.
+
+        However, this configuration is usually more sensitive to:
+            - actor learning rate,
+            - replay variance,
+            - and critic instability.
+
+        Lower actor learning rates and larger batch sizes are often beneficial.
 
     individual:
-        closest to original MADDPG, but each critic optimises a more local
-        learning signal and may be less aligned with fully cooperative team
-        coordination.
+        closest to the original MADDPG formulation.
+
+        Each agent learns:
+            - its own actor,
+            - and its own critic.
+
+        This provides the strongest agent specialisation, but critics optimise
+        more local objectives and may learn cooperative coordination more slowly
+        in fully cooperative environments.
 """
 
 import logging
@@ -1001,13 +1021,6 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
             )
 
             info[f"action_noise_{actor_id}"] = float(actor_unit.action_noise)
-
-        if self.parameter_sharing_scope not in {
-            "individual",
-            "team_critic",
-            "team_all",
-        }:
-            raise ValueError(f"Invalid {self.parameter_sharing_scope=}")
 
         # ---------------------------------------------------------
         # Sample ONCE for all learning units
