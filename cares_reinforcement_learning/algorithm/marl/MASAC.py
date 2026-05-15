@@ -451,45 +451,47 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def _update_critic(
         self,
-        agent: SAC,
+        critic_unit: SAC,
         global_states: torch.Tensor,
         joint_actions: torch.Tensor,  # (B, N * act_dim) from replay
         rewards_i: torch.Tensor,  # (B,) or (B, 1)
         next_global_states: torch.Tensor,
         next_joint_actions: torch.Tensor,  # (B, N * act_dim) from target policies (SAMPLED)
-        next_logp_i: torch.Tensor,  # (B, 1) log pi_i(a_i' | o_i') for NEXT state
+        next_entropy_term_i: torch.Tensor,  # (B, 1) alpha for the current critic
         dones_i: torch.Tensor,  # (B,) or (B, 1)
     ):
         info: dict[str, Any] = {}
 
         # ---- Step 1: TD target with entropy term ----
         with torch.no_grad():
-            target_q_values_one, target_q_values_two = agent.target_critic_net(
+            target_q_values_one, target_q_values_two = critic_unit.target_critic_net(
                 next_global_states, next_joint_actions
             )
             target_q = torch.min(target_q_values_one, target_q_values_two)
 
             q_target = rewards_i + self.gamma * (1.0 - dones_i) * (
-                target_q - agent.alpha * next_logp_i
+                target_q - next_entropy_term_i
             )
 
         # --- Step 3: critic regression on *current* joint_actions (unperturbed) ---
-        q_values_one, q_values_two = agent.critic_net(global_states, joint_actions)
+        q_values_one, q_values_two = critic_unit.critic_net(
+            global_states, joint_actions
+        )
 
         critic_loss_one = F.mse_loss(q_values_one, q_target)
         critic_loss_two = F.mse_loss(q_values_two, q_target)
 
         critic_loss_total = critic_loss_one + critic_loss_two
 
-        agent.critic_net_optimiser.zero_grad()
+        critic_unit.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
 
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
-                agent.critic_net.parameters(), self.max_grad_norm
+                critic_unit.critic_net.parameters(), self.max_grad_norm
             )
 
-        agent.critic_net_optimiser.step()
+        critic_unit.critic_net_optimiser.step()
 
         # ---------------------------------------------------------
         # Step 3: diagnostics (collated at bottom)
@@ -518,9 +520,9 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             min_target_q = torch.minimum(target_q_values_one, target_q_values_two)
 
             # alpha_log_pi is typically negative; entropy_bonus is typically positive
-            alpha_log_pi = agent.alpha * next_logp_i
+            alpha_log_pi = next_entropy_term_i
             # this is what gets ADDED to minQ in the target
-            entropy_bonus = -agent.alpha * next_logp_i
+            entropy_bonus = -next_entropy_term_i
 
             soft_target_value = min_target_q + entropy_bonus  # == minQ - alpha*log_pi
 
@@ -886,6 +888,12 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                 learning_unit_rewards = rewards_by_agent[controlled_agent_id]
                 learning_unit_dones = dones_by_agent[controlled_agent_id]
                 next_logp_i = next_logps_by_agent[controlled_agent_id]
+
+                actor_id = self.agent_id_to_actor_id[controlled_agent_id]
+                actor_unit = self.learning_units[actor_id]
+                next_entropy_term_i = (
+                    actor_unit.alpha.detach() * next_logps_by_agent[controlled_agent_id]
+                )
             else:
                 learning_unit_rewards = torch.stack(
                     [rewards_by_agent[a] for a in critic_agent_ids],
@@ -902,6 +910,15 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                     dim=1,
                 ).mean(dim=1)
 
+                next_entropy_term_i = torch.stack(
+                    [
+                        self.learning_units[self.agent_id_to_actor_id[a]].alpha.detach()
+                        * next_logps_by_agent[a]
+                        for a in critic_agent_ids
+                    ],
+                    dim=1,
+                ).mean(dim=1)
+
             with torch.no_grad():
                 info[f"{critic_id}_reward_mean"] = learning_unit_rewards.mean().item()
                 info[f"{critic_id}_done_frac"] = (
@@ -910,13 +927,13 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                 info[f"{critic_id}_next_logp_mean"] = next_logp_i.mean().item()
 
             critic_info = self._update_critic(
-                agent=critic_unit,
+                critic_unit=critic_unit,
                 global_states=global_states,
                 joint_actions=joint_actions,  # from replay at time t
                 rewards_i=learning_unit_rewards,
                 next_global_states=next_global_states,
                 next_joint_actions=next_joint_actions,  # sampled at t+1
-                next_logp_i=next_logp_i,
+                next_entropy_term_i=next_entropy_term_i,
                 dones_i=learning_unit_dones,
             )
 

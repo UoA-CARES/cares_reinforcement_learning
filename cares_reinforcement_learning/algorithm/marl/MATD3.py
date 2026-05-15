@@ -467,7 +467,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def _update_critic(
         self,
-        learning_unit: TD3,
+        critic_unit: TD3,
         global_states: torch.Tensor,
         joint_actions: torch.Tensor,  # (B, N * act_dim) from replay
         rewards_i: torch.Tensor,  # (B, 1)
@@ -483,14 +483,14 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         # --- Step 2: TD target ---
         with torch.no_grad():
-            target_q_values_one, target_q_values_two = learning_unit.target_critic_net(
+            target_q_values_one, target_q_values_two = critic_unit.target_critic_net(
                 next_global_states, next_joint_actions_noisy
             )
             target_q = torch.min(target_q_values_one, target_q_values_two)
             q_target = rewards_i + self.gamma * (1 - dones_i) * target_q
 
         # --- Step 3: critic regression on *current* joint_actions (unperturbed) ---
-        q_values_one, q_values_two = learning_unit.critic_net(
+        q_values_one, q_values_two = critic_unit.critic_net(
             global_states, joint_actions
         )
 
@@ -499,15 +499,15 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         critic_loss_total = critic_loss_one + critic_loss_two
 
-        learning_unit.critic_net_optimiser.zero_grad()
+        critic_unit.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
 
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
-                learning_unit.critic_net.parameters(), self.max_grad_norm
+                critic_unit.critic_net.parameters(), self.max_grad_norm
             )
 
-        learning_unit.critic_net_optimiser.step()
+        critic_unit.critic_net_optimiser.step()
 
         with torch.no_grad():
             # --- Twin critic disagreement (stability/uncertainty) ---
@@ -945,7 +945,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
                 )
 
             critic_info = self._update_critic(
-                learning_unit=critic_unit,
+                critic_unit=critic_unit,
                 global_states=global_states,
                 joint_actions=joint_actions,
                 rewards_i=learning_unit_rewards,

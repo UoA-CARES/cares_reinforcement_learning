@@ -570,7 +570,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def _update_critic(
         self,
-        learning_unit: DDPG,
+        critic_unit: DDPG,
         unperturbed_agent_indices: list[int],
         global_states: torch.Tensor,
         joint_actions: torch.Tensor,  # (B, N * act_dim) from replay
@@ -588,7 +588,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 unperturbed_agent_indices=unperturbed_agent_indices,
                 actions=next_actions,  # (B, N, act_dim)
                 global_states=next_global_states,  # (B, state_dim)
-                critic=learning_unit.target_critic_net,  # target critic
+                critic=critic_unit.target_critic_net,  # target critic
             )
             next_joint_actions = next_actions_adv.view(next_actions_adv.size(0), -1)
         else:
@@ -597,25 +597,25 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         # --- Step 2: TD target ---
         with torch.no_grad():
-            target_q = learning_unit.target_critic_net(
+            target_q = critic_unit.target_critic_net(
                 next_global_states, next_joint_actions
             )
             q_target = rewards_i + self.gamma * (1 - dones_i) * target_q
 
         # --- Step 3: critic regression on *current* joint_actions (unperturbed) ---
-        q_values = learning_unit.critic_net(global_states, joint_actions)
+        q_values = critic_unit.critic_net(global_states, joint_actions)
 
         loss = F.mse_loss(q_values, q_target)
 
-        learning_unit.critic_net_optimiser.zero_grad()
+        critic_unit.critic_net_optimiser.zero_grad()
         loss.backward()
 
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
-                learning_unit.critic_net.parameters(), self.max_grad_norm
+                critic_unit.critic_net.parameters(), self.max_grad_norm
             )
 
-        learning_unit.critic_net_optimiser.step()
+        critic_unit.critic_net_optimiser.step()
 
         with torch.no_grad():
 
@@ -1098,7 +1098,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
                 )
 
             critic_info = self._update_critic(
-                learning_unit=critic_unit,
+                critic_unit=critic_unit,
                 unperturbed_agent_indices=unperturbed_agent_indices,
                 global_states=global_states,
                 joint_actions=joint_actions,
