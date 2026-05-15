@@ -649,18 +649,196 @@ def create_TD7(observation_size, action_num, config: acf.TD7Config):
 ###################################
 
 
+def _build_actor_critic_mappings(
+    all_agent_ids: list[str],
+    env_teams: dict[str, list[str]],
+    parameter_sharing_scope: str,
+    algo_name: str,
+) -> tuple[
+    dict[str, str],  # agent_id_to_actor_id
+    dict[str, list[str]],  # actor_id_to_agent_ids
+    dict[str, str],  # agent_id_to_critic_id
+    dict[str, list[str]],  # critic_id_to_agent_ids
+]:
+    """
+    Build actor/critic ownership mappings for MARL parameter sharing.
+
+    The mappings define:
+        - which learning unit provides the ACTOR for each env agent,
+        - which learning unit provides the CRITIC for each env agent,
+        - and which env agents are assigned to each learning unit.
+
+    Example environment
+    -------------------
+    Env agents:
+        adversary_0
+        adversary_1
+        agent_0
+
+    Teams:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+
+    ------------------------------------------------------------------
+    individual
+    ------------------------------------------------------------------
+
+    One actor + one critic per env agent.
+
+    agent_id_to_actor_id:
+        {
+            "adversary_0": "adversary_0",
+            "adversary_1": "adversary_1",
+            "agent_0": "agent_0",
+        }
+
+    actor_id_to_agent_ids:
+        {
+            "adversary_0": ["adversary_0"],
+            "adversary_1": ["adversary_1"],
+            "agent_0": ["agent_0"],
+        }
+
+    agent_id_to_critic_id:
+        {
+            "adversary_0": "adversary_0",
+            "adversary_1": "adversary_1",
+            "agent_0": "agent_0",
+        }
+
+    critic_id_to_agent_ids:
+        {
+            "adversary_0": ["adversary_0"],
+            "adversary_1": ["adversary_1"],
+            "agent_0": ["agent_0"],
+        }
+
+    ------------------------------------------------------------------
+    team_critic
+    ------------------------------------------------------------------
+
+    One actor per env agent, but one shared critic per team.
+
+    agent_id_to_actor_id:
+        {
+            "adversary_0": "adversary_0",
+            "adversary_1": "adversary_1",
+            "agent_0": "agent_0",
+        }
+
+    actor_id_to_agent_ids:
+        {
+            "adversary_0": ["adversary_0"],
+            "adversary_1": ["adversary_1"],
+            "agent_0": ["agent_0"],
+        }
+
+    agent_id_to_critic_id:
+        {
+            "adversary_0": "adversary",
+            "adversary_1": "adversary",
+            "agent_0": "agent",
+        }
+
+    critic_id_to_agent_ids:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+
+    ------------------------------------------------------------------
+    team_all
+    ------------------------------------------------------------------
+
+    One shared actor + one shared critic per team.
+
+    agent_id_to_actor_id:
+        {
+            "adversary_0": "adversary",
+            "adversary_1": "adversary",
+            "agent_0": "agent",
+        }
+
+    actor_id_to_agent_ids:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+
+    agent_id_to_critic_id:
+        {
+            "adversary_0": "adversary",
+            "adversary_1": "adversary",
+            "agent_0": "agent",
+        }
+
+    critic_id_to_agent_ids:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+    """
+    if parameter_sharing_scope == "individual":
+        actor_id_to_agent_ids = {agent_id: [agent_id] for agent_id in all_agent_ids}
+        agent_id_to_actor_id = {agent_id: agent_id for agent_id in all_agent_ids}
+
+        critic_id_to_agent_ids = {agent_id: [agent_id] for agent_id in all_agent_ids}
+        agent_id_to_critic_id = {agent_id: agent_id for agent_id in all_agent_ids}
+
+    elif parameter_sharing_scope == "team_critic":
+        actor_id_to_agent_ids = {agent_id: [agent_id] for agent_id in all_agent_ids}
+        agent_id_to_actor_id = {agent_id: agent_id for agent_id in all_agent_ids}
+
+        critic_id_to_agent_ids = env_teams
+        agent_id_to_critic_id = {
+            agent_id: team_id
+            for team_id, team_agent_ids in env_teams.items()
+            for agent_id in team_agent_ids
+        }
+
+    elif parameter_sharing_scope == "team_all":
+        actor_id_to_agent_ids = env_teams
+        agent_id_to_actor_id = {
+            agent_id: team_id
+            for team_id, team_agent_ids in env_teams.items()
+            for agent_id in team_agent_ids
+        }
+
+        critic_id_to_agent_ids = env_teams
+        agent_id_to_critic_id = {
+            agent_id: team_id
+            for team_id, team_agent_ids in env_teams.items()
+            for agent_id in team_agent_ids
+        }
+
+    else:
+        raise ValueError(f"Unknown {algo_name} {parameter_sharing_scope=}")
+
+    return (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    )
+
+
 def _build_learning_unit_mappings(
     all_agent_ids: list[str],
     env_teams: dict[str, list[str]],
-    sharing_mode: str,
+    parameter_sharing_scope: str,
     algo_name: str,
 ) -> tuple[dict[str, str], dict[str, list[str]]]:
     """Return ``(agent_id_to_learning_unit_id, learning_unit_to_agent_ids)``."""
-    if sharing_mode == "individual":
+    if (
+        parameter_sharing_scope == "individual"
+        or parameter_sharing_scope == "team_critic"
+    ):
         learning_unit_to_agent_ids = {aid: [aid] for aid in all_agent_ids}
         agent_id_to_learning_unit_id = {aid: aid for aid in all_agent_ids}
 
-    elif sharing_mode == "team":
+    elif parameter_sharing_scope == "team_all":
         learning_unit_to_agent_ids = env_teams
         agent_id_to_learning_unit_id = {
             agent_id: team_name
@@ -669,7 +847,7 @@ def _build_learning_unit_mappings(
         }
 
     else:
-        raise ValueError(f"Unknown {algo_name} sharing_mode: {sharing_mode}")
+        raise ValueError(f"Unknown {algo_name}: {parameter_sharing_scope=}")
 
     return agent_id_to_learning_unit_id, learning_unit_to_agent_ids
 
@@ -709,36 +887,149 @@ def _build_algorithm_learning_units(
     return learning_units
 
 
+def _build_learning_units(
+    actor_id_to_agent_ids: dict[str, list[str]],
+    critic_id_to_agent_ids: dict[str, list[str]],
+    observation_size,
+    action_num: int,
+    config,
+    device,
+    Algorithm,
+    Actor,
+    Critic,
+) -> dict:
+    learning_units = {}
+
+    # A learning unit may exist because it owns:
+    #   - an actor,
+    #   - a critic,
+    #   - or both.
+    #
+    # individual:
+    #   actor IDs = critic IDs = env agents
+    #
+    # team_critic:
+    #   actor IDs  = env agents
+    #   critic IDs = teams
+    #
+    # team_all:
+    #   actor IDs  = teams
+    #   critic IDs = teams
+    #
+    # Therefore we build the union of all actor/critic IDs that require a
+    # physical learning-unit container.
+    learning_unit_ids = sorted(
+        set(actor_id_to_agent_ids.keys()) | set(critic_id_to_agent_ids.keys())
+    )
+
+    for learning_unit_id in learning_unit_ids:
+        # Recover a representative environment agent for network construction.
+        #
+        # The actor network API expects an env-agent ID so it can determine:
+        #   - observation dimensions
+        #   - action dimensions
+        #   - agent-specific observation structure
+        #
+        # A learning unit is guaranteed to appear in at least one of:
+        #   actor_id_to_agent_ids
+        #   critic_id_to_agent_ids
+        #
+        # individual:
+        #   learning_unit_id = adversary_0
+        #   representative_agent_id = adversary_0
+        #
+        # team_critic:
+        #   actor learning units:
+        #       adversary_0 -> adversary_0
+        #
+        #   critic learning units:
+        #       adversary -> adversary_0
+        #
+        # team_all:
+        #   adversary -> adversary_0
+
+        controlled_agent_ids = actor_id_to_agent_ids.get(
+            learning_unit_id
+        ) or critic_id_to_agent_ids.get(learning_unit_id)
+
+        if controlled_agent_ids is None:
+            raise ValueError(
+                f"No controlled agents found for learning unit '{learning_unit_id}'"
+            )
+
+        # Recover the environment agents associated with this learning unit.
+        #
+        # We first check whether the learning unit owns an actor.
+        # If not, we fall back to the critic ownership mapping.
+        #
+        # This is needed because in some configurations a learning unit may exist
+        # purely due to actor ownership or purely due to critic ownership.
+        representative_agent_id = controlled_agent_ids[0]
+
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=representative_agent_id,
+        )
+
+        critic = Critic(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+        )
+
+        learning_units[learning_unit_id] = Algorithm(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+
+    return learning_units
+
+
 def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
     from cares_reinforcement_learning.algorithm.marl import MADDPG
-    from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
     from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
 
     all_agent_ids = list(observation_size["obs"].keys())
     env_teams = observation_size["teams"]
     device = hlp.get_device()
 
-    agent_id_to_learning_unit_id, learning_unit_to_agent_ids = (
-        _build_learning_unit_mappings(
-            all_agent_ids, env_teams, config.sharing_mode, "MADDPG"
-        )
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="MADDPG",
     )
-    learning_units = _build_algorithm_learning_units(
-        learning_unit_to_agent_ids,
-        observation_size,
-        action_num,
-        config,
-        device,
-        DDPG,
-        Actor,
-        Critic,
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=DDPG,
+        Actor=Actor,
+        Critic=Critic,
     )
 
     return MADDPG(
         learning_units=learning_units,
         all_agent_ids=all_agent_ids,
-        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
-        learning_unit_to_agent_ids=learning_unit_to_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
         device=device,
     )
@@ -753,27 +1044,38 @@ def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
     env_teams = observation_size["teams"]
     device = hlp.get_device()
 
-    agent_id_to_learning_unit_id, learning_unit_to_agent_ids = (
-        _build_learning_unit_mappings(
-            all_agent_ids, env_teams, config.sharing_mode, "M3DDPG"
-        )
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="M3DDPG",
     )
-    learning_units = _build_algorithm_learning_units(
-        learning_unit_to_agent_ids,
-        observation_size,
-        action_num,
-        config,
-        device,
-        DDPG,
-        Actor,
-        Critic,
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=DDPG,
+        Actor=Actor,
+        Critic=Critic,
     )
 
     return M3DDPG(
         learning_units=learning_units,
         all_agent_ids=all_agent_ids,
-        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
-        learning_unit_to_agent_ids=learning_unit_to_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
         device=device,
     )
