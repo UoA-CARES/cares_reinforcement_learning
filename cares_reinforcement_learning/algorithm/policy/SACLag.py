@@ -62,3 +62,50 @@ Advantages:
 
 SAC-Lag = SAC + Cost critic + Lagrange multiplier
 """
+
+
+from cares_reinforcement_learning.algorithm.policy.SAC import SAC
+
+
+class SACLag(SAC):
+    def __init__():
+        pass
+
+    @property
+    def lagrange_multiplier():
+        pass
+
+    def _update_cost_critic():
+        pass
+
+    def _update_actor_alpha():
+        pass
+
+    def update_from_batch():
+        pass
+
+    def update_target_networks():
+        pass
+
+    def train():
+        pass
+
+    def save_models():
+        pass
+
+    def load_models():
+        pass
+
+
+class LagrangeMultiplier():
+    def __init__():
+        pass
+
+    def update(self):
+        pass
+
+    def _update_via_gradient_ascent():
+        pass
+
+    def _update_via_pid_controller():
+        pass
