@@ -15,9 +15,10 @@ team-sharing settings.
 
 This implementation supports two main parameter-sharing modes:
 
-    sharing_mode:
-        "individual" -> one SAC learning unit per environment agent
-        "team"       -> one shared SAC learning unit per environment team
+    parameter_sharing_scope:
+        "individual"   -> one SAC learning unit per environment agent
+        "team_critic" -> one shared critic per team, separate actor per agent
+        "team_all"    -> one shared SAC learning unit per team of agents
 
 Terminology
 -----------
@@ -244,7 +245,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         # Physical trainable containers.
         #
-        # Each learning unit is a DDPG bundle containing:
+        # Each learning unit is a SAC bundle containing:
         #   - actor
         #   - target actor
         #   - critic

@@ -560,25 +560,38 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         global_states: torch.Tensor,
         replay_actions: torch.Tensor,
     ) -> tuple[list[torch.Tensor], torch.Tensor, torch.Tensor]:
-        # Build a counterfactual joint action for actor optimisation.
-        #
-        # Replay actions act as the fixed baseline joint action.
-        #
-        # Controlled agents' replay actions are replaced with current
-        # policy outputs from the actor under optimisation.
-        #
-        # Example:
-        #
-        #   replay:
-        #       [a_0_replay, a_1_replay, a_2_replay]
-        #
-        #   uncoupled:
-        #       [pi(o_0), a_1_replay, a_2_replay]
-        #
-        #   coupled:
-        #       [pi(o_0), pi(o_1), pi(o_2)]
-        #
-        # The critic then evaluates the resulting counterfactual joint action.
+        """
+        Build the MATD3 actor contribution for one learning-unit update.
+
+        Replay actions act as the fixed baseline joint action sampled from the
+        replay buffer.
+
+        Controlled agents' replay actions are replaced with current policy outputs
+        from the actor under optimisation.
+
+        This produces a counterfactual joint action that asks:
+
+            "If the agents controlled by this learning unit changed their actions,
+            while the rest of the sampled transition stayed fixed, would the critic
+            assign a higher value?"
+
+        Example replay joint action:
+
+            [a_0_replay, a_1_replay, a_2_replay]
+
+        individual / team_critic:
+            one controlled agent is replaced at a time
+
+            [pi(o_0), a_1_replay, a_2_replay]
+
+        team_all:
+            all controlled agents are replaced together using the shared actor
+
+            [pi(o_0), pi(o_1), pi(o_2)]
+
+        The centralized critic then evaluates the resulting counterfactual joint
+        action.
+        """
         batch_size = global_states.shape[0]
         actions_all = replay_actions.clone()
 
@@ -613,47 +626,50 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
         global_states: torch.Tensor,
         replay_actions: torch.Tensor,
     ) -> dict[str, Any]:
+        """
+        MATD3 actor update.
+
+        Actor Loss computation logic depends on parameter sharing configuration:
+        individual / team_critic:
+            separate actor per agent
+            -> use counterfactual one-agent-at-a-time updates
+
+           Uncoupled actor update:
+            evaluate one controlled agent's new action at a time
+            average losses
+
+            Q_1 = Q_team(s, [π(o_1), replay(a_2), replay(a_3)])
+            Q_2 = Q_team(s, [replay(a_1), π(o_2), replay(a_3)])
+            Q_3 = Q_team(s, [replay(a_1), replay(a_2), π(o_3)])
+
+            actor_loss = mean(-Q_1.mean(), -Q_2.mean(), -Q_3.mean())
+
+        team_all:
+            shared actor per team
+            -> evaluate all controlled agents' policy actions together
+
+          Coupled updates are only meaningful when multiple agents share
+          the SAME actor parameters.
+
+          Coupled actor update:
+            evaluate all controlled agents' new actions together
+            one team loss
+
+            actor_loss = -Q_team(s, [π(o_1), π(o_2), π(o_3)]).mean()
+        """
         info: dict[str, Any] = {}
 
-        # Coupled updates are only meaningful when multiple agents share
-        # the SAME actor parameters.
-        #
-        # team_all:
-        #     shared actor per team
-        #     -> evaluate all controlled agents' policy actions together
-        #
-        # individual / team_critic:
-        #     separate actor per agent
-        #     -> use counterfactual one-agent-at-a-time updates
-        #
-        # This mirrors the original MADDPG deterministic policy gradient logic.
-        #
-        # Uncoupled actor update:
-        #     evaluate one controlled agent's new action at a time
-        #     average losses
-        #
-        #     Q_1 = Q_team(s, [π(o_1), replay(a_2), replay(a_3)])
-        #     Q_2 = Q_team(s, [replay(a_1), π(o_2), replay(a_3)])
-        #     Q_3 = Q_team(s, [replay(a_1), replay(a_2), π(o_3)])
-        #
-        #     actor_loss = mean(-Q_1.mean(), -Q_2.mean(), -Q_3.mean())
-        #
-        # Coupled actor update:
-        #     evaluate all controlled agents' new actions together
-        #     one team loss
-        #
-        #     actor_loss = -Q_team(s, [π(o_1), π(o_2), π(o_3)]).mean()
+        actions_all: list[torch.Tensor] = []
+        contribution_actions_all: list[list[torch.Tensor]] = []
+        actor_q_values_all: list[torch.Tensor] = []
+        actor_objectives_all: list[torch.Tensor] = []
+
         use_coupled_update = self.parameter_sharing_scope == "team_all"
 
         if use_coupled_update:
             contribution_groups = [controlled_agent_ids]
         else:
             contribution_groups = [[agent_id] for agent_id in controlled_agent_ids]
-
-        actions_all: list[torch.Tensor] = []
-        contribution_actions_all: list[list[torch.Tensor]] = []
-        actor_q_values_all: list[torch.Tensor] = []
-        actor_objectives_all: list[torch.Tensor] = []
 
         for contribution_agent_ids in contribution_groups:
             actions_i_all, actor_q_values, actor_objective = (

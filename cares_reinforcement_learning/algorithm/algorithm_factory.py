@@ -824,69 +824,6 @@ def _build_actor_critic_mappings(
     )
 
 
-def _build_learning_unit_mappings(
-    all_agent_ids: list[str],
-    env_teams: dict[str, list[str]],
-    parameter_sharing_scope: str,
-    algo_name: str,
-) -> tuple[dict[str, str], dict[str, list[str]]]:
-    """Return ``(agent_id_to_learning_unit_id, learning_unit_to_agent_ids)``."""
-    if (
-        parameter_sharing_scope == "individual"
-        or parameter_sharing_scope == "team_critic"
-    ):
-        learning_unit_to_agent_ids = {aid: [aid] for aid in all_agent_ids}
-        agent_id_to_learning_unit_id = {aid: aid for aid in all_agent_ids}
-
-    elif parameter_sharing_scope == "team_all":
-        learning_unit_to_agent_ids = env_teams
-        agent_id_to_learning_unit_id = {
-            agent_id: team_name
-            for team_name, team_agent_ids in env_teams.items()
-            for agent_id in team_agent_ids
-        }
-
-    else:
-        raise ValueError(f"Unknown {algo_name}: {parameter_sharing_scope=}")
-
-    return agent_id_to_learning_unit_id, learning_unit_to_agent_ids
-
-
-def _build_algorithm_learning_units(
-    learning_unit_to_agent_ids: dict[str, list[str]],
-    observation_size,
-    action_num: int,
-    config,
-    device,
-    Algorithm,
-    Actor,
-    Critic,
-) -> dict:
-    """Instantiate one DDPG learning unit per entry in *learning_unit_to_agent_ids*."""
-    learning_units = {}
-    for learning_unit_id, controlled_agent_ids in learning_unit_to_agent_ids.items():
-        representative_agent_id = controlled_agent_ids[0]
-
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=representative_agent_id,
-        )
-        critic = Critic(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-        )
-        learning_units[learning_unit_id] = Algorithm(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-    return learning_units
-
-
 def _build_learning_units(
     actor_id_to_agent_ids: dict[str, list[str]],
     critic_id_to_agent_ids: dict[str, list[str]],
@@ -897,6 +834,7 @@ def _build_learning_units(
     Algorithm,
     Actor,
     Critic,
+    critic_uses_action_num=True,
 ) -> dict:
     learning_units = {}
 
@@ -975,11 +913,17 @@ def _build_learning_units(
             agent_id=representative_agent_id,
         )
 
-        critic = Critic(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-        )
+        if critic_uses_action_num:
+            critic = Critic(
+                observation_size=observation_size,
+                num_actions=action_num,
+                config=config,
+            )
+        else:
+            critic = Critic(
+                observation_size=observation_size,
+                config=config,
+            )
 
         learning_units[learning_unit_id] = Algorithm(
             actor_network=actor,
@@ -1175,90 +1119,51 @@ def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
     )
 
 
-def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
-    from cares_reinforcement_learning.algorithm.marl import MultiMARL
-
-    device = hlp.get_device()
-
-    env_teams = observation_size["teams"]  # dict[str → list[str]]
-
-    learning_team_name = config.learning_team_name
-    learning_team = env_teams[learning_team_name]  # list[str]
-
-    learning_obs_shapes = {
-        "obs": {
-            agent_name: observation_size["obs"][agent_name]
-            for agent_name in learning_team
-        },
-        "state": observation_size["state"],
-        "num_agents": len(learning_team),
-        "teams": env_teams,
-    }
-
-    algorithm_factory = AlgorithmFactory()
-
-    agents = {}
-
-    for team_name in env_teams.keys():
-        agent_obs = observation_size
-        if team_name == learning_team_name:
-            agent_obs = learning_obs_shapes
-
-        agent = algorithm_factory.create_network(
-            observation_size=agent_obs,
-            action_num=action_num,
-            config=config.agents_config[team_name],
-        )
-        agents[team_name] = agent
-
-    multimarl_agent = MultiMARL(
-        agent_networks=agents, env_teams=env_teams, config=config, device=device
-    )
-    return multimarl_agent
-
-
 def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
     from cares_reinforcement_learning.algorithm.marl import MAPPO
     from cares_reinforcement_learning.algorithm.policy.PPO import PPO
     from cares_reinforcement_learning.networks.MAPPO import Actor, Critic
-    from cares_reinforcement_learning.networks.PPO import Critic as PPOCritic
 
-    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-
-    agents = {}
     device = hlp.get_device()
+    all_agent_ids = list(observation_size["obs"].keys())
+    env_teams = observation_size["teams"]
 
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
-
-    for agent_name in agent_ids:
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=agent_name,
-        )
-
-        # Not actually used just created to fill in PPO agent's
-        critic = PPOCritic(
-            observation_size=observation_size["obs"][agent_name],
-            config=config,
-        )
-
-        agent = PPO(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-        agents[agent_name] = agent
-
-    shared_critic = Critic(observation_size=observation_size, config=config)
-
-    mappo_agent = MAPPO(
-        agents=agents, shared_critic=shared_critic, config=config, device=device
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="MAPPO",
     )
-    return mappo_agent
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=PPO,
+        Actor=Actor,
+        Critic=Critic,
+        critic_uses_action_num=False,
+    )
+
+    return MAPPO(
+        learning_units=learning_units,
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        config=config,
+        device=device,
+    )
 
 
 def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
@@ -1346,6 +1251,48 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
 
     ippo_agent = IPPO(agents=agents, config=config, device=device)
     return ippo_agent
+
+
+def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
+    from cares_reinforcement_learning.algorithm.marl import MultiMARL
+
+    device = hlp.get_device()
+
+    env_teams = observation_size["teams"]  # dict[str → list[str]]
+
+    learning_team_name = config.learning_team_name
+    learning_team = env_teams[learning_team_name]  # list[str]
+
+    learning_obs_shapes = {
+        "obs": {
+            agent_name: observation_size["obs"][agent_name]
+            for agent_name in learning_team
+        },
+        "state": observation_size["state"],
+        "num_agents": len(learning_team),
+        "teams": env_teams,
+    }
+
+    algorithm_factory = AlgorithmFactory()
+
+    agents = {}
+
+    for team_name in env_teams.keys():
+        agent_obs = observation_size
+        if team_name == learning_team_name:
+            agent_obs = learning_obs_shapes
+
+        agent = algorithm_factory.create_network(
+            observation_size=agent_obs,
+            action_num=action_num,
+            config=config.agents_config[team_name],
+        )
+        agents[team_name] = agent
+
+    multimarl_agent = MultiMARL(
+        agent_networks=agents, env_teams=env_teams, config=config, device=device
+    )
+    return multimarl_agent
 
 
 ####################################

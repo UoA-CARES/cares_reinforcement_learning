@@ -224,34 +224,54 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         return value[0].item()
 
-    def _calculate_gae(
+    def update_critic_minibatch(
         self,
-        rewards: torch.Tensor,  # [N] or [N,1]
-        dones: torch.Tensor,  # [N] or [N,1] (1.0 if done else 0.0)
-        values: torch.Tensor,  # [N]
-        last_value: torch.Tensor,  # scalar tensor, V(s_T) for bootstrap
-        gae_lambda: float,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+        states_mb: torch.Tensor,  # [mb, obs_dim]
+        returns_mb: torch.Tensor,  # [mb]
+    ) -> dict[str, float]:
 
-        rewards = rewards.view(-1)
-        dones = dones.view(-1)
-        values = values.view(-1)
+        v = self.critic_net(states_mb).view(-1)
+        critic_loss = F.mse_loss(v, returns_mb)
 
-        batch_size = rewards.shape[0]
-        advantages = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
+        self.critic_net_optimiser.zero_grad()
+        critic_loss.backward()
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                self.critic_net.parameters(), self.max_grad_norm
+            )
+        self.critic_net_optimiser.step()
 
-        gae = torch.zeros((), dtype=torch.float32, device=self.device)
-        next_value = last_value
+        return {"critic_loss": float(critic_loss.item())}
 
-        for t in reversed(range(batch_size)):
-            mask = 1.0 - dones[t]  # 0 if terminal else 1
-            delta = rewards[t] + self.gamma * mask * next_value - values[t]
-            gae = delta + self.gamma * gae_lambda * mask * gae
-            advantages[t] = gae
-            next_value = values[t]
+    def _evaluate_actions(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Evaluate squashed actions under the current PPO policy.
 
-        returns = advantages + values
-        return advantages, returns
+        Args:
+            states:  [B, obs_dim]
+            actions: [B, act_dim], already tanh-squashed and stored in replay/rollout
+
+        Returns:
+            log_probs: [B]
+            entropy:   [B]
+            u:         [B, act_dim], reconstructed pre-squash action
+        """
+        mean = self.actor_net(states)
+        dist = self._dist(mean)
+
+        u = self._atanh(actions)
+
+        log_probs = self._squashed_log_prob(dist, u)
+
+        # Entropy of the base Gaussian in pre-squash space.
+        # This matches your existing PPO update_actor_minibatch behaviour.
+        entropy = dist.entropy().sum(dim=-1)
+
+        return log_probs, entropy, u
 
     def update_actor_minibatch(
         self,
@@ -262,10 +282,10 @@ class PPO(SARLAlgorithm[np.ndarray]):
         entropy_coef: float,
     ) -> tuple[bool, dict[str, float]]:
 
-        mean = self.actor_net(states_mb)
-        dist = self._dist(mean)
-        u_mb = self._atanh(actions_mb)  # invert tanh
-        curr_log_probs = self._squashed_log_prob(dist, u_mb)
+        curr_log_probs, entropy, u_mb = self._evaluate_actions(
+            states_mb,
+            actions_mb,
+        )
 
         log_ratio = curr_log_probs - old_logp_mb
         ratios = torch.exp(log_ratio)
@@ -278,8 +298,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         actor_loss = -policy_objective.mean()
 
-        entropy = dist.entropy().sum(dim=-1).mean()
-        actor_loss = actor_loss - entropy_coef * entropy
+        actor_loss = actor_loss - entropy_coef * entropy.mean()
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
@@ -295,9 +314,10 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         # ---- Post-update diagnostics / KL early stop ----
         with torch.no_grad():
-            new_mean = self.actor_net(states_mb)
-            new_dist = self._dist(new_mean)
-            new_log_probs = self._squashed_log_prob(new_dist, u_mb)
+            new_log_probs, _, _ = self._evaluate_actions(
+                states_mb,
+                actions_mb,
+            )
 
             new_log_ratio = new_log_probs - old_logp_mb
             new_ratios = torch.exp(new_log_ratio)
@@ -342,24 +362,34 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         return kl_early_stop, info
 
-    def update_critic_minibatch(
+    def _calculate_gae(
         self,
-        states_mb: torch.Tensor,  # [mb, obs_dim]
-        returns_mb: torch.Tensor,  # [mb]
-    ) -> dict[str, float]:
+        rewards: torch.Tensor,  # [N] or [N,1]
+        dones: torch.Tensor,  # [N] or [N,1] (1.0 if done else 0.0)
+        values: torch.Tensor,  # [N]
+        last_value: torch.Tensor,  # scalar tensor, V(s_T) for bootstrap
+        gae_lambda: float,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
 
-        v = self.critic_net(states_mb).view(-1)
-        critic_loss = F.mse_loss(v, returns_mb)
+        rewards = rewards.view(-1)
+        dones = dones.view(-1)
+        values = values.view(-1)
 
-        self.critic_net_optimiser.zero_grad()
-        critic_loss.backward()
-        if self.max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(
-                self.critic_net.parameters(), self.max_grad_norm
-            )
-        self.critic_net_optimiser.step()
+        batch_size = rewards.shape[0]
+        advantages = torch.zeros(batch_size, dtype=torch.float32, device=self.device)
 
-        return {"critic_loss": float(critic_loss.item())}
+        gae = torch.zeros((), dtype=torch.float32, device=self.device)
+        next_value = last_value
+
+        for t in reversed(range(batch_size)):
+            mask = 1.0 - dones[t]  # 0 if terminal else 1
+            delta = rewards[t] + self.gamma * mask * next_value - values[t]
+            gae = delta + self.gamma * gae_lambda * mask * gae
+            advantages[t] = gae
+            next_value = values[t]
+
+        returns = advantages + values
+        return advantages, returns
 
     def update_from_batch(
         self,
