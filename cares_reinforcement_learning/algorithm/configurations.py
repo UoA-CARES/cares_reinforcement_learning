@@ -365,6 +365,8 @@ class PPOConfig(AlgorithmConfig):
 
     max_steps_exploration: Literal[0] = Field(default=0)
 
+    use_value_normalisation: int = 0
+
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),

@@ -87,6 +87,7 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import PPOConfig
 from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
+from cares_reinforcement_learning.algorithm.value_normaliser import ValueNormaliser
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
@@ -147,6 +148,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
         self.updates_per_iteration = config.updates_per_iteration
         self.eps_clip = config.eps_clip
 
+        self.use_value_normalisation = config.use_value_normalisation
+
+        self.value_normaliser = ValueNormaliser(
+            shape=(),
+            device=self.device,
+        )
+
     def _dist(self, mean: torch.Tensor) -> Normal:
         log_std = self.log_std.clamp(self.min_log_std, self.max_log_std)
         # mean: [B, act_dim] or [act_dim]
@@ -196,11 +204,12 @@ class PPO(SARLAlgorithm[np.ndarray]):
             action_t = self._squash(u)  # in [-1, 1]
             log_prob = self._squashed_log_prob(dist, u)  # consistent log π(a|s)
 
-            value = (
-                self.critic_net(state_tensor).squeeze(-1)
-                if calculate_value
-                else torch.tensor(0.0, device=self.device)
-            )
+            if calculate_value:
+                value = self.critic_net(state_tensor).squeeze(-1)
+                if self.use_value_normalisation:
+                    value = self.value_normaliser.denormalise(value)
+            else:
+                value = torch.tensor(0.0, device=self.device)
 
             action = action_t.squeeze(0).cpu().numpy()
 
@@ -221,6 +230,8 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         with torch.no_grad():
             value = self.critic_net(state_tensor)
+            if self.use_value_normalisation:
+                value = self.value_normaliser.denormalise(value)
 
         return value[0].item()
 
@@ -347,7 +358,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         info = {
             "actor_loss": float(actor_loss.item()),
-            "entropy": float(entropy.item()),
+            "entropy": float(entropy.mean().item()),
             "approx_kl": float(approx_kl.item()),
             "clip_frac": float(clip_frac.item()),
             "ratio_mean": float(new_ratios.mean().item()),
@@ -429,6 +440,10 @@ class PPO(SARLAlgorithm[np.ndarray]):
                 0
             )  # [1, obs_dim]
             last_value = self.critic_net(last_next_state).view(-1)[0]  # scalar
+
+            if self.use_value_normalisation:
+                last_value = self.value_normaliser.denormalise(last_value)
+
             last_done = dones_tensor.reshape(-1)[-1].bool()  # True if terminal
             last_value = last_value * (~last_done).to(last_value.dtype)
 
@@ -441,6 +456,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
             gae_lambda=self.gae_lambda,
         )
 
+        # Optionally normalise returns for critic stability
+        if self.use_value_normalisation:
+            self.value_normaliser.update(returns)
+            normalised_returns = self.value_normaliser.normalise(returns)
+        else:
+            normalised_returns = returns
+
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
@@ -452,6 +474,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
             # Critic fit quality (explained variance) on the whole batch
             v_pred_all = self.critic_net(states).view(-1)
+            if self.use_value_normalisation:
+                v_pred_all = self.value_normaliser.denormalise(v_pred_all)
+
             y_all = returns.view(-1)
             explained_var = 1.0 - torch.var(y_all - v_pred_all) / (
                 torch.var(y_all) + 1e-8
@@ -504,7 +529,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
                 actions_mb = actions_tensor[mb]
                 old_logp_mb = old_log_probs_tensor[mb].detach()
                 advantages_mb = advantages[mb]
-                returns_mb = returns[mb]
+                returns_mb = normalised_returns[mb]
 
                 # ---- Actor ----
                 if not kl_early_stop:
@@ -675,6 +700,11 @@ class PPO(SARLAlgorithm[np.ndarray]):
             "actor_optimizer": self.actor_net_optimiser.state_dict(),
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
         }
+        checkpoint["value_normaliser"] = {
+            "mean": self.value_normaliser.mean.detach().cpu(),
+            "var": self.value_normaliser.var.detach().cpu(),
+            "count": self.value_normaliser.count.detach().cpu(),
+        }
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models and optimisers have been saved...")
 
@@ -687,4 +717,15 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.value_normaliser.mean = checkpoint["value_normaliser"]["mean"].to(
+            self.device
+        )
+        self.value_normaliser.var = checkpoint["value_normaliser"]["var"].to(
+            self.device
+        )
+        self.value_normaliser.count = checkpoint["value_normaliser"]["count"].to(
+            self.device
+        )
+
         logging.info("models and optimisers have been loaded...")

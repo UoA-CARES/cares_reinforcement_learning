@@ -253,6 +253,7 @@ from cares_reinforcement_learning.algorithm.algorithm import MARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import MAPPOConfig
 from cares_reinforcement_learning.algorithm.policy.PPO import PPO
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
+from cares_reinforcement_learning.algorithm.value_normaliser import ValueNormaliser
 from cares_reinforcement_learning.memory.memory_buffer import MARLMemoryBuffer
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
@@ -260,59 +261,6 @@ from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     SARLObservation,
 )
-
-
-class ValueNormaliser:
-    """
-    Running return/value normalization for PPO-style critic targets.
-
-    The critic predicts normalized values while GAE and logging operate
-    in the original return scale.
-
-    MAPPO-style value normalization is especially important for
-    stabilizing critic learning in cooperative MARL tasks.
-    """
-
-    def __init__(
-        self,
-        shape: tuple[int, ...],
-        epsilon: float = 1e-4,
-        device: torch.device | None = None,
-    ):
-        self.mean = torch.zeros(shape, device=device)
-        self.var = torch.ones(shape, device=device)
-        self.count = torch.tensor(epsilon, device=device)
-
-    def update(self, returns: torch.Tensor) -> None:
-        returns = returns.detach()
-        batch_mean = returns.mean(dim=0)
-        batch_var = returns.var(dim=0, unbiased=False)
-        batch_count = torch.tensor(
-            returns.shape[0], device=returns.device, dtype=torch.float32
-        )
-
-        delta = batch_mean - self.mean
-        total_count = self.count + batch_count
-
-        new_mean = self.mean + delta * batch_count / total_count
-
-        m_a = self.var * self.count
-        m_b = batch_var * batch_count
-        m_2 = m_a + m_b + delta.pow(2) * self.count * batch_count / total_count
-
-        self.mean = new_mean
-        self.var = m_2 / total_count
-        self.count = total_count
-
-    @property
-    def std(self) -> torch.Tensor:
-        return torch.sqrt(self.var + 1e-8)
-
-    def normalize(self, returns: torch.Tensor) -> torch.Tensor:
-        return (returns - self.mean) / self.std
-
-    def denormalize(self, values: torch.Tensor) -> torch.Tensor:
-        return values * self.std + self.mean
 
 
 @dataclass(frozen=True, slots=True)
@@ -841,7 +789,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 )
                 values_full_norm[:, critic_agent_indices] = values_i_norm
 
-                values_full = self.value_normaliser.denormalize(values_full_norm)
+                values_full = self.value_normaliser.denormalise(values_full_norm)
                 values_i = values_full[:, critic_agent_indices]
 
                 # -----------------------------------------------------
@@ -857,7 +805,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 )
                 last_value_full_norm[:, critic_agent_indices] = last_value_i_norm
 
-                last_value_full = self.value_normaliser.denormalize(
+                last_value_full = self.value_normaliser.denormalise(
                     last_value_full_norm
                 )
                 last_value_i = last_value_full[0, critic_agent_indices]
@@ -1045,7 +993,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             batch_size=batch_size,
         )
         self.value_normaliser.update(returns_all)
-        normalized_returns_all = self.value_normaliser.normalize(returns_all)
+        normalized_returns_all = self.value_normaliser.normalise(returns_all)
 
         mb_size = min(self.minibatch_size, batch_size)
 
