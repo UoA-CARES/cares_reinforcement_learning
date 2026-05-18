@@ -1402,7 +1402,7 @@ class MAPPOConfig(PPOConfig):
     )
 
     actor_lr: float = 3e-4
-    critic_lr: float = 1e-3
+    critic_lr: float = 5e-4
 
     gamma: float = 0.99
     eps_clip: float = 0.1
@@ -1413,7 +1413,7 @@ class MAPPOConfig(PPOConfig):
     entropy_end: float = 0.01
     entropy_decay: int = 1
 
-    max_grad_norm: float | None = 0.5
+    max_grad_norm: float | None = 10.0
     log_std_bounds: list[float] = [-5.0, 1.0]
 
     updates_per_iteration: int = 10
