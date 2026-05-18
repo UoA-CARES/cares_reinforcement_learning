@@ -18,3 +18,5 @@ rl_logs/
 *.egg-info/
 .venv/
 site/
+
+.ipynb_checkpoints/
