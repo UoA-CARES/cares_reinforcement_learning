@@ -1394,32 +1394,32 @@ class MAPPOConfig(PPOConfig):
     marl_observation: Literal[1] = Field(default=1)
     """
     - "individual": One actor + critic per agent 
-    - "team_critic": One shared critic per team, separate actor per agent (default)
-    - "team_all": One shared actor + critic per team (experimental - coupled actors)
+    - "team_critic": One shared critic per team, separate actor per agent 
+    - "team_all": One shared actor + critic per team (default)
     """
     parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
-        "team_critic"
+        "team_all"
     )
 
-    actor_lr: float = 1e-4
+    actor_lr: float = 3e-4
     critic_lr: float = 1e-3
 
     gamma: float = 0.99
-    eps_clip: float = 0.2
+    eps_clip: float = 0.1
     gae_lambda: float = 0.95
-    target_kl: float | None = 0.1
+    target_kl: float | None = None
 
     entropy_start: float = 0.01
-    entropy_end: float = 0.001
-    entropy_decay: int = 300000
+    entropy_end: float = 0.01
+    entropy_decay: int = 1
 
     max_grad_norm: float | None = 0.5
-    log_std_bounds: list[float] = [-3.0, -0.5]
+    log_std_bounds: list[float] = [-5.0, 1.0]
 
-    updates_per_iteration: int = 5
+    updates_per_iteration: int = 10
 
-    minibatch_size: int = 512
-    number_steps_per_train_policy: int = 4096
+    minibatch_size: int = 3200
+    number_steps_per_train_policy: int = 3200
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
