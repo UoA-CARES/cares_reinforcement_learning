@@ -836,6 +836,31 @@ class SACDConfig(AlgorithmConfig):
     )
 
 
+class SACLagConfig(SACConfig):
+    cost_gamma: float = 0.99
+    cost_limit: float = 25.0
+
+    cost_critic_lr: float = 3e-4
+    cost_critic_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    lagrange_multiplier: LagrangeMultiplierConfig = Field(default_factory=LagrangeMultiplierConfig)
+
+
+class LagrangeMultiplierConfig(BaseModel):
+    init: float = 0.01
+
+    lr: float = 3e-4
+    lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    update_method: Literal["fixed", "gradient_ascent", "pid_controller"] = "fixed"
+
+    step_size: float = 1e-3
+
+    pid_kp: float = 0.1
+    pid_ki: float = 0.01
+    pid_kd: float = 0.01
+
+
 ###################################
 #         TD3 Algorithms          #
 ###################################
