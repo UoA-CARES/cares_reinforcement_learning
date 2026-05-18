@@ -64,12 +64,82 @@ SAC-Lag = SAC + Cost critic + Lagrange multiplier
 """
 
 
+import copy
+
+import numpy as np
+import torch
+
+from cares_reinforcement_learning.algorithm.configuration import (
+    SACLagConfig,
+    LagrangeMultiplierConfig,
+)
 from cares_reinforcement_learning.algorithm.policy.SAC import SAC
+from cares_reinforcement_learning.networks.common import (
+    EnsembleCritic,
+    QNetwork,
+    TanhGaussianPolicy,
+    TwinQNetwork,
+)
+
+
+class LagrangeMultiplier():
+    def __init__(
+        self,
+        config: LagrangeMultiplierConfig,
+        device: torch.device
+    ) -> None:
+
+        self.log = torch.tensor(
+            np.log(config.init), requires_grad=True
+        ).to(device)
+
+        self.log_optimiser = torch.optim.Adam(
+            [self.log], lr=config.lr, **config.lr_params
+        )
+
+        self.update_method = config.update_method
+
+    def update(self):
+        pass
+
+    def _update_via_gradient_ascent():
+        pass
+
+    def _update_via_pid_controller():
+        pass
 
 
 class SACLag(SAC):
-    def __init__():
-        pass
+    def __init__(
+        self,
+        actor_network: TanhGaussianPolicy,
+        critic_network: TwinQNetwork | EnsembleCritic,
+        cost_critic_network: QNetwork,
+        config: SACLagConfig,
+        device: torch.device,
+    ) -> None:
+
+        super.__init__(actor_network, critic_network, config, device)
+
+        self.cost_gamma = config.cost_gamma
+        self.cost_limit = config.cost_limit
+
+        self.cost_critic_net = cost_critic_network.to(self.device)
+
+        self.target_cost_critic_net = copy.deepcopy(
+            self.cost_critic_net
+        ).to(self.device)
+        self.target_cost_critic_net.eval()
+
+        self.cost_critic_optimiser = torch.optim.Adam(
+            self.cost_critic_net.parameters(),
+            lr=config.cost_critic_lr,
+            **config.cost_critic_lr_params
+        )
+
+        self.lagrange_multiplier = LagrangeMultiplier(
+            config.lagrange_multiplier, device
+        )
 
     @property
     def lagrange_multiplier():
@@ -94,18 +164,4 @@ class SACLag(SAC):
         pass
 
     def load_models():
-        pass
-
-
-class LagrangeMultiplier():
-    def __init__():
-        pass
-
-    def update(self):
-        pass
-
-    def _update_via_gradient_ascent():
-        pass
-
-    def _update_via_pid_controller():
         pass
