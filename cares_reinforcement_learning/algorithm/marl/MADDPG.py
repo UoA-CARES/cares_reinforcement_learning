@@ -7,6 +7,21 @@ Original Paper: https://arxiv.org/pdf/1706.02275
 Modernisation Notes
 -------------------
 
+This implementation aims to faithfully reproduce the original algorithmic
+formulation as closely as possible while integrating with the CARES multi-agent
+reinforcement learning framework.
+
+The implementation preserves the core methodological components described in
+the original work, including centralized training with decentralized execution (CTDE),
+shared replay/rollout sampling where appropriate, and the original actor-critic
+optimization structure.
+
+To support broader experimentation and consistent evaluation across MARL algorithms,
+the implementation additionally exposes configurable parameter-sharing and
+critic-sharing modes through a unified framework abstraction. These extensions are
+designed to remain compatible with the canonical default configuration used
+in the original algorithm formulation.
+
 This implementation preserves the original MADDPG centralized-training /
 decentralized-execution (CTDE) formulation while adopting several modern
 training conventions commonly used in contemporary MARL frameworks.
