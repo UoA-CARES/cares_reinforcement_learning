@@ -93,7 +93,7 @@ Generalized Advantage Estimation (GAE):
 Value Normalization
     This implementation uses running return normalization for critic targets.
 
-    Critics predict normalized values while:
+    Critics predict normalized scalar values while:
 
     - GAE,
     - logging,
@@ -124,19 +124,44 @@ centralized critics.
 Critic update
 -------------
 
+MAPPO uses scalar centralized value critics.
+
+Each critic learning unit estimates one scalar value:
+
+        V(s) -> scalar return estimate
+
+The critic receives the global environment state during training and is
+optimized using generalized advantage estimation (GAE) returns.
+
 For each critic learning unit:
 
-    1. Compute centralized value estimates from the global state.
-    2. Compute returns and advantages using GAE.
-    3. Regress the critic against the computed returns:
+    1. Compute centralized scalar value estimates from the global state.
+    2. Compute per-agent returns and advantages using GAE.
+    3. Aggregate the controlled agents' returns into a scalar critic target.
+    4. Regress the critic against that scalar target.
 
-            V(s) -> R_t
+individual:
+    each critic belongs to one environment agent and therefore optimizes only
+    that agent's returns.
 
-In individual mode:
-    each critic optimizes only its controlled agent's returns.
+team_critic:
+    one centralized scalar critic is shared across the team while actors remain
+    independent per environment agent.
 
-In team_critic and team_all modes:
-    critics optimize centralized team value estimates.
+    The critic target is formed from the controlled agents' aggregated returns.
+
+team_all:
+    one centralized scalar critic is shared across the entire actor-sharing
+    team.
+
+    The critic therefore learns one shared cooperative team value estimate.
+
+Shared scalar critics are the canonical MAPPO formulation used in the original
+paper for cooperative environments with shared team rewards.
+
+This implementation additionally supports more general reward structures by
+aggregating the controlled agents' returns into a single scalar critic target
+for each critic learning unit.
 
 Actor update
 ------------
@@ -477,10 +502,13 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         self.gae_lambda = config.gae_lambda
 
-        self.value_normaliser = ValueNormaliser(
-            shape=(self.num_agents,),
-            device=self.device,
-        )
+        self.value_normalisers = {
+            critic_id: ValueNormaliser(
+                shape=(),
+                device=self.device,
+            )
+            for critic_id in self.critic_id_to_agent_ids
+        }
 
     def act(
         self,
@@ -521,16 +549,16 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         critic_agent_ids: list[str],
         mb: torch.Tensor,
         global_states: torch.Tensor,
-        normalized_returns_all: torch.Tensor,
+        normalised_returns_all: torch.Tensor,
     ) -> dict[str, Any]:
         critic_agent_indices = [
             self.all_agent_ids.index(agent_id) for agent_id in critic_agent_ids
         ]
 
-        v_pred = critic_unit.critic_net(global_states[mb])
-        v_pred = v_pred.view(len(mb), len(critic_agent_ids))
+        v_pred = critic_unit.critic_net(global_states[mb]).view(-1)
 
-        v_targ = normalized_returns_all[mb][:, critic_agent_indices]
+        # Scalar critic target for this critic/team.
+        v_targ = normalised_returns_all[mb][:, critic_agent_indices].mean(dim=1)
 
         critic_loss = F.mse_loss(v_pred, v_targ)
 
@@ -749,6 +777,33 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         return group_early_stop, actor_info_by_agent
 
+    def _normalise_returns_by_critic(
+        self,
+        returns_all: torch.Tensor,
+    ) -> torch.Tensor:
+        normalised_returns_all = torch.zeros_like(returns_all)
+
+        for critic_id, critic_agent_ids in self.critic_id_to_agent_ids.items():
+            critic_agent_indices = [
+                self.all_agent_ids.index(agent_id) for agent_id in critic_agent_ids
+            ]
+
+            # Scalar team/critic target.
+            critic_returns = returns_all[:, critic_agent_indices].mean(dim=1)
+
+            value_normaliser = self.value_normalisers[critic_id]
+            value_normaliser.update(critic_returns)
+
+            normalised_critic_returns = value_normaliser.normalise(critic_returns)
+
+            # Broadcast the scalar critic target back onto the agents owned by
+            # this critic so the existing minibatch update indexing stays simple.
+            normalised_returns_all[:, critic_agent_indices] = (
+                normalised_critic_returns.unsqueeze(-1)
+            )
+
+        return normalised_returns_all
+
     def _compute_values_and_last_values(
         self,
         global_states: torch.Tensor,
@@ -781,43 +836,26 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 # predictions into a full num_agents-shaped tensor so the
                 # value normalizer can denormalize using the correct agent
                 # dimensions.
-                values_i_norm = critic_unit.critic_net(global_states)
-                values_i_norm = values_i_norm.view(batch_size, len(critic_agent_ids))
+                value_normaliser = self.value_normalisers[critic_id]
 
-                values_full_norm = torch.zeros(
-                    (batch_size, self.num_agents), device=self.device
-                )
-                values_full_norm[:, critic_agent_indices] = values_i_norm
+                values_i_norm = critic_unit.critic_net(global_states).view(batch_size)
+                values_i = value_normaliser.denormalise(values_i_norm)
 
-                values_full = self.value_normaliser.denormalise(values_full_norm)
-                values_i = values_full[:, critic_agent_indices]
-
-                # -----------------------------------------------------
-                # Bootstrap value for the final next state
-                # -----------------------------------------------------
                 last_next_state = next_global_states[-1].unsqueeze(0)
+                last_value_i_norm = critic_unit.critic_net(last_next_state).view(())
+                last_value_i = value_normaliser.denormalise(last_value_i_norm)
 
-                last_value_i_norm = critic_unit.critic_net(last_next_state)
-                last_value_i_norm = last_value_i_norm.view(1, len(critic_agent_ids))
-
-                last_value_full_norm = torch.zeros(
-                    (1, self.num_agents), device=self.device
+                last_done_i = (
+                    torch.stack(
+                        [dones_by_agent[agent_id][-1] for agent_id in critic_agent_ids]
+                    )
+                    .amax()
+                    .bool()
                 )
-                last_value_full_norm[:, critic_agent_indices] = last_value_i_norm
-
-                last_value_full = self.value_normaliser.denormalise(
-                    last_value_full_norm
-                )
-                last_value_i = last_value_full[0, critic_agent_indices]
-
-                # Do not bootstrap through terminal agents.
-                last_done_i = torch.stack(
-                    [dones_by_agent[agent_id][-1] for agent_id in critic_agent_ids]
-                ).bool()
 
                 last_value_i = last_value_i * (~last_done_i).to(last_value_i.dtype)
 
-                values_all[:, critic_agent_indices] = values_i
+                values_all[:, critic_agent_indices] = values_i.unsqueeze(-1)
                 last_values_all[critic_agent_indices] = last_value_i
 
         return values_all, last_values_all
@@ -992,8 +1030,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             last_values_all=last_values_all,
             batch_size=batch_size,
         )
-        self.value_normaliser.update(returns_all)
-        normalized_returns_all = self.value_normaliser.normalise(returns_all)
+        normalised_returns_all = self._normalise_returns_by_critic(returns_all)
 
         mb_size = min(self.minibatch_size, batch_size)
 
@@ -1072,7 +1109,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                         critic_agent_ids=critic_agent_ids,
                         mb=mb,
                         global_states=global_states,
-                        normalized_returns_all=normalized_returns_all,
+                        normalised_returns_all=normalised_returns_all,
                     )
 
                     critic_updates[critic_id] += 1
@@ -1229,11 +1266,14 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         torch.save(
             {
-                "mean": self.value_normaliser.mean.detach().cpu(),
-                "var": self.value_normaliser.var.detach().cpu(),
-                "count": self.value_normaliser.count.detach().cpu(),
+                critic_id: {
+                    "mean": value_normaliser.mean.detach().cpu(),
+                    "var": value_normaliser.var.detach().cpu(),
+                    "count": value_normaliser.count.detach().cpu(),
+                }
+                for critic_id, value_normaliser in self.value_normalisers.items()
             },
-            os.path.join(filepath, "value_normaliser.pht"),
+            os.path.join(filepath, "value_normalisers.pht"),
         )
 
         logging.info("models and optimisers have been saved...")
@@ -1244,11 +1284,15 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             agent_filename = f"{filename}_{learning_unit_id}_checkpoint"
             learning_unit.load_models(agent_filepath, agent_filename)
 
-        normalizer_path = os.path.join(filepath, "value_normaliser.pht")
-        if os.path.exists(normalizer_path):
-            normalizer_state = torch.load(normalizer_path, map_location=self.device)
-            self.value_normaliser.mean = normalizer_state["mean"].to(self.device)
-            self.value_normaliser.var = normalizer_state["var"].to(self.device)
-            self.value_normaliser.count = normalizer_state["count"].to(self.device)
+        normaliser_path = os.path.join(filepath, "value_normalisers.pht")
+        normaliser_state = torch.load(normaliser_path, map_location=self.device)
+
+        for critic_id, state in normaliser_state.items():
+            if critic_id not in self.value_normalisers:
+                continue
+
+            self.value_normalisers[critic_id].mean = state["mean"].to(self.device)
+            self.value_normalisers[critic_id].var = state["var"].to(self.device)
+            self.value_normalisers[critic_id].count = state["count"].to(self.device)
 
         logging.info("models and optimisers have been loaded...")

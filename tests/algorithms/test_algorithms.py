@@ -160,6 +160,7 @@ def test_algorithms(tmp_path):
         "obs": {"agent_0": 10, "agent_1": 10, "agent_2": 10},
         "state": 30,
         "num_agents": 3,
+        "teams": {"team_0": ["agent_0", "agent_1", "agent_2"]},
     }
 
     action_num = 2
