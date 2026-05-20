@@ -189,6 +189,7 @@ class BaseRunner(ABC):
         episode_counter: int,
         log_step: int,
         record_video: bool = False,
+        video_label: str | None = None,
     ) -> dict[str, Any]:
         """
         Run a single evaluation episode and return detailed results.
@@ -197,6 +198,7 @@ class BaseRunner(ABC):
             episode_counter: Episode number for logging
             log_step: Training/evaluation step for logging context
             record_video: Whether to record video for this episode
+            video_label: Label for video recording; if provided, starts a new video after reset
 
         Returns:
             Dictionary with episode results including reward, states, actions, etc.
@@ -210,6 +212,14 @@ class BaseRunner(ABC):
 
         # Reset environment
         state = self.env_eval.reset(training=False)
+
+        # Start video with the first frame after reset (avoids stale previous-episode frames)
+        if record_video and video_label is not None and self.record is not None:
+            frame = self.env_eval.grab_frame()
+            self.record.start_video(video_label, frame, fps=self.fps)
+
+            log_path = self.record.current_sub_directory
+            self.env_eval.set_log_path(log_path, log_step)
 
         episode_end = False
         while not episode_end:
@@ -242,6 +252,10 @@ class BaseRunner(ABC):
                     **self.env_eval.get_overlay_info(),
                 )
                 self.record.log_video(overlay)
+
+        # Stop video if it was started for this episode
+        if record_video and video_label is not None and self.record is not None:
+            self.record.stop_video()
 
         # Calculate bias and log results
         episode_results = {
@@ -290,22 +304,23 @@ class BaseRunner(ABC):
         Returns:
             Dictionary with aggregated evaluation results
         """
-        if self.record is not None:
-            frame = self.env_eval.grab_frame()
-            self.record.start_video(video_label, frame, fps=self.fps)
-
-            log_path = self.record.current_sub_directory
-            self.env_eval.set_log_path(log_path, log_step)
-
         episode_rewards = []
         total_reward = 0.0
         all_bias_data = []
 
         for eval_episode_counter in range(self.number_eval_episodes):
+            # Pass recording info for this episode
+            episode_video_label = (
+                f"{video_label}_episode_{eval_episode_counter + 1}"
+                if self.record is not None
+                else None
+            )
+
             episode_results = self._run_single_episode_evaluation(
                 episode_counter=eval_episode_counter,
                 log_step=log_step,
-                record_video=(eval_episode_counter == 0),  # Only record first episode
+                record_video=True,  # Record all episodes
+                video_label=episode_video_label,
             )
 
             episode_reward = episode_results["episode_reward"]
@@ -314,9 +329,6 @@ class BaseRunner(ABC):
 
             if "bias_data" in episode_results:
                 all_bias_data.append(episode_results["bias_data"])
-
-        if self.record is not None:
-            self.record.stop_video()
 
         # Calculate statistics
         if episode_rewards:
@@ -355,7 +367,6 @@ class BaseRunner(ABC):
         Returns:
             Dictionary with skill evaluation results
         """
-        self.env_eval.reset(training=False)
         skill_results = []
         total_reward = 0.0
 
@@ -364,27 +375,24 @@ class BaseRunner(ABC):
 
             self.logger.info(f"Evaluating skill {skill + 1}/{self.agent.num_skills}")  # type: ignore
 
-            if self.record is not None:
-                frame = self.env_eval.grab_frame()
-                skill_video_label = f"{video_label}_skill_{skill}"
-                self.record.start_video(skill_video_label, frame)
+            # Create label for this skill's video
+            skill_video_label = (
+                f"{video_label}_skill_{skill}"
+                if self.record is not None
+                else None
+            )
 
-                log_path = self.record.current_sub_directory
-                self.env_eval.set_log_path(log_path, skill)
-
-            # Run one episode per skill
+            # Run one episode per skill with recording
             episode_results = self._run_single_episode_evaluation(
                 episode_counter=skill_counter,
                 log_step=log_step,
                 record_video=True,
+                video_label=skill_video_label,
             )
 
             episode_reward = episode_results["episode_reward"]
             skill_results.append({"skill": skill, "reward": episode_reward})
             total_reward += episode_reward
-
-            if self.record is not None:
-                self.record.stop_video()
 
         # Calculate statistics
         if skill_results:
