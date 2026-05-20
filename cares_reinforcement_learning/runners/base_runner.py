@@ -377,9 +377,7 @@ class BaseRunner(ABC):
 
             # Create label for this skill's video
             skill_video_label = (
-                f"{video_label}_skill_{skill}"
-                if self.record is not None
-                else None
+                f"{video_label}_skill_{skill}" if self.record is not None else None
             )
 
             # Run one episode per skill with recording
