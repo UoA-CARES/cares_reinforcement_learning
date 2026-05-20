@@ -263,6 +263,8 @@ For cooperative environments such as simple_spread:
             - and optimization simplicity.
 
     team_all:
+        closest to original MAPPO
+
         the default configuration for MAPPO in the original paper:
             - both actor and critic are shared across the team,
             - and PPO updates optimise a coupled team objective.
@@ -270,8 +272,6 @@ For cooperative environments such as simple_spread:
         This configuration is often most effective for homogeneous agents.
 
     individual:
-        closest to fully separate PPO learning units.
-
         Each agent learns:
             - its own actor,
             - and its own critic.
@@ -524,6 +524,8 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         self.gae_lambda = config.gae_lambda
 
+        self.huber_delta = config.huber_delta
+
         self.value_normalisers = {
             critic_id: ValueNormaliser(
                 shape=(),
@@ -568,21 +570,34 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
     def _update_critic_minibatch(
         self,
         critic_unit: PPO,
-        critic_agent_ids: list[str],
         mb: torch.Tensor,
         global_states: torch.Tensor,
-        normalised_returns_all: torch.Tensor,
+        normalised_returns_i: torch.Tensor,
+        old_values_i: torch.Tensor,
     ) -> dict[str, Any]:
-        critic_agent_indices = [
-            self.all_agent_ids.index(agent_id) for agent_id in critic_agent_ids
-        ]
-
         v_pred = critic_unit.critic_net(global_states[mb]).view(-1)
 
-        # Scalar critic target for this critic/team.
-        v_targ = normalised_returns_all[mb][:, critic_agent_indices].mean(dim=1)
+        v_targ = normalised_returns_i[mb]
+        old_v_pred = old_values_i[mb]
 
-        critic_loss = F.mse_loss(v_pred, v_targ)
+        v_pred_clipped = old_v_pred + torch.clamp(
+            v_pred - old_v_pred,
+            -critic_unit.eps_clip,
+            critic_unit.eps_clip,
+        )
+
+        value_loss_unclipped = F.huber_loss(
+            v_pred, v_targ, reduction="none", delta=self.huber_delta
+        )
+
+        value_loss_clipped = F.huber_loss(
+            v_pred_clipped, v_targ, reduction="none", delta=self.huber_delta
+        )
+
+        critic_loss = torch.max(
+            value_loss_unclipped,
+            value_loss_clipped,
+        ).mean()
 
         critic_unit.critic_net_optimiser.zero_grad()
         critic_loss.backward()
@@ -604,6 +619,10 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 "value_error_abs_mean": value_error.abs().mean().item(),
                 "value_mean": v_pred.mean().item(),
                 "return_mean": v_targ.mean().item(),
+                "value_clip_frac": ((v_pred - old_v_pred).abs() > critic_unit.eps_clip)
+                .float()
+                .mean()
+                .item(),
             }
 
         return info
@@ -629,6 +648,10 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             states=states_mb,
             actions=actions_mb,
         )
+
+        logp = logp.view(-1)
+        old_logp_mb = old_logp_mb.view(-1)
+        advantages_mb = advantages_mb.view(-1)
 
         log_ratio = logp - old_logp_mb
         ratio = torch.exp(log_ratio)
@@ -694,6 +717,8 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 states=states_mb,
                 actions=actions_mb,
             )
+            new_logp = new_logp.view(-1)
+            old_logp_mb = old_logp_mb.view(-1)
 
             new_log_ratio = new_logp - old_logp_mb
             new_ratio = torch.exp(new_log_ratio)
@@ -832,7 +857,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         next_global_states: torch.Tensor,
         dones_by_agent: dict[str, torch.Tensor],
         batch_size: int,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
         values_all = torch.zeros(
             (batch_size, self.num_agents),
             device=self.device,
@@ -842,6 +867,8 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             (self.num_agents,),
             device=self.device,
         )
+
+        old_normalised_values_by_critic: dict[str, torch.Tensor] = {}
 
         with torch.no_grad():
             for critic_id, critic_agent_ids in self.critic_id_to_agent_ids.items():
@@ -854,17 +881,23 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 # -----------------------------------------------------
                 # Current-state values
                 # -----------------------------------------------------
-                # The critic predicts normalized values. We insert those
-                # predictions into a full num_agents-shaped tensor so the
-                # value normalizer can denormalize using the correct agent
-                # dimensions.
+                # The critic predicts normalised scalar values.
+                # Store the normalised predictions for PPO value clipping,
+                # and denormalise copies for GAE / return computation.
                 value_normaliser = self.value_normalisers[critic_id]
 
-                values_i_norm = critic_unit.critic_net(global_states).view(batch_size)
+                values_i_norm = (
+                    critic_unit.critic_net(global_states).view(batch_size).detach()
+                )
                 values_i = value_normaliser.denormalise(values_i_norm)
 
+                # save frozen normalised values for value clipping
+                old_normalised_values_by_critic[critic_id] = values_i_norm
+
                 last_next_state = next_global_states[-1].unsqueeze(0)
-                last_value_i_norm = critic_unit.critic_net(last_next_state).view(())
+                last_value_i_norm = (
+                    critic_unit.critic_net(last_next_state).view(()).detach()
+                )
                 last_value_i = value_normaliser.denormalise(last_value_i_norm)
 
                 last_done_i = (
@@ -880,7 +913,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 values_all[:, critic_agent_indices] = values_i.unsqueeze(-1)
                 last_values_all[critic_agent_indices] = last_value_i
 
-        return values_all, last_values_all
+        return values_all, last_values_all, old_normalised_values_by_critic
 
     def _compute_gae_returns(
         self,
@@ -964,6 +997,16 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             self.device,
         )
 
+        rewards_by_agent = {
+            agent_id: sample_tensor.reward[agent_id].squeeze(-1)
+            for agent_id in self.all_agent_ids
+        }
+
+        dones_by_agent = {
+            agent_id: sample_tensor.done[agent_id].squeeze(-1).float()
+            for agent_id in self.all_agent_ids
+        }
+
         old_log_probs_by_agent = {
             agent_id: torch.tensor(
                 np.asarray(
@@ -975,16 +1018,6 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 dtype=torch.float32,
                 device=self.device,
             )
-            for agent_id in self.all_agent_ids
-        }
-
-        rewards_by_agent = {
-            agent_id: sample_tensor.reward[agent_id].squeeze(-1)
-            for agent_id in self.all_agent_ids
-        }
-
-        dones_by_agent = {
-            agent_id: sample_tensor.done[agent_id].squeeze(-1).float()
             for agent_id in self.all_agent_ids
         }
 
@@ -1035,11 +1068,13 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         # ---------------------------------------------------------
         # Central critic values by critic ownership
         # ---------------------------------------------------------
-        values_all, last_values_all = self._compute_values_and_last_values(
-            global_states=global_states,
-            next_global_states=next_global_states,
-            dones_by_agent=dones_by_agent,
-            batch_size=batch_size,
+        values_all, last_values_all, old_values_by_critic = (
+            self._compute_values_and_last_values(
+                global_states=global_states,
+                next_global_states=next_global_states,
+                dones_by_agent=dones_by_agent,
+                batch_size=batch_size,
+            )
         )
 
         # ---------------------------------------------------------
@@ -1126,12 +1161,23 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
                 for critic_id, critic_agent_ids in self.critic_id_to_agent_ids.items():
                     critic_unit = self.learning_units[critic_id]
 
+                    critic_agent_indices = [
+                        self.all_agent_ids.index(agent_id)
+                        for agent_id in critic_agent_ids
+                    ]
+
+                    normalised_returns_i = normalised_returns_all[
+                        :, critic_agent_indices
+                    ].mean(dim=1)
+
+                    old_values_i = old_values_by_critic[critic_id]
+
                     critic_info = self._update_critic_minibatch(
                         critic_unit=critic_unit,
-                        critic_agent_ids=critic_agent_ids,
                         mb=mb,
                         global_states=global_states,
-                        normalised_returns_all=normalised_returns_all,
+                        normalised_returns_i=normalised_returns_i,
+                        old_values_i=old_values_i,
                     )
 
                     critic_updates[critic_id] += 1
@@ -1150,51 +1196,51 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             denom = max(critic_updates[critic_id], 1)
 
             for key, value in metric_sums.items():
-                info[f"{critic_id}_{key}"] = value / denom
+                info[f"{critic_id}.{key}"] = value / denom
 
         with torch.no_grad():
             td_err = returns_all - values_all
 
             for i, agent_id in enumerate(self.all_agent_ids):
-                info[f"{agent_id}_adv_mean"] = float(advantages_all[:, i].mean().item())
-                info[f"{agent_id}_adv_std"] = float(
+                info[f"{agent_id}.adv_mean"] = float(advantages_all[:, i].mean().item())
+                info[f"{agent_id}.adv_std"] = float(
                     advantages_all[:, i].std(unbiased=False).item()
                 )
 
-                info[f"{agent_id}_ret_mean"] = float(returns_all[:, i].mean().item())
-                info[f"{agent_id}_ret_std"] = float(
+                info[f"{agent_id}.ret_mean"] = float(returns_all[:, i].mean().item())
+                info[f"{agent_id}.ret_std"] = float(
                     returns_all[:, i].std(unbiased=False).item()
                 )
 
-                info[f"{agent_id}_v_mean"] = float(values_all[:, i].mean().item())
-                info[f"{agent_id}_v_std"] = float(
+                info[f"{agent_id}.v_mean"] = float(values_all[:, i].mean().item())
+                info[f"{agent_id}.v_std"] = float(
                     values_all[:, i].std(unbiased=False).item()
                 )
 
-                info[f"{agent_id}_td_mean"] = float(td_err[:, i].mean().item())
-                info[f"{agent_id}_td_std"] = float(
+                info[f"{agent_id}.td_mean"] = float(td_err[:, i].mean().item())
+                info[f"{agent_id}.td_std"] = float(
                     td_err[:, i].std(unbiased=False).item()
                 )
-                info[f"{agent_id}_td_mae"] = float(td_err[:, i].abs().mean().item())
+                info[f"{agent_id}.td_mae"] = float(td_err[:, i].abs().mean().item())
 
                 y = returns_all[:, i]
                 yhat = values_all[:, i]
                 var_y = torch.var(y, unbiased=False)
                 ev = 1.0 - torch.var(y - yhat, unbiased=False) / (var_y + 1e-8)
-                info[f"{agent_id}_explained_var"] = float(ev.item())
+                info[f"{agent_id}.explained_var"] = float(ev.item())
 
                 denom = max(agent_updates[agent_id], 1)
 
-                info[f"{agent_id}_actor_updates"] = int(agent_updates[agent_id])
-                info[f"{agent_id}_kl_early_stop"] = int(
+                info[f"{agent_id}.actor_updates"] = int(agent_updates[agent_id])
+                info[f"{agent_id}.kl_early_stop"] = int(
                     actor_kl_early_stop[self.agent_id_to_actor_id[agent_id]]
                 )
 
                 for key, value in agent_actor_sums[agent_id].items():
-                    info[f"{agent_id}_{key}"] = value / denom
+                    info[f"{agent_id}.{key}"] = value / denom
 
                 if self.target_kl is not None:
-                    info[f"{agent_id}_max_kl_seen"] = agent_max_kl[agent_id]
+                    info[f"{agent_id}.max_kl_seen"] = agent_max_kl[agent_id]
 
         # ---------------------------------------------------------
         # Aggregate actor metrics
@@ -1207,13 +1253,16 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         for key in actor_metric_keys:
             values = [
-                info[f"{agent_id}_{key}"]
+                info[f"{agent_id}.{key}"]
                 for agent_id in self.all_agent_ids
-                if f"{agent_id}_{key}" in info
+                if f"{agent_id}.{key}" in info
             ]
 
             if values:
-                info[f"mean_{key}"] = float(np.mean(values))
+                info[f"mean.{key}"] = float(np.mean(values))
+                info[f"std.{key}"] = float(np.std(values))
+                info[f"max.{key}"] = float(np.max(values))
+                info[f"min.{key}"] = float(np.min(values))
 
         # ---------------------------------------------------------
         # Aggregate critic metrics
@@ -1224,16 +1273,16 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         for key in critic_metric_keys:
             values = [
-                info[f"{critic_id}_{key}"]
+                info[f"{critic_id}.{key}"]
                 for critic_id in self.critic_id_to_agent_ids.keys()
-                if f"{critic_id}_{key}" in info
+                if f"{critic_id}.{key}" in info
             ]
 
             if values:
-                info[f"mean_{key}"] = float(np.mean(values))
-                info[f"std_{key}"] = float(np.std(values))
-                info[f"max_{key}"] = float(np.max(values))
-                info[f"min_{key}"] = float(np.min(values))
+                info[f"mean.{key}"] = float(np.mean(values))
+                info[f"std.{key}"] = float(np.std(values))
+                info[f"max.{key}"] = float(np.max(values))
+                info[f"min.{key}"] = float(np.min(values))
 
         # ---------------------------------------------------------
         # Aggregate value/return metrics
@@ -1247,16 +1296,16 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             "explained_var",
         ]:
             values = [
-                info[f"{agent_id}_{metric}"]
+                info[f"{agent_id}.{metric}"]
                 for agent_id in self.all_agent_ids
-                if f"{agent_id}_{metric}" in info
+                if f"{agent_id}.{metric}" in info
             ]
 
             if values:
-                info[f"mean_{metric}"] = float(np.mean(values))
-                info[f"std_{metric}"] = float(np.std(values))
-                info[f"max_{metric}"] = float(np.max(values))
-                info[f"min_{metric}"] = float(np.min(values))
+                info[f"mean.{metric}"] = float(np.mean(values))
+                info[f"std.{metric}"] = float(np.std(values))
+                info[f"max.{metric}"] = float(np.max(values))
+                info[f"min.{metric}"] = float(np.min(values))
 
         stopped_actor_units = sum(int(x) for x in actor_kl_early_stop.values())
 

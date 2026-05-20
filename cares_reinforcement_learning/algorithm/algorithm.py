@@ -35,6 +35,8 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
             "value", "policy", "discrete_policy", "mbrl", "usd"
         ] = policy_type
 
+        self.config = config
+
         self.gamma = config.gamma
 
         self.G = config.G

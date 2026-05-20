@@ -1,4 +1,4 @@
-from .MultiMARL import MultiMARL
+from .CrossMARL import CrossMARL
 from .MADDPG import MADDPG
 from .M3DDPG import M3DDPG
 from .MATD3 import MATD3

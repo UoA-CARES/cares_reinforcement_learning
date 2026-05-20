@@ -1253,15 +1253,17 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
     return ippo_agent
 
 
-def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
-    from cares_reinforcement_learning.algorithm.marl import MultiMARL
+def create_CrossMARL(observation_size, action_num, config: acf.CrossMARLConfig):
+    from cares_reinforcement_learning.algorithm.marl import CrossMARL
 
     device = hlp.get_device()
 
     env_teams = observation_size["teams"]  # dict[str → list[str]]
 
     learning_team_name = config.learning_team_name
-    learning_team = env_teams[learning_team_name]  # list[str]
+    learning_team = (
+        env_teams[learning_team_name] if learning_team_name is not None else {}
+    )
 
     learning_obs_shapes = {
         "obs": {
@@ -1289,7 +1291,7 @@ def create_MultiMARL(observation_size, action_num, config: acf.MultiMARLConfig):
         )
         agents[team_name] = agent
 
-    multimarl_agent = MultiMARL(
+    multimarl_agent = CrossMARL(
         agent_networks=agents, env_teams=env_teams, config=config, device=device
     )
     return multimarl_agent

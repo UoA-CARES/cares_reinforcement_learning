@@ -2,6 +2,8 @@
 MASAC implementation overview
 -----------------------------
 
+Original Paper: https://arxiv.org/abs/2009.09361
+
 Modernisation Notes
 -------------------
 
@@ -96,18 +98,22 @@ Twin critics:
     This reduces overestimation bias.
 
 Entropy regularization:
-    MASAC optimizes a maximum-entropy objective:
+    MASAC optimizes a maximum-entropy objective over decentralized stochastic
+    policies. For a cooperative single-team task, this recovers the original
+    MASAC objective:
 
-        J_pi = E[alpha * log_pi(a|s) - Q(s, a)]
+        J_pi = E[alpha * Σ_i log π_i(a_i|o_i) - Q(s, a_1, ..., a_N)]
 
-    This encourages stochastic exploration and improves robustness.
+    For mixed/team-structured tasks, this implementation uses one entropy
+    temperature per environment team:
+
+        J_pi = E[Σ_team alpha_team * Σ_{i in team} log π_i(a_i|o_i)
+                 - Q(s, a_1, ..., a_N)]
 
 Automatic entropy tuning:
-    The entropy temperature alpha is learned automatically using:
-
-        target_entropy
-
-    This adapts exploration pressure during training.
+    Entropy temperatures are owned by environment teams, not by actors,
+    critics, or parameter-sharing mode. In fully cooperative tasks with one
+    team, this collapses to the original MASAC paper's single alpha.
 
 Stochastic policies:
     Actors output:
@@ -137,8 +143,9 @@ For each learning unit:
     2. Build the NEXT joint action from sampled stochastic actions.
     3. Compute the soft target:
 
-            y = r_i + gamma * (1 - done_i)
-                * (min(Q1_target, Q2_target) - alpha * log_pi_i)
+            y = r_group + gamma * (1 - done_group)
+                * (min(Q1_target, Q2_target)
+                - Σ_team alpha_team * Σ_{i in team} log π_i(a'_i|o'_i))
 
     4. Regress both critics against the replay-buffer joint action:
 
@@ -173,32 +180,48 @@ This answers the question:
 Replay actions are NOT used during actor optimisation because SAC's objective
 is defined under the current policy distribution rather than replay behaviour.
 
-Entropy aggregation in team mode
---------------------------------
+Alpha is updated separately per environment team by _update_team_alphas().
 
-When using team sharing:
+Entropy ownership
+-----------------
 
-    - team rewards are aggregated using the mean reward,
-    - and team entropy contributions are aggregated using the mean log-probability.
+Entropy ownership is based on environment teams/objective groups, not on
+parameter sharing.
 
-This keeps the entropy and value scales approximately aligned with the team
-critic objective.
+    cooperative single-team task:
+        one alpha for all agents, matching the original MASAC formulation.
+
+    mixed/adversarial task:
+        one alpha per environment team, so each objective group controls its
+        own exploration pressure.
+
+The entropy term is summed within each team and then summed across teams:
+
+    entropy_term = Σ_team alpha_team * Σ_{i in team} log π_i(a_i|o_i)
+
+This keeps the original MASAC behaviour when all agents belong to one
+cooperative team, while extending naturally to mixed team-structured settings.
 
 Practical notes
 ---------------
 
 For cooperative environments such as simple_spread:
 
-    individual:
-        closest to standard MASAC, with one stochastic policy per environment
-        agent.
+    team_critic:
+        closest to the original MASAC formulation with:
+            - decentralized stochastic actors
+            - one centralized team critic
+            - one shared team entropy objective
 
-    team:
+    team_all:
         often improves coordination consistency because all controlled agents
         share:
             - one actor,
             - one entropy objective,
             - and one centralized team critic.
+
+    individual:
+        experimental extension with one critic per environment agent.
 
 Compared to MADDPG/MATD3, MASAC is typically:
     - more exploratory,
@@ -215,6 +238,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
@@ -438,6 +462,50 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             for agent_id in controlled_agents
         ]
 
+        self.agent_id_to_team_id = {
+            agent_id: team_id
+            for team_id, agent_ids in self.env_teams.items()
+            for agent_id in agent_ids
+        }
+
+        # One log_alpha per environment team, independent of parameter sharing.
+        # In a fully cooperative task with one team, this collapses to the original
+        # MASAC paper: one alpha for the full joint policy.
+        self.team_log_alpha = nn.ParameterDict(
+            {
+                team_id: nn.Parameter(torch.zeros(1, device=self.device))
+                for team_id in self.env_teams
+            }
+        )
+
+        self.team_log_alpha_optimisers = {
+            team_id: torch.optim.Adam(
+                [self.team_log_alpha[team_id]],
+                lr=config.alpha_lr,
+                **config.alpha_lr_params,
+            )
+            for team_id in self.env_teams
+        }
+
+        self.team_target_entropy = {}
+
+        for team_id, agent_ids in self.env_teams.items():
+            target_entropy = 0.0
+
+            for agent_id in agent_ids:
+                actor_id = self.agent_id_to_actor_id[agent_id]
+                agent_target_entropy = self.learning_units[actor_id].target_entropy
+
+                if torch.is_tensor(agent_target_entropy):
+                    target_entropy += float(agent_target_entropy.item())
+                else:
+                    target_entropy += float(agent_target_entropy)
+
+            self.team_target_entropy[team_id] = torch.tensor(
+                target_entropy,
+                device=self.device,
+            )
+
         self.gamma = config.gamma
         self.tau = config.tau
 
@@ -474,6 +542,49 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             actions[agent_id] = agent_sample.action
 
         return ActionSample(action=actions, source="policy")
+
+    def _team_alpha(self, team_id: str) -> torch.Tensor:
+        return self.team_log_alpha[team_id].exp()
+
+    def _build_team_log_pi(
+        self,
+        logps_by_agent: dict[str, torch.Tensor],
+        team_id: str,
+    ) -> torch.Tensor:
+        return torch.stack(
+            [logps_by_agent[agent_id] for agent_id in self.env_teams[team_id]],
+            dim=1,
+        ).sum(dim=1)
+
+    def _build_target_entropy_term(
+        self,
+        next_logps_by_agent: dict[str, torch.Tensor],
+    ) -> torch.Tensor:
+        """
+        Build the MASAC soft Bellman entropy term using one alpha per
+        environment team.
+
+        This recovers the original MASAC paper in fully cooperative tasks:
+            one environment team -> one alpha -> alpha * Σ_i logπ_i
+
+        In mixed/adversarial tasks, each team owns its own entropy pressure:
+            Σ_team alpha_team * Σ_{i in team} logπ_i
+
+        The entropy ownership is tied to environment teams/objectives, not to
+        actor sharing, critic sharing, or parameter_sharing_scope.
+        """
+
+        team_entropy_terms = []
+
+        for team_id in self.env_teams:
+            team_log_pi = self._build_team_log_pi(
+                logps_by_agent=next_logps_by_agent,
+                team_id=team_id,
+            )
+
+            team_entropy_terms.append(self._team_alpha(team_id).detach() * team_log_pi)
+
+        return torch.stack(team_entropy_terms, dim=1).sum(dim=1)
 
     def _update_critic(
         self,
@@ -582,7 +693,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         return info
 
-    def _build_actor_alpha_contribution(
+    def _build_actor_contribution(
         self,
         actor_unit: SAC,
         critic_unit: SAC,
@@ -639,16 +750,52 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         min_qf_pi = torch.min(qf_pi_one, qf_pi_two)
 
-        # For a team-shared actor, aggregate the entropy contribution across the
-        # controlled agents while keeping the reward/Q scale comparable to the
-        # team critic target, which also uses mean team reward.
-        log_pi = torch.stack(log_pi_all, dim=1).mean(dim=1)
+        actor_team_id = self.agent_id_to_team_id[controlled_agent_ids[0]]
 
-        actor_loss = (actor_unit.alpha * log_pi - min_qf_pi).mean()
+        controlled_log_pi = torch.stack(log_pi_all, dim=1).sum(dim=1)
+
+        # Rationale: for an actor update, only the entropy terms for that actor’s
+        # controlled agents have gradients. Other teams’ entropy is constant with
+        # respect to this actor.
+        actor_loss = (
+            self._team_alpha(actor_team_id).detach() * controlled_log_pi - min_qf_pi
+        ).mean()
 
         return pi_all, log_pi_all, min_qf_pi, qf_pi_one, qf_pi_two, actor_loss
 
-    def _update_actor_alpha(
+    def _update_team_alphas(
+        self,
+        logps_by_agent: dict[str, torch.Tensor],
+    ) -> dict[str, Any]:
+        info: dict[str, Any] = {}
+
+        for team_id in self.env_teams:
+            team_log_pi = self._build_team_log_pi(
+                logps_by_agent=logps_by_agent,
+                team_id=team_id,
+            )
+
+            alpha_loss = -(
+                self.team_log_alpha[team_id]
+                * (team_log_pi + self.team_target_entropy[team_id]).detach()
+            ).mean()
+
+            self.team_log_alpha_optimisers[team_id].zero_grad(set_to_none=True)
+            alpha_loss.backward()
+            self.team_log_alpha_optimisers[team_id].step()
+
+            with torch.no_grad():
+                entropy_gap = -(team_log_pi + self.team_target_entropy[team_id])
+
+                info[f"{team_id}.alpha_loss"] = alpha_loss.item()
+                info[f"{team_id}.alpha"] = self._team_alpha(team_id).item()
+                info[f"{team_id}.alpha_log"] = self.team_log_alpha[team_id].item()
+                info[f"{team_id}.entropy_gap_mean"] = entropy_gap.mean().item()
+                info[f"{team_id}.team_log_pi_mean"] = team_log_pi.mean().item()
+
+        return info
+
+    def _update_actor(
         self,
         actor_unit: SAC,
         critic_unit: SAC,
@@ -679,7 +826,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             qf_pi_one,
             qf_pi_two,
             actor_loss,
-        ) = self._build_actor_alpha_contribution(
+        ) = self._build_actor_contribution(
             actor_unit=actor_unit,
             critic_unit=critic_unit,
             controlled_agent_ids=controlled_agent_ids,
@@ -716,14 +863,6 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         actor_unit.actor_net_optimiser.step()
 
-        alpha_loss = -(
-            actor_unit.log_alpha * (log_pi_cat + actor_unit.target_entropy).detach()
-        ).mean()
-
-        actor_unit.log_alpha_optimizer.zero_grad(set_to_none=True)
-        alpha_loss.backward()
-        actor_unit.log_alpha_optimizer.step()
-
         with torch.no_grad():
             info["dq_da_abs_mean"] = dq_da_cat.abs().mean().item()
             info["dq_da_norm_mean"] = dq_da_cat.norm(dim=1).mean().item()
@@ -745,9 +884,11 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             info["entropy_gap_mean"] = entropy_gap.mean().item()
 
             info["actor_loss"] = actor_loss.item()
-            info["alpha_loss"] = alpha_loss.item()
-            info["alpha"] = actor_unit.alpha.item()
-            info["log_alpha"] = actor_unit.log_alpha.item()
+
+            actor_team_id = self.agent_id_to_team_id[controlled_agent_ids[0]]
+
+            info["alpha"] = self._team_alpha(actor_team_id).item()
+            info["log_alpha"] = self.team_log_alpha[actor_team_id].item()
 
         return info
 
@@ -911,15 +1052,10 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             # ---------------------------------------------------------
             if self.parameter_sharing_scope == "individual":
                 controlled_agent_id = critic_agent_ids[0]
+
                 learning_unit_rewards = rewards_by_agent[controlled_agent_id]
                 learning_unit_dones = dones_by_agent[controlled_agent_id]
-                next_logp_i = next_logps_by_agent[controlled_agent_id]
 
-                actor_id = self.agent_id_to_actor_id[controlled_agent_id]
-                actor_unit = self.learning_units[actor_id]
-                next_entropy_term_i = (
-                    actor_unit.alpha.detach() * next_logps_by_agent[controlled_agent_id]
-                )
             else:
                 learning_unit_rewards = torch.stack(
                     [rewards_by_agent[a] for a in critic_agent_ids],
@@ -931,26 +1067,18 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                     dim=1,
                 ).amax(dim=1)
 
-                next_logp_i = torch.stack(
-                    [next_logps_by_agent[a] for a in critic_agent_ids],
-                    dim=1,
-                ).mean(dim=1)
-
-                next_entropy_term_i = torch.stack(
-                    [
-                        self.learning_units[self.agent_id_to_actor_id[a]].alpha.detach()
-                        * next_logps_by_agent[a]
-                        for a in critic_agent_ids
-                    ],
-                    dim=1,
-                ).mean(dim=1)
+            next_entropy_term_i = self._build_target_entropy_term(
+                next_logps_by_agent=next_logps_by_agent
+            )
 
             with torch.no_grad():
-                info[f"{critic_id}_reward_mean"] = learning_unit_rewards.mean().item()
-                info[f"{critic_id}_done_frac"] = (
+                info[f"{critic_id}.reward_mean"] = learning_unit_rewards.mean().item()
+                info[f"{critic_id}.done_frac"] = (
                     learning_unit_dones.float().mean().item()
                 )
-                info[f"{critic_id}_next_logp_mean"] = next_logp_i.mean().item()
+                info[f"{critic_id}.next_entropy_term_mean"] = (
+                    next_entropy_term_i.mean().item()
+                )
 
             critic_info = self._update_critic(
                 critic_unit=critic_unit,
@@ -964,7 +1092,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             )
 
             for key, value in critic_info.items():
-                info[f"{critic_id}_{key}"] = value
+                info[f"{critic_id}.{key}"] = value
 
         # ---------------------------------------------------------
         # ACTOR + ALPHA UPDATES — usually every step in SAC
@@ -980,17 +1108,51 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             # ---------------------------------------------------------
             with torch.no_grad():
                 current_actions_list = []
+                current_logps_by_agent = {}
 
                 for agent_id in self.all_agent_ids:
                     actor_id = self.agent_id_to_actor_id[agent_id]
                     actor_unit = self.learning_units[actor_id]
 
                     obs_j = agent_states[agent_id]
-                    action_j, _, _ = actor_unit.actor_net(obs_j)
+                    action_j, logp_j, _ = actor_unit.actor_net(obs_j)
 
                     current_actions_list.append(action_j)
+                    current_logps_by_agent[agent_id] = logp_j
 
                 current_actions_tensor = torch.stack(current_actions_list, dim=1)
+
+            # ---------------------------------------------------------
+            # Alpha update BEFORE actor update
+            #
+            # SAC/MASAC implementations vary on whether alpha is updated
+            # before or after the actor step. Both are valid because both
+            # optimise using the same sampled logπ batch.
+            #
+            # We update alpha FIRST so the actor is optimised under the
+            # latest entropy pressure rather than using a one-step stale
+            # alpha value.
+            #
+            # Since actor_loss uses alpha.detach(), the update order
+            # directly determines which entropy coefficient the actor sees.
+            #
+            # This gives the following optimisation flow:
+            #
+            #     current policy entropy
+            #         -> update alpha
+            #         -> optimise actor under updated entropy pressure
+            #
+            # rather than:
+            #
+            #     optimise actor
+            #         -> alpha catches up afterward
+            #
+            # In MASAC this is especially natural because entropy ownership
+            # is team-based and decoupled from actor parameter sharing.
+            # ---------------------------------------------------------
+            info |= self._update_team_alphas(
+                logps_by_agent=current_logps_by_agent,
+            )
 
             for actor_id, actor_agent_ids in self.actor_id_to_agent_ids.items():
                 actor_unit = self.learning_units[actor_id]
@@ -998,7 +1160,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                 critic_id = self.agent_id_to_critic_id[actor_agent_ids[0]]
                 critic_unit = self.learning_units[critic_id]
 
-                actor_info = self._update_actor_alpha(
+                actor_info = self._update_actor(
                     actor_unit=actor_unit,
                     critic_unit=critic_unit,
                     controlled_agent_ids=actor_agent_ids,
@@ -1007,7 +1169,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
                     current_actions_tensor=current_actions_tensor,
                 )
                 for key, value in actor_info.items():
-                    info[f"{actor_id}_{key}"] = value
+                    info[f"{actor_id}.{key}"] = value
 
         # ---------------------------------------------------------
         # Target critic updates (Polyak) — usually every step in SAC
@@ -1023,12 +1185,18 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         for metric in metrics:
             values = [
-                value for key, value in info.items() if key.endswith(f"_{metric}")
+                value
+                for key, value in info.items()
+                if "." in key and key.split(".", 1)[1] == metric
             ]
-            info[f"mean_{metric}"] = float(np.mean(values))
-            info[f"std_{metric}"] = float(np.std(values))
-            info[f"max_{metric}"] = float(np.max(values))
-            info[f"min_{metric}"] = float(np.min(values))
+
+            if len(values) == 0:
+                continue
+
+            info[f"mean.{metric}"] = float(np.mean(values))
+            info[f"std.{metric}"] = float(np.std(values))
+            info[f"max.{metric}"] = float(np.max(values))
+            info[f"min.{metric}"] = float(np.min(values))
 
         return info
 
@@ -1041,6 +1209,17 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             agent_filename = f"{filename}_{learning_unit_id}_checkpoint"
             learning_unit.save_models(agent_filepath, agent_filename)
 
+        torch.save(
+            {
+                "team_log_alpha": self.team_log_alpha.state_dict(),
+                "team_log_alpha_optimisers": {
+                    team_id: optimiser.state_dict()
+                    for team_id, optimiser in self.team_log_alpha_optimisers.items()
+                },
+            },
+            os.path.join(filepath, f"{filename}_team_alpha_checkpoint.pht"),
+        )
+
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
@@ -1048,5 +1227,15 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
             agent_filename = f"{filename}_{learning_unit_id}_checkpoint"
             learning_unit.load_models(agent_filepath, agent_filename)
+
+        team_alpha_checkpoint = torch.load(
+            os.path.join(filepath, f"{filename}_team_alpha_checkpoint.pht"),
+            map_location=self.device,
+        )
+        self.team_log_alpha.load_state_dict(team_alpha_checkpoint["team_log_alpha"])
+        for team_id, optimiser in self.team_log_alpha_optimisers.items():
+            optimiser.load_state_dict(
+                team_alpha_checkpoint["team_log_alpha_optimisers"][team_id]
+            )
 
         logging.info("models and optimisers have been loaded...")

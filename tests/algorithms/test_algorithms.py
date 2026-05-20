@@ -166,7 +166,7 @@ def test_algorithms(tmp_path):
     action_num = 2
 
     for algorithm, alg_config in algorithm_configurations.items():
-        if algorithm == "MultiMARL":
+        if algorithm == "CrossMARL":
             continue
 
         print(f"Testing training step for {algorithm}")

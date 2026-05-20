@@ -102,11 +102,11 @@ class AlgorithmConfig(SubscriptableClass):
 
     algorithm: str = Field(description="Name of the algorithm to be used")
 
-    gamma: float
-
     G: int = 1
     G_model: int = 1
     number_steps_per_train_policy: int = 1
+
+    gamma: float
 
     buffer_size: int = 1000000
     batch_size: int = 256
@@ -343,7 +343,9 @@ class PPOConfig(AlgorithmConfig):
     algorithm: str = "PPO"
 
     actor_lr: float = 3e-4
+    actor_lr_params: dict[str, Any] = Field(default_factory=dict)
     critic_lr: float = 1e-3
+    critic_lr_params: dict[str, Any] = Field(default_factory=dict)
 
     gamma: float = 0.99
     eps_clip: float = 0.2
@@ -1372,9 +1374,9 @@ class MASACConfig(SACConfig):
     marl_observation: Literal[1] = Field(default=1)
 
     """
-    - "individual": One actor + critic per agent (default)
-    - "team_critic": One shared critic per team, separate actor per agent
-    - "team_all": One shared actor + critic per team (experimental - coupled actors)
+    - "individual": One actor + critic per agent  + one alpha per team
+    - "team_critic": One shared critic per team, separate actor per agent + one alpha per team (default)
+    - "team_all": One shared actor + critic per team + one alpha per team (experimental - coupled actors)
     """
     parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
         "team_critic"
@@ -1382,10 +1384,12 @@ class MASACConfig(SACConfig):
 
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
-    alpha_lr: float = 3e-4
+    alpha_lr: float = 1e-4
 
     gamma: float = 0.99
     tau: float = 0.005
+
+    log_std_bounds: list[float] = [-5.0, 0]
 
     max_grad_norm: float | None = 0.5
 
@@ -1404,7 +1408,9 @@ class MAPPOConfig(PPOConfig):
     )
 
     actor_lr: float = 3e-4
+    actor_lr_params: dict[str, Any] = Field(default_factory=lambda: {"eps": 1e-5})
     critic_lr: float = 5e-4
+    critic_lr_params: dict[str, Any] = Field(default_factory=lambda: {"eps": 1e-5})
 
     gamma: float = 0.99
     eps_clip: float = 0.1
@@ -1416,12 +1422,14 @@ class MAPPOConfig(PPOConfig):
     entropy_decay: int = 1
 
     max_grad_norm: float | None = 10.0
-    log_std_bounds: list[float] = [-5.0, 1.0]
+    log_std_bounds: list[float] = [-5.0, 0.0]
 
     updates_per_iteration: int = 10
 
     minibatch_size: int = 3200
     number_steps_per_train_policy: int = 3200
+
+    huber_delta: float = 10.0
 
     critic_config: MLPConfig = MLPConfig(
         layers=[
@@ -1561,14 +1569,17 @@ class DADSConfig(SACConfig):
 
 
 ###################################
-#      MultiMarl Algorithms       #
+#      CrossMarl Algorithms       #
 ###################################
 
 
-class MultiMARLConfig(AlgorithmConfig):
-    algorithm: str = "MultiMARL"
+class CrossMARLConfig(AlgorithmConfig):
+    algorithm: str = "CrossMARL"
 
     marl_observation: Literal[1] = Field(default=1)
 
-    learning_team_name: str
+    learning_team_name: str | None = None
+
+    gamma: float = 0.99
+
     agents_config: dict[str, AlgorithmConfig] = Field(default_factory=dict)

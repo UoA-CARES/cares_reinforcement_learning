@@ -902,7 +902,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
                 episode_context.training_step
             )
 
-            info[f"action_noise_{actor_id}"] = float(actor_unit.action_noise)
+            info[f"{actor_id}.action_noise"] = float(actor_unit.action_noise)
 
         # Update TD3 target policy smoothing noise (decayed over training)
         self.policy_noise = self.policy_noise_scheduler.get_value(
@@ -979,8 +979,8 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
                 ).amax(dim=1)
 
             with torch.no_grad():
-                info[f"{critic_id}_reward_mean"] = learning_unit_rewards.mean().item()
-                info[f"{critic_id}_done_frac"] = (
+                info[f"{critic_id}.reward_mean"] = learning_unit_rewards.mean().item()
+                info[f"{critic_id}.done_frac"] = (
                     learning_unit_dones.float().mean().item()
                 )
 
@@ -994,7 +994,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
                 dones_i=learning_unit_dones,
             )
 
-            info.update({f"{critic_id}_{k}": v for k, v in critic_info.items()})
+            info.update({f"{critic_id}.{k}": v for k, v in critic_info.items()})
 
         # ---------------------------------------------------------
         # Actor update
@@ -1025,7 +1025,7 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
                     replay_actions=actions,
                 )
 
-                info.update({f"{actor_id}_{k}": v for k, v in actor_info.items()})
+                info.update({f"{actor_id}.{k}": v for k, v in actor_info.items()})
 
         # ---------------------------------------------------------
         # Target network updates (same cadence as actor updates)
@@ -1043,12 +1043,18 @@ class MATD3(MARLAlgorithm[dict[str, np.ndarray]]):
 
         for metric in metrics:
             values = [
-                value for key, value in info.items() if key.endswith(f"_{metric}")
+                value
+                for key, value in info.items()
+                if "." in key and key.split(".", 1)[1] == metric
             ]
-            info[f"mean_{metric}"] = float(np.mean(values))
-            info[f"std_{metric}"] = float(np.std(values))
-            info[f"max_{metric}"] = float(np.max(values))
-            info[f"min_{metric}"] = float(np.min(values))
+
+            if len(values) == 0:
+                continue
+
+            info[f"mean.{metric}"] = float(np.mean(values))
+            info[f"std.{metric}"] = float(np.std(values))
+            info[f"max.{metric}"] = float(np.max(values))
+            info[f"min.{metric}"] = float(np.min(values))
 
         return info
 
