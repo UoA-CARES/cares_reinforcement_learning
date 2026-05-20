@@ -1,19 +1,22 @@
-#!/usr/bin/env python3
-
 import argparse
 import json
+import logging
 import shutil
 from pathlib import Path
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 
 def load_json(path: Path) -> dict[str, Any]:
+    logger.debug(f"Loading JSON from {path}")
     with path.open("r", encoding="utf-8") as file:
         return json.load(file)
 
 
 def save_json(data: dict[str, Any], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    logger.debug(f"Saving JSON to {path}")
     with path.open("w", encoding="utf-8") as file:
         json.dump(data, file, indent=4)
 
@@ -31,14 +34,18 @@ def copy_tree(src: Path, dst: Path) -> None:
         raise FileNotFoundError(f"Missing source folder: {src}")
 
     if dst.exists():
+        logger.debug(f"Removing existing destination: {dst}")
         shutil.rmtree(dst)
 
+    logger.info(f"Copying model folder: {src} → {dst}")
     shutil.copytree(src, dst)
 
 
 def load_team_alg_config(
     base_log_dir: Path, seed: str, output_dir: Path, team_name: str
 ) -> dict[str, Any]:
+    logger.info(f"Loading team config for '{team_name}' from {base_log_dir}")
+
     alg_config_path = base_log_dir / "alg_config.json"
     src_model_path = base_log_dir / seed / "models" / "final"
 
@@ -52,11 +59,14 @@ def load_team_alg_config(
     copy_tree(src_model_path, dst_model_path)
 
     alg_config = load_json(alg_config_path)
+    logger.debug(f"Loaded algorithm config for '{team_name}'")
 
     return alg_config
 
 
 def validate_shared_env_config(team_log_dirs: dict[str, Path]) -> dict[str, Any]:
+    logger.info(f"Validating environment config across {len(team_log_dirs)} teams...")
+
     env_configs = {
         team_name: load_json(base_log_dir / "env_config.json")
         for team_name, base_log_dir in team_log_dirs.items()
@@ -71,6 +81,7 @@ def validate_shared_env_config(team_log_dirs: dict[str, Path]) -> dict[str, Any]
                 f"env_config.json mismatch between '{first_team}' and '{team_name}'"
             )
 
+    logger.info("✓ Environment configs match across all teams")
     return reference
 
 
@@ -87,6 +98,15 @@ def create_cross_marl_folder(
     learning_team_name: str | None = None,
     learning_config_path: Path | None = None,
 ) -> None:
+    logger.info("=" * 60)
+    logger.info("Creating CrossMARL folder structure...")
+    logger.info(f"Output directory: {output_dir}")
+    logger.info(f"Seed: {seed}")
+    logger.info(f"Frozen teams: {list(team_log_dirs.keys())}")
+    if learning_team_name:
+        logger.info(f"Learning team: {learning_team_name}")
+    logger.info("=" * 60)
+
     output_dir = output_dir.expanduser()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -109,6 +129,9 @@ def create_cross_marl_folder(
                 "--learning-config is required when --learning-team-name is set"
             )
 
+        logger.info(
+            f"Loading learning config for '{learning_team_name}' from {learning_config_path}"
+        )
         agents_config[learning_team_name] = load_json(learning_config_path.expanduser())
 
     cross_marl_config = {
@@ -120,12 +143,23 @@ def create_cross_marl_folder(
 
     env_config = validate_shared_env_config(team_log_dirs)
 
+    logger.info(f"Writing config files to {output_dir}")
     save_json(cross_marl_config, output_dir / "alg_config.json")
     save_json(env_config, output_dir / "env_config.json")
     save_json(default_train_config(), output_dir / "train_config.json")
 
+    logger.info("=" * 60)
+    logger.info("✓ CrossMARL folder created successfully")
+    logger.info("=" * 60)
+
 
 def main() -> None:
+    # Set up logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(levelname)-8s | %(message)s",
+    )
+
     parser = argparse.ArgumentParser(
         description="Create a self-contained CrossMARL log folder."
     )
@@ -166,13 +200,17 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    create_cross_marl_folder(
-        team_log_dirs=dict(args.team_log),
-        seed=args.seed,
-        output_dir=args.output_dir,
-        learning_team_name=args.learning_team_name,
-        learning_config_path=args.learning_config,
-    )
+    try:
+        create_cross_marl_folder(
+            team_log_dirs=dict(args.team_log),
+            seed=args.seed,
+            output_dir=args.output_dir,
+            learning_team_name=args.learning_team_name,
+            learning_config_path=args.learning_config,
+        )
+    except Exception as e:
+        logger.error(f"Failed to create CrossMARL folder: {e}", exc_info=True)
+        raise
 
 
 if __name__ == "__main__":
