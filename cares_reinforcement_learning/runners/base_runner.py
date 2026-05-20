@@ -184,6 +184,29 @@ class BaseRunner(ABC):
             else self.training_config.number_eval_episodes
         )
 
+    def _should_record_episode(self, episode_idx: int) -> bool:
+        """
+        Determine if a specific episode should be recorded during evaluation.
+
+        Args:
+            episode_idx: Zero-indexed episode number
+
+        Returns:
+            True if episode should be recorded, False otherwise
+
+        Logic:
+            -1: Record all episodes
+             0: Record no episodes
+            >0: Record first N episodes
+        """
+        episodes_to_record = self.training_config.eval_episodes_to_record
+
+        if episodes_to_record == -1:
+            return True  # Record all
+        if episodes_to_record == 0:
+            return False  # Record none
+        return episode_idx < episodes_to_record  # Record first N
+
     def _run_single_episode_evaluation(
         self,
         episode_counter: int,
@@ -309,17 +332,15 @@ class BaseRunner(ABC):
         all_bias_data = []
 
         for eval_episode_counter in range(self.number_eval_episodes):
-            # Pass recording info for this episode
-            episode_video_label = (
-                f"{video_label}_episode_{eval_episode_counter + 1}"
-                if self.record is not None
-                else None
-            )
+            # Determine if this episode should be recorded
+            should_record = self._should_record_episode(eval_episode_counter)
+
+            episode_video_label = f"{video_label}_episode_{eval_episode_counter + 1}"
 
             episode_results = self._run_single_episode_evaluation(
                 episode_counter=eval_episode_counter,
                 log_step=log_step,
-                record_video=True,  # Record all episodes
+                record_video=should_record,
                 video_label=episode_video_label,
             )
 
@@ -375,12 +396,8 @@ class BaseRunner(ABC):
 
             self.logger.info(f"Evaluating skill {skill + 1}/{self.agent.num_skills}")  # type: ignore
 
-            # Create label for this skill's video
-            skill_video_label = (
-                f"{video_label}_skill_{skill}"
-                if self.record is not None
-                else None
-            )
+            # Record all skills (each represents a different behavior)
+            skill_video_label = f"{video_label}_skill_{skill}"
 
             # Run one episode per skill with recording
             episode_results = self._run_single_episode_evaluation(

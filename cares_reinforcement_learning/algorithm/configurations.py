@@ -28,6 +28,8 @@ class TrainingConfig(SubscriptableClass):
         number_steps_per_evaluation (int]): Number of steps per evaluation. Default is 10000.
         number_eval_episodes (int]): Number of episodes to evaluate during training. Default is 10.
         record_eval_video (int]): Whether to record a video of the evaluation. Default is 1.
+        eval_episodes_to_record (int]): Number of episodes to record per evaluation.
+            -1 records all episodes, 0 records none, N > 0 records first N episodes. Default is 1.
         checkpoint_interval (int]): Interval (in number of episodes) to save dataframes and checkpoints. Default is 1.
     """
 
@@ -35,6 +37,7 @@ class TrainingConfig(SubscriptableClass):
     number_steps_per_evaluation: int = 10000
     number_eval_episodes: int = 10
     record_eval_video: int = 1
+    eval_episodes_to_record: int = 1
 
     checkpoint_interval: int = 1
 
