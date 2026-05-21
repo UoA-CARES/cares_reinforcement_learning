@@ -132,9 +132,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
         self.min_log_std = config.log_std_bounds[0]
         self.max_log_std = config.log_std_bounds[1]
 
-        # Initialize log_std as a learnable parameter, starting at max_log_std for high initial exploration
-        init_log_std = torch.full(
-            (self.action_num,), self.max_log_std, device=self.device
+        init_log_std = torch.zeros(
+            (self.action_num,),
+            device=self.device,
         )
         self.log_std = torch.nn.Parameter(init_log_std)
 
