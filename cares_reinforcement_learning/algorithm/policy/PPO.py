@@ -517,6 +517,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
         sum_log_ratio_std = 0.0
         sum_log_ratio_max_abs = 0.0
 
+        sum_log_std_grad = 0.0
+        sum_log_std_mean = 0.0
+
         sum_kl = 0.0
         max_kl_seen = 0.0
         sum_entropy = 0.0
@@ -563,6 +566,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
                     sum_log_ratio_mean += actor_info["log_ratio_mean"]
                     sum_log_ratio_std += actor_info["log_ratio_std"]
                     sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
+
+                    sum_log_std_grad += actor_info["log_std_grad"]
+                    sum_log_std_mean += actor_info["log_std_mean"]
 
                     sum_clip_frac += actor_info["clip_frac"]
                     sum_ratio_mean += actor_info["ratio_mean"]
@@ -659,6 +665,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
             info["log_ratio_mean"] = sum_log_ratio_mean / num_actor_mbs
             info["log_ratio_std"] = sum_log_ratio_std / num_actor_mbs
             info["log_ratio_max_abs"] = sum_log_ratio_max_abs / num_actor_mbs
+
+            info["log_std_grad"] = sum_log_std_grad / num_actor_mbs
+            info["log_std_mean"] = sum_log_std_mean / num_actor_mbs
 
         # ---------------------------------------------------------
         # KL Diagnostics (if enabled)
