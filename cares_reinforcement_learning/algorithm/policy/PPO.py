@@ -315,6 +315,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
+
+        log_std_grad = (
+            self.log_std.grad.abs().mean().item()
+            if self.log_std.grad is not None
+            else 0.0
+        )
+
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 list(self.actor_net.parameters()) + [self.log_std],
@@ -371,6 +378,8 @@ class PPO(SARLAlgorithm[np.ndarray]):
             "log_ratio_mean": float(log_ratio_mean.item()),
             "log_ratio_std": float(log_ratio_std.item()),
             "log_ratio_max_abs": float(log_ratio_max_abs.item()),
+            "log_std_grad": float(log_std_grad),
+            "log_std_mean": float(self.log_std.mean().item()),
         }
 
         return kl_early_stop, info
