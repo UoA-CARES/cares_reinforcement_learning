@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import json
 import logging
 import shutil
@@ -8,6 +9,7 @@ from typing import Any
 from cares_reinforcement_learning.algorithm import (
     configurations as algo_configs,
 )
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,12 +48,16 @@ def copy_tree(src: Path, dst: Path) -> None:
 
 
 def load_team_alg_config(
-    base_log_dir: Path, seed: str, output_dir: Path, team_name: str
+    base_log_dir: Path,
+    seed: str,
+    output_dir: Path,
+    team_name: str,
+    model_folder: str = "final",
 ) -> dict[str, Any]:
     logger.info(f"Loading team config for '{team_name}' from {base_log_dir}")
 
     alg_config_path = base_log_dir / "alg_config.json"
-    src_model_path = base_log_dir / seed / "models" / "final"
+    src_model_path = base_log_dir / seed / "models" / model_folder
 
     if not alg_config_path.exists():
         raise FileNotFoundError(f"Missing alg_config.json: {alg_config_path}")
@@ -59,7 +65,7 @@ def load_team_alg_config(
     if not src_model_path.exists():
         raise FileNotFoundError(f"Missing model folder: {src_model_path}")
 
-    dst_model_path = output_dir / seed / "models" / "final" / team_name
+    dst_model_path = output_dir / seed / "models" / model_folder / team_name
     copy_tree(src_model_path, dst_model_path)
 
     alg_config = load_json(alg_config_path)
@@ -97,12 +103,29 @@ def default_train_config() -> dict[str, Any]:
     return TrainingConfig().model_dump()
 
 
+def _build_algorithm_registry() -> dict[str, type[AlgorithmConfig]]:
+    return {
+        name: cls
+        for name, cls in inspect.getmembers(algo_configs, inspect.isclass)
+        if issubclass(cls, AlgorithmConfig) and cls is not AlgorithmConfig
+    }
+
+
+def default_algorithm_config(algorithm_name: str) -> dict[str, Any]:
+    registry = _build_algorithm_registry()
+    config_class = registry.get(f"{algorithm_name}Config")
+    if config_class is None:
+        raise ValueError(f"Unknown algorithm name: {algorithm_name!r}")
+    return config_class.model_validate({}).model_dump()  # type: ignore[call-arg]
+
+
 def create_cross_marl_folder(
     team_log_dirs: dict[str, Path],
     seed: str,
     output_dir: Path,
     learning_team_name: str | None = None,
     learning_algorithm_name: str | None = None,
+    model_folder: str = "final",
 ) -> None:
     logger.info("=" * 60)
     logger.info("Creating CrossMARL folder structure...")
@@ -126,6 +149,7 @@ def create_cross_marl_folder(
             seed=seed,
             output_dir=output_dir,
             team_name=team_name,
+            model_folder=model_folder,
         )
 
     if learning_team_name is not None or learning_algorithm_name is not None:
@@ -138,16 +162,12 @@ def create_cross_marl_folder(
                 "--learning-team_name is required when --learning-algorithm_name is set"
             )
 
-        # Dynamically instantiate the config class by algorithm name
-        config_class_name = f"{learning_algorithm_name.upper()}Config"
-        config_class = getattr(algo_configs, config_class_name, None)
-
-        if config_class is None:
-            raise ValueError(f"Unknown algorithm name: {learning_algorithm_name}")
         logger.info(
             f"Instantiating default config for '{learning_team_name}' using algorithm '{learning_algorithm_name}'"
         )
-        agents_config[learning_team_name] = config_class().model_dump()
+        agents_config[learning_team_name] = default_algorithm_config(
+            learning_algorithm_name
+        )
 
     cross_marl_config = {
         "algorithm": "CrossMARL",
@@ -210,6 +230,11 @@ def main() -> None:
         default=None,
         help="Algorithm name for the new learning agent (e.g. MADDPG, MATD3, MASAC)",
     )
+    parser.add_argument(
+        "--model-folder",
+        default="final",
+        help="Model sub-folder to copy from within models/ (default: final)",
+    )
 
     args = parser.parse_args()
 
@@ -220,6 +245,7 @@ def main() -> None:
             output_dir=args.output_dir,
             learning_team_name=args.learning_team_name,
             learning_algorithm_name=args.learning_algorithm,
+            model_folder=args.model_folder,
         )
     except Exception as e:
         logger.error(f"Failed to create CrossMARL folder: {e}", exc_info=True)
