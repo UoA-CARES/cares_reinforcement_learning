@@ -5,6 +5,10 @@ import shutil
 from pathlib import Path
 from typing import Any
 
+from cares_reinforcement_learning.algorithm import (
+    configurations as algo_configs,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -59,6 +63,8 @@ def load_team_alg_config(
     copy_tree(src_model_path, dst_model_path)
 
     alg_config = load_json(alg_config_path)
+    alg_config["model_path"] = str(dst_model_path)
+
     logger.debug(f"Loaded algorithm config for '{team_name}'")
 
     return alg_config
@@ -96,15 +102,15 @@ def create_cross_marl_folder(
     seed: str,
     output_dir: Path,
     learning_team_name: str | None = None,
-    learning_config_path: Path | None = None,
+    learning_algorithm_name: str | None = None,
 ) -> None:
     logger.info("=" * 60)
     logger.info("Creating CrossMARL folder structure...")
     logger.info(f"Output directory: {output_dir}")
     logger.info(f"Seed: {seed}")
     logger.info(f"Frozen teams: {list(team_log_dirs.keys())}")
-    if learning_team_name:
-        logger.info(f"Learning team: {learning_team_name}")
+    logger.info(f"Learning team: {learning_team_name}")
+    logger.info(f"Learning algorithm: {learning_algorithm_name}")
     logger.info("=" * 60)
 
     output_dir = output_dir.expanduser()
@@ -115,7 +121,6 @@ def create_cross_marl_folder(
     for team_name, base_log_dir in team_log_dirs.items():
         if team_name == learning_team_name:
             continue
-
         agents_config[team_name] = load_team_alg_config(
             base_log_dir=base_log_dir,
             seed=seed,
@@ -123,16 +128,26 @@ def create_cross_marl_folder(
             team_name=team_name,
         )
 
-    if learning_team_name is not None:
-        if learning_config_path is None:
+    if learning_team_name is not None or learning_algorithm_name is not None:
+        if learning_algorithm_name is None:
             raise ValueError(
-                "--learning-config is required when --learning-team-name is set"
+                "--learning-algorithm_name is required when --learning-team-name is set"
+            )
+        if learning_team_name is None:
+            raise ValueError(
+                "--learning-team_name is required when --learning-algorithm_name is set"
             )
 
+        # Dynamically instantiate the config class by algorithm name
+        config_class_name = f"{learning_algorithm_name.upper()}Config"
+        config_class = getattr(algo_configs, config_class_name, None)
+
+        if config_class is None:
+            raise ValueError(f"Unknown algorithm name: {learning_algorithm_name}")
         logger.info(
-            f"Loading learning config for '{learning_team_name}' from {learning_config_path}"
+            f"Instantiating default config for '{learning_team_name}' using algorithm '{learning_algorithm_name}'"
         )
-        agents_config[learning_team_name] = load_json(learning_config_path.expanduser())
+        agents_config[learning_team_name] = config_class().model_dump()
 
     cross_marl_config = {
         "algorithm": "CrossMARL",
@@ -190,12 +205,10 @@ def main() -> None:
         default=None,
         help="Optional new learning team name",
     )
-
     parser.add_argument(
-        "--learning-config",
+        "--learning-algorithm",
         default=None,
-        type=Path,
-        help="Config path for the new learning agent",
+        help="Algorithm name for the new learning agent (e.g. MADDPG, MATD3, MASAC)",
     )
 
     args = parser.parse_args()
@@ -206,7 +219,7 @@ def main() -> None:
             seed=args.seed,
             output_dir=args.output_dir,
             learning_team_name=args.learning_team_name,
-            learning_config_path=args.learning_config,
+            learning_algorithm_name=args.learning_algorithm,
         )
     except Exception as e:
         logger.error(f"Failed to create CrossMARL folder: {e}", exc_info=True)

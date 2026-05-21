@@ -42,6 +42,24 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
             else None
         )
 
+        if self.learning_team_name is not None:
+            self._load_frozen_models()
+
+    def _load_frozen_models(self) -> None:
+        for agent_name, agent_network in self.agent_networks.items():
+            if agent_name == self.learning_team_name:
+                continue
+
+            agent_config = self.config.agents_config[agent_name]
+            model_path = getattr(agent_config, "model_path", None)
+
+            if model_path is None:
+                raise ValueError(
+                    f"Frozen CrossMARL team '{agent_name}' is missing model_path."
+                )
+
+            agent_network.load_models(model_path, agent_config.algorithm)
+
     def _merge_team_extras(
         self,
         full_extras: dict[str, Any],
@@ -129,6 +147,10 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
 
     def load_models(self, filepath: str, filename: str) -> None:
         for agent_name, agent_network in self.agent_networks.items():
+            # Learning team is fresh during train-against-fixed.
+            if agent_name == self.learning_team_name:
+                continue
+
             agent_filepath = self._get_agent_model_path(filepath, agent_name)
             agent_filename = self._get_agent_model_filename(agent_name)
 
