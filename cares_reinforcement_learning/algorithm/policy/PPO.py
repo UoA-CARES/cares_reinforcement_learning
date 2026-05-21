@@ -139,7 +139,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
         self.log_std = torch.nn.Parameter(init_log_std)
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
+            list(self.actor_net.parameters()) + [self.log_std],
+            lr=config.actor_lr,
+            **config.actor_lr_params,
         )
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
