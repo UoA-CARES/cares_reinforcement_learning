@@ -14,11 +14,10 @@ import cares_reinforcement_learning.util.helpers as hlp
 # pylint: disable=import-outside-toplevel
 # pylint: disable=invalid-name
 
+
 ###################################
 #         DQN Algorithms          #
 ###################################
-
-
 def create_DQN(observation_size, action_num, config: acf.DQNConfig):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
@@ -111,26 +110,6 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
     return agent
 
 
-def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
-    from cares_reinforcement_learning.algorithm.value import QMIX
-    from cares_reinforcement_learning.networks.QMIX import (
-        SharedMultiAgentNetwork,
-        QMixer,
-    )
-
-    network = SharedMultiAgentNetwork(
-        observation_size=observation_size,
-        num_actions=action_num,
-        config=config,
-    )
-
-    mixer = QMixer(observation_size=observation_size, config=config)
-
-    device = hlp.get_device()
-    agent = QMIX(network=network, mixer=mixer, config=config, device=device)
-    return agent
-
-
 ###################################
 #         PPO Algorithms          #
 ###################################
@@ -153,50 +132,6 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
     return agent
 
 
-def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
-    from cares_reinforcement_learning.algorithm.policy import MAPPO
-    from cares_reinforcement_learning.algorithm.policy.PPO import PPO
-    from cares_reinforcement_learning.networks.MAPPO import Actor, Critic
-    from cares_reinforcement_learning.networks.PPO import Critic as PPOCritic
-
-    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-
-    agents = []
-    device = hlp.get_device()
-
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
-
-    for agent_name in agent_ids:
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=agent_name,
-        )
-
-        # Not actually used just created to fill in PPO agent's
-        critic = PPOCritic(
-            observation_size=observation_size["obs"][agent_name],
-            config=config,
-        )
-
-        agent = PPO(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-        agents.append(agent)
-
-    central_critic = Critic(observation_size=observation_size, config=config)
-
-    mappo_agent = MAPPO(
-        agents=agents, central_critic=central_critic, config=config, device=device
-    )
-    return mappo_agent
-
-
 ###################################
 #         SAC Algorithms          #
 ###################################
@@ -217,45 +152,6 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
         device=device,
     )
     return agent
-
-
-def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
-    from cares_reinforcement_learning.algorithm.policy import MASAC
-    from cares_reinforcement_learning.algorithm.policy.SAC import SAC
-    from cares_reinforcement_learning.networks.MASAC import Actor, Critic
-
-    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-
-    agents = []
-    device = hlp.get_device()
-
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
-
-    for agent_name in agent_ids:
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=agent_name,
-        )
-
-        critic = Critic(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-        )
-
-        agent = SAC(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-        agents.append(agent)
-
-    masac_agent = MASAC(agents=agents, config=config, device=device)
-    return masac_agent
 
 
 def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
@@ -543,88 +439,6 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
     return agent
 
 
-def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
-    from cares_reinforcement_learning.algorithm.policy import MADDPG
-    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-    from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
-
-    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-
-    agents = []
-    device = hlp.get_device()
-
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
-
-    for agent_name in agent_ids:
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=agent_name,
-        )
-
-        critic = Critic(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-        )
-
-        agent = DDPG(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-        agents.append(agent)
-
-    maddpg_agent = MADDPG(agents=agents, config=config, device=device)
-    return maddpg_agent
-
-
-def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
-    from cares_reinforcement_learning.algorithm.policy import M3DDPG
-    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-    from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
-
-    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-
-    agents = []
-    device = hlp.get_device()
-
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
-
-    for agent_name in agent_ids:
-        # Actor takes per-agent obs
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=agent_name,
-        )
-
-        # Critic takes:
-        #  - global state vector (same for all)
-        #  - joint action vector (same size for all)
-        critic = Critic(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-        )
-
-        agent = DDPG(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-        agents.append(agent)
-
-    m3ddpg_agent = M3DDPG(agents=agents, config=config, device=device)
-    return m3ddpg_agent
-
-
 def create_TD3(observation_size, action_num, config: acf.TD3Config):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic
@@ -640,45 +454,6 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
         device=device,
     )
     return agent
-
-
-def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
-    from cares_reinforcement_learning.algorithm.policy import MATD3
-    from cares_reinforcement_learning.algorithm.policy.TD3 import TD3
-    from cares_reinforcement_learning.networks.MATD3 import Actor, Critic
-
-    obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
-
-    agents = []
-    device = hlp.get_device()
-
-    # KEEP THE ACTOR ORDER CONSISTENT
-    agent_ids = list(obs_shapes.keys())
-
-    for agent_name in agent_ids:
-        actor = Actor(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-            agent_id=agent_name,
-        )
-
-        critic = Critic(
-            observation_size=observation_size,
-            num_actions=action_num,
-            config=config,
-        )
-
-        agent = TD3(
-            actor_network=actor,
-            critic_network=critic,
-            config=config,
-            device=device,
-        )
-        agents.append(agent)
-
-    matd3_agent = MATD3(agents=agents, config=config, device=device)
-    return matd3_agent
 
 
 def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
@@ -870,8 +645,545 @@ def create_TD7(observation_size, action_num, config: acf.TD7Config):
 
 
 ###################################
-#         IMARL Algorithms        #
+#         MARL Algorithms         #
 ###################################
+
+
+def _build_actor_critic_mappings(
+    all_agent_ids: list[str],
+    env_teams: dict[str, list[str]],
+    parameter_sharing_scope: str,
+    algo_name: str,
+) -> tuple[
+    dict[str, str],  # agent_id_to_actor_id
+    dict[str, list[str]],  # actor_id_to_agent_ids
+    dict[str, str],  # agent_id_to_critic_id
+    dict[str, list[str]],  # critic_id_to_agent_ids
+]:
+    """
+    Build actor/critic ownership mappings for MARL parameter sharing.
+
+    The mappings define:
+        - which learning unit provides the ACTOR for each env agent,
+        - which learning unit provides the CRITIC for each env agent,
+        - and which env agents are assigned to each learning unit.
+
+    Example environment
+    -------------------
+    Env agents:
+        adversary_0
+        adversary_1
+        agent_0
+
+    Teams:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+
+    ------------------------------------------------------------------
+    individual
+    ------------------------------------------------------------------
+
+    One actor + one critic per env agent.
+
+    agent_id_to_actor_id:
+        {
+            "adversary_0": "adversary_0",
+            "adversary_1": "adversary_1",
+            "agent_0": "agent_0",
+        }
+
+    actor_id_to_agent_ids:
+        {
+            "adversary_0": ["adversary_0"],
+            "adversary_1": ["adversary_1"],
+            "agent_0": ["agent_0"],
+        }
+
+    agent_id_to_critic_id:
+        {
+            "adversary_0": "adversary_0",
+            "adversary_1": "adversary_1",
+            "agent_0": "agent_0",
+        }
+
+    critic_id_to_agent_ids:
+        {
+            "adversary_0": ["adversary_0"],
+            "adversary_1": ["adversary_1"],
+            "agent_0": ["agent_0"],
+        }
+
+    ------------------------------------------------------------------
+    team_critic
+    ------------------------------------------------------------------
+
+    One actor per env agent, but one shared critic per team.
+
+    agent_id_to_actor_id:
+        {
+            "adversary_0": "adversary_0",
+            "adversary_1": "adversary_1",
+            "agent_0": "agent_0",
+        }
+
+    actor_id_to_agent_ids:
+        {
+            "adversary_0": ["adversary_0"],
+            "adversary_1": ["adversary_1"],
+            "agent_0": ["agent_0"],
+        }
+
+    agent_id_to_critic_id:
+        {
+            "adversary_0": "adversary",
+            "adversary_1": "adversary",
+            "agent_0": "agent",
+        }
+
+    critic_id_to_agent_ids:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+
+    ------------------------------------------------------------------
+    team_all
+    ------------------------------------------------------------------
+
+    One shared actor + one shared critic per team.
+
+    agent_id_to_actor_id:
+        {
+            "adversary_0": "adversary",
+            "adversary_1": "adversary",
+            "agent_0": "agent",
+        }
+
+    actor_id_to_agent_ids:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+
+    agent_id_to_critic_id:
+        {
+            "adversary_0": "adversary",
+            "adversary_1": "adversary",
+            "agent_0": "agent",
+        }
+
+    critic_id_to_agent_ids:
+        {
+            "adversary": ["adversary_0", "adversary_1"],
+            "agent": ["agent_0"],
+        }
+    """
+    if parameter_sharing_scope == "individual":
+        actor_id_to_agent_ids = {agent_id: [agent_id] for agent_id in all_agent_ids}
+        agent_id_to_actor_id = {agent_id: agent_id for agent_id in all_agent_ids}
+
+        critic_id_to_agent_ids = {agent_id: [agent_id] for agent_id in all_agent_ids}
+        agent_id_to_critic_id = {agent_id: agent_id for agent_id in all_agent_ids}
+
+    elif parameter_sharing_scope == "team_critic":
+        actor_id_to_agent_ids = {agent_id: [agent_id] for agent_id in all_agent_ids}
+        agent_id_to_actor_id = {agent_id: agent_id for agent_id in all_agent_ids}
+
+        critic_id_to_agent_ids = env_teams
+        agent_id_to_critic_id = {
+            agent_id: team_id
+            for team_id, team_agent_ids in env_teams.items()
+            for agent_id in team_agent_ids
+        }
+
+    elif parameter_sharing_scope == "team_all":
+        actor_id_to_agent_ids = env_teams
+        agent_id_to_actor_id = {
+            agent_id: team_id
+            for team_id, team_agent_ids in env_teams.items()
+            for agent_id in team_agent_ids
+        }
+
+        critic_id_to_agent_ids = env_teams
+        agent_id_to_critic_id = {
+            agent_id: team_id
+            for team_id, team_agent_ids in env_teams.items()
+            for agent_id in team_agent_ids
+        }
+
+    else:
+        raise ValueError(f"Unknown {algo_name} {parameter_sharing_scope=}")
+
+    return (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    )
+
+
+def _build_learning_units(
+    actor_id_to_agent_ids: dict[str, list[str]],
+    critic_id_to_agent_ids: dict[str, list[str]],
+    observation_size,
+    action_num: int,
+    config,
+    device,
+    Algorithm,
+    Actor,
+    Critic,
+    critic_uses_action_num=True,
+) -> dict:
+    learning_units = {}
+
+    # A learning unit may exist because it owns:
+    #   - an actor,
+    #   - a critic,
+    #   - or both.
+    #
+    # individual:
+    #   actor IDs = critic IDs = env agents
+    #
+    # team_critic:
+    #   actor IDs  = env agents
+    #   critic IDs = teams
+    #
+    # team_all:
+    #   actor IDs  = teams
+    #   critic IDs = teams
+    #
+    # Therefore we build the union of all actor/critic IDs that require a
+    # physical learning-unit container.
+    learning_unit_ids = list(
+        dict.fromkeys(
+            list(actor_id_to_agent_ids.keys()) + list(critic_id_to_agent_ids.keys())
+        )
+    )
+
+    for learning_unit_id in learning_unit_ids:
+        # Recover a representative environment agent for network construction.
+        #
+        # The actor network API expects an env-agent ID so it can determine:
+        #   - observation dimensions
+        #   - action dimensions
+        #   - agent-specific observation structure
+        #
+        # A learning unit is guaranteed to appear in at least one of:
+        #   actor_id_to_agent_ids
+        #   critic_id_to_agent_ids
+        #
+        # individual:
+        #   learning_unit_id = adversary_0
+        #   representative_agent_id = adversary_0
+        #
+        # team_critic:
+        #   actor learning units:
+        #       adversary_0 -> adversary_0
+        #
+        #   critic learning units:
+        #       adversary -> adversary_0
+        #
+        # team_all:
+        #   adversary -> adversary_0
+
+        controlled_agent_ids = actor_id_to_agent_ids.get(
+            learning_unit_id
+        ) or critic_id_to_agent_ids.get(learning_unit_id)
+
+        if controlled_agent_ids is None:
+            raise ValueError(
+                f"No controlled agents found for learning unit '{learning_unit_id}'"
+            )
+
+        # Recover the environment agents associated with this learning unit.
+        #
+        # We first check whether the learning unit owns an actor.
+        # If not, we fall back to the critic ownership mapping.
+        #
+        # This is needed because in some configurations a learning unit may exist
+        # purely due to actor ownership or purely due to critic ownership.
+        representative_agent_id = controlled_agent_ids[0]
+
+        actor = Actor(
+            observation_size=observation_size,
+            num_actions=action_num,
+            config=config,
+            agent_id=representative_agent_id,
+        )
+
+        if critic_uses_action_num:
+            critic = Critic(
+                observation_size=observation_size,
+                num_actions=action_num,
+                config=config,
+            )
+        else:
+            critic = Critic(
+                observation_size=observation_size,
+                config=config,
+            )
+
+        learning_units[learning_unit_id] = Algorithm(
+            actor_network=actor,
+            critic_network=critic,
+            config=config,
+            device=device,
+        )
+
+    return learning_units
+
+
+def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
+    from cares_reinforcement_learning.algorithm.marl import MADDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
+
+    all_agent_ids = list(observation_size["obs"].keys())
+    env_teams = observation_size["teams"]
+    device = hlp.get_device()
+
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="MADDPG",
+    )
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=DDPG,
+        Actor=Actor,
+        Critic=Critic,
+    )
+
+    return MADDPG(
+        learning_units=learning_units,
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        config=config,
+        device=device,
+    )
+
+
+def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
+    from cares_reinforcement_learning.algorithm.marl import M3DDPG
+    from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
+    from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
+
+    all_agent_ids = list(observation_size["obs"].keys())
+    env_teams = observation_size["teams"]
+    device = hlp.get_device()
+
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="M3DDPG",
+    )
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=DDPG,
+        Actor=Actor,
+        Critic=Critic,
+    )
+
+    return M3DDPG(
+        learning_units=learning_units,
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        config=config,
+        device=device,
+    )
+
+
+def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
+    from cares_reinforcement_learning.algorithm.marl import MATD3
+    from cares_reinforcement_learning.algorithm.policy.TD3 import TD3
+    from cares_reinforcement_learning.networks.MATD3 import Actor, Critic
+
+    device = hlp.get_device()
+    all_agent_ids = list(observation_size["obs"].keys())
+    env_teams = observation_size["teams"]
+
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="MATD3",
+    )
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=TD3,
+        Actor=Actor,
+        Critic=Critic,
+    )
+
+    return MATD3(
+        learning_units=learning_units,
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        config=config,
+        device=device,
+    )
+
+
+def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
+    from cares_reinforcement_learning.algorithm.marl.MASAC import MASAC
+    from cares_reinforcement_learning.algorithm.policy.SAC import SAC
+    from cares_reinforcement_learning.networks.MASAC import Actor, Critic
+
+    device = hlp.get_device()
+    all_agent_ids = list(observation_size["obs"].keys())
+    env_teams = observation_size["teams"]
+
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="MATD3",
+    )
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=SAC,
+        Actor=Actor,
+        Critic=Critic,
+    )
+
+    return MASAC(
+        learning_units=learning_units,
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        config=config,
+        device=device,
+    )
+
+
+def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
+    from cares_reinforcement_learning.algorithm.marl import MAPPO
+    from cares_reinforcement_learning.algorithm.policy.PPO import PPO
+    from cares_reinforcement_learning.networks.MAPPO import Actor, Critic
+
+    device = hlp.get_device()
+    all_agent_ids = list(observation_size["obs"].keys())
+    env_teams = observation_size["teams"]
+
+    (
+        agent_id_to_actor_id,
+        actor_id_to_agent_ids,
+        agent_id_to_critic_id,
+        critic_id_to_agent_ids,
+    ) = _build_actor_critic_mappings(
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        parameter_sharing_scope=config.parameter_sharing_scope,
+        algo_name="MAPPO",
+    )
+
+    learning_units = _build_learning_units(
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        observation_size=observation_size,
+        action_num=action_num,
+        config=config,
+        device=device,
+        Algorithm=PPO,
+        Actor=Actor,
+        Critic=Critic,
+        critic_uses_action_num=False,
+    )
+
+    return MAPPO(
+        learning_units=learning_units,
+        all_agent_ids=all_agent_ids,
+        env_teams=env_teams,
+        agent_id_to_actor_id=agent_id_to_actor_id,
+        actor_id_to_agent_ids=actor_id_to_agent_ids,
+        agent_id_to_critic_id=agent_id_to_critic_id,
+        critic_id_to_agent_ids=critic_id_to_agent_ids,
+        config=config,
+        device=device,
+    )
+
+
+def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
+    from cares_reinforcement_learning.algorithm.marl import QMIX
+    from cares_reinforcement_learning.networks.QMIX import (
+        SharedMultiAgentNetwork,
+        QMixer,
+    )
+
+    network = SharedMultiAgentNetwork(
+        observation_size=observation_size,
+        num_actions=action_num,
+        config=config,
+    )
+
+    mixer = QMixer(observation_size=observation_size, config=config)
+
+    device = hlp.get_device()
+    agent = QMIX(network=network, mixer=mixer, config=config, device=device)
+    return agent
 
 
 def _create_independant_agents(
@@ -879,7 +1191,7 @@ def _create_independant_agents(
 ):
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
-    agents = []
+    agents = {}
     for agent_name in obs_shapes.keys():
         agent_obs = {}
         agent_obs["vector"] = obs_shapes[agent_name]
@@ -888,13 +1200,13 @@ def _create_independant_agents(
             action_num=action_num,
             config=config,
         )
-        agents.append(network)
+        agents[agent_name] = network
 
     return agents
 
 
 def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
-    from cares_reinforcement_learning.algorithm.policy import IDDPG
+    from cares_reinforcement_learning.algorithm.marl import IDDPG
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -906,7 +1218,7 @@ def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
 
 
 def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
-    from cares_reinforcement_learning.algorithm.policy import ITD3
+    from cares_reinforcement_learning.algorithm.marl import ITD3
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -918,7 +1230,7 @@ def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
 
 
 def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
-    from cares_reinforcement_learning.algorithm.policy import ISAC
+    from cares_reinforcement_learning.algorithm.marl import ISAC
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -930,7 +1242,7 @@ def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
 
 
 def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
-    from cares_reinforcement_learning.algorithm.policy import IPPO
+    from cares_reinforcement_learning.algorithm.marl import IPPO
 
     device = hlp.get_device()
     agents = _create_independant_agents(
@@ -939,6 +1251,55 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
 
     ippo_agent = IPPO(agents=agents, config=config, device=device)
     return ippo_agent
+
+
+def create_CrossMARL(observation_size, action_num, config: acf.CrossMARLConfig):
+    from cares_reinforcement_learning.algorithm.marl import CrossMARL
+
+    device = hlp.get_device()
+
+    env_teams = observation_size["teams"]  # dict[str → list[str]]
+
+    learning_team_name = config.learning_team_name
+    learning_team = (
+        env_teams[learning_team_name] if learning_team_name is not None else {}
+    )
+
+    learning_obs_shapes = {
+        "obs": {
+            agent_name: observation_size["obs"][agent_name]
+            for agent_name in learning_team
+        },
+        "state": observation_size["state"],
+        "num_agents": len(learning_team),
+        "teams": env_teams,
+    }
+
+    algorithm_factory = AlgorithmFactory()
+
+    agents = {}
+
+    for team_name in env_teams.keys():
+        agent_obs = observation_size
+        if team_name == learning_team_name:
+            agent_obs = learning_obs_shapes
+
+        agent = algorithm_factory.create_network(
+            observation_size=agent_obs,
+            action_num=action_num,
+            config=config.agents_config[team_name],
+        )
+        agents[team_name] = agent
+
+    multimarl_agent = CrossMARL(
+        agent_networks=agents, env_teams=env_teams, config=config, device=device
+    )
+    return multimarl_agent
+
+
+####################################
+#      Algorithm Factory Utils     #
+####################################
 
 
 def _compare_mlp_parts(obj1: acf.AlgorithmConfig, obj2: acf.AlgorithmConfig) -> bool:

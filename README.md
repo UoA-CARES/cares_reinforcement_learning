@@ -357,7 +357,7 @@ Multi-Agent Reinforcement Learning algorithms (MARL).
 | ITD3        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MATD3       | Vector (MARL)              | Continuous   | [MATD3](https://arxiv.org/pdf/1910.01465)                   |
 | ISAC        | Vector (MARL)              | Continuous   | N/A                                                         |
-| MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://doi.org/10.1609/aaai.v33i01.33014213)       |
+| MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://arxiv.org/abs/2009.09361)       |
 | IPPO        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MAPPO       | Vector (MARL)              | Continuous   | [MAPPO](https://arxiv.org/abs/2103.01955)                   |
 

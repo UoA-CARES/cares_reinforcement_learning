@@ -50,6 +50,8 @@ class SMAC2Environment(MARLEnvironment):
 
         self.possible_agents = [f"agent_{i}" for i in range(self.env_info["n_agents"])]
 
+        self.agent_teams = self._split_agents_by_team(self.possible_agents)
+
         self.observation: MARLObservation
 
         self.reset()
@@ -80,6 +82,8 @@ class SMAC2Environment(MARLEnvironment):
 
         observation_space["state"] = self.env_info["state_shape"]
         observation_space["num_agents"] = self.env_info["n_agents"]
+
+        observation_space["teams"] = self.agent_teams
 
         return observation_space
 

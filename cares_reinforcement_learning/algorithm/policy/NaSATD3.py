@@ -395,16 +395,16 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         next_states: SARLObservationTensors,
     ) -> list[float]:
 
-        assert states.image_state_tensor is not None
-        assert next_states.image_state_tensor is not None
+        assert states.image_state is not None
+        assert next_states.image_state is not None
 
         with torch.no_grad():
             latent_state = self._get_latent_state(
-                states.image_state_tensor, detach_output=True, sample_latent=True
+                states.image_state, detach_output=True, sample_latent=True
             )
 
             latent_next_state = self._get_latent_state(
-                next_states.image_state_tensor, detach_output=True, sample_latent=True
+                next_states.image_state, detach_output=True, sample_latent=True
             )
 
         pred_losses = []
@@ -447,24 +447,21 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         )
 
         # Convert to tensors using multimodal batch conversion
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,
-            _,
-            _,
-        ) = memory_sampler.sample(
+        sample_tensor, _ = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # NaSATD3 uses uniform sampling
         )
 
-        assert observation_tensor.image_state_tensor is not None
-        assert next_observation_tensor.image_state_tensor is not None
+        observation_tensor = sample_tensor.observation
+        next_observation_tensor = sample_tensor.next_observation
+        actions_tensor = sample_tensor.action
+        rewards_tensor = sample_tensor.reward
+        dones_tensor = sample_tensor.done
+
+        assert observation_tensor.image_state is not None
+        assert next_observation_tensor.image_state is not None
 
         info: dict[str, Any] = {}
 
@@ -479,7 +476,7 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         info.update(critic_info)
 
         # Update Autoencoder
-        ae_loss = self._update_autoencoder(observation_tensor.image_state_tensor)
+        ae_loss = self._update_autoencoder(observation_tensor.image_state)
         info["ae_loss"] = ae_loss
 
         if self.learn_counter % self.policy_update_freq == 0:
@@ -580,8 +577,8 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
                 [next_observation], self.device
             )
 
-            assert observation_tensor.image_state_tensor is not None
-            assert next_observation_tensor.image_state_tensor is not None
+            assert observation_tensor.image_state is not None
+            assert next_observation_tensor.image_state is not None
 
             action_tensor = torch.tensor(
                 action, dtype=torch.float32, device=self.device
@@ -589,11 +586,11 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
             action_tensor = action_tensor.unsqueeze(0)
 
             surprise_rate = self._get_surprise_rate(
-                observation_tensor.image_state_tensor,
+                observation_tensor.image_state,
                 action_tensor,
-                next_observation_tensor.image_state_tensor,
+                next_observation_tensor.image_state,
             )
-            novelty_rate = self._get_novelty_rate(observation_tensor.image_state_tensor)
+            novelty_rate = self._get_novelty_rate(observation_tensor.image_state)
 
         # TODO make these parameters - i.e. Tony's work
         a = 1.0

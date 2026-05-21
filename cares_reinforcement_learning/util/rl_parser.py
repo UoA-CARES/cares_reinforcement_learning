@@ -169,6 +169,31 @@ class RLParser:
     ) -> None:
         self.configurations[name] = configuration
 
+    def _resolve_algorithm_config(self, config_data):
+        if isinstance(config_data, AlgorithmConfig):
+            return config_data
+
+        if not isinstance(config_data, dict):
+            return config_data
+
+        algorithm = config_data.get("algorithm")
+        if algorithm is None:
+            return {
+                key: self._resolve_algorithm_config(value)
+                for key, value in config_data.items()
+            }
+
+        config_cls = self.algorithm_configurations.get(f"{algorithm}Config")
+        if config_cls is None:
+            return config_data
+
+        resolved_data = {
+            key: self._resolve_algorithm_config(value)
+            for key, value in config_data.items()
+        }
+
+        return config_cls(**resolved_data)
+
     def parse_args(self) -> dict:
         parser = argparse.ArgumentParser(usage="<command> [<args>]")
         # Add an argument
@@ -202,9 +227,20 @@ class RLParser:
             configuration = configuration(**self.args)
             configs[name] = configuration
 
-        algorithm_config = self.algorithm_configurations[
+        # algorithm_config = self.algorithm_configurations[
+        #     f"{self.args['algorithm']}Config"
+        # ](**self.args)
+        algorithm_config_cls = self.algorithm_configurations[
             f"{self.args['algorithm']}Config"
-        ](**self.args)
+        ]
+
+        resolved_args = {
+            key: self._resolve_algorithm_config(value)
+            for key, value in self.args.items()
+        }
+
+        algorithm_config = algorithm_config_cls(**resolved_args)
+
         configs["alg_config"] = algorithm_config
 
         return configs

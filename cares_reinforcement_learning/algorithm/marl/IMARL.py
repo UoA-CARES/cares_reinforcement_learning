@@ -75,7 +75,6 @@ from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
-    MARLObservationTensors,
     SARLObservation,
     SARLObservationTensors,
 )
@@ -86,13 +85,14 @@ AgentType = TypeVar("AgentType", bound=SARLAlgorithm)
 class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
     def __init__(
         self,
-        agents: list[AgentType],
+        agents: dict[str, AgentType],
         config: cfg.AlgorithmConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
         self.agent_networks = agents
+        self.agent_ids = list(agents.keys())
         self.num_agents = len(agents)
 
     def act(
@@ -103,11 +103,9 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         agent_states = observation.agent_states
         avail_actions = observation.available_actions
 
-        agent_ids = list(agent_states.keys())
         actions = {}
         agent_extras = {}
-        for i, agent in enumerate(self.agent_networks):
-            agent_name = agent_ids[i]  # consistent ordering in dict
+        for agent_name, agent_network in self.agent_networks.items():
             obs_i = agent_states[agent_name]
             avail_i = avail_actions[agent_name]
 
@@ -116,22 +114,15 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
                 available_actions=avail_i,
             )
 
-            agent_sample = agent.act(agent_observation, evaluation)
+            agent_sample = agent_network.act(agent_observation, evaluation)
             actions[agent_name] = agent_sample.action
             agent_extras[agent_name] = agent_sample.extras
 
         return ActionSample(action=actions, source="policy", extras=agent_extras)
 
-    def _sample(self, memory_buffer: MARLMemoryBuffer) -> tuple[
-        MARLObservationTensors,
-        torch.Tensor,
-        torch.Tensor,
-        MARLObservationTensors,
-        torch.Tensor,
-        torch.Tensor,
-        list[dict[str, Any]],
-        np.ndarray,
-    ]:
+    def _sample(
+        self, memory_buffer: MARLMemoryBuffer
+    ) -> tuple[memory_sampler.MARLTensorSample, np.ndarray]:
         return memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
@@ -143,7 +134,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
     def update_agent_from_batch(
         self,
         *,
-        agent_id: int,
+        agent_name: str,
         episode_context: EpisodeContext,
         observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
@@ -163,47 +154,38 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
         info: dict[str, Any] = {}
 
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            train_data,
-            indices,
-        ) = self._sample(memory_buffer=memory_buffer)
+        sample_tensor, indices = self._sample(memory_buffer=memory_buffer)
+        weights_tensor = sample_tensor.weights
+        train_data = sample_tensor.train_data
 
-        agent_states = observation_tensor.agent_states_tensor
+        agent_states = sample_tensor.observation.agent_states
         agent_ids = list(agent_states.keys())
         batch_size = len(indices)
 
-        agent_train_data = []
-        for i in range(self.num_agents):
+        agent_train_data = {}
+        for agent_name in agent_ids:
             train_data_i = []
-            agent_name = agent_ids[i]
             for j in range(batch_size):
                 if agent_name in train_data[j]:  # Check if agent's data is present
                     train_data_i.append(train_data[j][agent_name])
-            agent_train_data.append(train_data_i)
+            agent_train_data[agent_name] = train_data_i
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_name = agent_ids[i]
+        for agent_name in agent_ids:
             states_i = SARLObservationTensors(
-                vector_state_tensor=observation_tensor.agent_states_tensor[agent_name],
+                vector_state=sample_tensor.observation.agent_states[agent_name],
             )
-            actions_i = actions_tensor[:, i, :]
-            rewards_i = rewards_tensor[:, i]
+            actions_i = sample_tensor.action[agent_name]
+            rewards_i = sample_tensor.reward[agent_name]
+
             next_states_i = SARLObservationTensors(
-                vector_state_tensor=next_observation_tensor.agent_states_tensor[
-                    agent_name
-                ],
+                vector_state=sample_tensor.next_observation.agent_states[agent_name],
             )
-            dones_i = dones_tensor[:, i]
-            train_data_i = agent_train_data[i]
+
+            dones_i = sample_tensor.done[agent_name]
+            train_data_i = agent_train_data[agent_name]
 
             agent_i_info = self.update_agent_from_batch(
-                agent_id=i,
+                agent_name=agent_name,
                 episode_context=episode_context,
                 observation_tensor=states_i,
                 actions_tensor=actions_i,
@@ -215,11 +197,11 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
                 indices=indices,
             )
             for key, value in agent_i_info.items():
-                info[f"agent_{i}_{key}"] = value
+                info[f"{agent_name}_{key}"] = value
 
         metrics = list(agent_i_info.keys())
         for metric in metrics:
-            values = [info[f"agent_{i}_{metric}"] for i in range(self.num_agents)]
+            values = [info[f"{agent_name}_{metric}"] for agent_name in agent_ids]
             info[f"mean_{metric}"] = float(np.mean(values))
             info[f"std_{metric}"] = float(np.std(values))
             info[f"max_{metric}"] = float(np.max(values))
@@ -231,17 +213,19 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
+        for agent_name in self.agent_ids:
+            agent = self.agent_networks[agent_name]
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
             agent.save_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for i, agent in enumerate(self.agent_networks):
-            agent_filepath = os.path.join(filepath, f"agent_{i}")
-            agent_filename = f"{filename}_agent_{i}_checkpoint"
+        for agent_name in self.agent_ids:
+            agent = self.agent_networks[agent_name]
+            agent_filepath = os.path.join(filepath, f"{agent_name}")
+            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
             agent.load_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been loaded...")
@@ -257,7 +241,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 class IDDPG(IMARL[pol.DDPG]):
     def __init__(
         self,
-        agents: list[pol.DDPG],
+        agents: dict[str, pol.DDPG],
         config: cfg.IDDPGConfig,
         device: torch.device,
     ):
@@ -266,7 +250,7 @@ class IDDPG(IMARL[pol.DDPG]):
     def update_agent_from_batch(
         self,
         *,
-        agent_id: int,
+        agent_name: str,
         episode_context: EpisodeContext,
         observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
@@ -275,7 +259,7 @@ class IDDPG(IMARL[pol.DDPG]):
         dones_tensor: torch.Tensor,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_id]
+        agent = self.agent_networks[agent_name]
         return agent.update_from_batch(
             episode_context=episode_context,
             observation_tensor=observation_tensor,
@@ -289,7 +273,7 @@ class IDDPG(IMARL[pol.DDPG]):
 class ITD3(IMARL[pol.TD3]):
     def __init__(
         self,
-        agents: list[pol.TD3],
+        agents: dict[str, pol.TD3],
         config: cfg.ITD3Config,
         device: torch.device,
     ):
@@ -298,7 +282,7 @@ class ITD3(IMARL[pol.TD3]):
     def update_agent_from_batch(
         self,
         *,
-        agent_id: int,
+        agent_name: str,
         episode_context: EpisodeContext,
         observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
@@ -308,7 +292,7 @@ class ITD3(IMARL[pol.TD3]):
         weights_tensor: torch.Tensor,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_id]
+        agent = self.agent_networks[agent_name]
         info, _ = agent.update_from_batch(
             episode_context=episode_context,
             observation_tensor=observation_tensor,
@@ -324,7 +308,7 @@ class ITD3(IMARL[pol.TD3]):
 class ISAC(IMARL[pol.SAC]):
     def __init__(
         self,
-        agents: list[pol.SAC],
+        agents: dict[str, pol.SAC],
         config: cfg.ISACConfig,
         device: torch.device,
     ):
@@ -333,7 +317,7 @@ class ISAC(IMARL[pol.SAC]):
     def update_agent_from_batch(
         self,
         *,
-        agent_id: int,
+        agent_name: str,
         observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
@@ -342,7 +326,7 @@ class ISAC(IMARL[pol.SAC]):
         weights_tensor: torch.Tensor,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_id]
+        agent = self.agent_networks[agent_name]
         info, _ = agent.update_from_batch(
             observation_tensor=observation_tensor,
             actions_tensor=actions_tensor,
@@ -357,7 +341,7 @@ class ISAC(IMARL[pol.SAC]):
 class IPPO(IMARL[pol.PPO]):
     def __init__(
         self,
-        agents: list[pol.PPO],
+        agents: dict[str, pol.PPO],
         config: cfg.IPPOConfig,
         device: torch.device,
     ):
@@ -366,7 +350,7 @@ class IPPO(IMARL[pol.PPO]):
     def update_agent_from_batch(
         self,
         *,
-        agent_id: int,
+        agent_name: str,
         episode_context: EpisodeContext,
         observation_tensor: SARLObservationTensors,
         actions_tensor: torch.Tensor,
@@ -376,7 +360,7 @@ class IPPO(IMARL[pol.PPO]):
         train_data: list[dict[str, Any]],
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_id]
+        agent = self.agent_networks[agent_name]
         return agent.update_from_batch(
             episode_context=episode_context,
             observation_tensor=observation_tensor,
@@ -388,19 +372,12 @@ class IPPO(IMARL[pol.PPO]):
         )
 
     # PPO flushes the buffer override the default sampling method
-    def _sample(self, memory_buffer: MARLMemoryBuffer) -> tuple[
-        MARLObservationTensors,
-        torch.Tensor,
-        torch.Tensor,
-        MARLObservationTensors,
-        torch.Tensor,
-        torch.Tensor,
-        list[dict[str, Any]],
-        np.ndarray,
-    ]:
+    def _sample(
+        self, memory_buffer: MARLMemoryBuffer
+    ) -> tuple[memory_sampler.MARLTensorSample, np.ndarray]:
         sample = memory_buffer.flush()
         batch_size = len(sample.experiences)
 
-        return *memory_sampler.sample_to_tensors(sample, self.device), np.arange(
+        return memory_sampler.sample_to_tensors(sample, self.device), np.arange(
             batch_size
         )

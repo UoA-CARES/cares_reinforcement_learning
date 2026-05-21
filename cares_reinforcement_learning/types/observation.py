@@ -54,20 +54,20 @@ Observation = SARLObservation | MARLObservation
 @dataclass(frozen=True, slots=True)
 class SARLObservationTensors:
     # Vector Based
-    vector_state_tensor: torch.Tensor
+    vector_state: torch.Tensor
 
     # Image Based
-    image_state_tensor: torch.Tensor | None = None
+    image_state: torch.Tensor | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class MARLObservationTensors:
     # Global State
-    global_state_tensor: torch.Tensor
+    global_state: torch.Tensor
 
     # Per-Agent States
-    agent_states_tensor: dict[str, torch.Tensor]
-    avail_actions_tensor: torch.Tensor
+    agent_states: dict[str, torch.Tensor]
+    available_actions: dict[str, torch.Tensor]
 
 
 ObservationTensors = SARLObservationTensors | MARLObservationTensors

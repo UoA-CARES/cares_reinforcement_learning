@@ -429,25 +429,14 @@ class SDAR(SARLAlgorithm[np.ndarray]):
 
         # Use training utilities for consecutive sampling and tensor conversion
         (
-            _,  # states_t1_tensor (not used by SDAR)
-            prev_actions_tensor,  # actions_t1_tensor (SDAR's prev_actions)
-            _,  # rewards_t1_tensor (not used)
-            _,  # next_states_t1_tensor (not used)
-            _,  # dones_t1_tensor (not used)
-            _,  # extras ignored
-            observation_tensor,  # states_t2_tensor (SDAR's current states)
-            actions_tensor,  # actions_t2_tensor (SDAR's current actions)
-            rewards_tensor,  # rewards_t2_tensor (SDAR's current rewards)
-            next_observation_tensor,  # next_states_t2_tensor (SDAR's next states)
-            dones_tensor,  # dones_t2_tensor (SDAR's current dones)
-            _,  # extras ignored
+            (prev_sample_tensor, sample_tensor),
             _,  # indices (not used by SDAR)
         ) = memory_sampler.consecutive_sample(
             memory_buffer, self.batch_size, self.device
         )
 
         # Create weights tensor (SDAR doesn't use PER with consecutive sampling)
-        batch_size = len(observation_tensor.vector_state_tensor)
+        batch_size = len(sample_tensor.observation.vector_state)
         weights_tensor = torch.ones(
             batch_size, 1, dtype=torch.float32, device=self.device
         )
@@ -456,11 +445,11 @@ class SDAR(SARLAlgorithm[np.ndarray]):
 
         # Update the Critic
         critic_info, _ = self._update_critic(
-            observation_tensor.vector_state_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
-            dones_tensor,
+            sample_tensor.observation.vector_state,
+            sample_tensor.action,
+            sample_tensor.reward,
+            sample_tensor.next_observation.vector_state,
+            sample_tensor.done,
             weights_tensor,
         )
         info |= critic_info
@@ -468,8 +457,8 @@ class SDAR(SARLAlgorithm[np.ndarray]):
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor_alpha(
-                observation_tensor.vector_state_tensor,
-                prev_actions_tensor,
+                sample_tensor.observation.vector_state,
+                prev_sample_tensor.action,
                 weights_tensor,
             )
             info |= actor_info

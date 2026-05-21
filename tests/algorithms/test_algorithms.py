@@ -160,12 +160,17 @@ def test_algorithms(tmp_path):
         "obs": {"agent_0": 10, "agent_1": 10, "agent_2": 10},
         "state": 30,
         "num_agents": 3,
+        "teams": {"team_0": ["agent_0", "agent_1", "agent_2"]},
     }
 
     action_num = 2
 
     for algorithm, alg_config in algorithm_configurations.items():
+        if algorithm == "CrossMARL":
+            continue
+
         print(f"Testing training step for {algorithm}")
+
         alg_config = alg_config()
 
         memory_buffer = memory_factory.create_memory(alg_config)

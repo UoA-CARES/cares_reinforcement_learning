@@ -87,6 +87,7 @@ import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import PPOConfig
 from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
+from cares_reinforcement_learning.algorithm.value_normaliser import ValueNormaliser
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
@@ -138,14 +139,21 @@ class PPO(SARLAlgorithm[np.ndarray]):
         self.log_std = torch.nn.Parameter(init_log_std)
 
         self.actor_net_optimiser = torch.optim.Adam(
-            list(self.actor_net.parameters()) + [self.log_std], lr=config.actor_lr
+            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
         self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=config.critic_lr
+            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
         self.updates_per_iteration = config.updates_per_iteration
         self.eps_clip = config.eps_clip
+
+        self.use_value_normalisation = config.use_value_normalisation
+
+        self.value_normaliser = ValueNormaliser(
+            shape=(),
+            device=self.device,
+        )
 
     def _dist(self, mean: torch.Tensor) -> Normal:
         log_std = self.log_std.clamp(self.min_log_std, self.max_log_std)
@@ -196,11 +204,12 @@ class PPO(SARLAlgorithm[np.ndarray]):
             action_t = self._squash(u)  # in [-1, 1]
             log_prob = self._squashed_log_prob(dist, u)  # consistent log π(a|s)
 
-            value = (
-                self.critic_net(state_tensor).squeeze(-1)
-                if calculate_value
-                else torch.tensor(0.0, device=self.device)
-            )
+            if calculate_value:
+                value = self.critic_net(state_tensor).squeeze(-1)
+                if self.use_value_normalisation:
+                    value = self.value_normaliser.denormalise(value)
+            else:
+                value = torch.tensor(0.0, device=self.device)
 
             action = action_t.squeeze(0).cpu().numpy()
 
@@ -221,8 +230,148 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         with torch.no_grad():
             value = self.critic_net(state_tensor)
+            if self.use_value_normalisation:
+                value = self.value_normaliser.denormalise(value)
 
         return value[0].item()
+
+    def update_critic_minibatch(
+        self,
+        states_mb: torch.Tensor,  # [mb, obs_dim]
+        returns_mb: torch.Tensor,  # [mb]
+    ) -> dict[str, float]:
+
+        v = self.critic_net(states_mb).view(-1)
+        critic_loss = F.mse_loss(v, returns_mb)
+
+        self.critic_net_optimiser.zero_grad()
+        critic_loss.backward()
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                self.critic_net.parameters(), self.max_grad_norm
+            )
+        self.critic_net_optimiser.step()
+
+        return {"critic_loss": float(critic_loss.item())}
+
+    def _evaluate_actions(
+        self,
+        states: torch.Tensor,
+        actions: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """
+        Evaluate squashed actions under the current PPO policy.
+
+        Args:
+            states:  [B, obs_dim]
+            actions: [B, act_dim], already tanh-squashed and stored in replay/rollout
+
+        Returns:
+            log_probs: [B]
+            entropy:   [B]
+            u:         [B, act_dim], reconstructed pre-squash action
+        """
+        mean = self.actor_net(states)
+        dist = self._dist(mean)
+
+        u = self._atanh(actions)
+
+        log_probs = self._squashed_log_prob(dist, u)
+
+        # Entropy of the base Gaussian in pre-squash space.
+        # This matches your existing PPO update_actor_minibatch behaviour.
+        entropy = dist.entropy().sum(dim=-1)
+
+        return log_probs, entropy, u
+
+    def update_actor_minibatch(
+        self,
+        states_mb: torch.Tensor,  # [mb, obs_dim]
+        actions_mb: torch.Tensor,  # [mb, act_dim] (squashed)
+        old_logp_mb: torch.Tensor,  # [mb]
+        advantages_mb: torch.Tensor,  # [mb]
+        entropy_coef: float,
+    ) -> tuple[bool, dict[str, float]]:
+
+        curr_log_probs, entropy, u_mb = self._evaluate_actions(
+            states_mb,
+            actions_mb,
+        )
+
+        log_ratio = curr_log_probs - old_logp_mb
+        ratios = torch.exp(log_ratio)
+
+        unclipped_objective = ratios * advantages_mb
+        clipped_ratio = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip)
+        clipped_objective = clipped_ratio * advantages_mb
+
+        policy_objective = torch.min(unclipped_objective, clipped_objective)
+
+        actor_loss = -policy_objective.mean()
+
+        actor_loss = actor_loss - entropy_coef * entropy.mean()
+
+        self.actor_net_optimiser.zero_grad()
+        actor_loss.backward()
+        if self.max_grad_norm is not None:
+            torch.nn.utils.clip_grad_norm_(
+                list(self.actor_net.parameters()) + [self.log_std],
+                self.max_grad_norm,
+            )
+        self.actor_net_optimiser.step()
+
+        with torch.no_grad():
+            self.log_std.clamp_(self.min_log_std, self.max_log_std)
+
+        # ---- Post-update diagnostics / KL early stop ----
+        with torch.no_grad():
+            new_log_probs, _, _ = self._evaluate_actions(
+                states_mb,
+                actions_mb,
+            )
+
+            new_log_ratio = new_log_probs - old_logp_mb
+            new_ratios = torch.exp(new_log_ratio)
+
+            approx_kl = (new_ratios - 1.0 - new_log_ratio).mean()
+
+            kl_early_stop = (
+                self.target_kl is not None and approx_kl.item() > self.target_kl
+            )
+
+            clip_frac = (
+                (
+                    (new_ratios > 1.0 + self.eps_clip)
+                    | (new_ratios < 1.0 - self.eps_clip)
+                )
+                .float()
+                .mean()
+            )
+
+            sat_rate = (actions_mb.abs() > 0.99).float().mean()
+            u_abs_mean = u_mb.abs().mean()
+            u_abs_max = u_mb.abs().max()
+
+            log_ratio_mean = new_log_ratio.mean()
+            log_ratio_std = new_log_ratio.std(unbiased=False)
+            log_ratio_max_abs = new_log_ratio.abs().max()
+
+        info = {
+            "actor_loss": float(actor_loss.item()),
+            "entropy": float(entropy.mean().item()),
+            "approx_kl": float(approx_kl.item()),
+            "clip_frac": float(clip_frac.item()),
+            "ratio_mean": float(new_ratios.mean().item()),
+            "ratio_std": float(new_ratios.std(unbiased=False).item()),
+            "action_sat_rate": float(sat_rate.item()),
+            "u_abs_mean": float(u_abs_mean.item()),
+            "u_abs_max": float(u_abs_max.item()),
+            "log_ratio_mean": float(log_ratio_mean.item()),
+            "log_ratio_std": float(log_ratio_std.item()),
+            "log_ratio_max_abs": float(log_ratio_max_abs.item()),
+        }
+
+        return kl_early_stop, info
 
     def _calculate_gae(
         self,
@@ -253,114 +402,6 @@ class PPO(SARLAlgorithm[np.ndarray]):
         returns = advantages + values
         return advantages, returns
 
-    def update_actor_minibatch(
-        self,
-        states_mb: torch.Tensor,  # [mb, obs_dim]
-        actions_mb: torch.Tensor,  # [mb, act_dim] (squashed)
-        old_logp_mb: torch.Tensor,  # [mb]
-        advantages_mb: torch.Tensor,  # [mb]
-        entropy_coef: float,
-    ) -> tuple[bool, dict[str, float]]:
-
-        mean = self.actor_net(states_mb)
-        dist = self._dist(mean)
-        u_mb = self._atanh(actions_mb)  # invert tanh
-        curr_log_probs = self._squashed_log_prob(dist, u_mb)
-
-        log_ratio = curr_log_probs - old_logp_mb
-        ratios = torch.exp(curr_log_probs - old_logp_mb)
-
-        unclipped_objective = ratios * advantages_mb
-        clipped_ratio = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip)
-        clipped_objective = clipped_ratio * advantages_mb
-
-        policy_objective = torch.min(unclipped_objective, clipped_objective)
-
-        actor_loss = -policy_objective.mean()
-
-        entropy = dist.entropy().sum(dim=-1).mean()
-        actor_loss = actor_loss - entropy_coef * entropy
-
-        self.actor_net_optimiser.zero_grad()
-        actor_loss.backward()
-        if self.max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(
-                list(self.actor_net.parameters()) + [self.log_std],
-                self.max_grad_norm,
-            )
-        self.actor_net_optimiser.step()
-
-        with torch.no_grad():
-            self.log_std.clamp_(self.min_log_std, self.max_log_std)
-
-        # ---- Post-update diagnostics / KL early stop ----
-        with torch.no_grad():
-            new_mean = self.actor_net(states_mb)
-            new_dist = self._dist(new_mean)
-            new_log_probs = self._squashed_log_prob(new_dist, u_mb)
-
-            new_log_ratio = new_log_probs - old_logp_mb
-            new_ratios = torch.exp(new_log_ratio)
-
-            approx_kl = (new_ratios - 1.0 - new_log_ratio).mean()
-
-            kl_early_stop = (
-                self.target_kl is not None and approx_kl.item() > self.target_kl
-            )
-
-            clip_frac = (
-                (
-                    (new_ratios > 1.0 + self.eps_clip)
-                    | (new_ratios < 1.0 - self.eps_clip)
-                )
-                .float()
-                .mean()
-            )
-
-            sat_rate = (actions_mb.abs() > 0.99).float().mean()
-            u_abs_mean = u_mb.abs().mean()
-            u_abs_max = u_mb.abs().max()
-
-            log_ratio_mean = new_log_ratio.mean()
-            log_ratio_std = new_log_ratio.std(unbiased=False)
-            log_ratio_max_abs = new_log_ratio.abs().max()
-
-        info = {
-            "actor_loss": float(actor_loss.item()),
-            "entropy": float(entropy.item()),
-            "approx_kl": float(approx_kl.item()),
-            "clip_frac": float(clip_frac.item()),
-            "ratio_mean": float(new_ratios.mean().item()),
-            "ratio_std": float(new_ratios.std(unbiased=False).item()),
-            "action_sat_rate": float(sat_rate.item()),
-            "u_abs_mean": float(u_abs_mean.item()),
-            "u_abs_max": float(u_abs_max.item()),
-            "log_ratio_mean": float(log_ratio_mean.item()),
-            "log_ratio_std": float(log_ratio_std.item()),
-            "log_ratio_max_abs": float(log_ratio_max_abs.item()),
-        }
-
-        return kl_early_stop, info
-
-    def update_critic_minibatch(
-        self,
-        states_mb: torch.Tensor,  # [mb, obs_dim]
-        returns_mb: torch.Tensor,  # [mb]
-    ) -> dict[str, float]:
-
-        v = self.critic_net(states_mb).view(-1)
-        critic_loss = F.mse_loss(v, returns_mb)
-
-        self.critic_net_optimiser.zero_grad()
-        critic_loss.backward()
-        if self.max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(
-                self.critic_net.parameters(), self.max_grad_norm
-            )
-        self.critic_net_optimiser.step()
-
-        return {"critic_loss": float(critic_loss.item())}
-
     def update_from_batch(
         self,
         episode_context: EpisodeContext,
@@ -372,13 +413,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
         train_data: list[dict[str, Any]],
     ) -> dict[str, Any]:
 
-        batch_size = len(observation_tensor.vector_state_tensor)
+        batch_size = len(observation_tensor.vector_state)
 
         self.entropy_coef = self.epsilon_scheduler.get_value(
             episode_context.training_step
         )
 
-        states = observation_tensor.vector_state_tensor  # shape [B, obs_dim]
+        states = observation_tensor.vector_state  # shape [B, obs_dim]
 
         # Old log_probs + values stored at action time
         old_log_probs = [data["log_prob"] for data in train_data]
@@ -395,10 +436,14 @@ class PPO(SARLAlgorithm[np.ndarray]):
         # Boot Strap next_value for the final step in the buffer - zero out if it is a terminal state,
         # otherwise use critic estimate for V(s_T)
         with torch.no_grad():
-            last_next_state = next_observation_tensor.vector_state_tensor[-1].unsqueeze(
+            last_next_state = next_observation_tensor.vector_state[-1].unsqueeze(
                 0
             )  # [1, obs_dim]
             last_value = self.critic_net(last_next_state).view(-1)[0]  # scalar
+
+            if self.use_value_normalisation:
+                last_value = self.value_normaliser.denormalise(last_value)
+
             last_done = dones_tensor.reshape(-1)[-1].bool()  # True if terminal
             last_value = last_value * (~last_done).to(last_value.dtype)
 
@@ -411,6 +456,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
             gae_lambda=self.gae_lambda,
         )
 
+        # Optionally normalise returns for critic stability
+        if self.use_value_normalisation:
+            self.value_normaliser.update(returns)
+            normalised_returns = self.value_normaliser.normalise(returns)
+        else:
+            normalised_returns = returns
+
         # Normalize advantages
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
@@ -422,6 +474,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
             # Critic fit quality (explained variance) on the whole batch
             v_pred_all = self.critic_net(states).view(-1)
+            if self.use_value_normalisation:
+                v_pred_all = self.value_normaliser.denormalise(v_pred_all)
+
             y_all = returns.view(-1)
             explained_var = 1.0 - torch.var(y_all - v_pred_all) / (
                 torch.var(y_all) + 1e-8
@@ -474,7 +529,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
                 actions_mb = actions_tensor[mb]
                 old_logp_mb = old_log_probs_tensor[mb].detach()
                 advantages_mb = advantages[mb]
-                returns_mb = returns[mb]
+                returns_mb = normalised_returns[mb]
 
                 # ---- Actor ----
                 if not kl_early_stop:
@@ -620,24 +675,16 @@ class PPO(SARLAlgorithm[np.ndarray]):
             return {}
 
         # Convert to tensors using helper method (no next_states needed for PPO, so pass dummy data)
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,
-            train_data,
-        ) = memory_sampler.sample_to_tensors(sample, self.device)
+        sample_tensor = memory_sampler.sample_to_tensors(sample, self.device)
 
         info = self.update_from_batch(
             episode_context=episode_context,
-            observation_tensor=observation_tensor,
-            actions_tensor=actions_tensor,
-            rewards_tensor=rewards_tensor,
-            next_observation_tensor=next_observation_tensor,
-            dones_tensor=dones_tensor,
-            train_data=train_data,
+            observation_tensor=sample_tensor.observation,
+            actions_tensor=sample_tensor.action,
+            rewards_tensor=sample_tensor.reward,
+            next_observation_tensor=sample_tensor.next_observation,
+            dones_tensor=sample_tensor.done,
+            train_data=sample_tensor.train_data,
         )
 
         return info
@@ -653,6 +700,11 @@ class PPO(SARLAlgorithm[np.ndarray]):
             "actor_optimizer": self.actor_net_optimiser.state_dict(),
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
         }
+        checkpoint["value_normaliser"] = {
+            "mean": self.value_normaliser.mean.detach().cpu(),
+            "var": self.value_normaliser.var.detach().cpu(),
+            "count": self.value_normaliser.count.detach().cpu(),
+        }
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models and optimisers have been saved...")
 
@@ -665,4 +717,15 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.value_normaliser.mean = checkpoint["value_normaliser"]["mean"].to(
+            self.device
+        )
+        self.value_normaliser.var = checkpoint["value_normaliser"]["var"].to(
+            self.device
+        )
+        self.value_normaliser.count = checkpoint["value_normaliser"]["count"].to(
+            self.device
+        )
+
         logging.info("models and optimisers have been loaded...")

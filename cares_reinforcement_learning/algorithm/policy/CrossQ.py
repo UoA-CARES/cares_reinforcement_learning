@@ -61,7 +61,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
