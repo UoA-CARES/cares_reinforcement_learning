@@ -132,14 +132,16 @@ class PPO(SARLAlgorithm[np.ndarray]):
         self.min_log_std = config.log_std_bounds[0]
         self.max_log_std = config.log_std_bounds[1]
 
-        # Initialize log_std as a learnable parameter, starting at max_log_std for high initial exploration
-        init_log_std = torch.full(
-            (self.action_num,), self.max_log_std, device=self.device
+        init_log_std = torch.zeros(
+            (self.action_num,),
+            device=self.device,
         )
         self.log_std = torch.nn.Parameter(init_log_std)
 
         self.actor_net_optimiser = torch.optim.Adam(
-            self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
+            list(self.actor_net.parameters()) + [self.log_std],
+            lr=config.actor_lr,
+            **config.actor_lr_params,
         )
         self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
@@ -313,6 +315,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
+
+        log_std_grad = (
+            self.log_std.grad.abs().mean().item()
+            if self.log_std.grad is not None
+            else 0.0
+        )
+
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 list(self.actor_net.parameters()) + [self.log_std],
@@ -369,6 +378,8 @@ class PPO(SARLAlgorithm[np.ndarray]):
             "log_ratio_mean": float(log_ratio_mean.item()),
             "log_ratio_std": float(log_ratio_std.item()),
             "log_ratio_max_abs": float(log_ratio_max_abs.item()),
+            "log_std_grad": float(log_std_grad),
+            "log_std_mean": float(self.log_std.mean().item()),
         }
 
         return kl_early_stop, info
@@ -506,6 +517,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
         sum_log_ratio_std = 0.0
         sum_log_ratio_max_abs = 0.0
 
+        sum_log_std_grad = 0.0
+        sum_log_std_mean = 0.0
+
         sum_kl = 0.0
         max_kl_seen = 0.0
         sum_entropy = 0.0
@@ -552,6 +566,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
                     sum_log_ratio_mean += actor_info["log_ratio_mean"]
                     sum_log_ratio_std += actor_info["log_ratio_std"]
                     sum_log_ratio_max_abs += actor_info["log_ratio_max_abs"]
+
+                    sum_log_std_grad += actor_info["log_std_grad"]
+                    sum_log_std_mean += actor_info["log_std_mean"]
 
                     sum_clip_frac += actor_info["clip_frac"]
                     sum_ratio_mean += actor_info["ratio_mean"]
@@ -648,6 +665,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
             info["log_ratio_mean"] = sum_log_ratio_mean / num_actor_mbs
             info["log_ratio_std"] = sum_log_ratio_std / num_actor_mbs
             info["log_ratio_max_abs"] = sum_log_ratio_max_abs / num_actor_mbs
+
+            info["log_std_grad"] = sum_log_std_grad / num_actor_mbs
+            info["log_std_mean"] = sum_log_std_mean / num_actor_mbs
 
         # ---------------------------------------------------------
         # KL Diagnostics (if enabled)
