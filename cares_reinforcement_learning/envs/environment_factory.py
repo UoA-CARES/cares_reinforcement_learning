@@ -133,6 +133,14 @@ class EnvironmentFactory:
                 env = SMAC2Environment(config, train_seed)
                 eval_env = SMAC2Environment(config, eval_seed)
 
+            case cfg.MARLDroneConfig():
+                from cares_reinforcement_learning.envs.marl.drone.drone_environment import (
+                    MARLDroneEnvironment,
+                )
+
+                env = MARLDroneEnvironment(config, train_seed)
+                eval_env = env
+
             case _:
                 raise ValueError(f"Unknown environment: {type(config)}")
 
