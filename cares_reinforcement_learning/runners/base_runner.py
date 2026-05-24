@@ -29,12 +29,14 @@ from cares_reinforcement_learning.util.record import Record
 class EpisodeStats:
     n_agents: int
     _agent_ids: list[str] | None = field(init=False, default=None)
-
+    rewards: np.ndarray = field(init=False)
+    costs: np.ndarray = field(init=False)
     steps: int = 0
     rewards: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
         self.rewards = np.zeros(self.n_agents, dtype=np.float32)
+        self.costs = np.zeros(self.n_agents, dtype=np.float32)
 
     def step(self) -> None:
         self.steps += 1
@@ -49,13 +51,30 @@ class EpisodeStats:
 
         self.rewards += np.asarray(reward_vector)
 
+    def update_cost(self, cost: float | dict[str, float]) -> None:
+        if isinstance(cost, (int, float)):
+            # Single-agent case (broadcast to all)
+            cost_vector = np.full(self.n_agents, cost, dtype=np.float32)
+        else:
+            cost_vector = np.asarray(list(cost.values()), dtype=np.float32)
+
+        self.costs += np.asarray(cost_vector)
+
     def get_episode_reward(self) -> float:
         return float(np.sum(self.rewards))
+
+    def get_episode_cost(self) -> float:
+        return float(np.sum(self.costs))
 
     def summary(self) -> dict[str, float]:
         stats = {
             "episode_steps": self.steps,
             "episode_reward": self.get_episode_reward(),
+            "episode_reward_mean": float(np.mean(self.rewards)),
+            **{f"agent_{i}_reward": float(r) for i, r in enumerate(self.rewards)},
+            "episode_cost": self.get_episode_cost(),
+            "episode_cost_mean": float(np.mean(self.costs)),
+            **{f"agent_{i}_cost": float(c) for i, c in enumerate(self.costs)},
         }
 
         if self._agent_ids is not None:
@@ -70,6 +89,7 @@ class EpisodeStats:
 
     def reset(self) -> None:
         self.rewards[:] = 0
+        self.costs[:] = 0
         self.steps = 0
 
 
@@ -206,6 +226,14 @@ class BaseRunner(ABC):
         if episodes_to_record == 0:
             return False  # Record none
         return episode_idx < episodes_to_record  # Record first N
+
+
+# --- TO DO ---
+# Add the cost equivalent of reward in the following 3 methods. That is,
+#     * _run_single_episode_evaluation(...)
+#     * _evaluate_agent_episodes(...)
+#     * _evaluate_usd_skills(...)
+
 
     def _run_single_episode_evaluation(
         self,
