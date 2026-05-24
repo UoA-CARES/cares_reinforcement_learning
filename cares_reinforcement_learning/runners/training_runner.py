@@ -200,6 +200,7 @@ class TrainingRunner(BaseRunner):
         episode_num: int,
         episode_timesteps: int,
         episode_reward: float,
+        episode_cost: float,
         episode_done: bool,
     ) -> dict:
         """Execute policy training step."""
@@ -208,6 +209,7 @@ class TrainingRunner(BaseRunner):
             episode=episode_num + 1,
             episode_steps=episode_timesteps,
             episode_reward=episode_reward,
+            episode_cost=episode_cost,
             episode_done=episode_done,
         )
 
@@ -225,6 +227,7 @@ class TrainingRunner(BaseRunner):
         """Handle episode completion and repetition logic."""
         in_training_phase = train_step_counter > self.max_steps_exploration
         self.repetition_manager.finish_episode(episode_reward, in_training_phase)
+        
 
     def _run_evaluation(self, train_step_counter: int) -> None:
         """Execute evaluation phase."""
@@ -308,6 +311,7 @@ class TrainingRunner(BaseRunner):
             self.memory_buffer.add(experience)  # type: ignore
 
             episode_stats.update_reward(experience.reward)
+            episode_stats.update_cost(experience.cost)
 
             # Train policy if conditions are met
             if (
@@ -319,6 +323,7 @@ class TrainingRunner(BaseRunner):
                     episode_num,
                     episode_stats.steps,
                     episode_stats.get_episode_reward(),
+                    episode_stats.get_episode_cost(),
                     episode_end,
                 )
 
@@ -356,9 +361,7 @@ class TrainingRunner(BaseRunner):
                 self._report_progress(episode_num + 1, train_step_counter + 1, status)
 
                 # Handle any logic at episode end
-                self._finalise_episode(
-                    train_step_counter, episode_stats.get_episode_reward()
-                )
+                self._finalise_episode(train_step_counter, episode_stats.get_episode_reward())
 
                 # Reset for next episode
                 state = self.env.reset()

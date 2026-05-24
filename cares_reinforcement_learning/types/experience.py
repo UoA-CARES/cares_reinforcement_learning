@@ -27,6 +27,7 @@ class SingleAgentExperience(Experience[SARLObservation]):
     reward: float
     done: bool
     truncated: bool
+    cost: float = 0.0
 
     @property
     def done_flag(self) -> bool:
