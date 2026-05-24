@@ -887,6 +887,8 @@ class SACDConfig(AlgorithmConfig):
 
 
 class SACLagConfig(SACConfig):
+    algorithm: str = "SACLag"
+
     cost_scale: float = 1.0
     cost_gamma: float = 0.99
 
