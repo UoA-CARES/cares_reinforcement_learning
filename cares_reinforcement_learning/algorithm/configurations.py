@@ -845,6 +845,16 @@ class SACLagConfig(SACConfig):
 
     lagrange_multiplier: LagrangeMultiplierConfig = Field(default_factory=LagrangeMultiplierConfig)
 
+    cost_critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
+
 
 class LagrangeMultiplierConfig(BaseModel):
     init: float = 0.01
