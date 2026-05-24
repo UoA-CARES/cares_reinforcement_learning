@@ -9,4 +9,5 @@ class EpisodeContext:
     episode: int
     episode_steps: int
     episode_reward: float
+    episode_cost: float
     episode_done: bool
