@@ -837,6 +837,7 @@ class SACDConfig(AlgorithmConfig):
 
 
 class SACLagConfig(SACConfig):
+    cost_scale: float = 1.0
     cost_gamma: float = 0.99
 
     cost_critic_lr: float = 3e-4
