@@ -417,6 +417,25 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
     return agent
 
 
+def create_SACLag(observation_size, action_num, config: acf.SACLagConfig):
+    from cares_reinforcement_learning.algorithm.policy import SACLag
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic, CostCritic
+
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
+    cost_critic = CostCritic(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+    agent = SACLag(
+        actor_network=actor,
+        critic_network=critic,
+        cost_critic_network=cost_critic,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 ###################################
 #         TD3 Algorithms          #
 ###################################

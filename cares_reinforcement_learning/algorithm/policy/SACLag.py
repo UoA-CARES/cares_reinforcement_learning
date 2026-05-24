@@ -44,11 +44,11 @@ Key Behaviours:
           equivalent to that of the primal CMDP.
         - Reward trajectory is gradual and conservative.
     Automated lambda:
-	- If the agent violates fewer constraints,
-	  𝜆 gradually decreases (vice versa).
-	- Gradient-ascent (GA) updates guarantee 
-	  convergence to 𝜆*.
-	- PID updates stabilize 𝜆 trajectory.
+        - If the agent violates fewer constraints,
+        - 𝜆 gradually decreases (vice versa).
+        - Gradient-ascent (GA) updates guarantee 
+        - convergence to 𝜆*.
+        - PID updates stabilize 𝜆 trajectory.
 
 Limitations:
 - Finding the optimal 𝜆* is computationally expensive and highly
@@ -91,6 +91,8 @@ from cares_reinforcement_learning.networks.common import (
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservationTensors
 
+
+# TODO: Move to right place
 class LagrangeMultiplier:
     def __init__(
         self,
