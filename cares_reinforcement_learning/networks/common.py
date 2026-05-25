@@ -16,6 +16,7 @@ from cares_reinforcement_learning.encoders.vanilla_autoencoder import (
     Encoder,
     VanillaAutoencoder,
 )
+import cares_reinforcement_learning.networks.fractional_activations as fa
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.util.configurations import (
     FunctionLayer,
@@ -33,8 +34,10 @@ def get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
         return BatchRenorm1d
     elif module_name == "NoisyLinear":
         return NoisyLinear
-    raise ValueError(f"Module {module_name} not found in nn or custom modules.")
+    elif hasattr(fa, module_name):
+        return getattr(fa, module_name)
 
+    raise ValueError(f"Module {module_name} not found in nn or custom modules.")
 
 # Standard Multilayer Perceptron (MLP) network - consider making Sequential itself
 class MLP(nn.Module):
