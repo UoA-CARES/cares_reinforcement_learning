@@ -150,6 +150,7 @@ class SARLEnvironment(BaseEnvironment[SARLObservation]):
             observation=self.observation,
             action=action,
             reward=reward,
+            cost=info.get("cost", 0.0),
             next_observation=next_observation,
             done=done,
             truncated=truncated,
