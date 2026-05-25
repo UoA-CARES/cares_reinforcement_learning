@@ -2,75 +2,557 @@
 <img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
 </p>
 
-The CARES reinforcement learning bed used as the foundation for RL related projects.
+# CARES Reinforcement Learning
+
+Branch:
+
+```text
+feature/fractional-swish-gelu
+```
+
+The CARES Reinforcement Learning package provides a modular reinforcement learning (RL) framework used as the foundation for RL-related research projects within the CARES research group.
+
+This branch extends the CARES RL framework with:
+
+- fractional-order activation functions
+- Grünwald-Letnikov-inspired nonlinearities
+- residual fractional GELU activations
+- smooth fractional Swish variants
+- RL-safe fractional activations
+- configurable actor/critic activation placement
+
+for systematic evaluation in modern actor-critic reinforcement learning algorithms such as TD3 and SAC.
+
+---
 
 # Motivation
 
-**Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
+**Reinforcement Learning Algorithms** (that is to say, *how* the neural networks are updated) remain fundamentally similar across applications.
+
+This package is designed so that RL algorithms are implemented once and can then be:
+
+- reused
+- extended
+- configured
+- evaluated
+
+across many environments and research settings.
+
+The framework supports modular integration of:
+
+- neural network architectures
+- replay buffers
+- encoders
+- activation functions
+- optimisation methods
+
+without modifying the underlying RL algorithm implementation.
+
+---
+
+# Fractional Activation Research Motivation
+
+This branch investigates whether fractional-order nonlinear transformations can improve:
+
+- optimisation stability
+- gradient propagation
+- representation smoothness
+- actor-critic learning dynamics
+- continuous-control RL performance
+- RL sample efficiency
+
+compared to standard activations such as:
+
+- ReLU
+- GELU
+- Swish / SiLU
+
+The branch focuses particularly on smooth nonlinear and fractional-inspired activations designed for off-policy actor-critic RL.
+
+---
+
+# Fractional Activation Implementations
+
+Implemented in:
+
+```text
+cares_reinforcement_learning/networks/fractional_activations.py
+```
+
+Dynamically loaded through:
+
+```text
+cares_reinforcement_learning/networks/common.py
+```
+
+The activations implemented in this branch fall into several different mathematical categories.
+
+---
+
+# 1. Fractional Derivative Inspired Activations
+
+These activations are inspired by Grünwald-Letnikov fractional derivative approximations.
+
+They use:
+
+- Gamma-function coefficients
+- shifted finite summations
+- fractional finite differences
+- fractional accumulation dynamics
+
+These are the activations most closely aligned with classical fractional calculus.
+
+---
+
+## FractionalGELU
+
+Fractional derivative inspired GELU activation.
+
+Base activation:
+
+$$
+\mathrm{GELU}(x)
+$$
+
+Uses Grünwald-Letnikov-style finite fractional summation:
+
+$$
+\sum_{i=0}^{n}(-1)^i
+\frac{\Gamma(\alpha+1)}
+{\Gamma(i+1)\Gamma(\alpha-i+1)}
+f(x-ih)
+$$
+
+Characteristics:
+
+- closest implementation to true fractional calculus
+- smooth nonlinear behaviour
+- fractional accumulation effects
+- expressive nonlinear transitions
+- higher computational complexity
+
+---
+
+## FractionalMish
+
+Fractional derivative inspired Mish activation.
+
+Base activation:
+
+$$
+\mathrm{Mish}(x)=x\tanh(\mathrm{softplus}(x))
+$$
+
+Characteristics:
+
+- smooth non-monotonic activation
+- fractional finite-difference behaviour
+- expressive smooth transitions
+- fractional nonlinear modulation
+
+---
+
+## SafeGLFractionalGELU
+
+RL-safe version of `FractionalGELU`.
+
+Adds:
+
+- stable Gamma handling
+- alpha stabilisation
+- safe bounded behaviour
+- `nan_to_num`
+
+Designed specifically for stable actor-critic RL training.
+
+---
+
+## SafeGLFractionalMish
+
+RL-safe version of `FractionalMish`.
+
+Adds:
+
+- stable fractional computation
+- bounded numerical behaviour
+- safer optimisation dynamics
+
+---
+
+# 2. Fractional Power-Law Activations
+
+These activations use fractional-order power-law scaling.
+
+Core formulation:
+
+$$
+|x|^{1-a}
+$$
+
+These activations are simpler and often more numerically stable than full Grünwald-Letnikov formulations.
+
+---
+
+## FractionalReLUPositive
+
+Positive-only fractional ReLU variant.
+
+Formulation:
+
+$$
+f(x)=x^{1-a}, \quad x>0
+$$
+
+Characteristics:
+
+- positive fractional rectification
+- sparse activation behaviour
+- simple fractional scaling
+- ReLU-inspired dynamics
+
+---
+
+## FLReLU
+
+Fractional Leaky ReLU.
+
+Characteristics:
+
+- fractional positive and negative scaling
+- fixed negative leakage
+- stable rectifier dynamics
+
+---
+
+## FLReLU2
+
+Learnable fractional Leaky ReLU.
+
+Adds:
+
+- learnable leakage
+- adaptive negative response
+- trainable nonlinear asymmetry
+
+---
+
+## FractionalPReLU
+
+Fractional parametric ReLU.
+
+Characteristics:
+
+- fractional-order rectification
+- trainable negative branch
+- adaptive nonlinear response
+
+---
+
+## FPReLU2
+
+Learnable fractional PReLU variant.
+
+Characteristics:
+
+- adaptive negative scaling
+- learnable leakage dynamics
+- trainable rectifier behaviour
+
+---
+
+## FParReLU
+
+Fractional parametric ReLU with learnable slope parameters.
+
+Characteristics:
+
+- learnable negative branch
+- stable bounded scaling
+- adaptive fractional rectification
+
+---
+
+## SafeFractionalGELU
+
+Fractionally-scaled GELU.
+
+Base activation:
+
+$$
+\mathrm{GELU}(x)
+$$
+
+Fractional scaling:
+
+$$
+f(x)=
+\mathrm{GELU}(x)
+\frac{
+(|x|+\epsilon)^{1-a}
+}{
+\Gamma(2-a)
+}
+$$
+
+Characteristics:
+
+- RL-safe fractional modulation
+- stable magnitude scaling
+- smoother optimisation behaviour
+- lower instability than full GL approximations
+
+---
+
+## SafeFractionalMish
+
+Fractionally-scaled Mish activation.
+
+Characteristics:
+
+- smooth fractional scaling
+- RL-safe behaviour
+- stable nonlinear modulation
+
+---
+
+# 3. Fractional-Inspired Smooth Gated Activations
+
+These activations extend smooth nonlinearities such as Swish and SiLU using fractional-inspired modulation.
+
+These are not strict fractional derivatives.
+
+Instead, they inject adaptive fractional-style nonlinear behaviour into smooth gating mechanisms.
+
+---
+
+## FractionalSwish
+
+Fractional-inspired Swish activation.
+
+Base activation:
+
+$$
+\mathrm{Swish}(x)=x\sigma(x)
+$$
+
+Fractional-inspired modulation:
+
+$$
+f(x)=
+\mathrm{Swish}(x)
++
+\alpha\sigma(x)(1-\mathrm{Swish}(x))
+$$
+
+Characteristics:
+
+- smooth gated behaviour
+- adaptive nonlinear modulation
+- Swish-family extension
+- smooth actor optimisation
+- stable gradients
+
+---
+
+## FractionalSwishBeta
+
+Learnable-beta Fractional Swish.
+
+Adds:
+
+- trainable gating strength
+- adaptive smoothness
+- learnable nonlinear response
+
+Characteristics:
+
+- stronger flexibility
+- adaptive gating dynamics
+- RL-friendly smooth transitions
+
+---
+
+## FALU
+
+Fractional Adaptive Linear Unit.
+
+Core structure:
+
+$$
+g(x)=x\sigma(\beta x)
+$$
+
+Characteristics:
+
+- adaptive smooth gating
+- learnable nonlinear behaviour
+- higher-order fractional-inspired modulation
+- smooth actor-critic optimisation
+
+---
+
+## SafeFractionalSwish
+
+RL-safe version of `FractionalSwish`.
+
+Adds:
+
+- bounded numerical behaviour
+- `nan_to_num`
+- RL-oriented stabilisation
+
+---
+
+## SafeFALU
+
+RL-safe version of `FALU`.
+
+Characteristics:
+
+- stable smooth gating
+- bounded optimisation dynamics
+- safer actor-critic training
+
+---
+
+# 4. Residual Fractional Activations
+
+These activations preserve the baseline activation while injecting a controlled fractional residual correction.
+
+These were designed specifically for RL stability.
+
+---
+
+## ResidualFractionalGELU
+
+Residual fractional GELU activation.
+
+Base activation:
+
+$$
+\mathrm{GELU}(x)
+$$
+
+Residual fractional augmentation:
+
+$$
+f(x)=
+\mathrm{GELU}(x)
++
+\beta
+\frac{
+\operatorname{sign}(x)|x|^{1-a}
+}{
+\Gamma(2-a)
+}
+$$
+
+Characteristics:
+
+- preserves baseline GELU geometry
+- injects controlled fractional dynamics
+- stable optimisation behaviour
+- smoother critic learning
+- improved gradient propagation
+- RL-oriented residual nonlinear modulation
+
+---
+
+## AdaptiveResidualFractionalGELU
+
+Adaptive residual fractional GELU.
+
+Extends `ResidualFractionalGELU` with learnable residual scaling.
+
+Adds:
+
+- adaptive residual strength
+- trainable fractional correction
+- learnable nonlinear balancing
+
+Characteristics:
+
+- dynamically learns fractional influence
+- preserves stable baseline activation
+- adaptive RL optimisation behaviour
+
+---
 
 # Usage
-Consult the repository [wiki](https://github.com/UoA-CARES/cares_reinforcement_learning/wiki) for a guide on how to use the package
+
+Consult the repository wiki for usage examples and documentation:
+
+https://github.com/UoA-CARES/cares_reinforcement_learning/wiki
+
+---
 
 # Installation Instructions
+
 ![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 
-`git clone` the repository into your desired directory on your local machine
+Clone repository:
 
-Run `pip3 install -r requirements.txt` in the **root directory** of the package
+```bash
+git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
+```
 
-To make the module **globally accessible** in your working environment run `pip3 install --editable .` in the **project root**
+Checkout fractional activation branch:
 
-# Running an Example
+```bash
+git checkout feature/fractional-swish-gelu
+```
 
-This package serves as a library of specific RL algorithms and utility functions being used by the CARES RL team. For an example of how to use this package in your own environments see the example gym packages below that use these algorithms for training agents on a variety of simulated and real-world tasks.
+Install requirements:
 
-## Gym Environments
+```bash
+pip3 install -r requirements.txt
+```
 
-We have created a standardised general purpose gym that wraps the most common simulated environments used in reinforcement learning into a single easy to use place:  https://github.com/UoA-CARES/gymnasium_envrionments
+Install editable package:
 
-This package contains wrappers for the following gym environments:
+```bash
+pip3 install --editable .
+```
 
-### Deep Mind Control Suite
+---
 
-The standard Deep Mind Control suite: https://github.com/google-deepmind/dm_control
+# Related Training Framework
 
-<p align="center">
-    <img alt="deep mind control suite" src="./media/dmcs.png" style="width: 80%;"/>
-</p>
+Training orchestration and experiment execution are handled through:
 
-### OpenAI Gymnasium
+https://github.com/UoA-CARES/gymnasium_envrionments
 
-The standard OpenAI Gymnasium: https://github.com/Farama-Foundation/Gymnasium
+That repository provides:
 
-<p align="center">
-    <img alt="open ai" src="./media/openai.jpg" style="width: 80%;" />
-</p>
+- OpenAI Gymnasium integration
+- DeepMind Control Suite integration
+- batch execution
+- plotting
+- experiment management
+- multi-seed orchestration
 
-### Game Boy Emulator
+---
 
-Environment running Gameboy games utilising the pyboy wrapper: https://github.com/UoA-CARES/pyboy_environment
+# Running Fractional Activation Experiments
 
-<p align="center">
-    <img alt="game boy mario" src="./media/mario.png" style="width: 40%;" />
-    <img alt="game boy pokemon" src="./media/pokemon.png" style="width: 40%;"/>
-</p>
+Example:
 
-## Gripper Gym
+```bash
+ACTIVATION=ResidualFractionalGELU \
+ALPHAS=0.1,0.2,0.3,0.4,0.5 \
+ALGORITHM=TD3 \
+LAYERS=1 \
+PLACEMENT=all_both \
+python3 run.py train cli \
+--gym openai \
+--task HalfCheetah-v4 \
+--batch 1 \
+TD3 \
+--seeds 10 20 30 40 50 \
+--max_workers 5
+```
 
-The gripper gym contains all the code for training our dexterous robotic manipulators: https://github.com/UoA-CARES/gripper_gym
-
-<p align="center">
-    <img alt="rotation task" src="./media/rotation_task-min.jpg" style="width: 40%;"/>
-    <img alt="translation task" src="./media/translation_task-min.jpg" style="width: 40%;"/>
-</p>
-
-## F1Tenth Autonomous Racing
-
-The Autonomous F1Tenth package contains all the code for training our F1Tenth platforms to autonomously race: https://github.com/UoA-CARES/autonomous_f1tenth
-
-<p align="center">
-    <img alt="f one tenth" src="./media/f1tenth-min.png" style="width: 80%;"/>
-</p>
+---
 
 # Package Structure
 
@@ -81,191 +563,188 @@ cares_reinforcement_learning/
 │  ├─ autoencoder.py
 │  ├─ ...
 ├─ policy/
-│  │  ├─ TD3.py
-│  │  ├─ ...
 │  ├─ value/
-│  │  ├─ DQN.py
-│  │  ├─ ...
+│  ├─ ...
 ├─ memory/
 │  ├─ prioritised_replay_buffer.py
 ├─ networks/
-│  ├─ DQN/
-│  │  ├─ network.py
-│  ├─ TD3.py/
-│  │  ├─ actor.py
-│  │  ├─ critic.py
+│  ├─ common.py
+│  ├─ fractional_activations.py
 │  ├─ ...
 ├─ util/
 │  ├─ network_factory.py
 │  ├─ ...
 ```
 
-`algorithm`: contains update mechanisms for neural networks as defined by the algorithm.
+---
 
-`encoders`: contains the implementations for various autoencoders and variational autoencoders
+# Package Components
 
-`memory`: contains the implementation of various memory buffers - e.g. Prioritised Experience Replay
+## algorithm
 
-`networks`: contains standard neural networks that can be used with each algorithm
+Contains RL update mechanisms and optimisation procedures.
 
-`util`: contains common utility classes
+---
 
-# Encoders
-An autoencoder consists of an encoder that compresses input data into a latent representation and a decoder that reconstructs the original data from this compressed form. Variants of autoencoders, such as Variational Autoencoders (VAEs) and Beta-VAEs, introduce probabilistic elements and regularization techniques to enhance the quality and interpretability of the latent space. While standard autoencoders focus on reconstruction accuracy, advanced variants like Beta-VAE and Squared VAE (SqVAE) aim to improve latent space disentanglement and sparsity, making them valuable for generating more meaningful and structured representations.
+## encoders
 
-We have re-implemented a range of autoencoder/variational-autoencoder methodologies for use with the RL algorithms implemented within this library.
-For more information on the encoders available in this package, please refer to the [README](./cares_reinforcement_learning/encoders/README.md) in the encoders folder.
-These algorithms can be used stand-alone beyond their use here for RL. 
+Contains implementations for:
+
+- autoencoders
+- variational autoencoders
+- beta-VAEs
+- representation learning models
+
+used for image-based RL and latent representation learning.
+
+---
+
+## memory
+
+Contains replay buffers and prioritisation methods including:
+
+- Prioritised Experience Replay
+- replay utilities
+- sampling strategies
+
+---
+
+## networks
+
+Contains:
+
+- actor/critic network definitions
+- configurable MLP architectures
+- activation loading mechanisms
+- fractional activation implementations
+
+---
+
+## util
+
+Contains:
+
+- configuration systems
+- logging utilities
+- network factories
+- helper functions
+
+---
 
 # Utilities
 
-CARES RL provides a number of useful utility functions and classes for generating consistent results across the team. These utilities should be utilised in the new environments we build to test our approaches.
-
 ## Record.py
 
-The Record class allows data to be saved into a consistent format during training. This allows all data to be consistently formatted for plotting against each other for fair and consistent evaluation.
+Provides consistent logging and storage of:
 
-All data from a training run is saved into the directory specified in the `CARES_LOG_BASE_DIR` environment variable. If not specified, this will default to `'~/cares_rl_logs'`.
+- training curves
+- evaluation curves
+- checkpoints
+- videos
+- configuration files
 
-You may specify a custom log directory format using the `CARES_LOG_PATH_TEMPLATE` environment variable. This path supports variable interpolation such as the algorithm used, seed, date etc. This defaults to `"{algorithm}/{algorithm}-{domain_task}-{date}"`.
-
-This folder will contain the following directories and information saved during the training session:
+Default log directory:
 
 ```text
-├─ <log_path>
-|  ├─ env_config.json
-|  ├─ alg_config.json
-|  ├─ train_config.json
-|  ├─ *_config.json
-|  ├─ ...
-|  ├─ SEED_N
-|  |  ├─ data
-|  |  |  ├─ train.csv
-|  |  |  ├─ eval.csv
-|  |  ├─ figures
-|  |  |  ├─ eval.png
-|  |  |  ├─ train.png
-|  |  ├─ models
-|  |  |  ├─ model.pht
-|  |  |  ├─ CHECKPOINT_N.pht
-|  |  |  ├─ ...
-|  |  ├─ videos
-|  |  |  ├─ STEP.mp4
-|  |  |  ├─ ...
-|  ├─ SEED_N
-|  |  ├─ ...
-|  ├─ ...
+~/cares_rl_logs
 ```
+
+---
 
 ## plotting.py
 
-The plotting utility will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
+Utility for plotting and comparing training runs.
 
-Running 'python3 plotter.py -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
+Example:
 
-```sh
+```bash
 python3 plotter.py -h
 ```
 
-Plot the results of a single training instance
+Single experiment:
 
-```sh
-python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
+```bash
+python3 plotter.py \
+-s ~/cares_rl_logs \
+-d <TRAINING_PATH>
 ```
 
-Plot and compare the results of two or more training instances
+Multiple experiments:
 
-```sh
-python3 plotter.py -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
+```bash
+python3 plotter.py \
+-s ~/cares_rl_logs \
+-d <RUN_A> <RUN_B>
 ```
 
-## configurations.py
+---
 
-Provides baseline data classes for environment, training, and algorithm configurations to allow for consistent recording of training parameters.
+# Supported Algorithms
 
-## NetworkFactory.py
-
-A factory class for creating a baseline RL algorithm that has been implemented into the CARES RL package.
-
-## MemoryFactory.py
-
-A factory class for creating a memory buffer that has been implemented into the CARES RL package.
-
-# Supported Algorithms 
-
-We support a wide range of algorithms in the Reinforcement Learning space all under the same abstraction. 
+The framework supports a broad range of reinforcement learning algorithms including:
 
 ## Q-Learning
-Implementations of Q-Learning based methods
 
-| Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
-| ----------- | -------------------------- | ------------ | ----------------------------------------------------------- |
-| DQN         | Vector                     | Discrete     | [DQN Paper](https://arxiv.org/abs/1312.5602)                |
-| PERDQN      | Vector                     | Discrete     | [PERDQN Paper](https://arxiv.org/abs/1511.05952)            |
-| DoubleDQN   | Vector                     | Discrete     | [DoubleDQN Paper](https://arxiv.org/abs/1509.06461)         |
-| DuelingDQN  | Vector                     | Discrete     | [DuelingDQN Paper](https://arxiv.org/abs/1511.06581)        |
-| NoisyNet    | Vector                     | Discrete     | [NoisyNet Paper](https://arxiv.org/abs/1706.10295)          |
-| C51         | Vector                     | Discrete     | [C51 Paper](https://arxiv.org/pdf/1707.06887)               |
-| QRDQN       | Vector                     | Discrete     | [QR-DQN Paper](https://arxiv.org/pdf/1710.10044)            |
-| Rainbow     | Vector                     | Discrete     | [Rainbow](https://arxiv.org/pdf/1710.02298)                 |
+- DQN
+- DoubleDQN
+- Rainbow
+- QRDQN
+- PERDQN
+- NoisyNet
+- C51
 
-## Actor Critic
-Implementation of various Actor Critic methods.
+---
 
-| Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
-| ----------- | -------------------------- | ------------ | ---------------                                             |
-| PPO         | Vector                     | Continuous   | [PPO Paper](https://arxiv.org/abs/1707.06347)               |
-| DDPG        | Vector                     | Continuous   | [DDPG Paper](https://arxiv.org/pdf/1509.02971v5.pdf)        |
-| TD3         | Vector                     | Continuous   | [TD3 Paper](https://arxiv.org/abs/1802.09477v3)             |
-| SAC         | Vector                     | Continuous   | [SAC Paper](https://arxiv.org/abs/1812.05905)               |
-| PERTD3      | Vector                     | Continuous   | [PERTD3 Paper](https://arxiv.org/abs/1511.05952)            |
-| PERSAC      | Vector                     | Continuous   | [PERSAC Paper](https://arxiv.org/abs/1511.05952)            |
-| PALTD3      | Vector                     | Continuous   | [PALTD3 Paper](https://arxiv.org/abs/2007.06049)            |
-| LAPTD3      | Vector                     | Continuous   | [LAPTD3 Paper](https://arxiv.org/abs/2007.06049)            |
-| LAPSAC      | Vector                     | Continuous   | [LAPSAC Paper](https://arxiv.org/abs/2007.06049)            |
-| LA3PTD3     | Vector                     | Continuous   | [LA3PTD3 Paper](https://arxiv.org/abs/2209.00532)           |
-| LA3PSAC     | Vector                     | Continuous   | [LA3PSAC Paper](https://arxiv.org/abs/2209.00532)           |
-| MAPERTD3    | Vector                     | Continuous   | [MAPERTD3 Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
-| MAPERSAC    | Vector                     | Continuous   | [MAPERSAC Paper](https://openreview.net/pdf?id=WuEiafqdy9H) |
-| RDTD3       | Vector                     | Continuous   | [RDTD3 Paper](https://arxiv.org/abs/2501.18093)             |
-| RDSAC       | Vector                     | Continuous   | [RDSAC Paper](https://arxiv.org/abs/2501.18093)             |
-| REDQ        | Vector                     | Continuous   | [REDQ Paper](https://arxiv.org/pdf/2101.05982.pdf)          |
-| TQC         | Vector                     | Continuous   | [TQC Paper](https://arxiv.org/pdf/2005.04269)               |
-| CTD4        | Vector                     | Continuous   | [CTD4 Paper](https://arxiv.org/abs/2405.02576)              |
-| CrossQ      | Vector                     | Continuous   | [CrossQ Paper](https://arxiv.org/pdf/1902.05605)            |
-| Droq        | Vector                     | Continuous   | [DroQ Paper](https://arxiv.org/abs/2110.02034)              |
-| SDAR        | Vector                     | Continuous   | [SDAR Paper](https://openreview.net/pdf?id=PDgZ3rvqHn)      |
-| TD7         | Vector                     | Continuous   | [TD7 Paper](https://arxiv.org/pdf/2306.02451)               |
-| SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
-| ----------- | -------------------------- | ------------ | ---------------                                             |
-| NaSATD3     | Image                      | Continuous   | [NaSATD3 Paper](https://ieeexplore.ieee.org/abstract/document/10801857) |
-| TD3AE       | Image                      | Continuous   | [TD3AE Paper](https://arxiv.org/abs/1910.01741)             |
-| SACAE       | Image                      | Continuous   | [SACAE Paper](https://arxiv.org/abs/1910.01741)             |
+## Actor-Critic
 
-## Multi-Agent 
-Multi-Agent Reinforcement Learning algorithms (MARL).
+- PPO
+- DDPG
+- TD3
+- SAC
+- REDQ
+- TQC
+- CrossQ
+- TD7
+- CTD4
+- DroQ
+- PALTD3
+- LAPTD3
+- LA3PTD3
+- MAPERTD3
+- MAPERSAC
+- SDAR
 
-| Algorithm   | Observation Space          | Action Space | Paper Reference                                             |
-| ----------- | -------------------------- | ------------ | ---------------                                             |
-| QMIX        | Vector (MARL)              | Discrete     | [QMIX](https://arxiv.org/pdf/1803.11485)                    |
-| MADDPG      | Vector (MARL)              | Continuous   | [MADDPG](https://arxiv.org/pdf/1706.02275)                  |
-| M3DDPG      | Vector (MARL)              | Continuous   | [M3DDPG](https://doi.org/10.1609/aaai.v33i01.33014213)      |
+including image-based variants such as:
+
+- TD3AE
+- SACAE
+- NaSATD3
+
+---
+
+## Multi-Agent RL
+
+- QMIX
+- MADDPG
+- M3DDPG
+
+---
 
 ## Unsupervised Skill Discovery
-Implementation of Unsupervised Skill discovery methods
 
-| Algorithm                                | Observation Space          | Action Space | Paper Reference                                 |
-| ---------------------------------------- | -------------------------- | ------------ | ---------------                                 |
-| DIAYN (Diversity Is All You Need)        | Vector                     | Continuous   | [DIYAN Paper](https://arxiv.org/pdf/1802.06070) |
-| DADS Dynamics-Aware Discovery OF Skills  | Vector                     | Continuous   | [DADS Paper](https://arxiv.org/pdf/1907.01657)  |
+- DIAYN
+- DADS
+
+---
 
 # Citation
-```
+
+```text
 @misc{cares_reinforcement_learning,
   title = {CARES Reinforcement Learning},
   author = {CARES},
   year = {2025},
   publisher = {GitHub},
-  url = {https://https://github.com/UoA-CARES/cares_reinforcement_learning.}
+  url = {https://github.com/UoA-CARES/cares_reinforcement_learning}
 }
 ```
