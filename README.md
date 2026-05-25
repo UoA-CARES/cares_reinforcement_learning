@@ -441,7 +441,7 @@ f(x)=
 +
 \beta
 \frac{
-\operatorname{sign}(x)|x|^{1-a}
+sign(x)|x|^{1-a}
 }{
 \Gamma(2-a)
 }
