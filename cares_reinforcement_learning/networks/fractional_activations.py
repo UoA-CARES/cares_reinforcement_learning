@@ -1214,5 +1214,200 @@ class AdaptiveResidualFractionalGELU(nn.Module):
 
         output = gelu + beta * frac
 
+# ============================================================
+# Residual Fractional Swish
+# ============================================================
+
+class ResidualFractionalSwish(nn.Module):
+    """
+    Residual fractional Swish / SiLU.
+
+    Base:
+        Swish(x) = x * sigmoid(x)
+
+    Fractional residual:
+        sign(x) * (|x| + epsilon)^(1-a) / Gamma(2-a)
+
+    Output:
+        Swish(x) + beta * fractional_residual
+    """
+
+    def __init__(self, a=0.1, beta=0.05, epsilon=1e-6, clip_value=5.0):
+        super().__init__()
+
+        self.a = a
+        self.beta = beta
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+        self.g = np.math.gamma(2 - a)
+
+    def forward(self, x):
+        swish = x * torch.sigmoid(x)
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        output = swish + self.beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Adaptive Residual Fractional Swish
+# ============================================================
+
+class AdaptiveResidualFractionalSwish(nn.Module):
+    """
+    Adaptive residual fractional Swish / SiLU.
+
+    Same as ResidualFractionalSwish, but beta is learnable.
+    """
+
+    def __init__(self, a=0.1, beta_init=0.05, epsilon=1e-6, clip_value=5.0):
+        super().__init__()
+
+        self.a = a
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+        self.g = np.math.gamma(2 - a)
+
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+    def forward(self, x):
+        swish = x * torch.sigmoid(x)
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        beta = torch.tanh(self.beta_raw)
+
+        output = swish + beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Residual Fractional Swish Beta
+# ============================================================
+
+class ResidualFractionalSwishBeta(nn.Module):
+    """
+    Residual fractional beta-Swish.
+
+    Base:
+        Swish_beta(x) = x * sigmoid(beta_s * x)
+
+    Fractional residual:
+        sign(x) * (|x| + epsilon)^(1-a) / Gamma(2-a)
+
+    Output:
+        Swish_beta(x) + beta_residual * fractional_residual
+    """
+
+    def __init__(
+        self,
+        a=0.1,
+        beta=0.05,
+        beta_init=1.0,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = a
+        self.beta = beta
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+        self.g = np.math.gamma(2 - a)
+
+        self.beta_swish_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+    def forward(self, x):
+        beta_swish = torch.clamp(
+            F.softplus(self.beta_swish_raw),
+            0.1,
+            10.0,
+        )
+
+        sig = torch.sigmoid(beta_swish * x)
+        swish_beta = x * sig
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        output = swish_beta + self.beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Adaptive Residual Fractional Swish Beta
+# ============================================================
+
+class AdaptiveResidualFractionalSwishBeta(nn.Module):
+    """
+    Adaptive residual fractional beta-Swish.
+
+    Same as ResidualFractionalSwishBeta, but the fractional residual
+    strength is learnable.
+    """
+
+    def __init__(
+        self,
+        a=0.1,
+        beta_init=0.05,
+        beta_swish_init=1.0,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = a
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+        self.g = np.math.gamma(2 - a)
+
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+        self.beta_swish_raw = nn.Parameter(torch.tensor(float(beta_swish_init)))
+
+    def forward(self, x):
+        beta_swish = torch.clamp(
+            F.softplus(self.beta_swish_raw),
+            0.1,
+            10.0,
+        )
+
+        sig = torch.sigmoid(beta_swish * x)
+        swish_beta = x * sig
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        beta_residual = torch.tanh(self.beta_raw)
+
+        output = swish_beta + beta_residual * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)        
+
         return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
 
