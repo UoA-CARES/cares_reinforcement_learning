@@ -32,6 +32,8 @@ class MARLDroneEnvironment(MARLEnvironment):
 
         self.possible_agents: list[str] = list(self.env.possible_agents)
 
+        self.agent_teams = self._split_agents_by_team(self.possible_agents)
+
         self.observation: MARLObservation
 
         self.set_seed(self.seed)
@@ -89,6 +91,7 @@ class MARLDroneEnvironment(MARLEnvironment):
             "obs": obs_spaces,
             "state": state_dim,
             "num_agents": self.num_agents,
+            "teams": self.agent_teams,
         }
 
     @cached_property
