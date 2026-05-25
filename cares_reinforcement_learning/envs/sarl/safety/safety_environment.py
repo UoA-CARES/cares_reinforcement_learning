@@ -8,14 +8,14 @@ import safety_gymnasium
 from cares_reinforcement_learning.envs.sarl.sarl_environment import (
     SARLEnvironment,
 )
-from cares_reinforcement_learning.envs.configurations import SafetyGymnasiumConfig
+from cares_reinforcement_learning.envs.configurations import SafetyConfig
 from cares_reinforcement_learning.util import helpers as hlp
 
 
-class SafetyGymnasiumEnvironment(SARLEnvironment):
+class SafetyEnvironment(SARLEnvironment):
     def __init__(
         self,
-        config: SafetyGymnasiumConfig,
+        config: SafetyConfig,
         seed: int,
         image_observation: bool
     ) -> None:

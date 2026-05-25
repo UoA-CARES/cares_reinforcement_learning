@@ -51,6 +51,18 @@ class EnvironmentFactory:
                     config, eval_seed, image_observation=image_observation
                 )
 
+            case cfg.SafetyConfig():
+                from cares_reinforcement_learning.envs.sarl.safety.safety_environment import (
+                    SafetyEnvironment
+                )
+
+                env = SafetyEnvironment(
+                    config, train_seed, image_observation=image_observation
+                )
+                eval_env = SafetyEnvironment(
+                    config, eval_seed, image_observation=image_observation
+                )
+
             case cfg.PyBoyConfig():
                 from cares_reinforcement_learning.envs.sarl.pyboy.pyboy_environment import (
                     PyboyEnvironment,

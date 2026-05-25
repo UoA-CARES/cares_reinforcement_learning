@@ -125,3 +125,7 @@ class MARLDroneConfig(GymEnvironmentConfig):
     task: str
     use_simulator: int = 1  # 1 for simulator (DroneSim), 0 for real drone (Drone)
     num_agents: int
+
+
+class SafetyConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "safety"

@@ -32,7 +32,6 @@ class EpisodeStats:
     rewards: np.ndarray = field(init=False)
     costs: np.ndarray = field(init=False)
     steps: int = 0
-    rewards: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
         self.rewards = np.zeros(self.n_agents, dtype=np.float32)
