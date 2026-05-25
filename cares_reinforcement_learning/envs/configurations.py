@@ -108,3 +108,7 @@ class MPEConfig(GymEnvironmentConfig):
     continuous_actions: int = 1
 
     record_video_fps: int = 5
+
+
+class SafetyConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "safety"
