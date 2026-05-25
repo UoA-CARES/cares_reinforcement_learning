@@ -24,7 +24,8 @@ class SafetyEnvironment(SARLEnvironment):
         self.env = safety_gymnasium.make(
             id=config.task,
             autoreset=False,
-            render_mode="rgb_array"
+            render_mode="rgb_array",
+            camera_name="fixedfar"
         )
         self.set_seed(self.seed)
 
@@ -93,3 +94,7 @@ class SafetyEnvironment(SARLEnvironment):
         # Convert to BGR for use with OpenCV
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         return frame
+
+    def get_overlay_info(self) -> dict:
+        # TODO: Add overlay information for gyms as needed
+        return {}
