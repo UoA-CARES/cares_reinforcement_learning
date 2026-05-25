@@ -17,6 +17,7 @@ This branch extends the CARES RL framework with:
 - fractional-order activation functions
 - Grünwald-Letnikov-inspired nonlinearities
 - residual fractional GELU activations
+- adaptive residual fractional activations
 - smooth fractional Swish variants
 - RL-safe fractional activations
 - configurable actor/critic activation placement
@@ -68,6 +69,140 @@ compared to standard activations such as:
 - Swish / SiLU
 
 The branch focuses particularly on smooth nonlinear and fractional-inspired activations designed for off-policy actor-critic RL.
+
+---
+
+# Fractional Activation References and Inspiration
+
+Several activations implemented in this branch are inspired by prior work in:
+
+- fractional calculus
+- fractional neural networks
+- smooth nonlinear activation functions
+- residual learning
+- adaptive activation functions
+
+while introducing RL-oriented stabilisation and residual extensions for actor-critic reinforcement learning.
+
+---
+
+# Fractional Neural Network Inspiration
+
+This branch was primarily inspired by:
+
+Z. Alijani and V. Molek,  
+"Fractional concepts in neural networks: Enhancing activation and loss functions",  
+arXiv preprint arXiv:2310.11875, 2023.
+
+Paper:
+
+https://arxiv.org/abs/2310.11875
+
+Reference implementation:
+
+https://gitlab.com/irafm-ai/frac_calc_ann
+
+The paper explores the use of fractional concepts in neural networks through:
+
+- fractional activation functions
+- fractional-order nonlinearities
+- Grünwald-Letnikov approximations
+- fractional modifications of learning dynamics
+
+Several activations implemented in this branch adapt and extend these ideas for reinforcement learning and actor-critic optimisation.
+
+---
+
+# Residual Learning Inspiration
+
+The residual fractional activations are conceptually related to residual learning introduced in:
+
+K. He et al.,  
+"Deep Residual Learning for Image Recognition",  
+CVPR 2016.
+
+Paper:
+
+https://arxiv.org/abs/1512.03385
+
+The residual fractional activations preserve a stable baseline activation while injecting a controlled fractional residual correction:
+
+$$
+f(x)=\mathrm{BaseActivation}(x)+\mathrm{FractionalResidual}(x)
+$$
+
+This residual formulation was motivated by the observation that residual structures often improve:
+
+- optimisation stability
+- gradient propagation
+- deep network training dynamics
+
+particularly in deep actor-critic reinforcement learning.
+
+---
+
+# Adaptive Activation Inspiration
+
+The adaptive residual activations are additionally inspired by learnable activation function research including:
+
+- PReLU
+- Swish
+- adaptive gating activations
+- learnable nonlinear scaling
+
+Related references include:
+
+K. He et al.,  
+"Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification",  
+2015.
+
+https://arxiv.org/abs/1502.01852
+
+P. Ramachandran et al.,  
+"Searching for Activation Functions",  
+2017.
+
+https://arxiv.org/abs/1710.05941
+
+A. Elfwing et al.,  
+"Sigmoid-weighted linear units for neural network function approximation in reinforcement learning",  
+2017.
+
+https://arxiv.org/abs/1702.03118
+
+The `AdaptiveResidualFractionalGELU` activation extends these ideas through learnable fractional residual balancing:
+
+$$
+f(x)=
+\mathrm{GELU}(x)
++
+\beta
+\mathrm{FractionalTerm}(x)
+$$
+
+where the fractional contribution is adaptively learned during training.
+
+---
+
+# Smooth Activation Inspiration
+
+Several activations implemented in this branch build upon modern smooth nonlinear activations including GELU, Swish, and Mish.
+
+Related references:
+
+D. Hendrycks and K. Gimpel,  
+"Gaussian Error Linear Units (GELUs)",  
+2016.
+
+https://arxiv.org/abs/1606.08415
+
+D. Misra,  
+"Mish: A Self Regularized Non-Monotonic Activation Function",  
+2019.
+
+https://arxiv.org/abs/1908.08681
+
+These smooth activations are used as stable nonlinear baselines before introducing fractional nonlinear modulation.
 
 ---
 
@@ -560,121 +695,11 @@ TD3 \
 cares_reinforcement_learning/
 ├─ algorithm/
 ├─ encoders/
-│  ├─ autoencoder.py
-│  ├─ ...
-├─ policy/
-│  ├─ value/
-│  ├─ ...
 ├─ memory/
-│  ├─ prioritised_replay_buffer.py
 ├─ networks/
 │  ├─ common.py
 │  ├─ fractional_activations.py
-│  ├─ ...
 ├─ util/
-│  ├─ network_factory.py
-│  ├─ ...
-```
-
----
-
-# Package Components
-
-## algorithm
-
-Contains RL update mechanisms and optimisation procedures.
-
----
-
-## encoders
-
-Contains implementations for:
-
-- autoencoders
-- variational autoencoders
-- beta-VAEs
-- representation learning models
-
-used for image-based RL and latent representation learning.
-
----
-
-## memory
-
-Contains replay buffers and prioritisation methods including:
-
-- Prioritised Experience Replay
-- replay utilities
-- sampling strategies
-
----
-
-## networks
-
-Contains:
-
-- actor/critic network definitions
-- configurable MLP architectures
-- activation loading mechanisms
-- fractional activation implementations
-
----
-
-## util
-
-Contains:
-
-- configuration systems
-- logging utilities
-- network factories
-- helper functions
-
----
-
-# Utilities
-
-## Record.py
-
-Provides consistent logging and storage of:
-
-- training curves
-- evaluation curves
-- checkpoints
-- videos
-- configuration files
-
-Default log directory:
-
-```text
-~/cares_rl_logs
-```
-
----
-
-## plotting.py
-
-Utility for plotting and comparing training runs.
-
-Example:
-
-```bash
-python3 plotter.py -h
-```
-
-Single experiment:
-
-```bash
-python3 plotter.py \
--s ~/cares_rl_logs \
--d <TRAINING_PATH>
-```
-
-Multiple experiments:
-
-```bash
-python3 plotter.py \
--s ~/cares_rl_logs \
--d <RUN_A> <RUN_B>
 ```
 
 ---
