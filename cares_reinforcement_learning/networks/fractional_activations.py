@@ -720,6 +720,96 @@ class FractionalGELU(nn.Module):
         output = out / ((h ** alpha) * 2.0)
 
         return output
+        
+# ============================================================
+# Fractional GELU with learnable beta
+# ============================================================
+
+class FractionalGELUBeta(nn.Module):
+    """
+    Grünwald-Letnikov-style fractional GELU with learnable beta.
+
+    Base activation:
+        GELU_beta(x) ≈ 0.5*x*(1 + tanh(sqrt(2/pi)*(beta*x + 0.044715*(beta*x)^3)))
+
+    Fractional formulation:
+        finite Grünwald-Letnikov fractional sum over shifted beta-GELU terms.
+
+    Notes:
+    - alpha controls the fractional order.
+    - beta controls the smoothness/gating strength of GELU.
+    - beta is learnable and kept positive using softplus.
+    """
+
+    def __init__(self, a=0.1, beta_init=1.0, h=0.5, n_iter=3):
+        super().__init__()
+
+        self.a = a
+        self.h = h
+        self.n_iter = n_iter
+
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+        self.register_buffer(
+            "gamma_consts",
+            torch.tensor(
+                [_gamma_float(i + 1) for i in range(n_iter)],
+                dtype=torch.float32,
+            ),
+        )
+
+    def _gelu_beta_tanh_part(self, z, beta):
+        sqrt_2_over_pi = 0.7978845608028654
+
+        bz = beta * z
+
+        return z * (
+            1.0
+            + torch.tanh(
+                sqrt_2_over_pi * (bz + 0.044715 * bz ** 3)
+            )
+        )
+
+    def forward(self, x):
+        alpha = torch.clamp(
+            torch.tensor(self.a, device=x.device, dtype=x.dtype),
+            0.0,
+            2.0,
+        )
+
+        beta = torch.clamp(
+            F.softplus(self.beta_raw),
+            0.1,
+            10.0,
+        )
+
+        h = torch.tensor(self.h, device=x.device, dtype=x.dtype)
+
+        gamma_a_plus_one = torch.exp(torch.lgamma(1.0 + alpha))
+
+        gamma_consts = self.gamma_consts.to(
+            device=x.device,
+            dtype=x.dtype,
+        )
+
+        out = torch.zeros_like(x)
+
+        for i in range(self.n_iter):
+            z = x - i * h
+
+            denom = gamma_consts[i] * torch.exp(
+                torch.lgamma(1.0 - i + alpha)
+            )
+
+            coeff = gamma_a_plus_one / (denom + 1e-8)
+
+            sign = -1.0 if i % 2 == 1 else 1.0
+
+            out = out + sign * coeff * self._gelu_beta_tanh_part(z, beta)
+
+        output = out / ((h ** alpha) * 2.0)
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
 
 
 # ============================================================
@@ -1188,6 +1278,23 @@ class ResidualFractionalGELU(nn.Module):
 # ============================================================
 
 class AdaptiveResidualFractionalGELU(nn.Module):
+    """
+    Adaptive residual fractional GELU.
+
+    Base:
+        GELU(x)
+
+    Fractional residual:
+        sign(x) * (|x| + epsilon)^(1-a) / Gamma(2-a)
+
+    Output:
+        GELU(x) + beta * fractional_residual
+
+    Notes:
+    - beta is learnable.
+    - tanh keeps beta bounded between -1 and 1.
+    - nan_to_num protects RL training from NaN/Inf values.
+    """
 
     def __init__(self, a=0.1, beta_init=0.05, epsilon=1e-6, clip_value=5.0):
         super().__init__()
@@ -1213,6 +1320,8 @@ class AdaptiveResidualFractionalGELU(nn.Module):
         beta = torch.tanh(self.beta_raw)
 
         output = gelu + beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
 
 # ============================================================
 # Residual Fractional Swish
@@ -1409,7 +1518,6 @@ class AdaptiveResidualFractionalSwishBeta(nn.Module):
 
         return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)        
 
-        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
 
 # ============================================================
 # Residual Fractional PReLU
@@ -1783,4 +1891,5 @@ class AdaptiveResidualFLReLU2(nn.Module):
         output = base + beta * frac
 
         return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
 
