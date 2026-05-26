@@ -1892,4 +1892,146 @@ class AdaptiveResidualFLReLU2(nn.Module):
 
         return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
 
+# ============================================================
+# Fractional ReLU Positive with learnable beta
+# ============================================================
+
+class FractionalReLUPositiveBeta(nn.Module):
+    """
+    Fractional ReLU positive branch with learnable beta.
+
+    Positive branch:
+        (beta*x)^(1-a), x > 0
+
+    Negative branch:
+        0
+
+    Notes:
+    - beta controls the strength/sharpness of the positive fractional response.
+    - beta is learnable and kept positive using softplus.
+    """
+
+    def __init__(self, a=0.1, beta_init=1.0, epsilon=1e-6, clip_value=5.0):
+        super().__init__()
+
+        self.a = a
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+    def forward(self, x):
+        beta = torch.clamp(F.softplus(self.beta_raw), 0.1, 10.0)
+
+        x_beta = beta * x
+        positive = torch.pow(torch.clamp(x_beta, min=self.epsilon), 1.0 - self.a)
+        positive = torch.clamp(positive, 0.0, self.clip_value)
+
+        output = torch.where(x > 0, positive, torch.zeros_like(x))
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Fractional PReLU with learnable beta
+# ============================================================
+
+class FPReLU2Beta(nn.Module):
+    """
+    Fractional PReLU-style activation with learnable beta.
+
+    Positive branch:
+        (beta*x)^(1-a) / Gamma(2-a)
+
+    Negative branch:
+        -p * (beta*(-x))^(1-a) / Gamma(2-a)
+
+    Notes:
+    - beta controls the fractional response scale.
+    - p controls the negative-side slope.
+    - both beta and p are learnable.
+    """
+
+    def __init__(self, a=0.1, beta_init=1.0, parameter_init=1.5):
+        super().__init__()
+
+        self.a = nn.Parameter(torch.tensor(a), requires_grad=False)
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+        self.p_raw = nn.Parameter(torch.tensor(float(parameter_init)))
+
+        self.g = float(np.math.gamma(2 - float(a)))
+
+    def p(self):
+        return F.softplus(self.p_raw)
+
+    def forward(self, x):
+        beta = torch.clamp(F.softplus(self.beta_raw), 0.1, 10.0)
+
+        pos = (
+            (x > 0).float()
+            * torch.pow(torch.clamp(beta * x, min=1e-8), 1.0 - self.a)
+            / self.g
+        )
+
+        neg = (
+            (x < 0).float()
+            * (-(self.p()) / self.g)
+            * torch.pow(torch.clamp(beta * (-x), min=1e-8), 1.0 - self.a)
+        )
+
+        output = pos + neg
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Fractional Leaky ReLU with learnable beta
+# ============================================================
+
+class FLReLU2Beta(nn.Module):
+    """
+    Fractional Leaky ReLU with learnable beta and learnable negative slope.
+
+    Positive branch:
+        (beta*x)^(1-a) / Gamma(2-a)
+
+    Negative branch:
+        -k * (beta*(-x))^(1-a) / Gamma(2-a)
+
+    Notes:
+    - beta controls the fractional response scale.
+    - k controls the negative-side leakage.
+    - both beta and k are learnable.
+    """
+
+    def __init__(self, a=0.1, beta_init=1.0, k_init=0.1):
+        super().__init__()
+
+        self.a = nn.Parameter(torch.tensor(a), requires_grad=False)
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+        self.k = nn.Parameter(torch.tensor(float(k_init)), requires_grad=True)
+
+        self.g = np.math.gamma(2 - float(a))
+
+    def forward(self, x):
+        beta = torch.clamp(F.softplus(self.beta_raw), 0.1, 10.0)
+
+        pos_mask = (x > 0).float()
+        neg_mask = (x < 0).float()
+
+        positive_side = (
+            pos_mask
+            * torch.pow(torch.clamp(beta * x, min=1e-8), 1.0 - self.a)
+            / self.g
+        )
+
+        negative_side = (
+            neg_mask
+            * (-(torch.clamp(self.k, 0.01, 0.3)) / self.g)
+            * torch.pow(torch.clamp(beta * (-x), min=1e-8), 1.0 - self.a)
+        )
+
+        output = positive_side + negative_side
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
 
