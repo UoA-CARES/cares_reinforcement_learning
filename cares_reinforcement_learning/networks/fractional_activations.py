@@ -1411,3 +1411,376 @@ class AdaptiveResidualFractionalSwishBeta(nn.Module):
 
         return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
 
+# ============================================================
+# Residual Fractional PReLU
+# ============================================================
+
+class ResidualFractionalPReLU(nn.Module):
+
+    def __init__(
+        self,
+        alpha=0.1,
+        beta=0.05,
+        negative_slope=0.25,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.alpha = alpha
+        self.beta = beta
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.prelu = nn.PReLU(init=negative_slope)
+
+        self.g = np.math.gamma(2 - alpha)
+
+    def forward(self, x):
+        base = self.prelu(x)
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.alpha)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        output = base + self.beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Adaptive Residual Fractional PReLU
+# ============================================================
+
+class AdaptiveResidualFractionalPReLU(nn.Module):
+
+    def __init__(
+        self,
+        alpha=0.1,
+        beta_init=0.05,
+        negative_slope=0.25,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.alpha = alpha
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.prelu = nn.PReLU(init=negative_slope)
+
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+        self.g = np.math.gamma(2 - alpha)
+
+    def forward(self, x):
+        base = self.prelu(x)
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.alpha)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        beta = torch.tanh(self.beta_raw)
+
+        output = base + beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Residual FLReLU
+# ============================================================
+
+class ResidualFLReLU(nn.Module):
+
+    def __init__(
+        self,
+        a=0.1,
+        beta=0.05,
+        negative_slope=0.1,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = a
+        self.beta = beta
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.base = nn.LeakyReLU(negative_slope=negative_slope)
+
+        self.g = np.math.gamma(2 - a)
+
+    def forward(self, x):
+        base = self.base(x)
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        output = base + self.beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Adaptive Residual FLReLU
+# ============================================================
+
+class AdaptiveResidualFLReLU(nn.Module):
+
+    def __init__(
+        self,
+        a=0.1,
+        beta_init=0.05,
+        negative_slope=0.1,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = a
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.base = nn.LeakyReLU(negative_slope=negative_slope)
+
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+        self.g = np.math.gamma(2 - a)
+
+    def forward(self, x):
+        base = self.base(x)
+
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        beta = torch.tanh(self.beta_raw)
+
+        output = base + beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Residual Fractional ReLU Positive
+# ============================================================
+
+class ResidualFractionalReLUPositive(nn.Module):
+
+    def __init__(
+        self,
+        a=0.1,
+        beta=0.05,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = a
+        self.beta = beta
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.g = np.math.gamma(2 - a)
+
+    def forward(self, x):
+        base = F.relu(x)
+
+        frac = (
+            torch.relu(x)
+            * torch.pow(torch.abs(x) + self.epsilon, -self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, 0.0, self.clip_value)
+
+        output = base + self.beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Adaptive Residual Fractional ReLU Positive
+# ============================================================
+
+class AdaptiveResidualFractionalReLUPositive(nn.Module):
+
+    def __init__(
+        self,
+        a=0.1,
+        beta_init=0.05,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = a
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+        self.g = np.math.gamma(2 - a)
+
+    def forward(self, x):
+        base = F.relu(x)
+
+        frac = (
+            torch.relu(x)
+            * torch.pow(torch.abs(x) + self.epsilon, -self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, 0.0, self.clip_value)
+
+        beta = torch.tanh(self.beta_raw)
+
+        output = base + beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+# ============================================================
+# Residual FLReLU2
+# ============================================================
+
+class ResidualFLReLU2(nn.Module):
+
+    def __init__(
+        self,
+        a=0.1,
+        beta=0.05,
+        k_init=0.1,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = nn.Parameter(torch.tensor(a), requires_grad=False)
+
+        # Original FLReLU2 learnable slope
+        self.k = nn.Parameter(torch.tensor(k_init), requires_grad=True)
+
+        # Residual fractional strength
+        self.beta = beta
+
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.g = np.math.gamma(2 - float(a))
+
+    def forward(self, x):
+
+        pos_mask = (x > 0).float()
+        neg_mask = (x < 0).float()
+
+        # Original FLReLU2 base activation
+        positive_side = (
+            pos_mask
+            * (1.0 / self.g)
+            * (torch.clamp(x, min=1e-8) ** (1 - self.a))
+        )
+
+        negative_side = neg_mask * (
+            -(torch.clamp(self.k, 0.01, 0.3) / self.g)
+            * (torch.clamp(-x, min=1e-8) ** (1 - self.a))
+        )
+
+        base = positive_side + negative_side
+
+        # Residual fractional correction
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        output = base + self.beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
+
+# ============================================================
+# Adaptive Residual FLReLU2
+# ============================================================
+
+class AdaptiveResidualFLReLU2(nn.Module):
+
+    def __init__(
+        self,
+        a=0.1,
+        beta_init=0.05,
+        k_init=0.1,
+        epsilon=1e-6,
+        clip_value=5.0,
+    ):
+        super().__init__()
+
+        self.a = nn.Parameter(torch.tensor(a), requires_grad=False)
+
+        # Original FLReLU2 learnable slope
+        self.k = nn.Parameter(torch.tensor(k_init), requires_grad=True)
+
+        # Learnable residual strength
+        self.beta_raw = nn.Parameter(torch.tensor(float(beta_init)))
+
+        self.epsilon = epsilon
+        self.clip_value = clip_value
+
+        self.g = np.math.gamma(2 - float(a))
+
+    def forward(self, x):
+
+        pos_mask = (x > 0).float()
+        neg_mask = (x < 0).float()
+
+        # Original FLReLU2 base activation
+        positive_side = (
+            pos_mask
+            * (1.0 / self.g)
+            * (torch.clamp(x, min=1e-8) ** (1 - self.a))
+        )
+
+        negative_side = neg_mask * (
+            -(torch.clamp(self.k, 0.01, 0.3) / self.g)
+            * (torch.clamp(-x, min=1e-8) ** (1 - self.a))
+        )
+
+        base = positive_side + negative_side
+
+        # Residual fractional correction
+        frac = (
+            torch.sign(x)
+            * torch.pow(torch.abs(x) + self.epsilon, 1.0 - self.a)
+            / self.g
+        )
+
+        frac = torch.clamp(frac, -self.clip_value, self.clip_value)
+
+        beta = torch.tanh(self.beta_raw)
+
+        output = base + beta * frac
+
+        return torch.nan_to_num(output, nan=0.0, posinf=1e6, neginf=-1e6)
+
