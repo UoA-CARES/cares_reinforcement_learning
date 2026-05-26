@@ -3,6 +3,7 @@
 </p>
 
 # CARES Reinforcement Learning
+### Fractional Activation Research Branch
 
 Branch:
 
@@ -10,88 +11,68 @@ Branch:
 feature/fractional-swish-gelu
 ```
 
-The CARES Reinforcement Learning package provides a modular reinforcement learning (RL) framework used as the foundation for RL-related research projects within the CARES research group.
+The CARES Reinforcement Learning package provides a modular reinforcement learning (RL) framework used for RL research within the CARES research group.
 
 This branch extends the CARES RL framework with:
 
-- fractional-order activation functions
+- fractional-inspired activation functions
 - Grünwald-Letnikov-inspired nonlinearities
-- residual fractional GELU activations
+- residual fractional activations
 - adaptive residual fractional activations
-- smooth fractional Swish variants
-- RL-safe fractional activations
+- RL-safe stabilised activations
+- smooth Swish/GELU/Mish nonlinearities
 - configurable actor/critic activation placement
 
-for systematic evaluation in modern actor-critic reinforcement learning algorithms such as TD3 and SAC.
+for systematic evaluation in modern actor-critic RL algorithms such as:
+
+- TD3
+- SAC
 
 ---
 
 # Motivation
 
-**Reinforcement Learning Algorithms** (that is to say, *how* the neural networks are updated) remain fundamentally similar across applications.
+Modern RL algorithms are highly sensitive to optimisation stability and gradient flow.
 
-This package is designed so that RL algorithms are implemented once and can then be:
+Small changes in activation functions can significantly affect:
 
-- reused
-- extended
-- configured
-- evaluated
+- exploration behaviour
+- critic stability
+- representation learning
+- convergence speed
+- optimisation smoothness
+- sample efficiency
 
-across many environments and research settings.
-
-The framework supports modular integration of:
-
-- neural network architectures
-- replay buffers
-- encoders
-- activation functions
-- optimisation methods
-
-without modifying the underlying RL algorithm implementation.
-
----
-
-# Fractional Activation Research Motivation
-
-This branch investigates whether fractional-order nonlinear transformations can improve:
-
-- optimisation stability
-- gradient propagation
-- representation smoothness
-- actor-critic learning dynamics
-- continuous-control RL performance
-- RL sample efficiency
-
-compared to standard activations such as:
+This branch investigates whether fractional-inspired nonlinearities can improve these properties compared to standard activations such as:
 
 - ReLU
+- LeakyReLU
+- PReLU
 - GELU
 - Swish / SiLU
 
-The branch focuses particularly on smooth nonlinear and fractional-inspired activations designed for off-policy actor-critic RL.
+with a particular focus on off-policy actor-critic RL.
 
 ---
 
-# Fractional Activation References and Inspiration
+# Research Direction
 
-Several activations implemented in this branch are inspired by prior work in:
+This branch explores three core ideas:
 
-- fractional calculus
-- fractional neural networks
-- smooth nonlinear activation functions
-- residual learning
-- adaptive activation functions
-
-while introducing RL-oriented stabilisation and residual extensions for actor-critic reinforcement learning.
+| Idea | Goal |
+|---|---|
+| Fractional activations | Introduce richer nonlinear behaviour |
+| Safe activations | Improve RL numerical stability |
+| Residual/adaptive residual activations | Preserve stable baseline activations while injecting fractional behaviour |
 
 ---
 
-# Fractional Neural Network Inspiration
+# Main Fractional Inspiration
 
-This branch was primarily inspired by:
+This work was primarily inspired by:
 
 Z. Alijani and V. Molek,  
-"Fractional concepts in neural networks: Enhancing activation and loss functions",  
+**"Fractional concepts in neural networks: Enhancing activation and loss functions"**  
 arXiv preprint arXiv:2310.11875, 2023.
 
 Paper:
@@ -102,528 +83,450 @@ Reference implementation:
 
 https://gitlab.com/irafm-ai/frac_calc_ann
 
-The paper explores the use of fractional concepts in neural networks through:
+The paper explores the use of:
 
 - fractional activation functions
 - fractional-order nonlinearities
 - Grünwald-Letnikov approximations
-- fractional modifications of learning dynamics
+- fractional modifications of neural network learning dynamics
 
-Several activations implemented in this branch adapt and extend these ideas for reinforcement learning and actor-critic optimisation.
+Several activations implemented in this branch adapt and extend these ideas specifically for RL and actor-critic optimisation.
 
 ---
 
-# Residual Learning Inspiration
+# Residual and Adaptive Residual Inspiration
 
-The residual fractional activations are conceptually related to residual learning introduced in:
+The residual fractional activations implemented in this branch are conceptually related to residual learning introduced in:
 
 K. He et al.,  
-"Deep Residual Learning for Image Recognition",  
+**"Deep Residual Learning for Image Recognition"**  
 CVPR 2016.
-
-Paper:
 
 https://arxiv.org/abs/1512.03385
 
-The residual fractional activations preserve a stable baseline activation while injecting a controlled fractional residual correction:
+Residual learning introduced the idea of preserving a stable baseline transformation while learning an additional residual correction:
 
 $$
-f(x)=\mathrm{BaseActivation}(x)+\mathrm{FractionalResidual}(x)
+f(x)=x+\mathcal{F}(x)
 $$
 
-This residual formulation was motivated by the observation that residual structures often improve:
+The residual fractional activations in this branch follow a similar philosophy:
 
-- optimisation stability
-- gradient propagation
-- deep network training dynamics
+$$
+f(x)=
+\mathrm{BaseActivation}(x)
++
+\mathrm{FractionalResidual}(x)
+$$
 
-particularly in deep actor-critic reinforcement learning.
+where a standard activation such as GELU, Swish, or PReLU is preserved while a fractional nonlinear correction is added.
+
+The motivation is to preserve the stable optimisation behaviour of modern activations while introducing additional fractional nonlinear expressiveness in a controlled way.
 
 ---
 
-# Adaptive Activation Inspiration
+## Adaptive Residual Inspiration
 
-The adaptive residual activations are additionally inspired by learnable activation function research including:
+The adaptive residual activations are additionally inspired by learnable activation and adaptive scaling methods including:
 
-- PReLU
-- Swish
-- adaptive gating activations
-- learnable nonlinear scaling
-
-Related references include:
+### PReLU
 
 K. He et al.,  
-"Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification",  
+**"Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification"**  
 2015.
 
 https://arxiv.org/abs/1502.01852
 
+which introduced learnable activation parameters.
+
+---
+
+### Highway Networks
+
+R. K. Srivastava et al.,  
+**"Highway Networks"**  
+2015.
+
+https://arxiv.org/abs/1505.00387
+
+which introduced adaptive gating mechanisms controlling information flow through neural layers.
+
+---
+
+### Swish
+
 P. Ramachandran et al.,  
-"Searching for Activation Functions",  
+**"Searching for Activation Functions"**  
 2017.
 
 https://arxiv.org/abs/1710.05941
 
-A. Elfwing et al.,  
-"Sigmoid-weighted linear units for neural network function approximation in reinforcement learning",  
-2017.
-
-https://arxiv.org/abs/1702.03118
-
-The `AdaptiveResidualFractionalGELU` activation extends these ideas through learnable fractional residual balancing:
-
-$$
-f(x)=
-\mathrm{GELU}(x)
-+
-\beta
-\mathrm{FractionalTerm}(x)
-$$
-
-where the fractional contribution is adaptively learned during training.
+which explored smooth adaptive gating behaviour in activations.
 
 ---
 
-# Smooth Activation Inspiration
+The adaptive residual activations implemented in this branch extend these ideas by learning the strength of the fractional residual contribution during training:
 
-Several activations implemented in this branch build upon modern smooth nonlinear activations including GELU, Swish, and Mish.
+$$
+f(x)=
+\mathrm{BaseActivation}(x)
++
+\beta
+\mathrm{FractionalResidual}(x)
+$$
 
-Related references:
+where:
+
+- the base activation preserves stable optimisation behaviour
+- the learnable parameter $\beta$ determines how much fractional behaviour should be added
+
+This allows the network to automatically increase or suppress the fractional contribution depending on its usefulness for the RL objective.
+
+---
+
+# Additional Activation References
+
+---
+
+## ReLU
+
+V. Nair and G. Hinton,  
+**"Rectified Linear Units Improve Restricted Boltzmann Machines"**  
+ICML 2010.
+
+https://www.cs.toronto.edu/~hinton/absps/reluICML.pdf
+
+---
+
+## LeakyReLU
+
+A. L. Maas et al.,  
+**"Rectifier Nonlinearities Improve Neural Network Acoustic Models"**  
+2013.
+
+https://ai.stanford.edu/~amaas/papers/relu_hybrid_icml2013_final.pdf
+
+---
+
+## GELU
 
 D. Hendrycks and K. Gimpel,  
-"Gaussian Error Linear Units (GELUs)",  
+**"Gaussian Error Linear Units (GELUs)"**  
 2016.
 
 https://arxiv.org/abs/1606.08415
 
+---
+
+## Mish
+
 D. Misra,  
-"Mish: A Self Regularized Non-Monotonic Activation Function",  
+**"Mish: A Self Regularized Non-Monotonic Activation Function"**  
 2019.
 
 https://arxiv.org/abs/1908.08681
 
-These smooth activations are used as stable nonlinear baselines before introducing fractional nonlinear modulation.
+---
+
+## SiLU / Swish in RL
+
+A. Elfwing et al.,  
+**"Sigmoid-weighted linear units for neural network function approximation in reinforcement learning"**  
+2017.
+
+https://arxiv.org/abs/1702.03118
 
 ---
 
-# Fractional Activation Implementations
-
-Implemented in:
-
-```text
-cares_reinforcement_learning/networks/fractional_activations.py
-```
-
-Dynamically loaded through:
-
-```text
-cares_reinforcement_learning/networks/common.py
-```
-
-The activations implemented in this branch fall into several different mathematical categories.
+# Core Concepts
 
 ---
 
-# 1. Fractional Derivative Inspired Activations
+## 1. Fractional Activations
 
-These activations are inspired by Grünwald-Letnikov fractional derivative approximations.
+These activations introduce fractional-order nonlinear behaviour inspired by fractional calculus.
 
-They use:
+The goal is to create richer nonlinear transformations than standard activations.
 
-- Gamma-function coefficients
-- shifted finite summations
-- fractional finite differences
-- fractional accumulation dynamics
+Examples:
 
-These are the activations most closely aligned with classical fractional calculus.
-
----
-
-## FractionalGELU
-
-Fractional derivative inspired GELU activation.
-
-Base activation:
-
-$$
-\mathrm{GELU}(x)
-$$
-
-Uses Grünwald-Letnikov-style finite fractional summation:
-
-$$
-\sum_{i=0}^{n}(-1)^i
-\frac{\Gamma(\alpha+1)}
-{\Gamma(i+1)\Gamma(\alpha-i+1)}
-f(x-ih)
-$$
-
-Characteristics:
-
-- closest implementation to true fractional calculus
-- smooth nonlinear behaviour
-- fractional accumulation effects
-- expressive nonlinear transitions
-- higher computational complexity
+- `FractionalGELU`
+- `FractionalSwish`
+- `FractionalPReLU`
+- `FLReLU`
 
 ---
 
-## FractionalMish
+## 2. Safe Activations
 
-Fractional derivative inspired Mish activation.
+RL training can become unstable when fractional nonlinearities produce:
 
-Base activation:
+- exploding values
+- NaNs
+- unstable gradients
 
-$$
-\mathrm{Mish}(x)=x\tanh(\mathrm{softplus}(x))
-$$
+Safe versions introduce stabilisation mechanisms such as:
 
-Characteristics:
-
-- smooth non-monotonic activation
-- fractional finite-difference behaviour
-- expressive smooth transitions
-- fractional nonlinear modulation
-
----
-
-## SafeGLFractionalGELU
-
-RL-safe version of `FractionalGELU`.
-
-Adds:
-
-- stable Gamma handling
-- alpha stabilisation
-- safe bounded behaviour
+- clipping
+- epsilon stabilisation
+- bounded scaling
 - `nan_to_num`
 
-Designed specifically for stable actor-critic RL training.
+Examples:
+
+- `SafeFractionalGELU`
+- `SafeFractionalSwish`
+- `SafeGLFractionalGELU`
+- `SafeFALU`
+
+### Intuition
+
+```text
+Fractional activation
++ RL-oriented stabilisation
+```
 
 ---
 
-## SafeGLFractionalMish
+## 3. Residual Fractional Activations
 
-RL-safe version of `FractionalMish`.
+Pure fractional activations sometimes modify the activation behaviour too aggressively.
 
-Adds:
+Residual versions preserve the original activation and only add a controlled fractional correction.
 
-- stable fractional computation
-- bounded numerical behaviour
-- safer optimisation dynamics
+General idea:
+
+```text
+BaseActivation(x)
++ FractionalResidual(x)
+```
+
+Examples:
+
+- `ResidualFractionalGELU`
+- `ResidualFractionalSwish`
+- `ResidualFLReLU`
+- `ResidualFractionalPReLU`
+
+### Intuition
+
+```text
+Stable original activation
++ controlled fractional correction
+```
+
+This often produces smoother optimisation behaviour in RL.
+
+---
+
+## 4. Adaptive Residual Activations
+
+Adaptive residual activations extend the residual idea further.
+
+Instead of manually selecting the residual strength, the network learns it automatically during training.
+
+General idea:
+
+```text
+BaseActivation(x)
++ learned_beta * FractionalResidual(x)
+```
+
+Examples:
+
+- `AdaptiveResidualFractionalGELU`
+- `AdaptiveResidualFractionalSwish`
+- `AdaptiveResidualFLReLU`
+- `AdaptiveResidualFractionalPReLU`
+
+### Intuition
+
+If the fractional component helps learning:
+
+- the network increases its influence
+
+If it hurts optimisation:
+
+- the network reduces it automatically
+
+This allows the model to learn the best balance between standard and fractional behaviour.
+
+---
+
+# Activation Categories
+
+---
+
+# 1. Grünwald-Letnikov Fractional Activations
+
+These are the activations most closely related to classical fractional calculus.
+
+They use fractional finite-difference approximations inspired by Grünwald-Letnikov derivatives.
+
+## Implemented
+
+- `FractionalGELU`
+- `FractionalMish`
+- `SafeGLFractionalGELU`
+- `SafeGLFractionalMish`
+
+### Characteristics
+
+- strongest connection to fractional calculus
+- expressive nonlinear behaviour
+- more computationally complex
+- potentially less stable without safeguards
 
 ---
 
 # 2. Fractional Power-Law Activations
 
-These activations use fractional-order power-law scaling.
+These use fractional power scaling:
 
-Core formulation:
+```text
+|x|^(1-a)
+```
 
-$$
-|x|^{1-a}
-$$
+instead of full fractional derivative approximations.
 
-These activations are simpler and often more numerically stable than full Grünwald-Letnikov formulations.
+## Implemented
 
----
+- `FractionalReLUPositive`
+- `FLReLU`
+- `FLReLU2`
+- `FractionalPReLU`
+- `FPReLU2`
+- `FParReLU`
 
-## FractionalReLUPositive
+### Characteristics
 
-Positive-only fractional ReLU variant.
-
-Formulation:
-
-$$
-f(x)=x^{1-a}, \quad x>0
-$$
-
-Characteristics:
-
-- positive fractional rectification
-- sparse activation behaviour
-- simple fractional scaling
-- ReLU-inspired dynamics
+- simpler than GL activations
+- easier to stabilise
+- rectifier-style behaviour
+- fractional nonlinear scaling
 
 ---
 
-## FLReLU
+# 3. Smooth Fractional Activations
 
-Fractional Leaky ReLU.
+These extend smooth nonlinearities such as Swish, GELU, and Mish.
 
-Characteristics:
+## Implemented
 
-- fractional positive and negative scaling
-- fixed negative leakage
-- stable rectifier dynamics
+- `FractionalSwish`
+- `FractionalSwishBeta`
+- `FALU`
+- `SafeFractionalSwish`
+- `SafeFractionalSwishBeta`
+- `SafeFALU`
+- `SafeFractionalGELU`
+- `SafeFractionalMish`
 
----
+### Characteristics
 
-## FLReLU2
-
-Learnable fractional Leaky ReLU.
-
-Adds:
-
-- learnable leakage
-- adaptive negative response
-- trainable nonlinear asymmetry
-
----
-
-## FractionalPReLU
-
-Fractional parametric ReLU.
-
-Characteristics:
-
-- fractional-order rectification
-- trainable negative branch
-- adaptive nonlinear response
+- smooth gradients
+- smoother actor optimisation
+- RL-friendly optimisation behaviour
+- fractional-inspired gating dynamics
 
 ---
 
-## FPReLU2
+# 4. Residual Fractional Smooth Activations
 
-Learnable fractional PReLU variant.
+These preserve the original activation while injecting fractional corrections.
 
-Characteristics:
+## GELU Family
 
-- adaptive negative scaling
-- learnable leakage dynamics
-- trainable rectifier behaviour
+- `ResidualFractionalGELU`
+- `AdaptiveResidualFractionalGELU`
 
----
+## Swish Family
 
-## FParReLU
+- `ResidualFractionalSwish`
+- `AdaptiveResidualFractionalSwish`
+- `ResidualFractionalSwishBeta`
+- `AdaptiveResidualFractionalSwishBeta`
 
-Fractional parametric ReLU with learnable slope parameters.
+### Characteristics
 
-Characteristics:
-
-- learnable negative branch
-- stable bounded scaling
-- adaptive fractional rectification
-
----
-
-## SafeFractionalGELU
-
-Fractionally-scaled GELU.
-
-Base activation:
-
-$$
-\mathrm{GELU}(x)
-$$
-
-Fractional scaling:
-
-$$
-f(x)=
-\mathrm{GELU}(x)
-\frac{
-(|x|+\epsilon)^{1-a}
-}{
-\Gamma(2-a)
-}
-$$
-
-Characteristics:
-
-- RL-safe fractional modulation
-- stable magnitude scaling
-- smoother optimisation behaviour
-- lower instability than full GL approximations
+- preserve smooth baseline activations
+- inject controlled fractional behaviour
+- smoother optimisation
+- adaptive residual balancing
+- more RL-stable than pure fractional replacements
 
 ---
 
-## SafeFractionalMish
+# 5. Residual Fractional Rectifier Activations
 
-Fractionally-scaled Mish activation.
+These apply the residual/adaptive residual idea to ReLU-style activations.
 
-Characteristics:
+## Implemented
 
-- smooth fractional scaling
-- RL-safe behaviour
-- stable nonlinear modulation
+- `ResidualFractionalReLUPositive`
+- `AdaptiveResidualFractionalReLUPositive`
+- `ResidualFLReLU`
+- `AdaptiveResidualFLReLU`
+- `ResidualFLReLU2`
+- `AdaptiveResidualFLReLU2`
+- `ResidualFractionalPReLU`
+- `AdaptiveResidualFractionalPReLU`
 
----
+### Characteristics
 
-# 3. Fractional-Inspired Smooth Gated Activations
-
-These activations extend smooth nonlinearities such as Swish and SiLU using fractional-inspired modulation.
-
-These are not strict fractional derivatives.
-
-Instead, they inject adaptive fractional-style nonlinear behaviour into smooth gating mechanisms.
-
----
-
-## FractionalSwish
-
-Fractional-inspired Swish activation.
-
-Base activation:
-
-$$
-\mathrm{Swish}(x)=x\sigma(x)
-$$
-
-Fractional-inspired modulation:
-
-$$
-f(x)=
-\mathrm{Swish}(x)
-+
-\alpha\sigma(x)(1-\mathrm{Swish}(x))
-$$
-
-Characteristics:
-
-- smooth gated behaviour
-- adaptive nonlinear modulation
-- Swish-family extension
-- smooth actor optimisation
-- stable gradients
+- preserve stable rectifier behaviour
+- inject controlled fractional corrections
+- maintain stable negative leakage behaviour
+- allow adaptive residual balancing
 
 ---
 
-## FractionalSwishBeta
+# Adaptive Residual vs PReLU
 
-Learnable-beta Fractional Swish.
+These are conceptually different.
 
-Adds:
+## PReLU
 
-- trainable gating strength
-- adaptive smoothness
-- learnable nonlinear response
+PReLU learns:
 
-Characteristics:
+```text
+the negative slope of the activation
+```
 
-- stronger flexibility
-- adaptive gating dynamics
-- RL-friendly smooth transitions
+## Adaptive Residual Activations
 
----
+Adaptive residual activations learn:
 
-## FALU
+```text
+how much fractional behaviour should be added
+```
 
-Fractional Adaptive Linear Unit.
+So:
 
-Core structure:
-
-$$
-g(x)=x\sigma(\beta x)
-$$
-
-Characteristics:
-
-- adaptive smooth gating
-- learnable nonlinear behaviour
-- higher-order fractional-inspired modulation
-- smooth actor-critic optimisation
+| Activation | Learns |
+|---|---|
+| PReLU | negative slope |
+| Adaptive residual activation | fractional residual strength |
 
 ---
 
-## SafeFractionalSwish
+# File Locations
 
-RL-safe version of `FractionalSwish`.
+Fractional activations are implemented in:
 
-Adds:
+```text
+cares_reinforcement_learning/networks/fractional_activations.py
+```
 
-- bounded numerical behaviour
-- `nan_to_num`
-- RL-oriented stabilisation
+Dynamic loading occurs through:
 
----
-
-## SafeFALU
-
-RL-safe version of `FALU`.
-
-Characteristics:
-
-- stable smooth gating
-- bounded optimisation dynamics
-- safer actor-critic training
+```text
+cares_reinforcement_learning/networks/common.py
+```
 
 ---
 
-# 4. Residual Fractional Activations
-
-These activations preserve the baseline activation while injecting a controlled fractional residual correction.
-
-These were designed specifically for RL stability.
-
----
-
-## ResidualFractionalGELU
-
-Residual fractional GELU activation.
-
-Base activation:
-
-$$
-\mathrm{GELU}(x)
-$$
-
-Residual fractional augmentation:
-
-$$
-f(x)=
-\mathrm{GELU}(x)
-+
-\beta
-\frac{
-sign(x)|x|^{1-a}
-}{
-\Gamma(2-a)
-}
-$$
-
-Characteristics:
-
-- preserves baseline GELU geometry
-- injects controlled fractional dynamics
-- stable optimisation behaviour
-- smoother critic learning
-- improved gradient propagation
-- RL-oriented residual nonlinear modulation
-
----
-
-## AdaptiveResidualFractionalGELU
-
-Adaptive residual fractional GELU.
-
-Extends `ResidualFractionalGELU` with learnable residual scaling.
-
-Adds:
-
-- adaptive residual strength
-- trainable fractional correction
-- learnable nonlinear balancing
-
-Characteristics:
-
-- dynamically learns fractional influence
-- preserves stable baseline activation
-- adaptive RL optimisation behaviour
-
----
-
-# Usage
-
-Consult the repository wiki for usage examples and documentation:
-
-https://github.com/UoA-CARES/cares_reinforcement_learning/wiki
-
----
-
-# Installation Instructions
-
-![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
+# Installation
 
 Clone repository:
 
@@ -631,7 +534,7 @@ Clone repository:
 git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
 ```
 
-Checkout fractional activation branch:
+Checkout branch:
 
 ```bash
 git checkout feature/fractional-swish-gelu
@@ -653,28 +556,27 @@ pip3 install --editable .
 
 # Related Training Framework
 
-Training orchestration and experiment execution are handled through:
+Training orchestration is handled through:
 
 https://github.com/UoA-CARES/gymnasium_envrionments
 
 That repository provides:
 
+- environment wrappers
+- experiment management
+- batch execution
+- plotting utilities
+- multi-seed training
 - OpenAI Gymnasium integration
 - DeepMind Control Suite integration
-- batch execution
-- plotting
-- experiment management
-- multi-seed orchestration
 
 ---
 
-# Running Fractional Activation Experiments
-
-Example:
+# Example Experiment
 
 ```bash
-ACTIVATION=ResidualFractionalGELU \
-ALPHAS=0.1,0.2,0.3,0.4,0.5 \
+ACTIVATION=AdaptiveResidualFractionalGELU \
+ALPHA=0.1 \
 ALGORITHM=TD3 \
 LAYERS=1 \
 PLACEMENT=all_both \
@@ -689,76 +591,52 @@ TD3 \
 
 ---
 
-# Package Structure
+# Supported Placement Strategies
+
+## 1-Layer Networks
 
 ```text
-cares_reinforcement_learning/
-├─ algorithm/
-├─ encoders/
-├─ memory/
-├─ networks/
-│  ├─ common.py
-│  ├─ fractional_activations.py
-├─ util/
+all_both
+```
+
+## 2-Layer Networks
+
+```text
+all_both
+all_actor
+all_critic
+first_both
+first_actor
+first_critic
 ```
 
 ---
 
-# Supported Algorithms
+# Package Structure
 
-The framework supports a broad range of reinforcement learning algorithms including:
-
-## Q-Learning
-
-- DQN
-- DoubleDQN
-- Rainbow
-- QRDQN
-- PERDQN
-- NoisyNet
-- C51
-
----
-
-## Actor-Critic
-
-- PPO
-- DDPG
-- TD3
-- SAC
-- REDQ
-- TQC
-- CrossQ
-- TD7
-- CTD4
-- DroQ
-- PALTD3
-- LAPTD3
-- LA3PTD3
-- MAPERTD3
-- MAPERSAC
-- SDAR
-
-including image-based variants such as:
-
-- TD3AE
-- SACAE
-- NaSATD3
+```text
+cares_reinforcement_learning/
+├── algorithm/
+├── encoders/
+├── memory/
+├── networks/
+│   ├── common.py
+│   ├── fractional_activations.py
+│   └── ...
+├── policy/
+├── util/
+└── ...
+```
 
 ---
 
-## Multi-Agent RL
+# Notes
 
-- QMIX
-- MADDPG
-- M3DDPG
-
----
-
-## Unsupervised Skill Discovery
-
-- DIAYN
-- DADS
+- Activation names must exactly match class names
+- Activations are dynamically loaded through `common.py`
+- Residual activations preserve baseline nonlinear behaviour
+- Adaptive residual activations learn fractional strength during training
+- Safe activations are specifically designed for RL stability
 
 ---
 
