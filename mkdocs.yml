@@ -27,6 +27,7 @@ nav:
   - User Guide:
       - Overview: user_guide/index.md
       - Installation: user_guide/installation.md
+      - Docker: user_guide/docker.md
       - Experiments: user_guide/experiment.md
       - MLP Configuration: user_guide/mlp_configuration.md
       - Logging: user_guide/logging.md
