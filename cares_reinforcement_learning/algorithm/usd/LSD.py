@@ -61,15 +61,14 @@ class LSD(SARLAlgorithm[np.ndarray]):
                 self.skill_dim, 1.0 / self.skill_dim, dtype=np.float32
             )  # (K,)
         else:
-            self.p_z = None # ignore as using standard normal built into np
+            self.p_z = None  # ignore as using standard normal built into np
 
         # sample first skill
         self._sample_new_z()
-        
+
         # create state encoder optimiser
         self.encoder_optimizer = torch.optim.Adam(
-            self.encoder_net.parameters(),
-            lr=config.encoder_lr
+            self.encoder_net.parameters(), lr=config.encoder_lr
         )
 
     # TODO: fix this. This is here to make sure the current eval run work.
@@ -101,7 +100,7 @@ class LSD(SARLAlgorithm[np.ndarray]):
         action_sample = self.skills_agent.act(observation, evaluation)
         action_sample.extras["skill"] = self.z
         return action_sample
-    
+
     def train(
         self,
         memory_buffer: SARLMemoryBuffer,
@@ -287,31 +286,36 @@ class LSD(SARLAlgorithm[np.ndarray]):
         delta_z:torch.Tensor = next_z - current_z #(B, skill_dim)
 
         if self.is_discrete:
-            #(B,1,skill_dim)
-            delta_z = delta_z.reshape(delta_z.size(0), 1, delta_z.size(1)) 
-            #(B,skill_dim,skill_dim). Batches of one hot encoding for each skill:
+            # (B,1,skill_dim)
+            delta_z = delta_z.reshape(delta_z.size(0), 1, delta_z.size(1))
+            # (B,skill_dim,skill_dim). Batches of one hot encoding for each skill:
             # e.g. [[1,0,0],[0,1,0],[0,0,1],...]
-            eye_z = torch.eye(self.skill_dim, device=self.device).reshape(1, self.skill_dim, self.skill_dim).expand(delta_z.size(0), -1, -1)
-            #(B,skill_dim), effectively: each option gets a score of how much latent change align with that dimension
+            eye_z = (
+                torch.eye(self.skill_dim, device=self.device)
+                .reshape(1, self.skill_dim, self.skill_dim)
+                .expand(delta_z.size(0), -1, -1)
+            )
+            # (B,skill_dim), effectively: each option gets a score of how much latent change align with that dimension
             logits = (eye_z * delta_z).sum(dim=2)
 
-            #(B,skill_dim), onehot for chosen skill -> centered around 0 and scaled
-            masks = (skill_tensor - skill_tensor.mean(dim=1, keepdim=True)) * (self.skill_dim) / (self.skill_dim - 1 if self.skill_dim != 1 else 1)
+            # (B,skill_dim), onehot for chosen skill -> centered around 0 and scaled
+            masks = (
+                (skill_tensor - skill_tensor.mean(dim=1, keepdim=True))
+                * (self.skill_dim)
+                / (self.skill_dim - 1 if self.skill_dim != 1 else 1)
+            )
 
-            return (logits * masks).sum(dim=1) #(B,)
+            return (logits * masks).sum(dim=1)  # (B,)
 
         else:
-            return (delta_z * skill_tensor).sum(dim=1) #(B,)
-            
-
+            return (delta_z * skill_tensor).sum(dim=1)  # (B,)
 
     def episode_done(self):
-        '''
+        """
         Sample new skill from p(z) when episode finishes.
-        '''
+        """
         self._sample_new_z()
         return super().episode_done()
-    
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state = replace(
@@ -367,17 +371,16 @@ class LSD(SARLAlgorithm[np.ndarray]):
             return np.concatenate([state, z_one_hot])
         else:
             return np.concatenate([state, self.z])
-        
+
     def _sample_new_z(self):
-        ''' Sample new skill z following p(z)'''
-        # NOTE: different z in continuous and discrete case 
+        """Sample new skill z following p(z)"""
+        # NOTE: different z in continuous and discrete case
         #   - Discrete: z is the number for the skill (NOT one-hot)
-        #   - Continuous: z is sampled (skill_dim) shaped tensor 
+        #   - Continuous: z is sampled (skill_dim) shaped tensor
         if self.is_discrete:
             self.z = np.random.choice(self.skill_dim, p=self.p_z)
         else:
             self.z = np.random.randn(self.skill_dim)
-
 
     ###### SAVING UTIL ####################################################################
 
@@ -409,5 +412,3 @@ class LSD(SARLAlgorithm[np.ndarray]):
 
         self.z = checkpoint.get("z", self.z)
         logging.info("LSD models and state have been loaded...")
-
-    

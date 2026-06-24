@@ -4,6 +4,7 @@ import torch
 from cares_reinforcement_learning.algorithm.configurations import LSDConfig
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
 
+
 class BaseEncoder(nn.Module):
     def __init__(self, network: nn.Module):
         super().__init__()
@@ -21,7 +22,8 @@ class BaseEncoder(nn.Module):
             torch.Tensor: State latent
         """
         return self.network(state)
-    
+
+
 class DefaultEncoder(BaseEncoder):
     def __init__(self, observation_size: int):
 
@@ -38,11 +40,11 @@ class DefaultEncoder(BaseEncoder):
 
 class Encoder(BaseEncoder):
     def __init__(self, observation_size: int, config: LSDConfig):
-        
+
         network = MLP(
             input_size=observation_size,
             output_size=config.skill_dim,
             config=config.encoder_config,
         )
 
-        super().__init__(network = network)
+        super().__init__(network=network)

@@ -1516,6 +1516,7 @@ class DADSConfig(SACConfig):
         ]
     )
 
+
 class LSDConfig(SACConfig):
     algorithm: str = "LSD"
 

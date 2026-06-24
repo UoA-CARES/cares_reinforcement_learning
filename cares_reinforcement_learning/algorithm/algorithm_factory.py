@@ -520,25 +520,19 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
     )
     return agent
 
+
 def create_LSD(observation_size, action_num, config: acf.LSDConfig):
     from cares_reinforcement_learning.algorithm.usd import LSD
     from cares_reinforcement_learning.networks.LSD import Encoder
 
-    sac_observation_size = {
-        "vector": observation_size["vector"] + config.skill_dim
-    }
+    sac_observation_size = {"vector": observation_size["vector"] + config.skill_dim}
 
     sac_agent = create_SAC(sac_observation_size, action_num, config=config)
 
-    encoder = Encoder(observation_size=observation_size["vector"],config=config)
+    encoder = Encoder(observation_size=observation_size["vector"], config=config)
 
-    device=hlp.get_device()
-    agent = LSD(
-        skills_agent=sac_agent,
-        encoder=encoder,
-        config=config,
-        device=device
-    )
+    device = hlp.get_device()
+    agent = LSD(skills_agent=sac_agent, encoder=encoder, config=config, device=device)
 
     return agent
 
