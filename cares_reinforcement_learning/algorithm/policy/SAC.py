@@ -123,13 +123,35 @@ class SAC(SARLAlgorithm[np.ndarray]):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-        # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
-        self.log_alpha.requires_grad = True
+
+        if config.static_alpha:
+            self.log_alpha = torch.tensor(np.log(config.static_alpha)).to(device)
+            self.log_alpha.requires_grad = False
+            self.is_alpha_static = True
+        else:
+            # Set to initial alpha to 1.0 according to other baselines.
+            init_temperature = 1.0
+            self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+            self.log_alpha.requires_grad = True
+            self.is_alpha_static = False
+
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
+        
+        # init_temperature = 1.0
+        # self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+        # self.log_alpha.requires_grad = True
+        # self.log_alpha_optimizer = torch.optim.Adam(
+        #     [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
+        # )
+      
+        # if not config.static_alpha:
+        #     self.is_alpha_static = False
+        # else: 
+        #     self.log_alpha = torch.tensor(np.log(config.static_alpha)).to(device)
+        #     self.log_alpha.requires_grad = False
+        #     self.is_alpha_static = True
 
     @property
     def alpha(self) -> torch.Tensor:
@@ -334,9 +356,10 @@ class SAC(SARLAlgorithm[np.ndarray]):
         # update the temperature (alpha)
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()
 
-        self.log_alpha_optimizer.zero_grad()
-        alpha_loss.backward()
-        self.log_alpha_optimizer.step()
+        if not self.is_alpha_static:
+            self.log_alpha_optimizer.zero_grad()
+            alpha_loss.backward()
+            self.log_alpha_optimizer.step()
 
         with torch.no_grad():
             # --- Policy entropy diagnostics (exploration health) ---
@@ -434,7 +457,6 @@ class SAC(SARLAlgorithm[np.ndarray]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        print(observation_tensor.vector_state_tensor.shape)
 
         info, priorities = self.update_from_batch(
             observation_tensor=observation_tensor,

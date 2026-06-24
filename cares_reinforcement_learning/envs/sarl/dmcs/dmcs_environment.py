@@ -18,7 +18,7 @@ class DMCSEnvironment(SARLEnvironment):
         logging.info(f"Training on Domain {config.domain}")
 
         self.domain = config.domain
-        self.env = suite.load(self.domain, self.task, task_kwargs={"random": self.seed})
+        self.env = suite.load(self.domain, self.task, task_kwargs={"random": self.seed,"max_episode_steps":config.max_episode_steps})
 
     @cached_property
     def min_action_value(self) -> np.ndarray:

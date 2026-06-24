@@ -156,6 +156,7 @@ class RepetitionManager:
             in_training_phase: Whether we're past exploration phase
         """
         if not self.enabled:
+            self.buffer.reset()
             return
 
         if self.is_repeating:

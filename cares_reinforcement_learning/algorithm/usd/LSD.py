@@ -16,7 +16,10 @@ from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.LSD.encoder import Encoder
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.observation import SARLObservation, SARLObservationTensors
+
+import tracemalloc
+import gc
 
 
 class LSD(SARLAlgorithm[np.ndarray]):
@@ -28,13 +31,29 @@ class LSD(SARLAlgorithm[np.ndarray]):
         device: torch.device,
     ):
         super().__init__(policy_type="usd", config=config, device=device)
+        
+        # tracemalloc.start(25)
+        # self._last_snapshot = None
 
         self.skills_agent = skills_agent
         self.encoder_net = encoder.to(device)
 
+        # TODO: other ones require a num_skills field to evaluate properly, check @property func below. Need to fix
         self.skill_dim = config.skill_dim # num of discrete skills or dimensions for continuouse skill
+        
         self.is_discrete = config.is_discrete
-        self.updates_per_iteration = config.updates_per_iteration
+
+        # training loop control params from config
+        self.batch_size=config.batch_size
+        self.minibatch_size = config.minibatch_size
+
+        self.agent_loops_per_batch = config.agent_loops_per_batch
+        self.agent_num_minibatches_per_batch = config.agent_num_minibatches_per_batch
+
+        self.encoder_loops_per_batch = config.encoder_loops_per_batch
+        self.encoder_num_minibatches_per_batch = config.encoder_num_minibatches_per_batch
+
+        self.is_using_buffer = config.is_using_buffer
 
         # set skill prior
         if self.is_discrete:
@@ -52,14 +71,31 @@ class LSD(SARLAlgorithm[np.ndarray]):
             self.encoder_net.parameters(),
             lr=config.encoder_lr
         )
+
+    # TODO: fix this. This is here to make sure the current eval run work.
+    @property
+    def num_skills(self):
+        if self.is_discrete:
+            return self.skill_dim
+        else:
+            raise NotImplementedError("Evaluation for continuous skills not implemented yet.")
+        
+    # TODO: fix this too
+    def set_skill(self, skill: int, evaluation: bool = False) -> None:
+        if not self.is_discrete:
+            raise NotImplementedError("Evaluation for continuous skills not implemented yet.")
+        if skill < 0 or skill >= self.num_skills:
+            raise ValueError(f"Skill index {skill} is out of bounds.")
+
+        self.z = skill
     
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-
+        observation = self._normalize_obs(observation)
         observation = replace(
             observation,
-            vector_state=self._concat_state_latent(observation.vector_state),
+            vector_state=self._concat_state_and_skill(observation.vector_state),
         )
 
         action_sample = self.skills_agent.act(observation, evaluation)
@@ -74,91 +110,162 @@ class LSD(SARLAlgorithm[np.ndarray]):
 
         info: dict[str, Any] = {}
 
+
+        # Original paper training loop:
+        # Collect samples for training "epoch":
+        #   - for "max_optimization_epoches"(param):
+        #       - for "trans_optimization_epochs" times: 
+        #           - Draw with replacement "trans_minibatch_size" transitions (just sample from replay buffer if using buffer)
+        #           - Update SAC (* CSD and LSD implementation differs)
+        #   - for "te_max_optimization_epochs"(param):
+        #       - for "te_trans_optimization_epochs" times: 
+        #           - Draw with replacement "te_trans_minibatch_size" transitions (just sample from replay buffer if using buffer)
+        #           - Update encoder
+        #   - soft update q net (SAC q net) (in ORIGINAL, in CSD implementation omit since target update in update sac step)
+
         # skip if there are not enough samples in mem buffer
         if len(memory_buffer) < self.batch_size:
             return {}
+
+        ########################################################
+        # update agent
+        for _ in range(self.agent_loops_per_batch):
+            # ^ in original training only runs per epoch for certain rounds
+            for _ in range(self.agent_num_minibatches_per_batch):
+                (
+                    observation_tensor,
+                    actions_tensor,
+                    rewards_tensor,
+                    next_observation_tensor,
+                    dones_tensor,
+                    weights_tensor,
+                    train_data,
+                    indices,
+                ) = memory_sampler.sample(
+                    memory=memory_buffer,
+                    batch_size=self.minibatch_size,
+                    device=self.device,
+                    use_per_buffer=0,  # DIAYN does not use PER
+                )
+
+                skill_tensor = self._get_skill_tensor(train_data, observation_tensor.vector_state_tensor.dtype)
+
+                # compute reward for RL agent to optimize----------------------------
+                rewards_tensor = self.compute_representation_skill_prod(
+                    observation_tensor.vector_state_tensor,
+                    next_observation_tensor.vector_state_tensor,
+                    skill_tensor
+                ).detach().unsqueeze(-1) #(B,) -> (B,1), needed for some reason
+
+                # Create SARLObservation obj with skill concated to state ---------------------------------------------------------
+                states_z_tensor = torch.cat(
+                    [observation_tensor.vector_state_tensor, skill_tensor], dim=1
+                )
+                next_states_z_tensor = torch.cat(
+                    [next_observation_tensor.vector_state_tensor, skill_tensor], dim=1
+                )
+                
+                observation_z_tensor = replace(
+                        observation_tensor,
+                        vector_state_tensor=states_z_tensor,
+                    )
+                next_observation_z_tensor = replace(
+                    next_observation_tensor,
+                    vector_state_tensor=next_states_z_tensor,
+                )
+
+                # Update SAC agent ---------------------------------------------------------
+                agent_info, _ = self.skills_agent.update_from_batch(
+                        observation_tensor=observation_z_tensor,
+                        actions_tensor=actions_tensor,
+                        rewards_tensor=rewards_tensor,
+                        next_observation_tensor=next_observation_z_tensor,
+                        dones_tensor=dones_tensor,
+                        weights_tensor=weights_tensor
+                    )
+                info |= agent_info
+
+        ##########################################################################
+        # update state encoder
+        for _ in range(self.encoder_loops_per_batch):
+            for _ in range(self.encoder_num_minibatches_per_batch):
+                (
+                    observation_tensor,
+                    actions_tensor,
+                    rewards_tensor,
+                    next_observation_tensor,
+                    dones_tensor,
+                    weights_tensor,
+                    train_data,
+                    indices,
+                ) = memory_sampler.sample(
+                    memory=memory_buffer,
+                    batch_size=self.minibatch_size,
+                    device=self.device,
+                    use_per_buffer=0,  # DIAYN does not use PER
+                )
+
+                skill_tensor = self._get_skill_tensor(train_data, observation_tensor.vector_state_tensor.dtype)
+
+                representation_skill_prod = self.compute_representation_skill_prod(
+                    observation_tensor.vector_state_tensor,
+                    next_observation_tensor.vector_state_tensor,
+                    skill_tensor
+                ) #(B,)
+
+                # Update state encoder
+                representation_skill_prod_mean = representation_skill_prod.mean() #()
+                encoder_loss = -representation_skill_prod_mean
+
+                self.encoder_optimizer.zero_grad()
+                encoder_loss.backward()
+                self.encoder_optimizer.step()
+
+                info |= {"encoder loss":encoder_loss.mean().item()}
         
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            train_data,
-            indices,
-        ) = memory_sampler.sample(
-            memory=memory_buffer,
-            batch_size=self.batch_size,
-            device=self.device,
-            use_per_buffer=0,  # DIAYN does not use PER
-        )
+        if not self.is_using_buffer:
+            memory_buffer.clear()
+            
+            # snapshot = tracemalloc.take_snapshot()
+            # if self._last_snapshot is not None:
+            #     top_stats = snapshot.compare_to(self._last_snapshot, "lineno")
+            #     print("=== Top 10 growing allocations ===")
+            #     for stat in top_stats[:10]:
+            #         print(stat)
+            # self._last_snapshot = snapshot
+            
+            # print("bru====================================================")
+            # # found = 0
+            # for obj in gc.get_objects():
+            #     if torch.is_tensor(obj):
+            #         tb = tracemalloc.get_object_traceback(obj)
+            #         if tb and any(
+            #             frame.filename.endswith("SAC.py") 
+            #             for frame in tb
+            #         ):
+            #             found += 1
+            #             print(f"--- leaked tensor #{found}: shape={tuple(obj.shape)}, "
+            #                 f"requires_grad={obj.requires_grad}, grad_fn={obj.grad_fn}")
+            #             for ref in gc.get_referrers(obj):
+            #                 print("  held by:", type(ref), repr(ref)[:200])
+            #             if found >= 5:
+            #                 break
 
-        batch_size = len(observation_tensor.vector_state_tensor)
+        return info
 
-        # Extract skills from the sampled transitions into tensor
+    def _get_skill_tensor(self,train_data:dict,dtype:torch.dtype):
+        '''Use train_data from sample to create (B,skill_dim) tensor'''
+        # Extract skills from the sampled transitions into tensor-------------------------
         skills = [extra["skill"] for extra in train_data]
         if self.is_discrete:
             z_code_tensor= torch.tensor(skills, dtype=torch.long, device=self.device) #(B,) each entry is the number for the skill
             # Concatenate zs (skills) as one-hot to states
             # pylint: disable-next=not-callable
-            skill_tensor = F.one_hot(z_code_tensor, num_classes=self.skill_dim).to(
-                observation_tensor.vector_state_tensor.dtype
-            ) # (B,skill_dim), one hot for chosen skill
+            skill_tensor = F.one_hot(z_code_tensor, num_classes=self.skill_dim).to(dtype) # (B,skill_dim), one hot for chosen skill
         else:
             skill_tensor = torch.tensor(skills) #(B,skill_dim)
-
-        # Concate 
-        states_z_tensor = torch.cat(
-            [observation_tensor.vector_state_tensor, skill_tensor], dim=1
-        )
-        next_states_z_tensor = torch.cat(
-            [next_observation_tensor.vector_state_tensor, skill_tensor], dim=1
-        )
         
-        
-        for _ in range(self.updates_per_iteration):
-            # Calc loss for both sac agent and encoder net
-            representation_skill_prod = self.compute_representation_skill_prod(
-                observation_tensor.vector_state_tensor,
-                next_observation_tensor.vector_state_tensor,
-                skill_tensor
-            ) #(B,)
-
-            # update sac agent
-            observation_z_tensor = replace(
-                observation_tensor,
-                vector_state_tensor=states_z_tensor,
-            )
-            next_observation_z_tensor = replace(
-                next_observation_tensor,
-                vector_state_tensor=next_states_z_tensor,
-            )
-
-            
-            agent_info, _ = self.skills_agent.update_from_batch(
-                observation_tensor=observation_z_tensor,
-                actions_tensor=actions_tensor,
-                rewards_tensor=representation_skill_prod.detach().unsqueeze(-1), #(B,) -> (B,1), needed for some reason
-                next_observation_tensor=next_observation_z_tensor,
-                dones_tensor=dones_tensor,
-                weights_tensor=weights_tensor
-            )
-
-            # print(observation_z_tensor.vector_state_tensor.shape)
-            # print(representation_skill_prod.detach().unsqueeze(-1).shape)
-            info |= agent_info
-
-            # Update state encoder
-            representation_skill_prod_mean = representation_skill_prod.mean() #()
-            encoder_loss = -representation_skill_prod_mean
-
-            self.encoder_optimizer.zero_grad()
-            encoder_loss.backward()
-            self.encoder_optimizer.step()
-        
-        return info
-
+        return skill_tensor
     
     def compute_representation_skill_prod(
             self,
@@ -167,7 +274,13 @@ class LSD(SARLAlgorithm[np.ndarray]):
             skill_tensor: torch.Tensor #(B, skill_dim)
         ):
         '''
-        Calculate (phi(s')-phi(s))z
+        Calculate (phi(s')-phi(s))z. 
+        
+        Think def of dot prod: length of state diff vec (in embedding space) projected onto z, times length of z. High reward
+        implies: good alighment, ALSO scale with length of embedding vec. 
+        
+        Lipschitz constraint: large diff in states embedding implies large diff in actual state space. i.e. if s and s' is the
+        same, encoder can't arbitrarily make phi(s') huge thus maximising this reward.
         '''
         current_z = self.encoder_net(state_tensor) #(B, skill_dim)
         next_z = self.encoder_net(next_state_tensor) #(B, skill_dim)
@@ -202,12 +315,52 @@ class LSD(SARLAlgorithm[np.ndarray]):
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state = replace(
-            state, vector_state=self._concat_state_latent(state.vector_state)
+            state, vector_state=self._concat_state_and_skill(state.vector_state)
         )
         return self.skills_agent._calculate_value(state, action)
 
+    ###### ACTUAL CHEATS ##################################################################
+    def _normalize_obs(self,obs:SARLObservation|SARLObservationTensors):
+        '''!!!!!!!!!! ACTUAL CHEATS. cheetah'''
+        # Precomputed mean and std of the state dimensions from 10000 length-50 random rollouts (without early termination)
+        # cheetah
+        normalizer_mean_np = np.array(
+            [-0.07861924, -0.08627162, 0.08968642, 0.00960849, 0.02950368, -0.00948337, 0.01661406, -0.05476654,
+            -0.04932635, -0.08061652, -0.05205841, 0.04500197, 0.02638421, -0.04570961, 0.03183838, 0.01736591,
+            0.0091929, -0.0115027])
+        normalizer_std_np = np.array(
+            [0.4039283, 0.07610687, 0.23817, 0.2515473, 0.2698137, 0.26374814, 0.32229397, 0.2896734, 0.2774097,
+            0.73060024, 0.77360505, 1.5871304, 5.5405455, 6.7097645, 6.8253727, 6.3142195, 6.417641, 5.9759197])
+
+        # ant
+        # normalizer_mean_np = np.array(
+        #     [0.00486117, 0.011312, 0.7022248, 0.8454677, -0.00102548, -0.00300276, 0.00311523, -0.00139029,
+        #      0.8607109, -0.00185301, -0.8556998, 0.00343217, -0.8585605, -0.00109082, 0.8558013, 0.00278213,
+        #      0.00618173, -0.02584622, -0.00599026, -0.00379596, 0.00526138, -0.0059213, 0.27686235, 0.00512205,
+        #      -0.27617684, -0.0033233, -0.2766923, 0.00268359, 0.27756855])
+        # normalizer_std_np = np.array(
+        #     [0.62473416, 0.61958003, 0.1717569, 0.28629342, 0.20020866, 0.20572574, 0.34922406, 0.40098143,
+        #      0.3114514, 0.4024826, 0.31057045, 0.40343934, 0.3110796, 0.40245822, 0.31100526, 0.81786263, 0.8166509,
+        #      0.9870919, 1.7525449, 1.7468817, 1.8596431, 4.502961, 4.4070187, 4.522444, 4.3518476, 4.5105968,
+        #      4.3704205, 4.5175962, 4.3704395])
+        
+        if isinstance(obs,SARLObservationTensors):
+            # print(obs.vector_state_tensor.dtype)
+            normalizer_mean = torch.tensor(normalizer_mean_np, dtype=torch.float32, device=self.device) 
+            normalizer_std = torch.tensor(normalizer_std_np, dtype=torch.float32, device=self.device)
+            normalized_vec = (obs.vector_state_tensor - normalizer_mean) / (torch.sqrt(normalizer_std) + 1e-8)
+            new_obs = replace(obs, vector_state_tensor = normalized_vec)
+            # print(f"Normalised Tensor Obs: {new_obs}")
+            return new_obs
+        else:
+            normalized_vec = (obs.vector_state - normalizer_mean_np) / (np.sqrt(normalizer_std_np) + 1e-8)
+            new_obs = replace(obs, vector_state = normalized_vec)
+            # print(f"Normalised np obs: {new_obs}")
+            return new_obs
+        
+
     ###### LATENT RELATED UTILS ############################################################
-    def _concat_state_latent(self, state: np.ndarray) -> np.ndarray:
+    def _concat_state_and_skill(self, state: np.ndarray) -> np.ndarray:
         if self.is_discrete:
             z_one_hot = np.zeros(self.skill_dim)
             z_one_hot[self.z] = 1

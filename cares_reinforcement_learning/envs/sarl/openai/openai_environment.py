@@ -18,7 +18,9 @@ class OpenAIEnvironment(SARLEnvironment):
     ) -> None:
         super().__init__(config, seed, image_observation)
 
-        self.env = gym.make(config.task, render_mode="rgb_array")
+        # NOTE: PLACEHOLDER HERE, CHANGE LATER
+        # terminate_when_unhealthy = False, exclude_current_positions_from_observation=False, include_cfrc_ext_in_observation=False
+        self.env = gym.make(config.task, render_mode="rgb_array",max_episode_steps=config.max_episode_steps, exclude_current_positions_from_observation=False)#, exclude_current_positions_from_observation=False
         self.set_seed(self.seed)
 
         # If Box space, we will apply action normalization - even if redundant
