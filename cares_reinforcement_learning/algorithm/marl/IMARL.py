@@ -9,8 +9,9 @@ functions.
 
 Core Idea:
 - Each agent treats other agents as part of the environment.
-- No centralized critic or parameter sharing is enforced.
-- Learning is fully decentralized.
+- No centralized critic is used.
+- Agents can either learn with one learner per agent or reuse one shared learner.
+- Learning remains decentralized at the data interface.
 
 Execution:
 - At each timestep, the joint observation is split into
@@ -22,10 +23,10 @@ per-agent observations.
 Training:
 - A shared multi-agent replay buffer stores joint transitions.
 - During training, batches are sampled and split per agent.
-- Each agent updates only using:
-      (s_i, a_i, r_i, s'_i, done_i)
-- No gradients or value targets depend on other agents'
-  networks.
+- Each per-agent update uses only:
+    (s_i, a_i, r_i, s'_i, done_i)
+- When learners are shared, the same underlying learner is reused across agents,
+  but each update still consumes only that agent's local transition slice.
 
 Non-Stationarity:
 - Since all agents learn simultaneously, from each agent's
@@ -51,16 +52,17 @@ Rationale:
 - Useful baseline for MARL comparison.
 - Easily extensible to new single-agent algorithms.
 
-IMARL = N independent single-agent learners interacting
-through a shared environment.
+IMARL = N local single-agent update streams interacting
+through a shared environment, with either per-agent or shared parameters.
 """
 
 import logging
 import os
 from abc import abstractmethod
-from typing import Any, Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 import numpy as np
+import numpy.typing as npt
 import torch
 
 import cares_reinforcement_learning.algorithm.policy as pol
@@ -81,19 +83,103 @@ from cares_reinforcement_learning.types.observation import (
 
 AgentType = TypeVar("AgentType", bound=SARLAlgorithm)
 
+IMARLConfig = cfg.IDDPGConfig | cfg.ITD3Config | cfg.ISACConfig | cfg.IPPOConfig
+
 
 class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
     def __init__(
         self,
-        agents: dict[str, AgentType],
-        config: cfg.AlgorithmConfig,
+        learning_units: dict[str, AgentType],
+        agent_id_to_learning_unit_id: dict[str, str],
+        learning_unit_id_to_agent_ids: dict[str, list[str]],
+        agent_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        team_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        agent_id_to_team_id: dict[str, str],
+        config: IMARLConfig,
         device: torch.device,
     ):
         super().__init__(policy_type="policy", config=config, device=device)
 
-        self.agent_networks = agents
-        self.agent_ids = list(agents.keys())
-        self.num_agents = len(agents)
+        self.learning_units = learning_units
+        self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
+        self.learning_unit_id_to_agent_ids = learning_unit_id_to_agent_ids
+        self.agent_identity_vectors = agent_identity_vectors
+        self.team_identity_vectors = team_identity_vectors
+        self.agent_id_to_team_id = agent_id_to_team_id
+        self.use_agent_id = config.use_agent_id
+        self.use_team_id = config.use_team_id
+        self.agent_ids = list(agent_id_to_learning_unit_id.keys())
+        self.learning_unit_ids = list(learning_units.keys())
+        self.num_agents = len(self.agent_ids)
+        self._identity_vector_cache: dict[str, npt.NDArray[np.float32]] = {}
+        self._identity_tensor_cache: dict[
+            tuple[str, str, torch.dtype], torch.Tensor
+        ] = {}
+
+    def _get_agent_network(self, agent_name: str) -> AgentType:
+        learning_unit_id = self.agent_id_to_learning_unit_id[agent_name]
+        return self.learning_units[learning_unit_id]
+
+    def _uses_shared_identity_conditioning(self, agent_name: str) -> bool:
+        learning_unit_id = self.agent_id_to_learning_unit_id[agent_name]
+        num_controlled_agents = len(
+            self.learning_unit_id_to_agent_ids[learning_unit_id]
+        )
+        return bool(
+            num_controlled_agents > 1 and (self.use_agent_id or self.use_team_id)
+        )
+
+    def _get_identity_vector(self, agent_id: str) -> npt.NDArray[np.float32]:
+        cached_vector = self._identity_vector_cache.get(agent_id)
+        if cached_vector is not None:
+            return cached_vector
+
+        identity_parts: list[npt.NDArray[np.float32]] = []
+        if self.use_team_id:
+            team_id = self.agent_id_to_team_id[agent_id]
+            identity_parts.append(self.team_identity_vectors[team_id])
+        if self.use_agent_id:
+            identity_parts.append(self.agent_identity_vectors[agent_id])
+
+        if identity_parts:
+            identity_vector = np.concatenate(identity_parts, axis=-1)
+        else:
+            identity_vector = np.empty((0,), dtype=np.float32)
+
+        self._identity_vector_cache[agent_id] = identity_vector
+        return identity_vector
+
+    def augment_observation(
+        self,
+        observation: npt.NDArray[np.generic] | torch.Tensor,
+        agent_id: str,
+    ) -> npt.NDArray[np.generic] | torch.Tensor:
+        if not self._uses_shared_identity_conditioning(agent_id):
+            return observation
+
+        identity_vector = self._get_identity_vector(agent_id)
+        if identity_vector.size == 0:
+            return observation
+
+        if isinstance(observation, torch.Tensor):
+            cache_key = (agent_id, str(observation.device), observation.dtype)
+            identity_tensor = self._identity_tensor_cache.get(cache_key)
+            if identity_tensor is None:
+                identity_tensor = torch.as_tensor(
+                    identity_vector,
+                    dtype=observation.dtype,
+                    device=observation.device,
+                )
+                self._identity_tensor_cache[cache_key] = identity_tensor
+
+            tensor_expand_shape = observation.shape[:-1] + (identity_tensor.shape[0],)
+            identity_tensor = identity_tensor.expand(tensor_expand_shape)
+            return torch.cat((observation, identity_tensor), dim=-1)
+
+        identity_array = identity_vector.astype(observation.dtype, copy=False)
+        array_expand_shape = observation.shape[:-1] + (identity_array.shape[0],)
+        identity_array = np.broadcast_to(identity_array, array_expand_shape)
+        return np.concatenate((observation, identity_array), axis=-1)
 
     def act(
         self,
@@ -105,8 +191,12 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
         actions = {}
         agent_extras = {}
-        for agent_name, agent_network in self.agent_networks.items():
-            obs_i = agent_states[agent_name]
+        for agent_name in self.agent_ids:
+            agent_network = self._get_agent_network(agent_name)
+            obs_i = cast(
+                np.ndarray,
+                self.augment_observation(agent_states[agent_name], agent_name),
+            )
             avail_i = avail_actions[agent_name]
 
             agent_observation = SARLObservation(
@@ -172,13 +262,24 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
         for agent_name in agent_ids:
             states_i = SARLObservationTensors(
-                vector_state=sample_tensor.observation.agent_states[agent_name],
+                vector_state=cast(
+                    torch.Tensor,
+                    self.augment_observation(
+                        sample_tensor.observation.agent_states[agent_name], agent_name
+                    ),
+                ),
             )
             actions_i = sample_tensor.action[agent_name]
             rewards_i = sample_tensor.reward[agent_name]
 
             next_states_i = SARLObservationTensors(
-                vector_state=sample_tensor.next_observation.agent_states[agent_name],
+                vector_state=cast(
+                    torch.Tensor,
+                    self.augment_observation(
+                        sample_tensor.next_observation.agent_states[agent_name],
+                        agent_name,
+                    ),
+                ),
             )
 
             dones_i = sample_tensor.done[agent_name]
@@ -213,19 +314,19 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
-        for agent_name in self.agent_ids:
-            agent = self.agent_networks[agent_name]
-            agent_filepath = os.path.join(filepath, f"{agent_name}")
-            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+        for learning_unit_id in self.learning_unit_ids:
+            agent = self.learning_units[learning_unit_id]
+            agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
+            agent_filename = f"{filename}_agent_{learning_unit_id}_checkpoint"
             agent.save_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        for agent_name in self.agent_ids:
-            agent = self.agent_networks[agent_name]
-            agent_filepath = os.path.join(filepath, f"{agent_name}")
-            agent_filename = f"{filename}_agent_{agent_name}_checkpoint"
+        for learning_unit_id in self.learning_unit_ids:
+            agent = self.learning_units[learning_unit_id]
+            agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
+            agent_filename = f"{filename}_agent_{learning_unit_id}_checkpoint"
             agent.load_models(agent_filepath, agent_filename)
 
         logging.info("models and optimisers have been loaded...")
@@ -241,11 +342,25 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 class IDDPG(IMARL[pol.DDPG]):
     def __init__(
         self,
-        agents: dict[str, pol.DDPG],
+        learning_units: dict[str, pol.DDPG],
+        agent_id_to_learning_unit_id: dict[str, str],
+        learning_unit_id_to_agent_ids: dict[str, list[str]],
+        agent_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        team_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        agent_id_to_team_id: dict[str, str],
         config: cfg.IDDPGConfig,
         device: torch.device,
     ):
-        super().__init__(agents=agents, config=config, device=device)
+        super().__init__(
+            learning_units=learning_units,
+            agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+            learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+            agent_identity_vectors=agent_identity_vectors,
+            team_identity_vectors=team_identity_vectors,
+            agent_id_to_team_id=agent_id_to_team_id,
+            config=config,
+            device=device,
+        )
 
     def update_agent_from_batch(
         self,
@@ -259,7 +374,7 @@ class IDDPG(IMARL[pol.DDPG]):
         dones_tensor: torch.Tensor,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_name]
+        agent = self._get_agent_network(agent_name)
         return agent.update_from_batch(
             episode_context=episode_context,
             observation_tensor=observation_tensor,
@@ -273,11 +388,25 @@ class IDDPG(IMARL[pol.DDPG]):
 class ITD3(IMARL[pol.TD3]):
     def __init__(
         self,
-        agents: dict[str, pol.TD3],
+        learning_units: dict[str, pol.TD3],
+        agent_id_to_learning_unit_id: dict[str, str],
+        learning_unit_id_to_agent_ids: dict[str, list[str]],
+        agent_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        team_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        agent_id_to_team_id: dict[str, str],
         config: cfg.ITD3Config,
         device: torch.device,
     ):
-        super().__init__(agents=agents, config=config, device=device)
+        super().__init__(
+            learning_units=learning_units,
+            agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+            learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+            agent_identity_vectors=agent_identity_vectors,
+            team_identity_vectors=team_identity_vectors,
+            agent_id_to_team_id=agent_id_to_team_id,
+            config=config,
+            device=device,
+        )
 
     def update_agent_from_batch(
         self,
@@ -292,7 +421,7 @@ class ITD3(IMARL[pol.TD3]):
         weights_tensor: torch.Tensor,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_name]
+        agent = self._get_agent_network(agent_name)
         info, _ = agent.update_from_batch(
             episode_context=episode_context,
             observation_tensor=observation_tensor,
@@ -308,11 +437,25 @@ class ITD3(IMARL[pol.TD3]):
 class ISAC(IMARL[pol.SAC]):
     def __init__(
         self,
-        agents: dict[str, pol.SAC],
+        learning_units: dict[str, pol.SAC],
+        agent_id_to_learning_unit_id: dict[str, str],
+        learning_unit_id_to_agent_ids: dict[str, list[str]],
+        agent_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        team_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        agent_id_to_team_id: dict[str, str],
         config: cfg.ISACConfig,
         device: torch.device,
     ):
-        super().__init__(agents=agents, config=config, device=device)
+        super().__init__(
+            learning_units=learning_units,
+            agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+            learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+            agent_identity_vectors=agent_identity_vectors,
+            team_identity_vectors=team_identity_vectors,
+            agent_id_to_team_id=agent_id_to_team_id,
+            config=config,
+            device=device,
+        )
 
     def update_agent_from_batch(
         self,
@@ -326,7 +469,7 @@ class ISAC(IMARL[pol.SAC]):
         weights_tensor: torch.Tensor,
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_name]
+        agent = self._get_agent_network(agent_name)
         info, _ = agent.update_from_batch(
             observation_tensor=observation_tensor,
             actions_tensor=actions_tensor,
@@ -341,11 +484,25 @@ class ISAC(IMARL[pol.SAC]):
 class IPPO(IMARL[pol.PPO]):
     def __init__(
         self,
-        agents: dict[str, pol.PPO],
+        learning_units: dict[str, pol.PPO],
+        agent_id_to_learning_unit_id: dict[str, str],
+        learning_unit_id_to_agent_ids: dict[str, list[str]],
+        agent_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        team_identity_vectors: dict[str, npt.NDArray[np.float32]],
+        agent_id_to_team_id: dict[str, str],
         config: cfg.IPPOConfig,
         device: torch.device,
     ):
-        super().__init__(agents=agents, config=config, device=device)
+        super().__init__(
+            learning_units=learning_units,
+            agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+            learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+            agent_identity_vectors=agent_identity_vectors,
+            team_identity_vectors=team_identity_vectors,
+            agent_id_to_team_id=agent_id_to_team_id,
+            config=config,
+            device=device,
+        )
 
     def update_agent_from_batch(
         self,
@@ -360,7 +517,7 @@ class IPPO(IMARL[pol.PPO]):
         train_data: list[dict[str, Any]],
         **kwargs: Any,
     ) -> dict[str, Any]:
-        agent = self.agent_networks[agent_name]
+        agent = self._get_agent_network(agent_name)
         return agent.update_from_batch(
             episode_context=episode_context,
             observation_tensor=observation_tensor,
