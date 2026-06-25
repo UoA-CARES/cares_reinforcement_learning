@@ -1503,8 +1503,8 @@ class IDDPGConfig(DDPGConfig):
     parameter_sharing_scope: Literal["individual", "shared"] = Field(
         default="individual"
     )
-    use_agent_id: bool = False
-    use_team_id: bool = False
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 class ITD3Config(TD3Config):
@@ -1515,8 +1515,8 @@ class ITD3Config(TD3Config):
     parameter_sharing_scope: Literal["individual", "shared"] = Field(
         default="individual"
     )
-    use_agent_id: bool = False
-    use_team_id: bool = False
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 class ISACConfig(SACConfig):
@@ -1527,8 +1527,8 @@ class ISACConfig(SACConfig):
     parameter_sharing_scope: Literal["individual", "shared"] = Field(
         default="individual"
     )
-    use_agent_id: bool = False
-    use_team_id: bool = False
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 class IPPOConfig(PPOConfig):
@@ -1539,8 +1539,8 @@ class IPPOConfig(PPOConfig):
     parameter_sharing_scope: Literal["individual", "shared"] = Field(
         default="individual"
     )
-    use_agent_id: bool = False
-    use_team_id: bool = False
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 ###################################
