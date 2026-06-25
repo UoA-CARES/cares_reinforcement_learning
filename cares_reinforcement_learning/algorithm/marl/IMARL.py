@@ -59,6 +59,7 @@ through a shared environment, with either per-agent or shared parameters.
 import logging
 import os
 from abc import abstractmethod
+from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, cast
 
 import numpy as np
@@ -84,6 +85,18 @@ from cares_reinforcement_learning.types.observation import (
 AgentType = TypeVar("AgentType", bound=SARLAlgorithm)
 
 IMARLConfig = cfg.IDDPGConfig | cfg.ITD3Config | cfg.ISACConfig | cfg.IPPOConfig
+
+
+@dataclass(frozen=True, slots=True)
+class IMARLUpdateBatch:
+    observation_tensor: SARLObservationTensors
+    actions_tensor: torch.Tensor
+    rewards_tensor: torch.Tensor
+    next_observation_tensor: SARLObservationTensors
+    dones_tensor: torch.Tensor
+    weights_tensor: torch.Tensor
+    train_data: list[dict[str, Any]]
+    indices: npt.NDArray[np.int_]
 
 
 class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
@@ -212,12 +225,103 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
     def _sample(
         self, memory_buffer: MARLMemoryBuffer
-    ) -> tuple[memory_sampler.MARLTensorSample, np.ndarray]:
+    ) -> tuple[memory_sampler.MARLTensorSample, npt.NDArray[np.int_]]:
         return memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # IMARL uses uniform sampling
+        )
+
+    def _build_agent_update_batch(
+        self,
+        *,
+        agent_name: str,
+        sample_tensor: memory_sampler.MARLTensorSample,
+        agent_train_data: dict[str, list[dict[str, Any]]],
+        indices: npt.NDArray[np.int_],
+        weights_tensor: torch.Tensor,
+    ) -> IMARLUpdateBatch:
+        observation_tensor = SARLObservationTensors(
+            vector_state=cast(
+                torch.Tensor,
+                self.augment_observation(
+                    sample_tensor.observation.agent_states[agent_name], agent_name
+                ),
+            ),
+        )
+
+        next_observation_tensor = SARLObservationTensors(
+            vector_state=cast(
+                torch.Tensor,
+                self.augment_observation(
+                    sample_tensor.next_observation.agent_states[agent_name],
+                    agent_name,
+                ),
+            ),
+        )
+
+        return IMARLUpdateBatch(
+            observation_tensor=observation_tensor,
+            actions_tensor=sample_tensor.action[agent_name],
+            rewards_tensor=sample_tensor.reward[agent_name],
+            next_observation_tensor=next_observation_tensor,
+            dones_tensor=sample_tensor.done[agent_name],
+            weights_tensor=weights_tensor,
+            train_data=agent_train_data[agent_name],
+            indices=indices,
+        )
+
+    def _merge_agent_update_batches(
+        self, agent_batches: list[IMARLUpdateBatch]
+    ) -> IMARLUpdateBatch:
+        if len(agent_batches) == 1:
+            return agent_batches[0]
+
+        observation_tensor = SARLObservationTensors(
+            vector_state=torch.cat(
+                [batch.observation_tensor.vector_state for batch in agent_batches],
+                dim=0,
+            )
+        )
+        actions_tensor = torch.cat(
+            [batch.actions_tensor for batch in agent_batches],
+            dim=0,
+        )
+        rewards_tensor = torch.cat(
+            [batch.rewards_tensor for batch in agent_batches],
+            dim=0,
+        )
+        next_observation_tensor = SARLObservationTensors(
+            vector_state=torch.cat(
+                [batch.next_observation_tensor.vector_state for batch in agent_batches],
+                dim=0,
+            )
+        )
+        dones_tensor = torch.cat(
+            [batch.dones_tensor for batch in agent_batches],
+            dim=0,
+        )
+        weights_tensor = torch.cat(
+            [batch.weights_tensor for batch in agent_batches],
+            dim=0,
+        )
+
+        train_data: list[dict[str, Any]] = []
+        for batch in agent_batches:
+            train_data.extend(batch.train_data)
+
+        indices = np.concatenate([batch.indices for batch in agent_batches], axis=0)
+
+        return IMARLUpdateBatch(
+            observation_tensor=observation_tensor,
+            actions_tensor=actions_tensor,
+            rewards_tensor=rewards_tensor,
+            next_observation_tensor=next_observation_tensor,
+            dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor,
+            train_data=train_data,
+            indices=indices,
         )
 
     @abstractmethod
@@ -233,7 +337,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         dones_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
         train_data: list[dict[str, Any]],
-        indices: np.ndarray,
+        indices: npt.NDArray[np.int_],
     ) -> dict[str, Any]: ...
 
     def train(
@@ -243,70 +347,90 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
     ) -> dict[str, Any]:
 
         info: dict[str, Any] = {}
+        update_infos: dict[str, dict[str, Any]] = {}
 
         sample_tensor, indices = self._sample(memory_buffer=memory_buffer)
         weights_tensor = sample_tensor.weights
         train_data = sample_tensor.train_data
 
-        agent_states = sample_tensor.observation.agent_states
-        agent_ids = list(agent_states.keys())
+        agent_ids = list(sample_tensor.observation.agent_states.keys())
         batch_size = len(indices)
 
-        agent_train_data = {}
+        agent_train_data: dict[str, list[dict[str, Any]]] = {}
         for agent_name in agent_ids:
-            train_data_i = []
+            train_data_i: list[dict[str, Any]] = []
             for j in range(batch_size):
                 if agent_name in train_data[j]:  # Check if agent's data is present
                     train_data_i.append(train_data[j][agent_name])
             agent_train_data[agent_name] = train_data_i
 
-        for agent_name in agent_ids:
-            states_i = SARLObservationTensors(
-                vector_state=cast(
-                    torch.Tensor,
-                    self.augment_observation(
-                        sample_tensor.observation.agent_states[agent_name], agent_name
-                    ),
-                ),
-            )
-            actions_i = sample_tensor.action[agent_name]
-            rewards_i = sample_tensor.reward[agent_name]
+        for (
+            learning_unit_id,
+            controlled_agent_ids,
+        ) in self.learning_unit_id_to_agent_ids.items():
+            agent_batches = [
+                self._build_agent_update_batch(
+                    agent_name=agent_name,
+                    sample_tensor=sample_tensor,
+                    agent_train_data=agent_train_data,
+                    indices=indices,
+                    weights_tensor=weights_tensor,
+                )
+                for agent_name in controlled_agent_ids
+            ]
+            batch = self._merge_agent_update_batches(agent_batches)
+            representative_agent_name = controlled_agent_ids[0]
 
-            next_states_i = SARLObservationTensors(
-                vector_state=cast(
-                    torch.Tensor,
-                    self.augment_observation(
-                        sample_tensor.next_observation.agent_states[agent_name],
-                        agent_name,
-                    ),
-                ),
-            )
-
-            dones_i = sample_tensor.done[agent_name]
-            train_data_i = agent_train_data[agent_name]
-
-            agent_i_info = self.update_agent_from_batch(
-                agent_name=agent_name,
+            update_info = self.update_agent_from_batch(
+                agent_name=representative_agent_name,
                 episode_context=episode_context,
-                observation_tensor=states_i,
-                actions_tensor=actions_i,
-                rewards_tensor=rewards_i,
-                next_observation_tensor=next_states_i,
-                dones_tensor=dones_i,
-                weights_tensor=weights_tensor,
-                train_data=train_data_i,
-                indices=indices,
+                observation_tensor=batch.observation_tensor,
+                actions_tensor=batch.actions_tensor,
+                rewards_tensor=batch.rewards_tensor,
+                next_observation_tensor=batch.next_observation_tensor,
+                dones_tensor=batch.dones_tensor,
+                weights_tensor=batch.weights_tensor,
+                train_data=batch.train_data,
+                indices=batch.indices,
             )
-            for key, value in agent_i_info.items():
-                info[f"{agent_name}_{key}"] = value
+            update_infos[learning_unit_id] = update_info
 
-        metrics = list(agent_i_info.keys())
-        for metric in metrics:
-            values = [info[f"{agent_name}_{metric}"] for agent_name in agent_ids]
-            info[f"mean_{metric}"] = float(np.mean(values))
-            info[f"std_{metric}"] = float(np.std(values))
-            info[f"max_{metric}"] = float(np.max(values))
-            info[f"min_{metric}"] = float(np.min(values))
+            for key, value in update_info.items():
+                info[f"{learning_unit_id}_{key}"] = value
+
+            info[f"{learning_unit_id}_num_controlled_agents"] = len(
+                controlled_agent_ids
+            )
+            info[f"{learning_unit_id}_effective_batch_size"] = int(
+                batch.actions_tensor.shape[0]
+            )
+
+        metric_names = sorted(
+            {
+                metric
+                for update_info in update_infos.values()
+                for metric in update_info.keys()
+            }
+        )
+        for metric in metric_names:
+            values = [
+                update_info[metric]
+                for update_info in update_infos.values()
+                if metric in update_info
+            ]
+            numeric_values: list[float] = [
+                cast(float, value)
+                for value in values
+                if isinstance(value, (int, float, np.integer, np.floating))
+                and not isinstance(value, bool)
+            ]
+
+            if numeric_values:
+                numeric_array = np.asarray(numeric_values, dtype=np.float32)
+                info[f"mean_{metric}"] = float(np.mean(numeric_array))
+                info[f"std_{metric}"] = float(np.std(numeric_array))
+                info[f"max_{metric}"] = float(np.max(numeric_array))
+                info[f"min_{metric}"] = float(np.min(numeric_array))
 
         return info
 
@@ -372,7 +496,7 @@ class IDDPG(IMARL[pol.DDPG]):
         rewards_tensor: torch.Tensor,
         next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         agent = self._get_agent_network(agent_name)
         return agent.update_from_batch(
@@ -419,7 +543,7 @@ class ITD3(IMARL[pol.TD3]):
         next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         agent = self._get_agent_network(agent_name)
         info, _ = agent.update_from_batch(
@@ -467,7 +591,7 @@ class ISAC(IMARL[pol.SAC]):
         next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         weights_tensor: torch.Tensor,
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         agent = self._get_agent_network(agent_name)
         info, _ = agent.update_from_batch(
@@ -515,7 +639,7 @@ class IPPO(IMARL[pol.PPO]):
         next_observation_tensor: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         train_data: list[dict[str, Any]],
-        **kwargs: Any,
+        **_kwargs: Any,
     ) -> dict[str, Any]:
         agent = self._get_agent_network(agent_name)
         return agent.update_from_batch(
