@@ -3,57 +3,110 @@ IMARL (Independent Multi-Agent Reinforcement Learning)
 -------------------------------------------------------
 
 IMARL provides a general framework for Independent Multi-Agent
-Reinforcement Learning, where each agent is trained as a
-separate single-agent learner using its own policy and value
-functions.
+Reinforcement Learning, where agents are trained using local
+single-agent learning algorithms without centralized critics
+or joint-action conditioning.
 
 Core Idea:
-- Each agent treats other agents as part of the environment.
+- Each agent treats all other agents as part of the environment.
 - No centralized critic is used.
-- Agents can either learn with one learner per agent or reuse one shared learner.
+- Learning uses only local agent transitions.
+- Agents may either:
+    - own an independent learning unit, or
+    - share a learning unit with other agents through parameter sharing.
 - Learning remains decentralized at the data interface.
 
 Execution:
 - At each timestep, the joint observation is split into
-per-agent observations.
+  per-agent observations.
 - Each agent independently selects its action:
+
       a_i = π_i(o_i)
-- Joint action is returned to the environment.
+
+- Joint actions are returned to the environment.
+
+Identity Conditioning:
+- When parameter sharing is enabled, optional agent and/or
+  team identity vectors can be appended to observations.
+- This allows a shared policy to distinguish between agents,
+  roles, or teams while preserving decentralized execution.
+- Identity conditioning is only applied when multiple agents
+  share the same learning unit.
 
 Training:
 - A shared multi-agent replay buffer stores joint transitions.
-- During training, batches are sampled and split per agent.
-- Each per-agent update uses only:
-    (s_i, a_i, r_i, s'_i, done_i)
-- When learners are shared, the same underlying learner is reused across agents,
-  but each update still consumes only that agent's local transition slice.
+- During training, sampled batches are split into local
+  per-agent transition slices.
+- Every update uses only local information:
+
+      (o_i, a_i, r_i, o'_i, done_i)
+
+- No centralized state, joint observations, or joint actions
+  are introduced during training.
+
+Parameter Sharing:
+- Independent learning units:
+    Each learning unit receives its own local batch and
+    performs one optimizer update.
+
+- Shared learning units:
+    Local batches from all agents assigned to the same
+    learning unit are concatenated and a single optimizer
+    update is performed.
+
+    Example:
+
+        agent_0 -> shared_learner
+        agent_1 -> shared_learner
+        agent_2 -> shared_learner
+
+        local_batch_0
+        local_batch_1
+        local_batch_2
+               |
+               v
+        concatenated_batch
+               |
+               v
+        one optimizer update
+
+- This preserves independent-learning semantics while
+  avoiding an unintended increase in optimizer update
+  frequency for shared learners.
 
 Non-Stationarity:
 - Since all agents learn simultaneously, from each agent's
   perspective the environment is non-stationary.
-- IMARL does not correct for this (unlike centralized training
-  approaches such as MADDPG or MAPPO).
+- IMARL does not explicitly correct for this (unlike
+  centralized-training approaches such as MADDPG, MAPPO,
+  VDN, or QMIX).
 
 Algorithm-Agnostic:
 - Works with any single-agent algorithm:
       DDPG, TD3, SAC (off-policy)
       PPO (on-policy)
-- Algorithm-specific subclasses simply forward batches
-  to the corresponding single-agent update logic.
+
+- Algorithm-specific subclasses simply forward local
+  batches to the corresponding single-agent update logic.
 
 Replay / Sampling:
-- Off-policy methods use uniform replay sampling.
+- Off-policy methods use replay-buffer sampling.
 - On-policy methods (e.g., PPO) override sampling to
   flush trajectories per update.
+- Shared learners receive concatenated local data from all
+  controlled agents and perform a single update.
 
 Rationale:
 - Simple and scalable.
-- No need for centralized state or joint action critics.
+- No centralized state or joint-action critics.
 - Useful baseline for MARL comparison.
+- Supports both independent and parameter-shared learning.
 - Easily extensible to new single-agent algorithms.
 
-IMARL = N local single-agent update streams interacting
-through a shared environment, with either per-agent or shared parameters.
+Summary:
+    IMARL = local single-agent learners interacting through
+    a shared environment, with either per-agent or shared
+    parameters, but without centralized training.
 """
 
 import logging
