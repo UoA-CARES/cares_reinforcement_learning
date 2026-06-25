@@ -416,6 +416,31 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
     )
     return agent
 
+def create_CIC(observation_size, action_num, config: acf.CICConfig):
+    from cares_reinforcement_learning.algorithm.usd.CIC import CIC
+    from cares_reinforcement_learning.networks.CIC import StateEncoder, TransitionEncoder, SkillEncoder
+
+    ddpg_observation_size = {
+        "vector": observation_size["vector"] + config.z_dim,
+    }
+
+    agent = create_DDPG(ddpg_observation_size, action_num, config=config)
+
+    state_encoder = StateEncoder(observation_size["vector"], config=config)
+    transition_encoder = TransitionEncoder(config=config)
+    skill_encoder = SkillEncoder(config=config)
+
+    device = hlp.get_device()
+    agent = CIC(
+        skills_agent=agent,
+        skill_encoder=skill_encoder,
+        state_encoder=state_encoder,
+        transition_encoder=transition_encoder,
+        config=config,
+        device=device
+    )
+    return agent
+
 
 ###################################
 #         TD3 Algorithms          #

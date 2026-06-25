@@ -1570,6 +1570,71 @@ class DADSConfig(SACConfig):
         ]
     )
 
+class CICConfig(DDPGConfig):
+    algorithm: str = "CIC"
+
+    # DDPG settings
+    tau:float = 0.01
+    actor_lr:float = 1e-4
+    critic_lr:float = 1e-4
+
+    # skill config
+    num_skills:int = 10 # for eval
+    z_dim: int = 64
+    num_steps_per_resample_skill:int = 50
+
+    # training config
+    # max_steps_exploration:int = 2000
+    max_steps_exploration: Literal[0] = Field(default=0)
+    number_steps_per_train_policy:int = 2
+    buffer_size:int = 1000000
+    batch_size:int = 1024
+
+   
+    cic_lr:float = 1e-4
+
+    # CIC config
+    cpc_temp:float = 0.5
+ 
+
+    # APT config
+    knn_k:int = 16
+    is_using_knn_avg:bool = True
+    is_using_rms:bool = True
+    knn_clip:float = 0.0005
+
+    # network architecture config
+    state_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024 ,out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024)
+
+        ]
+    )
+
+    transition_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024 ,out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024)
+        ]
+    )
+
+    skill_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024 ,out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024)
+        ]
+    )
+
 
 ###################################
 #      CrossMarl Algorithms       #
