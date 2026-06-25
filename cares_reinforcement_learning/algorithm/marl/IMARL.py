@@ -111,6 +111,10 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         self.agent_ids = list(agent_id_to_learning_unit_id.keys())
         self.learning_unit_ids = list(learning_units.keys())
         self.num_agents = len(self.agent_ids)
+        self._identity_vector_cache: dict[str, npt.NDArray[np.float32]] = {}
+        self._identity_tensor_cache: dict[
+            tuple[str, str, torch.dtype], torch.Tensor
+        ] = {}
 
     def _get_agent_network(self, agent_name: str) -> AgentType:
         learning_unit_id = self.agent_id_to_learning_unit_id[agent_name]
@@ -121,7 +125,29 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         num_controlled_agents = len(
             self.learning_unit_id_to_agent_ids[learning_unit_id]
         )
-        return num_controlled_agents > 1 and (self.use_agent_id or self.use_team_id)
+        return bool(
+            num_controlled_agents > 1 and (self.use_agent_id or self.use_team_id)
+        )
+
+    def _get_identity_vector(self, agent_id: str) -> npt.NDArray[np.float32]:
+        cached_vector = self._identity_vector_cache.get(agent_id)
+        if cached_vector is not None:
+            return cached_vector
+
+        identity_parts: list[npt.NDArray[np.float32]] = []
+        if self.use_team_id:
+            team_id = self.agent_id_to_team_id[agent_id]
+            identity_parts.append(self.team_identity_vectors[team_id])
+        if self.use_agent_id:
+            identity_parts.append(self.agent_identity_vectors[agent_id])
+
+        if identity_parts:
+            identity_vector = np.concatenate(identity_parts, axis=-1)
+        else:
+            identity_vector = np.empty((0,), dtype=np.float32)
+
+        self._identity_vector_cache[agent_id] = identity_vector
+        return identity_vector
 
     def augment_observation(
         self,
@@ -131,24 +157,21 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         if not self._uses_shared_identity_conditioning(agent_id):
             return observation
 
-        identity_parts: list[npt.NDArray[np.float32]] = []
-        if self.use_team_id:
-            team_id = self.agent_id_to_team_id[agent_id]
-            identity_parts.append(self.team_identity_vectors[team_id])
-        if self.use_agent_id:
-            identity_parts.append(self.agent_identity_vectors[agent_id])
-
-        if not identity_parts:
+        identity_vector = self._get_identity_vector(agent_id)
+        if identity_vector.size == 0:
             return observation
 
-        identity_vector = np.concatenate(identity_parts, axis=-1)
-
         if isinstance(observation, torch.Tensor):
-            identity_tensor = torch.as_tensor(
-                identity_vector,
-                dtype=observation.dtype,
-                device=observation.device,
-            )
+            cache_key = (agent_id, str(observation.device), observation.dtype)
+            identity_tensor = self._identity_tensor_cache.get(cache_key)
+            if identity_tensor is None:
+                identity_tensor = torch.as_tensor(
+                    identity_vector,
+                    dtype=observation.dtype,
+                    device=observation.device,
+                )
+                self._identity_tensor_cache[cache_key] = identity_tensor
+
             tensor_expand_shape = observation.shape[:-1] + (identity_tensor.shape[0],)
             identity_tensor = identity_tensor.expand(tensor_expand_shape)
             return torch.cat((observation, identity_tensor), dim=-1)
