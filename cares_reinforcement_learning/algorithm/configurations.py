@@ -1500,6 +1500,11 @@ class IDDPGConfig(DDPGConfig):
     algorithm: str = "IDDPG"
 
     marl_observation: Literal[1] = Field(default=1)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: bool = False
+    use_team_id: bool = False
 
 
 class ITD3Config(TD3Config):
@@ -1507,6 +1512,11 @@ class ITD3Config(TD3Config):
 
     marl_observation: Literal[1] = Field(default=1)
     use_per_buffer: Literal[0] = Field(default=0)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: bool = False
+    use_team_id: bool = False
 
 
 class ISACConfig(SACConfig):
@@ -1514,6 +1524,11 @@ class ISACConfig(SACConfig):
 
     marl_observation: Literal[1] = Field(default=1)
     use_per_buffer: Literal[0] = Field(default=0)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: bool = False
+    use_team_id: bool = False
 
 
 class IPPOConfig(PPOConfig):
@@ -1521,6 +1536,11 @@ class IPPOConfig(PPOConfig):
 
     marl_observation: Literal[1] = Field(default=1)
     use_per_buffer: Literal[0] = Field(default=0)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: bool = False
+    use_team_id: bool = False
 
 
 ###################################

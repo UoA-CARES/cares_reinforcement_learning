@@ -7,6 +7,8 @@ import inspect
 import logging
 import sys
 
+import numpy as np
+
 import cares_reinforcement_learning.algorithm.configurations as acf
 import cares_reinforcement_learning.util.helpers as hlp
 
@@ -1205,15 +1207,126 @@ def _create_independant_agents(
     return agents
 
 
+def _create_imarl_learning_units(
+    observation_size,
+    action_num,
+    create_network,
+    config,
+) -> tuple[
+    dict[str, object],
+    dict[str, str],
+    dict[str, list[str]],
+    dict[str, np.ndarray],
+    dict[str, np.ndarray],
+    dict[str, str],
+]:
+    obs_shapes = observation_size["obs"]
+    agent_ids = sorted(obs_shapes.keys())
+    env_teams = observation_size["teams"]
+
+    team_ids = sorted(env_teams.keys())
+    agent_id_to_team_id = {
+        agent_id: team_id
+        for team_id in team_ids
+        for agent_id in sorted(env_teams[team_id])
+    }
+
+    agent_identity_vectors = {
+        agent_id: np.eye(len(agent_ids), dtype=np.float32)[index]
+        for index, agent_id in enumerate(agent_ids)
+    }
+    team_identity_vectors = {
+        team_id: np.eye(len(team_ids), dtype=np.float32)[index]
+        for index, team_id in enumerate(team_ids)
+    }
+
+    parameter_sharing_scope = config.parameter_sharing_scope
+    if parameter_sharing_scope == "individual":
+        learning_units = _create_independant_agents(
+            observation_size,
+            action_num,
+            create_network,
+            config,
+        )
+        agent_id_to_learning_unit_id = {
+            agent_id: agent_id for agent_id in learning_units.keys()
+        }
+        learning_unit_id_to_agent_ids = {agent_id: [agent_id] for agent_id in agent_ids}
+        return (
+            learning_units,
+            agent_id_to_learning_unit_id,
+            learning_unit_id_to_agent_ids,
+            agent_identity_vectors,
+            team_identity_vectors,
+            agent_id_to_team_id,
+        )
+
+    if parameter_sharing_scope != "shared":
+        raise ValueError(
+            f"Unknown IMARL parameter_sharing_scope={parameter_sharing_scope}"
+        )
+
+    if not agent_ids:
+        raise ValueError("IMARL requires at least one agent observation shape.")
+
+    shared_obs_size = obs_shapes[agent_ids[0]]
+    for agent_id in agent_ids[1:]:
+        if obs_shapes[agent_id] != shared_obs_size:
+            raise ValueError(
+                "Shared IMARL networks require identical per-agent observation sizes. "
+                f"Got {agent_ids[0]}={shared_obs_size} and {agent_id}={obs_shapes[agent_id]}."
+            )
+
+    learning_unit_id_to_agent_ids = {"shared": agent_ids}
+
+    extra_obs_dim = 0
+    if config.use_team_id and len(agent_ids) > 1:
+        extra_obs_dim += len(team_ids)
+    if config.use_agent_id and len(agent_ids) > 1:
+        extra_obs_dim += len(agent_ids)
+
+    shared_observation_size = {"vector": shared_obs_size + extra_obs_dim}
+    shared_learning_unit = create_network(
+        observation_size=shared_observation_size,
+        action_num=action_num,
+        config=config,
+    )
+
+    learning_units = {"shared": shared_learning_unit}
+    agent_id_to_learning_unit_id = {agent_id: "shared" for agent_id in agent_ids}
+    return (
+        learning_units,
+        agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids,
+        agent_identity_vectors,
+        team_identity_vectors,
+        agent_id_to_team_id,
+    )
+
+
 def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
     from cares_reinforcement_learning.algorithm.marl import IDDPG
 
     device = hlp.get_device()
-    agents = _create_independant_agents(
-        observation_size, action_num, create_DDPG, config
-    )
+    (
+        learning_units,
+        agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids,
+        agent_identity_vectors,
+        team_identity_vectors,
+        agent_id_to_team_id,
+    ) = _create_imarl_learning_units(observation_size, action_num, create_DDPG, config)
 
-    iddpg_agent = IDDPG(agents=agents, config=config, device=device)
+    iddpg_agent = IDDPG(
+        learning_units=learning_units,
+        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+        agent_identity_vectors=agent_identity_vectors,
+        team_identity_vectors=team_identity_vectors,
+        agent_id_to_team_id=agent_id_to_team_id,
+        config=config,
+        device=device,
+    )
     return iddpg_agent
 
 
@@ -1221,11 +1334,25 @@ def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
     from cares_reinforcement_learning.algorithm.marl import ITD3
 
     device = hlp.get_device()
-    agents = _create_independant_agents(
-        observation_size, action_num, create_TD3, config
-    )
+    (
+        learning_units,
+        agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids,
+        agent_identity_vectors,
+        team_identity_vectors,
+        agent_id_to_team_id,
+    ) = _create_imarl_learning_units(observation_size, action_num, create_TD3, config)
 
-    itd3_agent = ITD3(agents=agents, config=config, device=device)
+    itd3_agent = ITD3(
+        learning_units=learning_units,
+        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+        agent_identity_vectors=agent_identity_vectors,
+        team_identity_vectors=team_identity_vectors,
+        agent_id_to_team_id=agent_id_to_team_id,
+        config=config,
+        device=device,
+    )
     return itd3_agent
 
 
@@ -1233,11 +1360,25 @@ def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
     from cares_reinforcement_learning.algorithm.marl import ISAC
 
     device = hlp.get_device()
-    agents = _create_independant_agents(
-        observation_size, action_num, create_SAC, config
-    )
+    (
+        learning_units,
+        agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids,
+        agent_identity_vectors,
+        team_identity_vectors,
+        agent_id_to_team_id,
+    ) = _create_imarl_learning_units(observation_size, action_num, create_SAC, config)
 
-    isac_agent = ISAC(agents=agents, config=config, device=device)
+    isac_agent = ISAC(
+        learning_units=learning_units,
+        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+        agent_identity_vectors=agent_identity_vectors,
+        team_identity_vectors=team_identity_vectors,
+        agent_id_to_team_id=agent_id_to_team_id,
+        config=config,
+        device=device,
+    )
     return isac_agent
 
 
@@ -1245,11 +1386,25 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
     from cares_reinforcement_learning.algorithm.marl import IPPO
 
     device = hlp.get_device()
-    agents = _create_independant_agents(
-        observation_size, action_num, create_PPO, config
-    )
+    (
+        learning_units,
+        agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids,
+        agent_identity_vectors,
+        team_identity_vectors,
+        agent_id_to_team_id,
+    ) = _create_imarl_learning_units(observation_size, action_num, create_PPO, config)
 
-    ippo_agent = IPPO(agents=agents, config=config, device=device)
+    ippo_agent = IPPO(
+        learning_units=learning_units,
+        agent_id_to_learning_unit_id=agent_id_to_learning_unit_id,
+        learning_unit_id_to_agent_ids=learning_unit_id_to_agent_ids,
+        agent_identity_vectors=agent_identity_vectors,
+        team_identity_vectors=team_identity_vectors,
+        agent_id_to_team_id=agent_id_to_team_id,
+        config=config,
+        device=device,
+    )
     return ippo_agent
 
 
