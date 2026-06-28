@@ -90,10 +90,10 @@ class SMACConfig(GymEnvironmentConfig):
 
     record_video_fps: int = 5
 
+
 class MultiF1TenthConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "multi_f1tenth"
     task: str = "track"
-
 
 
 class SMAC2Config(GymEnvironmentConfig):
