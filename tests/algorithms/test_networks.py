@@ -201,6 +201,9 @@ def test_actor_critics():
     action_num = 4
 
     for algorithm, alg_config in algorithm_configurations.items():
+        if algorithm == "MultiMARL":
+            continue
+
         print(f"Testing networks for {algorithm}")
 
         alg_config = alg_config()

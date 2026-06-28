@@ -28,7 +28,9 @@ def make_env(env_name: str, render_mode=None, continuous_actions=False) -> Paral
 
     module = ALL_ENV_MODULES[f"mpe/{env_name}"]
     return (module.parallel_env)(
-        render_mode=render_mode, continuous_actions=continuous_actions
+        render_mode=render_mode,
+        continuous_actions=continuous_actions,
+        dynamic_rescaling=True,
     )
 
 
@@ -45,6 +47,8 @@ class MPE2Environment(MARLEnvironment):
         )
 
         self.possible_agents: list[AgentID] = self.env.possible_agents
+
+        self.agent_teams = self._split_agents_by_team(self.possible_agents)
 
         self.observation: MARLObservation
 
@@ -94,6 +98,7 @@ class MPE2Environment(MARLEnvironment):
             "obs": obs_spaces,  # dict[str → obs_dim_i]
             "state": state_shape,  # scalar int
             "num_agents": num_agents,  # int
+            "teams": self.agent_teams,  # dict[str → list of agent ids]
         }
 
     @cached_property

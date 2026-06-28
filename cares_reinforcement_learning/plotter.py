@@ -400,6 +400,14 @@ def parse_args() -> dict:
     )
 
     parser.add_argument(
+        "--y_train_same_axis",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Additional train columns to plot on the same y_axis (space separated)",
+    )
+
+    parser.add_argument(
         "--x_eval",
         type=str,
         default="total_steps",
@@ -418,6 +426,14 @@ def parse_args() -> dict:
         type=str,
         default=None,
         help="Data you want to plot in a second y_axis for eval graphs - default is None",
+    )
+
+    parser.add_argument(
+        "--y_eval_same_axis",
+        type=str,
+        nargs="+",
+        default=None,
+        help="Additional eval columns to plot on the same y_axis (space separated)",
     )
 
     parser.add_argument(
@@ -531,10 +547,12 @@ def plot_evaluations():
     x_train = args["x_train"]
     y_train = args["y_train"]
     y_train_two = args["y_train_two"]
+    y_train_same_axis = args["y_train_same_axis"] or []
 
     x_eval = args["x_eval"]
     y_eval = args["y_eval"]
     y_eval_two = args["y_eval_two"]
+    y_eval_same_axis = args["y_eval_same_axis"] or []
 
     # TODO eval_y and train_y should be different and based on their train/eval data
     title = args["title"]
@@ -564,7 +582,8 @@ def plot_evaluations():
 
     eval_plot_frames = []
     train_plot_frames = []
-    labels = []
+    eval_labels = []
+    train_labels = []
 
     directories: list[str] = []
 
@@ -586,17 +605,22 @@ def plot_evaluations():
         title, algorithm, task, label = generate_labels(args, title, model_path)
         file_name = args["file_name"] if args["file_name"] is not None else title
 
-        labels.append(label)
-
         average_train_data = pd.DataFrame()
         average_train_data_two = pd.DataFrame() if y_train_two is not None else None
+        average_train_data_same_axis = {
+            y_value: pd.DataFrame() for y_value in y_train_same_axis
+        }
 
         average_eval_data = pd.DataFrame()
         average_eval_data_two = pd.DataFrame() if y_eval_two is not None else None
+        average_eval_data_same_axis = {
+            y_value: pd.DataFrame() for y_value in y_eval_same_axis
+        }
 
         seed_train_plot_frames = []
         seed_eval_plot_frames = []
-        seed_label = []
+        seed_train_labels = []
+        seed_eval_labels = []
 
         # Single Seed Data for result
         for i, result_directory in enumerate(result_directories):
@@ -622,6 +646,19 @@ def plot_evaluations():
                     [average_train_data_two, train_data_two], ignore_index=True
                 )
 
+            train_data_same_axis = {}
+            for y_value in y_train_same_axis:
+                train_data_same_axis[y_value] = _read_data(
+                    result_directory, "train", window_size, x_train, y_value
+                )
+                average_train_data_same_axis[y_value] = pd.concat(
+                    [
+                        average_train_data_same_axis[y_value],
+                        train_data_same_axis[y_value],
+                    ],
+                    ignore_index=True,
+                )
+
             average_train_data = pd.concat(
                 [average_train_data, train_data], ignore_index=True
             )
@@ -642,25 +679,52 @@ def plot_evaluations():
                     [average_eval_data_two, eval_data_two], ignore_index=True
                 )
 
+            eval_data_same_axis = {}
+            for y_value in y_eval_same_axis:
+                eval_data_same_axis[y_value] = _read_data(
+                    result_directory, "eval", 1, x_eval, y_value
+                )
+                average_eval_data_same_axis[y_value] = pd.concat(
+                    [
+                        average_eval_data_same_axis[y_value],
+                        eval_data_same_axis[y_value],
+                    ],
+                    ignore_index=True,
+                )
+
             average_eval_data = pd.concat(
                 [average_eval_data, eval_data], ignore_index=True
             )
 
             if args["plot_seeds"]:
-                seed_label.append(f"{label}_{i}")
+                train_seed_base_label = (
+                    f"{label}_{i} ({y_train})" if y_train_same_axis else f"{label}_{i}"
+                )
+                seed_train_labels.append(train_seed_base_label)
                 seed_train_plot_frames.append(
                     [train_data, train_data_two if y_train_two is not None else None]
                 )
+                for y_value in y_train_same_axis:
+                    seed_train_labels.append(f"{label}_{i} ({y_value})")
+                    seed_train_plot_frames.append([train_data_same_axis[y_value], None])
+
+                eval_seed_base_label = (
+                    f"{label}_{i} ({y_eval})" if y_eval_same_axis else f"{label}_{i}"
+                )
+                seed_eval_labels.append(eval_seed_base_label)
                 seed_eval_plot_frames.append(
                     [eval_data, eval_data_two if y_eval_two is not None else None]
                 )
+                for y_value in y_eval_same_axis:
+                    seed_eval_labels.append(f"{label}_{i} ({y_value})")
+                    seed_eval_plot_frames.append([eval_data_same_axis[y_value], None])
 
         if args["plot_seeds"]:
             # Plot the individual training seeds
             plot_comparisons(
                 seed_train_plot_frames,
                 f"{title}",
-                seed_label,
+                seed_train_labels,
                 x_label_train,
                 y_label_train,
                 save_directory,
@@ -674,7 +738,7 @@ def plot_evaluations():
             plot_comparisons(
                 seed_eval_plot_frames,
                 f"{title}",
-                seed_label,
+                seed_eval_labels,
                 x_label_eval,
                 y_label_eval,
                 save_directory,
@@ -691,6 +755,15 @@ def plot_evaluations():
             train_plot_frame_two = _perpare_average_plot_frame(average_train_data_two)
 
         train_plot_frames.append([train_plot_frame, train_plot_frame_two])
+        train_base_label = f"{label} ({y_train})" if y_train_same_axis else label
+        train_labels.append(train_base_label)
+
+        for y_value in y_train_same_axis:
+            train_plot_frame_same_axis = _perpare_average_plot_frame(
+                average_train_data_same_axis[y_value]
+            )
+            train_plot_frames.append([train_plot_frame_same_axis, None])
+            train_labels.append(f"{label} ({y_value})")
 
         eval_plot_frame = _perpare_average_plot_frame(average_eval_data)
 
@@ -699,12 +772,21 @@ def plot_evaluations():
             eval_plot_frame_two = _perpare_average_plot_frame(average_eval_data_two)
 
         eval_plot_frames.append([eval_plot_frame, eval_plot_frame_two])
+        eval_base_label = f"{label} ({y_eval})" if y_eval_same_axis else label
+        eval_labels.append(eval_base_label)
+
+        for y_value in y_eval_same_axis:
+            eval_plot_frame_same_axis = _perpare_average_plot_frame(
+                average_eval_data_same_axis[y_value]
+            )
+            eval_plot_frames.append([eval_plot_frame_same_axis, None])
+            eval_labels.append(f"{label} ({y_value})")
 
     # Plot the training comparisons
     plot_comparisons(
         train_plot_frames,
         f"{title}",
-        labels,
+        train_labels,
         x_label_train,
         y_label_train,
         save_directory,
@@ -720,7 +802,7 @@ def plot_evaluations():
     plot_comparisons(
         eval_plot_frames,
         f"{title}",
-        labels,
+        eval_labels,
         x_label_eval,
         y_label_eval,
         save_directory,

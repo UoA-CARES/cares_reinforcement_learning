@@ -28,6 +28,8 @@ class TrainingConfig(SubscriptableClass):
         number_steps_per_evaluation (int]): Number of steps per evaluation. Default is 10000.
         number_eval_episodes (int]): Number of episodes to evaluate during training. Default is 10.
         record_eval_video (int]): Whether to record a video of the evaluation. Default is 1.
+        eval_episodes_to_record (int]): Number of episodes to record per evaluation.
+            -1 records all episodes, 0 records none, N > 0 records first N episodes. Default is 1.
         checkpoint_interval (int]): Interval (in number of episodes) to save dataframes and checkpoints. Default is 1.
     """
 
@@ -35,6 +37,7 @@ class TrainingConfig(SubscriptableClass):
     number_steps_per_evaluation: int = 10000
     number_eval_episodes: int = 10
     record_eval_video: int = 1
+    eval_episodes_to_record: int = 1
 
     checkpoint_interval: int = 1
 
@@ -102,11 +105,11 @@ class AlgorithmConfig(SubscriptableClass):
 
     algorithm: str = Field(description="Name of the algorithm to be used")
 
-    gamma: float
-
     G: int = 1
     G_model: int = 1
     number_steps_per_train_policy: int = 1
+
+    gamma: float
 
     buffer_size: int = 1000000
     batch_size: int = 256
@@ -334,57 +337,6 @@ class RainbowConfig(C51Config):
     )
 
 
-class QMIXConfig(DQNConfig):
-    algorithm: str = "QMIX"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    lr: float = 1e-4
-    gamma: float = 0.99
-    tau: float = 1.0
-
-    batch_size: int = 32
-
-    target_update_freq: int = 10000
-
-    # network type
-    share_agent_weights: int = 1
-
-    # Double DQN
-    use_double_dqn: int = 0
-
-    # PER
-    per_sampling_strategy: str = "stratified"
-    per_weight_normalisation: str = "batch"
-    use_per_buffer: int = 0
-    min_priority: float = 1e-6
-    per_alpha: float = 0.6
-
-    # n-step
-    n_step: int = 1
-
-    max_grad_norm: float | None = None
-
-    # Exploration via Epsilon Greedy
-    max_steps_exploration: int = 0
-    start_epsilon: float = 1.0
-    end_epsilon: float = 0.05
-    decay_steps: int = 100000
-
-    # Mixer
-    embed_dim: int = 32
-
-    network_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64),
-        ]
-    )
-
-
 ###################################
 #         PPO Algorithms          #
 ###################################
@@ -394,7 +346,9 @@ class PPOConfig(AlgorithmConfig):
     algorithm: str = "PPO"
 
     actor_lr: float = 3e-4
+    actor_lr_params: dict[str, Any] = Field(default_factory=dict)
     critic_lr: float = 1e-3
+    critic_lr_params: dict[str, Any] = Field(default_factory=dict)
 
     gamma: float = 0.99
     eps_clip: float = 0.2
@@ -416,6 +370,8 @@ class PPOConfig(AlgorithmConfig):
 
     max_steps_exploration: Literal[0] = Field(default=0)
 
+    use_value_normalisation: int = 0
+
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=256),
@@ -433,42 +389,6 @@ class PPOConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
-        ]
-    )
-
-
-class MAPPOConfig(PPOConfig):
-    algorithm: str = "MAPPO"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-4
-    critic_lr: float = 1e-3
-
-    gamma: float = 0.99
-    eps_clip: float = 0.2
-    gae_lambda: float = 0.95
-    target_kl: float | None = 0.1
-
-    entropy_start: float = 0.01
-    entropy_end: float = 0.001
-    entropy_decay: int = 300000
-
-    max_grad_norm: float | None = 0.5
-    log_std_bounds: list[float] = [-3.0, -0.5]
-
-    updates_per_iteration: int = 5
-
-    minibatch_size: int = 512
-    number_steps_per_train_policy: int = 4096
-
-    critic_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=256),
         ]
     )
 
@@ -523,18 +443,6 @@ class SACConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
-
-
-class MASACConfig(SACConfig):
-    algorithm: str = "MASAC"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-    alpha_lr: float = 1e-3
-
-    max_grad_norm: float | None = 0.5
 
 
 class SACAEConfig(SACConfig):
@@ -969,80 +877,6 @@ class DDPGConfig(AlgorithmConfig):
     )
 
 
-class MADDPGConfig(DDPGConfig):
-    algorithm: str = "MADDPG"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-2
-    critic_lr: float = 1e-2
-
-    gamma: float = 0.95
-    tau: float = 0.01
-
-    # M3DDPG specific
-    use_m3: int = 0
-    m3_alpha: float = 0.05
-
-    # ERNIE specific
-    use_ernie: int = 0
-    ernie_lambda: float = 1e-3
-    ernie_eps: float = 0.05
-    ernie_k_steps: int = 1
-    ernie_norm: Literal["linf", "l2"] = "linf"
-
-    batch_size: int = 1024
-    number_steps_per_train_policy: int = 100
-
-    max_steps_exploration: int = 10000
-
-    max_grad_norm: float | None = 0.5
-
-    actor_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64),
-            FunctionLayer(layer_type="Tanh"),
-        ]
-    )
-
-    critic_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
-        ]
-    )
-
-
-class M3DDPGConfig(MADDPGConfig):
-    algorithm: str = "M3DDPG"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    use_m3: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-
-    gamma: float = 0.95
-    tau: float = 0.01
-
-    alpha: float = 0.05
-
-    batch_size: int = 1024
-    number_steps_per_train_policy: int = 100
-
-    max_steps_exploration: int = 10000
-
-    max_grad_norm: float | None = 1.0
-
-
 class TD3Config(AlgorithmConfig):
     algorithm: str = "TD3"
 
@@ -1096,17 +930,6 @@ class TD3Config(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
-
-
-class MATD3Config(TD3Config):
-    algorithm: str = "MATD3"
-
-    marl_observation: Literal[1] = Field(default=1)
-
-    actor_lr: float = 1e-3
-    critic_lr: float = 1e-3
-
-    max_grad_norm: float | None = 0.5
 
 
 class TD3AEConfig(TD3Config):
@@ -1440,14 +1263,248 @@ class TD7Config(TD3Config):
 
 
 ###################################
-#         IMARL Algorithms        #
+#          MARL Algorithms        #
 ###################################
+
+
+class MADDPGConfig(DDPGConfig):
+    algorithm: str = "MADDPG"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    """
+    - "individual": One actor + critic per agent (default)
+    - "team_critic": One shared critic per team, separate actor per agent
+    - "team_all": One shared actor + critic per team (experimental - coupled actors)
+    """
+    parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
+        "individual"
+    )
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.95
+    tau: float = 0.005
+
+    batch_size: int = 256
+
+    action_noise_start: float = 0.2
+    action_noise_end: float = 0.05
+    action_noise_decay: int = 500_000
+
+    number_steps_per_train_policy: int = 1
+
+    max_steps_exploration: int = 10_000
+
+    max_grad_norm: float | None = 0.5
+
+    # M3DDPG specific
+    use_m3: int = 0
+    m3_alpha: float = 0.05
+
+    # ERNIE specific
+    use_ernie: int = 0
+    ernie_lambda: float = 1e-3
+    ernie_eps: float = 0.05
+    ernie_k_steps: int = 1
+    ernie_norm: Literal["linf", "l2"] = "linf"
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+            FunctionLayer(layer_type="Tanh"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=1),
+        ]
+    )
+
+
+class M3DDPGConfig(MADDPGConfig):
+    algorithm: str = "M3DDPG"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    use_m3: Literal[1] = Field(default=1)
+    m3_alpha: float = 0.05
+
+
+class MATD3Config(TD3Config):
+    algorithm: str = "MATD3"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    """
+    - "individual": One actor + critic per agent (default)
+    - "team_critic": One shared critic per team, separate actor per agent
+    - "team_all": One shared actor + critic per team (experimental - coupled actors)
+    """
+    parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
+        "individual"
+    )
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-3
+
+    gamma: float = 0.95
+    tau: float = 0.005
+
+    # Exploration noise
+    action_noise_start: float = 0.2
+    action_noise_end: float = 0.05
+    action_noise_decay: int = 500_000
+
+    policy_noise_clip: float = 0.5
+
+    max_grad_norm: float | None = 0.5
+
+
+class MASACConfig(SACConfig):
+    algorithm: str = "MASAC"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    """
+    - "individual": One actor + critic per agent  + one alpha per team
+    - "team_critic": One shared critic per team, separate actor per agent + one alpha per team (default)
+    - "team_all": One shared actor + critic per team + one alpha per team (experimental - coupled actors)
+    """
+    parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
+        "team_critic"
+    )
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 1e-4
+
+    gamma: float = 0.99
+    tau: float = 0.005
+
+    log_std_bounds: list[float] = [-5.0, 0]
+
+    max_grad_norm: float | None = 0.5
+
+
+class MAPPOConfig(PPOConfig):
+    algorithm: str = "MAPPO"
+
+    marl_observation: Literal[1] = Field(default=1)
+    """
+    - "individual": One actor + critic per agent 
+    - "team_critic": One shared critic per team, separate actor per agent 
+    - "team_all": One shared actor + critic per team (default)
+    """
+    parameter_sharing_scope: Literal["individual", "team_critic", "team_all"] = (
+        "team_all"
+    )
+
+    actor_lr: float = 3e-4
+    actor_lr_params: dict[str, Any] = Field(default_factory=lambda: {"eps": 1e-5})
+    critic_lr: float = 5e-4
+    critic_lr_params: dict[str, Any] = Field(default_factory=lambda: {"eps": 1e-5})
+
+    gamma: float = 0.99
+    eps_clip: float = 0.1
+    gae_lambda: float = 0.95
+    target_kl: float | None = None
+
+    entropy_start: float = 0.01
+    entropy_end: float = 0.01
+    entropy_decay: int = 1
+
+    max_grad_norm: float | None = 10.0
+    log_std_bounds: list[float] = [-5.0, 0.0]
+
+    updates_per_iteration: int = 10
+
+    minibatch_size: int = 3200
+    number_steps_per_train_policy: int = 3200
+
+    huber_delta: float = 10.0
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
+class QMIXConfig(DQNConfig):
+    algorithm: str = "QMIX"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    lr: float = 1e-4
+    gamma: float = 0.99
+    tau: float = 1.0
+
+    batch_size: int = 32
+
+    target_update_freq: int = 10000
+
+    # network type
+    share_agent_weights: int = 1
+
+    # Double DQN
+    use_double_dqn: int = 0
+
+    # PER
+    per_sampling_strategy: str = "stratified"
+    per_weight_normalisation: str = "batch"
+    use_per_buffer: int = 0
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # n-step
+    n_step: int = 1
+
+    max_grad_norm: float | None = None
+
+    # Exploration via Epsilon Greedy
+    max_steps_exploration: int = 0
+    start_epsilon: float = 1.0
+    end_epsilon: float = 0.05
+    decay_steps: int = 100000
+
+    # Mixer
+    embed_dim: int = 32
+
+    network_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64, out_features=64),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=64),
+        ]
+    )
 
 
 class IDDPGConfig(DDPGConfig):
     algorithm: str = "IDDPG"
 
     marl_observation: Literal[1] = Field(default=1)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 class ITD3Config(TD3Config):
@@ -1455,6 +1512,11 @@ class ITD3Config(TD3Config):
 
     marl_observation: Literal[1] = Field(default=1)
     use_per_buffer: Literal[0] = Field(default=0)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 class ISACConfig(SACConfig):
@@ -1462,6 +1524,11 @@ class ISACConfig(SACConfig):
 
     marl_observation: Literal[1] = Field(default=1)
     use_per_buffer: Literal[0] = Field(default=0)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 class IPPOConfig(PPOConfig):
@@ -1469,6 +1536,11 @@ class IPPOConfig(PPOConfig):
 
     marl_observation: Literal[1] = Field(default=1)
     use_per_buffer: Literal[0] = Field(default=0)
+    parameter_sharing_scope: Literal["individual", "shared"] = Field(
+        default="individual"
+    )
+    use_agent_id: int = 1
+    use_team_id: int = 0
 
 
 ###################################
@@ -1517,3 +1589,20 @@ class DADSConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
         ]
     )
+
+
+###################################
+#      CrossMarl Algorithms       #
+###################################
+
+
+class CrossMARLConfig(AlgorithmConfig):
+    algorithm: str = "CrossMARL"
+
+    marl_observation: Literal[1] = Field(default=1)
+
+    learning_team_name: str | None = None
+
+    gamma: float = 0.99
+
+    agents_config: dict[str, AlgorithmConfig] = Field(default_factory=dict)

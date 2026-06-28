@@ -369,10 +369,10 @@ class TD3(SARLAlgorithm[np.ndarray]):
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
-            observation_tensor.vector_state_tensor,
+            observation_tensor.vector_state,
             actions_tensor,
             rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
+            next_observation_tensor.vector_state,
             dones_tensor,
             weights_tensor,
         )
@@ -381,7 +381,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor(
-                observation_tensor.vector_state_tensor, weights_tensor
+                observation_tensor.vector_state, weights_tensor
             )
             info |= actor_info
 
@@ -398,16 +398,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
     ) -> dict[str, Any]:
 
         # Use the helper to sample and prepare tensors in one step
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            _,
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -418,12 +409,12 @@ class TD3(SARLAlgorithm[np.ndarray]):
 
         info, priorities = self.update_from_batch(
             episode_context=episode_context,
-            observation_tensor=observation_tensor,
-            actions_tensor=actions_tensor,
-            rewards_tensor=rewards_tensor,
-            next_observation_tensor=next_observation_tensor,
-            dones_tensor=dones_tensor,
-            weights_tensor=weights_tensor,
+            observation_tensor=sample_tensor.observation,
+            actions_tensor=sample_tensor.action,
+            rewards_tensor=sample_tensor.reward,
+            next_observation_tensor=sample_tensor.next_observation,
+            dones_tensor=sample_tensor.done,
+            weights_tensor=sample_tensor.weights,
         )
 
         # Update the Priorities

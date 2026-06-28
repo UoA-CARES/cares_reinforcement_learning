@@ -62,7 +62,7 @@ for improved robustness under worst-case interaction.
 
 import torch
 
-from cares_reinforcement_learning.algorithm.policy import MADDPG
+from cares_reinforcement_learning.algorithm.marl import MADDPG
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
 from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 
@@ -70,8 +70,24 @@ from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 class M3DDPG(MADDPG):
     def __init__(
         self,
-        agents: list[DDPG],
+        learning_units: dict[str, DDPG],
+        all_agent_ids: list[str],
+        env_teams: dict[str, list[str]],
+        agent_id_to_actor_id: dict[str, str],
+        actor_id_to_agent_ids: dict[str, list[str]],
+        agent_id_to_critic_id: dict[str, str],
+        critic_id_to_agent_ids: dict[str, list[str]],
         config: M3DDPGConfig,
         device: torch.device,
     ):
-        super().__init__(agents, config, device)
+        super().__init__(
+            learning_units=learning_units,
+            all_agent_ids=all_agent_ids,
+            env_teams=env_teams,
+            agent_id_to_actor_id=agent_id_to_actor_id,
+            actor_id_to_agent_ids=actor_id_to_agent_ids,
+            agent_id_to_critic_id=agent_id_to_critic_id,
+            critic_id_to_agent_ids=critic_id_to_agent_ids,
+            config=config,
+            device=device,
+        )
