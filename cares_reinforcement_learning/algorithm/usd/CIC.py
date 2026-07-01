@@ -10,7 +10,7 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
-from cares_reinforcement_learning.algorithm.policy import DDPG
+from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.CIC import SkillEncoder, StateEncoder, TransitionEncoder
 from cares_reinforcement_learning.types.action import ActionSample
@@ -23,7 +23,7 @@ from cares_reinforcement_learning.algorithm.configurations import CICConfig
 class CIC(SARLAlgorithm[np.ndarray]):
     def __init__(
             self, 
-            skills_agent: DDPG,
+            skills_agent: TD3,
             skill_encoder: SkillEncoder,
             state_encoder: StateEncoder,
             transition_encoder: TransitionEncoder,
@@ -182,7 +182,7 @@ class CIC(SARLAlgorithm[np.ndarray]):
             next_observation_tensor,
             vector_state=next_states_z_tensor,
         )
-        
+
         #---- CIC update, constrastive
         cpc_loss = self.compute_cpc_loss(observation_tensor.vector_state, next_observation_tensor.vector_state, z_tensor)
         cpc_loss = cpc_loss.mean()
@@ -194,13 +194,14 @@ class CIC(SARLAlgorithm[np.ndarray]):
         #---- skill agent update
         with torch.no_grad():
             rewards_tensor = self.compute_apt_reward(observation_tensor.vector_state, next_observation_tensor.vector_state)
-        agent_info = self.skills_agent.update_from_batch(
+        agent_info,_ = self.skills_agent.update_from_batch(
             episode_context=episode_context,
             observation_tensor=observation_z_tensor,
             actions_tensor=actions_tensor,
             rewards_tensor=rewards_tensor,
             next_observation_tensor=next_observation_z_tensor,
             dones_tensor=dones_tensor,
+            weights_tensor=weights_tensor
         )
         info |= agent_info
 

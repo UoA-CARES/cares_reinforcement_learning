@@ -1570,16 +1570,17 @@ class DADSConfig(SACConfig):
         ]
     )
 
-class CICConfig(DDPGConfig):
+class CICConfig(TD3Config):
     algorithm: str = "CIC"
+    # Original implementation uses DDPG with twin critics, TD3 is used here
 
-    # DDPG settings
+    # DDPG (TD3 used here) settings
     tau:float = 0.01
     actor_lr:float = 1e-4
     critic_lr:float = 1e-4
 
     # skill config
-    num_skills:int = 10 # for eval
+    num_skills:int = 20 # for eval
     z_dim: int = 64
     num_steps_per_resample_skill:int = 50
 
@@ -1634,6 +1635,34 @@ class CICConfig(DDPGConfig):
             TrainableLayer(layer_type="Linear", in_features=1024)
         ]
     )
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=50),
+            FunctionLayer(layer_type="LayerNorm", params={"normalized_shape": 50}),
+            FunctionLayer(layer_type="Tanh"),
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024),
+            # FunctionLayer(layer_type="Tanh"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=50),
+            FunctionLayer(layer_type="LayerNorm", params={"normalized_shape": 50}),
+            FunctionLayer(layer_type="Tanh"),
+            TrainableLayer(layer_type="Linear", out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
+        ]
+    )
+
 
 
 ###################################
