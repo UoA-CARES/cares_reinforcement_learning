@@ -25,6 +25,8 @@ class F1TenthMARLEnvironment(MARLEnvironment):
 
         self.observation: MARLObservation
 
+        self.agent_teams = self._split_agents_by_team(self.possible_agents)
+
     # ------------------------------------------------------------------
     # MARLEnvironment abstract properties
     # ------------------------------------------------------------------
@@ -44,6 +46,7 @@ class F1TenthMARLEnvironment(MARLEnvironment):
             "obs": raw["obs"],  # dict[agent_id → per-agent obs dim]
             "state": raw["state"],  # int, concatenated global state dim
             "num_agents": raw["num_agents"],
+            "teams": self.agent_teams,  # dict[str → list of agent ids]
         }
 
     @cached_property
