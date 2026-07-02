@@ -80,6 +80,28 @@ class MLPConfig(BaseModel):
     layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
 
 
+class PlasticityConfig(SubscriptableClass):
+    enabled: bool = True
+    replacement_enabled: bool = False
+
+    replacement_rate: float = 1e-5
+    maturity_threshold: int = 1000
+    utility_decay: float = 0.99
+
+    activity_threshold: float = 1e-5
+    dormant_threshold: float = 0.01
+
+    log_interval: int = 1000
+    rank_interval: int = 10000
+    compute_rank: bool = True
+
+    training_only: bool = True
+    include_output_layer: bool = False
+
+    init: str = "kaiming"
+    activation_name: str = "relu"
+
+
 class AlgorithmConfig(SubscriptableClass):
     """
     Configuration class for the algorithm.
@@ -123,6 +145,8 @@ class AlgorithmConfig(SubscriptableClass):
     model_path: str | None = None
 
     repetition_num_episodes: int = 0
+
+    plasticity_config: PlasticityConfig = PlasticityConfig()
 
 
 ###################################
@@ -424,6 +448,8 @@ class SACConfig(AlgorithmConfig):
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
+
+    # Plasticity
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
