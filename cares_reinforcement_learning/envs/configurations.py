@@ -52,6 +52,9 @@ class OpenAIConfig(GymEnvironmentConfig):
 class DMCSConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "dmcs"
 
+class URLConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "url"
+    max_episode_steps: int | None = None
 
 class PyBoyConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "pyboy"

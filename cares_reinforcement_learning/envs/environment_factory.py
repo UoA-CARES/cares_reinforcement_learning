@@ -39,6 +39,18 @@ class EnvironmentFactory:
                     config, eval_seed, image_observation=image_observation
                 )
 
+            case cfg.URLConfig():
+                from cares_reinforcement_learning.envs.sarl.url.url_environment import (
+                    URLEnvironment,
+                )
+
+                env = URLEnvironment(
+                    config, train_seed, image_observation=image_observation
+                )
+                eval_env = URLEnvironment(
+                    config, eval_seed, image_observation=image_observation
+                )
+
             case cfg.OpenAIConfig():
                 from cares_reinforcement_learning.envs.sarl.openai.openai_environment import (
                     OpenAIEnvironment,

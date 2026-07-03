@@ -420,6 +420,7 @@ class BaseRunner(ABC):
             avg_skill_reward = max_skill_reward = min_skill_reward = 0.0
 
         return {
+            "avg_reward": -1,
             "skill_results": skill_results,
             "avg_skill_reward": avg_skill_reward,
             "max_skill_reward": max_skill_reward,
