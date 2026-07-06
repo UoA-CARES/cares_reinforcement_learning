@@ -1590,14 +1590,58 @@ class DADSConfig(SACConfig):
         ]
     )
 
-class CICConfig(TD3Config):
+class CICConfig(AlgorithmConfig):
     algorithm: str = "CIC"
-    # Original implementation uses DDPG with twin critics, TD3 is used here
+    gamma: float = 0.99
 
-    # DDPG (TD3 used here) settings
-    tau:float = 0.01
-    actor_lr:float = 1e-4
-    critic_lr:float = 1e-4
+    # Inner RL agent that learns the skill-conditioned policy. Composed (not inherited) so
+    # it is pluggable across TD3 / SAC / DDPG; the factory dispatches on
+    # `agent_config.algorithm`. Defaults reproduce the original CIC setup (TD3 with a
+    # LayerNorm+Tanh input block, tau=0.01, lr=1e-4). The original paper uses DDPG with twin
+    # critics; TD3 is the default here.
+    # NOTE: inner-agent hyperparameters are `train config` (JSON) only -- nested model
+    # fields are not exposed as `train cli` flags (see util/rl_parser.py).
+    agent_config: TD3Config | SACConfig | DDPGConfig = Field(
+        default_factory=lambda: TD3Config(
+            tau=0.01,
+            actor_lr=1e-4,
+            critic_lr=1e-4,
+            actor_config=MLPConfig(
+                layers=[
+                    TrainableLayer(layer_type="Linear", out_features=50),
+                    FunctionLayer(
+                        layer_type="LayerNorm", params={"normalized_shape": 50}
+                    ),
+                    FunctionLayer(layer_type="Tanh"),
+                    TrainableLayer(layer_type="Linear", out_features=1024),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(
+                        layer_type="Linear", in_features=1024, out_features=1024
+                    ),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", in_features=1024),
+                ]
+            ),
+            critic_config=MLPConfig(
+                layers=[
+                    TrainableLayer(layer_type="Linear", out_features=50),
+                    FunctionLayer(
+                        layer_type="LayerNorm", params={"normalized_shape": 50}
+                    ),
+                    FunctionLayer(layer_type="Tanh"),
+                    TrainableLayer(layer_type="Linear", out_features=1024),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(
+                        layer_type="Linear", in_features=1024, out_features=1024
+                    ),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(
+                        layer_type="Linear", in_features=1024, out_features=1
+                    ),
+                ]
+            ),
+        )
+    )
 
     # skill config
     num_skills:int = 20 # for eval
@@ -1653,33 +1697,6 @@ class CICConfig(TD3Config):
             TrainableLayer(layer_type="Linear", in_features=1024 ,out_features=1024),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=1024)
-        ]
-    )
-
-    actor_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=50),
-            FunctionLayer(layer_type="LayerNorm", params={"normalized_shape": 50}),
-            FunctionLayer(layer_type="Tanh"),
-            TrainableLayer(layer_type="Linear", out_features=1024),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024),
-            # FunctionLayer(layer_type="Tanh"),
-        ]
-    )
-
-    critic_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Linear", out_features=50),
-            FunctionLayer(layer_type="LayerNorm", params={"normalized_shape": 50}),
-            FunctionLayer(layer_type="Tanh"),
-            TrainableLayer(layer_type="Linear", out_features=1024),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1024),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=1024, out_features=1),
         ]
     )
 

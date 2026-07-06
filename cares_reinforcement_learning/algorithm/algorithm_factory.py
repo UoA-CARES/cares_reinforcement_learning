@@ -426,7 +426,11 @@ def create_CIC(observation_size, action_num, config: acf.CICConfig):
         "vector": observation_size["vector"] + config.z_dim,
     }
 
-    agent = create_TD3(skill_agent_observation_size, action_num, config=config)
+    # The inner RL agent is pluggable (TD3 / SAC / DDPG); dispatch on its own config's
+    # `algorithm` name, mirroring AlgorithmFactory.create_network's introspection style.
+    agent_config = config.agent_config
+    create_agent = getattr(sys.modules[__name__], f"create_{agent_config.algorithm}")
+    agent = create_agent(skill_agent_observation_size, action_num, config=agent_config)
 
     state_encoder = StateEncoder(observation_size["vector"], config=config)
     transition_encoder = TransitionEncoder(config=config)

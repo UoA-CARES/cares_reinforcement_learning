@@ -1,5 +1,6 @@
+import inspect
 import random
-from typing import overload
+from typing import Any, overload
 
 import cv2
 import numpy as np
@@ -213,3 +214,71 @@ def overlay_info(image: np.ndarray, **kwargs):
         )
 
     return output_image
+
+
+# TODO(bandaid): remove once `update_from_batch` has a single, uniform signature and
+# return type across the off-policy algorithms. This wrapper only exists to paper over
+# the current inconsistency so that USD algorithms (CIC/DIAYN/DADS) can drive an
+# interchangeable inner RL agent (TD3, SAC, DDPG) without hard-coding one call shape.
+#
+# The inconsistency being worked around:
+#   - TD3  : takes `episode_context` AND `weights_tensor`, returns `(info, priorities)`.
+#   - SAC  : takes `weights_tensor` but NOT `episode_context`, returns `(info, priorities)`.
+#   - DDPG : takes `episode_context` but NOT `weights_tensor`, returns a bare `info` dict.
+# (`update_from_batch` is not part of the abstract Algorithm contract, so nothing enforces
+# a shared signature -- see IMARL.update_agent_from_batch for the same problem handled with
+# per-algorithm adapters.)
+def update_skill_agent_from_batch(
+    skills_agent: Any,
+    *,
+    episode_context: Any,
+    observation_tensor: Any,
+    actions_tensor: torch.Tensor,
+    rewards_tensor: torch.Tensor,
+    next_observation_tensor: Any,
+    dones_tensor: torch.Tensor,
+    weights_tensor: torch.Tensor,
+) -> tuple[dict[str, Any], Any]:
+    """Call an inner RL agent's ``update_from_batch`` regardless of its exact signature.
+
+    Introspects the target ``update_from_batch`` and only forwards the optional
+    ``episode_context`` / ``weights_tensor`` arguments when that agent actually accepts
+    them, then normalises the return value to a ``(info, priorities)`` tuple (``priorities``
+    is ``None`` for agents that return a bare ``info`` dict, e.g. DDPG).
+
+    Args:
+        skills_agent: The inner RL agent (TD3, SAC or DDPG) owned by a USD algorithm.
+        episode_context: Forwarded only if the agent's signature accepts it.
+        observation_tensor: Skill-augmented current observations.
+        actions_tensor: Batch actions.
+        rewards_tensor: Batch rewards (typically the intrinsic reward for USD).
+        next_observation_tensor: Skill-augmented next observations.
+        dones_tensor: Batch done flags.
+        weights_tensor: PER weights; forwarded only if the agent's signature accepts it.
+
+    Returns:
+        A ``(info, priorities)`` tuple. ``priorities`` is ``None`` when the agent returns
+        only an ``info`` dict.
+    """
+    batch: dict[str, Any] = {
+        "observation_tensor": observation_tensor,
+        "actions_tensor": actions_tensor,
+        "rewards_tensor": rewards_tensor,
+        "next_observation_tensor": next_observation_tensor,
+        "dones_tensor": dones_tensor,
+    }
+
+    # Only forward the args this particular agent's signature declares.
+    params = inspect.signature(skills_agent.update_from_batch).parameters
+    if "episode_context" in params:
+        batch["episode_context"] = episode_context
+    if "weights_tensor" in params:
+        batch["weights_tensor"] = weights_tensor
+
+    result = skills_agent.update_from_batch(**batch)
+
+    # Normalise: some agents (DDPG) return a bare info dict rather than (info, priorities).
+    if isinstance(result, tuple):
+        info, priorities = result
+        return info, priorities
+    return result, None

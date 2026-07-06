@@ -77,6 +77,7 @@ from typing import Any
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import memory_sampler
@@ -288,7 +289,9 @@ class DADS(SARLAlgorithm[np.ndarray]):
             vector_state=next_states_z_tensor,
         )
 
-        agent_info, _ = self.skills_agent.update_from_batch(
+        agent_info, _ = hlp.update_skill_agent_from_batch(
+            self.skills_agent,
+            episode_context=episode_context,
             observation_tensor=observation_z_tensor,
             actions_tensor=actions_tensor,
             rewards_tensor=rewards_tensor,

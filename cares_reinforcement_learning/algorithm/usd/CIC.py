@@ -9,8 +9,8 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
+import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
-from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.CIC import SkillEncoder, StateEncoder, TransitionEncoder
 from cares_reinforcement_learning.types.action import ActionSample
@@ -22,8 +22,8 @@ from cares_reinforcement_learning.algorithm.configurations import CICConfig
 
 class CIC(SARLAlgorithm[np.ndarray]):
     def __init__(
-            self, 
-            skills_agent: TD3,
+            self,
+            skills_agent: SARLAlgorithm[np.ndarray],
             skill_encoder: SkillEncoder,
             state_encoder: StateEncoder,
             transition_encoder: TransitionEncoder,
@@ -194,14 +194,15 @@ class CIC(SARLAlgorithm[np.ndarray]):
         #---- skill agent update
         with torch.no_grad():
             rewards_tensor = self.compute_apt_reward(observation_tensor.vector_state, next_observation_tensor.vector_state)
-        agent_info,_ = self.skills_agent.update_from_batch(
+        agent_info, _ = hlp.update_skill_agent_from_batch(
+            self.skills_agent,
             episode_context=episode_context,
             observation_tensor=observation_z_tensor,
             actions_tensor=actions_tensor,
             rewards_tensor=rewards_tensor,
             next_observation_tensor=next_observation_z_tensor,
             dones_tensor=dones_tensor,
-            weights_tensor=weights_tensor
+            weights_tensor=weights_tensor,
         )
         info |= agent_info
 
