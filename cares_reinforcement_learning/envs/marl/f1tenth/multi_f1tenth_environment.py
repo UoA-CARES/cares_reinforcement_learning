@@ -41,9 +41,10 @@ class F1TenthMARLEnvironment(MARLEnvironment):
     def observation_space(self) -> dict[str, Any]:
         raw = self.env.observation_size
         return {
-            "obs": raw["obs"],  # dict[agent_id → per-agent obs dim]
-            "state": raw["state"],  # int, concatenated global state dim
-            "num_agents": raw["num_agents"],
+            "obs": dict(raw["obs"]),  # dict[agent_id -> per-agent obs dim]
+            "state": int(raw["state"]),  # int, concatenated global state dim
+            "num_agents": int(raw["num_agents"]),
+            "teams": dict(raw["teams"]),
         }
 
     @cached_property
