@@ -123,7 +123,6 @@ class SAC(SARLAlgorithm[np.ndarray]):
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
-
         if config.static_alpha:
             self.log_alpha = torch.tensor(np.log(config.static_alpha)).to(device)
             self.log_alpha.requires_grad = False
@@ -138,17 +137,17 @@ class SAC(SARLAlgorithm[np.ndarray]):
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
-        
+
         # init_temperature = 1.0
         # self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
         # self.log_alpha.requires_grad = True
         # self.log_alpha_optimizer = torch.optim.Adam(
         #     [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         # )
-      
+
         # if not config.static_alpha:
         #     self.is_alpha_static = False
-        # else: 
+        # else:
         #     self.log_alpha = torch.tensor(np.log(config.static_alpha)).to(device)
         #     self.log_alpha.requires_grad = False
         #     self.is_alpha_static = True
@@ -447,7 +446,6 @@ class SAC(SARLAlgorithm[np.ndarray]):
             per_sampling_strategy=self.per_sampling_strategy,
             per_weight_normalisation=self.per_weight_normalisation,
         )
-
 
         info, priorities = self.update_from_batch(
             observation_tensor=sample.observation,

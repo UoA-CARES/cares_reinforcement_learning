@@ -53,6 +53,7 @@ class OpenAIConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "openai"
     # env_args: dict[str, any]
 
+
 class DMCSConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "dmcs"
 

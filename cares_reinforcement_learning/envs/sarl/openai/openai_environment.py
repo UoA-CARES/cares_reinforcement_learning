@@ -21,7 +21,14 @@ class OpenAIEnvironment(SARLEnvironment):
         # NOTE: PLACEHOLDER HERE, CHANGE LATER
         # terminate_when_unhealthy = False, exclude_current_positions_from_observation=False, include_cfrc_ext_in_observation=False
         # exclude_current_positions_from_observation=False
-        self.env = gym.make(config.task, render_mode="rgb_array",max_episode_steps=config.max_episode_steps, terminate_when_unhealthy = False, exclude_current_positions_from_observation=False, include_cfrc_ext_in_observation=False)
+        self.env = gym.make(
+            config.task,
+            render_mode="rgb_array",
+            max_episode_steps=config.max_episode_steps,
+            terminate_when_unhealthy=False,
+            exclude_current_positions_from_observation=False,
+            include_cfrc_ext_in_observation=False,
+        )
 
         # If Box space, we will apply action normalization - even if redundant
         self.apply_action_normalization = isinstance(self.env.action_space, spaces.Box)
