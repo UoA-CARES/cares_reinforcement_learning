@@ -203,7 +203,8 @@ class MARLDroneEnvironment(MARLEnvironment):
         """
         Reset the drone_gym MARL task and return a CARES MARLObservation.
         """
-        agent_states, _ = self.env.reset()
+        options = {"training": training}
+        agent_states, _ = self.env.reset(options=options)
 
         complete_agent_states = self._complete_agent_states(agent_states)
 
@@ -227,25 +228,25 @@ class MARLDroneEnvironment(MARLEnvironment):
             action
         )
 
-        # complete_agent_states = self._complete_agent_states(agent_states)
+        complete_agent_states = self._complete_agent_states(agent_states)
 
         next_observation = MARLObservation(
             global_state=np.asarray(self.env.state(), dtype=np.float32),
-            agent_states=agent_states,
+            agent_states=complete_agent_states,
             available_actions=self.get_available_actions(),
         )
 
-        # complete_rewards = self._complete_reward_dict(rewards)
-        # complete_dones = self._complete_bool_dict(dones, default=True)
-        # complete_truncations = self._complete_bool_dict(truncations, default=True)
+        complete_rewards = self._complete_reward_dict(rewards)
+        complete_dones = self._complete_bool_dict(dones, default=True)
+        complete_truncations = self._complete_bool_dict(truncations, default=True)
 
         experience = MultiAgentExperience(
             observation=self.observation.clone(),
             action=action,
-            reward=rewards,
+            reward=complete_rewards,
             next_observation=next_observation.clone(),
-            done=dones,
-            truncated=truncations,
+            done=complete_dones,
+            truncated=complete_truncations,
             info=infos,
         )
 
