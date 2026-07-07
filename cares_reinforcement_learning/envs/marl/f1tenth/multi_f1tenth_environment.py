@@ -25,6 +25,11 @@ class F1TenthMARLEnvironment(MARLEnvironment):
 
         self.observation: MARLObservation
 
+<<<<<<< HEAD
+=======
+        self.agent_teams = self._split_agents_by_team(self.possible_agents)
+
+>>>>>>> main
     # ------------------------------------------------------------------
     # MARLEnvironment abstract properties
     # ------------------------------------------------------------------
