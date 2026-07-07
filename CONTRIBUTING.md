@@ -11,6 +11,7 @@ We welcome contributions that expand the library, particularly implementations o
 We are happy to consider contributions such as:
 
 - Implementations of established reinforcement learning algorithms
+- New Gym Environment Support
 - Implementations of known RL training methodologies
 - Bug fixes
 - Tests

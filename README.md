@@ -1,16 +1,30 @@
 <p align="center">
-<img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
+  <a href="https://robotlearningteam.org/">
+    <img src="docs/images/logo.png" alt="CARES Reinforcement Learning Logo" width="80%"/>
+  </a>
 </p>
 
 A modular reinforcement learning framework for training and evaluating RL algorithms across diverse environments.
 
+[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://uoa-cares.github.io/cares_reinforcement_learning/)
 ![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 ![GitHub release](https://img.shields.io/github/v/release/UoA-CARES/cares_reinforcement_learning)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-# Motivation
+# Introduction
+The CARES Reinforcement Learning package is a modular and extensible framework for developing, training, and evaluating reinforcement learning algorithms. It provides a consistent interface across value-based, policy-based, and multi-agent methods, enabling clear comparisons between approaches in a single code base. Designed with research and real-world robotics applications in mind. This code base has been designed for the local team but we feel it has utility beyond our research group and are open to contributions/suggestions from others. 
 
-**Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
+## Documentation
+
+Full documentation: https://uoa-cares.github.io/cares_reinforcement_learning/
+
+The docs are split into three main sections:
+
+- **User Guide** — how to use the library, run experiments, configure environments, and train agents
+- **Developer Guide** — how to add algorithms, environments, replay buffers, and contribute to the codebase
+- **Learning Reinforcement Learning** — conceptual guides covering reinforcement learning fundamentals, algorithm intuition, core theory, and practical understanding of methods used throughout the library.
+
+New users should usually start with the User Guide, while contributors should begin with the Developer Guide.
 
 # Installation Instructions
 We recommend using the Stable release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.
@@ -29,6 +43,11 @@ Clone the **main** branch for the latest features - note this branch may not be 
 
 ### Development Environment (UV/pyenv)
 We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used those looking to contribute to the code base or various gym packages.
+
+Clone the latest main of CARES Reinforcement Learning.
+```bash
+git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
+```
 
 #### 1. Install uv and pyenv
 
@@ -188,6 +207,13 @@ cares-rl train cli --gym drone --task move_2d SAC
     <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 35%;"/>
 </p>
 
+### F1Tenth Gym V2.0
+The F1Tenth gym contains all the code for training F1Tenth cars in autonomous racing. 
+
+<p align="center">
+    <img alt="crazyfly" src="./media/f1tenth-min.png" style="width: 50%;"/>
+</p>
+
 ### Multi Agent Enviroments
 Training environments for multi agent reinforcement learning algorithms.
 
@@ -331,7 +357,7 @@ Multi-Agent Reinforcement Learning algorithms (MARL).
 | ITD3        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MATD3       | Vector (MARL)              | Continuous   | [MATD3](https://arxiv.org/pdf/1910.01465)                   |
 | ISAC        | Vector (MARL)              | Continuous   | N/A                                                         |
-| MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://doi.org/10.1609/aaai.v33i01.33014213)       |
+| MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://arxiv.org/abs/2009.09361)       |
 | IPPO        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MAPPO       | Vector (MARL)              | Continuous   | [MAPPO](https://arxiv.org/abs/2103.01955)                   |
 

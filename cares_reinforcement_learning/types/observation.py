@@ -12,14 +12,16 @@ class SARLObservation:
     # Image Based
     image_state: np.ndarray | None = None
 
-    avail_actions: np.ndarray | None = None
+    available_actions: np.ndarray | None = None
 
     def clone(self) -> "SARLObservation":
         return SARLObservation(
             vector_state=self.vector_state.copy(),
             image_state=None if self.image_state is None else self.image_state.copy(),
-            avail_actions=(
-                None if self.avail_actions is None else self.avail_actions.copy()
+            available_actions=(
+                None
+                if self.available_actions is None
+                else self.available_actions.copy()
             ),
         )
 
@@ -31,7 +33,7 @@ class MARLObservation:
     # Per-Agent States
     agent_states: dict[str, np.ndarray]
 
-    avail_actions: np.ndarray
+    available_actions: dict[str, np.ndarray]
 
     def clone(self) -> "MARLObservation":
         return MARLObservation(
@@ -39,7 +41,10 @@ class MARLObservation:
             agent_states={
                 agent_id: state.copy() for agent_id, state in self.agent_states.items()
             },
-            avail_actions=self.avail_actions.copy(),
+            available_actions={
+                agent_id: actions.copy()
+                for agent_id, actions in self.available_actions.items()
+            },
         )
 
 
@@ -49,20 +54,20 @@ Observation = SARLObservation | MARLObservation
 @dataclass(frozen=True, slots=True)
 class SARLObservationTensors:
     # Vector Based
-    vector_state_tensor: torch.Tensor
+    vector_state: torch.Tensor
 
     # Image Based
-    image_state_tensor: torch.Tensor | None = None
+    image_state: torch.Tensor | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class MARLObservationTensors:
     # Global State
-    global_state_tensor: torch.Tensor
+    global_state: torch.Tensor
 
     # Per-Agent States
-    agent_states_tensor: dict[str, torch.Tensor]
-    avail_actions_tensor: torch.Tensor
+    agent_states: dict[str, torch.Tensor]
+    available_actions: dict[str, torch.Tensor]
 
 
 ObservationTensors = SARLObservationTensors | MARLObservationTensors

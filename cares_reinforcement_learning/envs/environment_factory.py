@@ -100,6 +100,14 @@ class EnvironmentFactory:
                 # intentional: shared env
                 eval_env = env
 
+            case cfg.F1TenthConfig():
+                from cares_reinforcement_learning.envs.sarl.f1tenth.f1tenth_environment import (
+                    F1TenthEnvironment,
+                )
+
+                env = F1TenthEnvironment(config, train_seed)
+                eval_env = env
+
             # ---------- MARL ----------
             case cfg.MPEConfig():
                 from cares_reinforcement_learning.envs.marl.mpe.mpe import (
@@ -108,6 +116,14 @@ class EnvironmentFactory:
 
                 env = MPE2Environment(config, train_seed)
                 eval_env = MPE2Environment(config, eval_seed)
+
+            case cfg.MultiF1TenthConfig():
+                from cares_reinforcement_learning.envs.marl.f1tenth.multi_f1tenth_environment import (
+                    F1TenthMARLEnvironment,
+                )
+
+                env = F1TenthMARLEnvironment(config, train_seed)
+                eval_env = env
 
             case cfg.SMACConfig():
                 from cares_reinforcement_learning.envs.marl.smac.smac import (

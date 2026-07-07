@@ -97,19 +97,11 @@ class LA3PTD3(TD3):
         info: dict[str, Any] = {}
 
         # Convert into tensors using helper method
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,
-            _,
-        ) = memory_sampler.sample_to_tensors(sample, self.device)
+        sample_tensor = memory_sampler.sample_to_tensors(sample, self.device)
 
         with torch.no_grad():
             next_actions = self.target_actor_net(
-                next_observation_tensor.vector_state_tensor
+                sample_tensor.next_observation.vector_state
             )
 
             target_noise = self.policy_noise * torch.randn_like(next_actions)
@@ -120,17 +112,18 @@ class LA3PTD3(TD3):
             next_actions = torch.clamp(next_actions, min=-1, max=1)
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_observation_tensor.vector_state_tensor, next_actions
+                sample_tensor.next_observation.vector_state, next_actions
             )
 
             target_q_values = torch.minimum(target_q_values_one, target_q_values_two)
 
             q_target = (
-                rewards_tensor + self.gamma * (1 - dones_tensor) * target_q_values
+                sample_tensor.reward
+                + self.gamma * (1 - sample_tensor.done) * target_q_values
             )
 
         q_values_one, q_values_two = self.critic_net(
-            observation_tensor.vector_state_tensor, actions_tensor
+            sample_tensor.observation.vector_state, sample_tensor.action
         )
 
         td_error_one = (q_values_one - q_target).abs()
@@ -264,7 +257,7 @@ class LA3PTD3(TD3):
             )
 
             actor_info = self._update_actor(
-                observation_tensor.vector_state_tensor, weights_tensor
+                observation_tensor.vector_state, weights_tensor
             )
             info_uniform |= actor_info
 
@@ -301,7 +294,7 @@ class LA3PTD3(TD3):
             )
 
             actor_info = self._update_actor(
-                observation_tensor.vector_state_tensor, weights_tensor
+                observation_tensor.vector_state, weights_tensor
             )
             info_priority |= actor_info
 

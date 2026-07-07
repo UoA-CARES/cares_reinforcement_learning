@@ -42,33 +42,38 @@ def main_with_runner():
     device = hlp.get_device()
     logger.info(f"Device: {device}")
 
-    # Interactive prompts
-    run_name = input(
-        "Double check your experiment configurations :) Press ENTER to continue. (Optional - Enter a name for this run)\n"
-    )
+    run_name = coordinator.run_config.run_name
 
-    if device.type == "cpu":
-        no_gpu_answer = input(
-            "Device being set as CPU - No cuda or mps detected. Do you want to continue? Note: Training will be slower on cpu only. [y/n]"
+    if not run_name and not coordinator.run_config.skip_prompts:
+        run_name = input(
+            "Double check your experiment configurations :) Press ENTER to continue. (Optional - Enter a name for this run)\n"
         )
-        if no_gpu_answer not in ["y", "Y"]:
-            logger.info(
-                "Terminating Experiment - check CUDA or mps is installed correctly."
-            )
-            sys.exit()
 
-    # Checkpoint warnings
-    if coordinator.env_config.save_train_checkpoints:
-        logger.warning(
-            "Training checkpoints will be saved - be aware this will increase disk usage (memory buffer)."
-        )
-        if coordinator.alg_config.image_observation:
+    if not coordinator.run_config.skip_prompts:
+        if device.type == "cpu":
             no_gpu_answer = input(
-                "Image observations are being used with checkpoints - this will take up a lot of disk space: Do you want to disable this? [y/n]"
+                "Device being set as CPU - No cuda or mps detected. Do you want to continue? Note: Training will be slower on cpu only. [y/n]"
             )
-            if no_gpu_answer in ["y", "Y"]:
-                logger.info("Disabling training checkpoint saving.")
-                coordinator.env_config.save_train_checkpoints = False
+            if no_gpu_answer not in ["y", "Y"]:
+                logger.info(
+                    "Terminating Experiment - check CUDA or mps is installed correctly."
+                )
+                sys.exit()
+
+        # Checkpoint warnings
+        if coordinator.training_config.save_train_checkpoints:
+            logger.warning(
+                "Training checkpoints will be saved - be aware this will increase disk usage (memory buffer)."
+            )
+            if coordinator.alg_config.image_observation:
+                no_gpu_answer = input(
+                    "Image observations are being used with checkpoints - this will take up a lot of disk space: Do you want to disable this? [y/n]"
+                )
+                if no_gpu_answer in ["y", "Y"]:
+                    logger.info("Disabling training checkpoint saving.")
+                    coordinator.training_config.save_train_checkpoints = False
+    else:
+        logger.info("Skipping interactive prompts because skip_prompts is enabled.")
 
     # Setup directories and logging
     coordinator.setup_logging_and_directories(run_name)

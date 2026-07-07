@@ -28,8 +28,10 @@ from cares_reinforcement_learning.util.record import Record
 @dataclass
 class EpisodeStats:
     n_agents: int
-    rewards: np.ndarray = field(init=False)
+    _agent_ids: list[str] | None = field(init=False, default=None)
+
     steps: int = 0
+    rewards: np.ndarray = field(init=False)
 
     def __post_init__(self) -> None:
         self.rewards = np.zeros(self.n_agents, dtype=np.float32)
@@ -37,12 +39,13 @@ class EpisodeStats:
     def step(self) -> None:
         self.steps += 1
 
-    def update_reward(self, reward: float | list[float] | np.ndarray) -> None:
-        if np.isscalar(reward):
+    def update_reward(self, reward: float | dict[str, float]) -> None:
+        if isinstance(reward, (int, float)):
             # Single-agent case (broadcast to all)
             reward_vector = np.full(self.n_agents, reward, dtype=np.float32)
         else:
-            reward_vector = np.asarray(reward, dtype=np.float32)
+            self._agent_ids = list(reward.keys())
+            reward_vector = np.asarray(list(reward.values()), dtype=np.float32)
 
         self.rewards += np.asarray(reward_vector)
 
@@ -50,12 +53,20 @@ class EpisodeStats:
         return float(np.sum(self.rewards))
 
     def summary(self) -> dict[str, float]:
-        return {
+        stats = {
             "episode_steps": self.steps,
             "episode_reward": self.get_episode_reward(),
-            "episode_reward_mean": float(np.mean(self.rewards)),
-            **{f"agent_{i}_reward": float(r) for i, r in enumerate(self.rewards)},
         }
+
+        if self._agent_ids is not None:
+            # Multi-agent: use actual agent names
+            for agent_name, reward in zip(self._agent_ids, self.rewards):
+                stats[f"{agent_name}_reward"] = float(reward)
+        else:
+            # Single-agent: just return the single reward
+            stats["episode_reward"] = float(self.rewards[0])
+
+        return stats
 
     def reset(self) -> None:
         self.rewards[:] = 0
@@ -119,7 +130,7 @@ class BaseRunner(ABC):
             task=self.env_config.task,
             agent=None,
             record_video=bool(self.training_config.record_eval_video),
-            record_checkpoints=bool(self.env_config.save_train_checkpoints),
+            record_checkpoints=bool(self.training_config.save_train_checkpoints),
             checkpoint_interval=self.training_config.checkpoint_interval,
             logger=self.logger,
         )
@@ -173,11 +184,35 @@ class BaseRunner(ABC):
             else self.training_config.number_eval_episodes
         )
 
+    def _should_record_episode(self, episode_idx: int) -> bool:
+        """
+        Determine if a specific episode should be recorded during evaluation.
+
+        Args:
+            episode_idx: Zero-indexed episode number
+
+        Returns:
+            True if episode should be recorded, False otherwise
+
+        Logic:
+            -1: Record all episodes
+             0: Record no episodes
+            >0: Record first N episodes
+        """
+        episodes_to_record = self.training_config.eval_episodes_to_record
+
+        if episodes_to_record == -1:
+            return True  # Record all
+        if episodes_to_record == 0:
+            return False  # Record none
+        return episode_idx < episodes_to_record  # Record first N
+
     def _run_single_episode_evaluation(
         self,
         episode_counter: int,
         log_step: int,
         record_video: bool = False,
+        video_label: str | None = None,
     ) -> dict[str, Any]:
         """
         Run a single evaluation episode and return detailed results.
@@ -186,6 +221,7 @@ class BaseRunner(ABC):
             episode_counter: Episode number for logging
             log_step: Training/evaluation step for logging context
             record_video: Whether to record video for this episode
+            video_label: Label for video recording; if provided, starts a new video after reset
 
         Returns:
             Dictionary with episode results including reward, states, actions, etc.
@@ -199,6 +235,14 @@ class BaseRunner(ABC):
 
         # Reset environment
         state = self.env_eval.reset(training=False)
+
+        # Start video with the first frame after reset (avoids stale previous-episode frames)
+        if record_video and video_label is not None and self.record is not None:
+            frame = self.env_eval.grab_frame()
+            self.record.start_video(video_label, frame, fps=self.fps)
+
+            log_path = self.record.current_sub_directory
+            self.env_eval.set_log_path(log_path, log_step)
 
         episode_end = False
         while not episode_end:
@@ -231,6 +275,10 @@ class BaseRunner(ABC):
                     **self.env_eval.get_overlay_info(),
                 )
                 self.record.log_video(overlay)
+
+        # Stop video if it was started for this episode
+        if record_video and video_label is not None and self.record is not None:
+            self.record.stop_video()
 
         # Calculate bias and log results
         episode_results = {
@@ -279,22 +327,21 @@ class BaseRunner(ABC):
         Returns:
             Dictionary with aggregated evaluation results
         """
-        if self.record is not None:
-            frame = self.env_eval.grab_frame()
-            self.record.start_video(video_label, frame, fps=self.fps)
-
-            log_path = self.record.current_sub_directory
-            self.env_eval.set_log_path(log_path, log_step)
-
         episode_rewards = []
         total_reward = 0.0
         all_bias_data = []
 
         for eval_episode_counter in range(self.number_eval_episodes):
+            # Determine if this episode should be recorded
+            should_record = self._should_record_episode(eval_episode_counter)
+
+            episode_video_label = f"{video_label}_episode_{eval_episode_counter + 1}"
+
             episode_results = self._run_single_episode_evaluation(
                 episode_counter=eval_episode_counter,
                 log_step=log_step,
-                record_video=(eval_episode_counter == 0),  # Only record first episode
+                record_video=should_record,
+                video_label=episode_video_label,
             )
 
             episode_reward = episode_results["episode_reward"]
@@ -303,9 +350,6 @@ class BaseRunner(ABC):
 
             if "bias_data" in episode_results:
                 all_bias_data.append(episode_results["bias_data"])
-
-        if self.record is not None:
-            self.record.stop_video()
 
         # Calculate statistics
         if episode_rewards:
@@ -344,7 +388,6 @@ class BaseRunner(ABC):
         Returns:
             Dictionary with skill evaluation results
         """
-        self.env_eval.reset(training=False)
         skill_results = []
         total_reward = 0.0
 
@@ -353,27 +396,20 @@ class BaseRunner(ABC):
 
             self.logger.info(f"Evaluating skill {skill + 1}/{self.agent.num_skills}")  # type: ignore
 
-            if self.record is not None:
-                frame = self.env_eval.grab_frame()
-                skill_video_label = f"{video_label}_skill_{skill}"
-                self.record.start_video(skill_video_label, frame)
+            # Record all skills (each represents a different behavior)
+            skill_video_label = f"{video_label}_skill_{skill}"
 
-                log_path = self.record.current_sub_directory
-                self.env_eval.set_log_path(log_path, skill)
-
-            # Run one episode per skill
+            # Run one episode per skill with recording
             episode_results = self._run_single_episode_evaluation(
                 episode_counter=skill_counter,
                 log_step=log_step,
                 record_video=True,
+                video_label=skill_video_label,
             )
 
             episode_reward = episode_results["episode_reward"]
             skill_results.append({"skill": skill, "reward": episode_reward})
             total_reward += episode_reward
-
-            if self.record is not None:
-                self.record.stop_video()
 
         # Calculate statistics
         if skill_results:

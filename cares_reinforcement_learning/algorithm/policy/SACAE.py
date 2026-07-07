@@ -404,16 +404,7 @@ class SACAE(SARLAlgorithm[np.ndarray]):
         self.learn_counter += 1
 
         # Sample and convert to tensors using multimodal sampling
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            _,  # extras ignored
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -422,24 +413,24 @@ class SACAE(SARLAlgorithm[np.ndarray]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        assert observation_tensor.image_state_tensor is not None
+        assert sample_tensor.observation.image_state is not None
 
         info: dict[str, Any] = {}
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
+            sample_tensor.observation,
+            sample_tensor.action,
+            sample_tensor.reward,
+            sample_tensor.next_observation,
+            sample_tensor.done,
+            sample_tensor.weights,
         )
         info |= critic_info
 
         # Update the Actor
         if self.learn_counter % self.policy_update_freq == 0:
-            actor_info = self._update_actor_alpha(observation_tensor)
+            actor_info = self._update_actor_alpha(sample_tensor.observation)
             info |= actor_info
 
         if self.learn_counter % self.target_update_freq == 0:
@@ -457,7 +448,7 @@ class SACAE(SARLAlgorithm[np.ndarray]):
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_info = self._update_autoencoder(observation_tensor.image_state_tensor)
+            ae_info = self._update_autoencoder(sample_tensor.observation.image_state)
             info |= ae_info
 
         # Update the Priorities
