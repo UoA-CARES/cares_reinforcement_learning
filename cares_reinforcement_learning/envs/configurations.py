@@ -5,6 +5,8 @@ Configuration class for Gym Environments.
 from pathlib import Path
 from typing import ClassVar
 
+from pydantic import ConfigDict
+
 from cares_reinforcement_learning.algorithm.configurations import SubscriptableClass
 
 file_path = Path(__file__).parent.resolve()
@@ -37,6 +39,8 @@ class GymEnvironmentConfig(SubscriptableClass):
     frame_height: int = 84
     grey_scale: int = 0
 
+    max_episode_steps: int = 1000
+
     record_video_fps: int = 30
 
     def model_dump(self, *args, **kwargs):
@@ -47,6 +51,7 @@ class GymEnvironmentConfig(SubscriptableClass):
 
 class OpenAIConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "openai"
+    # env_args: dict[str, any]
 
 
 class DMCSConfig(GymEnvironmentConfig):

@@ -405,6 +405,8 @@ class SACConfig(AlgorithmConfig):
     actor_lr_params: dict[str, Any] = Field(default_factory=dict)
     critic_lr: float = 3e-4
     critic_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    static_alpha: float | None = None
     alpha_lr: float = 3e-4
     alpha_lr_params: dict[str, Any] = Field(default_factory=dict)
 
@@ -1587,6 +1589,76 @@ class DADSConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+
+class LSDConfig(SACConfig):
+    algorithm: str = "LSD"
+
+    skill_dim: int = 16
+    is_discrete: bool = True
+
+    max_steps_exploration: Literal[0] = Field(default=0)
+
+    is_using_buffer: bool = (
+        False  # if false: update networks using only last {number_steps_per_train_policy} transitions collected. i.e. clear buffer every {'num per train'} steps.
+    )
+
+    batch_size: int = 2000
+    number_steps_per_train_policy: int = (
+        batch_size  # consider as number of steps per batch for training, "epoch" in original implementation
+    )
+    minibatch_size: int = 1024  # size of minibatch to update networks
+
+    agent_loops_per_batch: int = (
+        1  # how many times to loop over batch data for RL agent updates.  "max_optimization_epochs" in original
+    )
+    agent_num_minibatches_per_batch: int = (
+        64  # how many times to update weights per minibatch, "trans_optimization_epochs" in original
+    )
+
+    encoder_loops_per_batch: int = (
+        1  # how many times to loop over batch data for encoder updates,  "te_max_optimization_epochs" in original
+    )
+    encoder_num_minibatches_per_batch: int = (
+        32  # how many times to update encoder weights per minibatch, "te_trans_optimization_epochs" in original
+    )
+
+    static_alpha: float = 0.003
+
+    encoder_lr: float = 0.0001
+    encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="SpectralNormLinear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="SpectralNormLinear", in_features=512, out_features=512
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="SpectralNormLinear", in_features=512),
+        ]
+    )
+
+    actor_lr: float = 0.0001
+    critic_lr: float = 0.0001
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=1),
         ]
     )
 
