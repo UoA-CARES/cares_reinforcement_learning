@@ -350,7 +350,7 @@ class RLParser:
 
         run_args.update(vars(test_args))
 
-        return run_args, model_args
+        return vars(run_args), model_args
 
     def _evaluate(self, argv: list[str]) -> tuple[dict[str, Any], dict[str, Any]]:
         run_args, remaining_args = self._parse_run_options(argv)
