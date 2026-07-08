@@ -86,9 +86,11 @@ from torch.distributions import Normal
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import PPOConfig
+from cares_reinforcement_learning.algorithm.plasticity_adam import PlasticityAdam
 from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 from cares_reinforcement_learning.algorithm.value_normaliser import ValueNormaliser
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks.plasticity import NetworkPlasticityManager
 from cares_reinforcement_learning.networks.PPO import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
@@ -138,13 +140,34 @@ class PPO(SARLAlgorithm[np.ndarray]):
         )
         self.log_std = torch.nn.Parameter(init_log_std)
 
-        self.actor_net_optimiser = torch.optim.Adam(
+        optim_cls = (
+            PlasticityAdam if config.plasticity_config.enabled else torch.optim.Adam
+        )
+
+        self.actor_net_optimiser = optim_cls(
             list(self.actor_net.parameters()) + [self.log_std],
             lr=config.actor_lr,
             **config.actor_lr_params,
         )
-        self.critic_net_optimiser = torch.optim.Adam(
-            self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
+
+        self.critic_net_optimiser = optim_cls(
+            self.critic_net.parameters(),
+            lr=config.critic_lr,
+            **config.critic_lr_params,
+        )
+
+        self.actor_plasticity = NetworkPlasticityManager(
+            model=self.actor_net,
+            optimizer=self.actor_net_optimiser,
+            config=config.plasticity_config,
+            name="actor",
+        )
+
+        self.critic_plasticity = NetworkPlasticityManager(
+            model=self.critic_net,
+            optimizer=self.critic_net_optimiser,
+            config=config.plasticity_config,
+            name="critic",
         )
 
         self.updates_per_iteration = config.updates_per_iteration
@@ -254,7 +277,12 @@ class PPO(SARLAlgorithm[np.ndarray]):
             )
         self.critic_net_optimiser.step()
 
-        return {"critic_loss": float(critic_loss.item())}
+        plastic_info = self.critic_plasticity.step_replacement()
+
+        info = {"critic_loss": float(critic_loss.item())}
+        info.update(plastic_info)
+
+        return info
 
     def _evaluate_actions(
         self,
@@ -332,6 +360,8 @@ class PPO(SARLAlgorithm[np.ndarray]):
         with torch.no_grad():
             self.log_std.clamp_(self.min_log_std, self.max_log_std)
 
+        plastic_info = self.actor_plasticity.step_replacement()
+
         # ---- Post-update diagnostics / KL early stop ----
         with torch.no_grad():
             new_log_probs, _, _ = self._evaluate_actions(
@@ -381,6 +411,7 @@ class PPO(SARLAlgorithm[np.ndarray]):
             "log_std_grad": float(log_std_grad),
             "log_std_mean": float(self.log_std.mean().item()),
         }
+        info.update(plastic_info)
 
         return kl_early_stop, info
 
@@ -533,6 +564,8 @@ class PPO(SARLAlgorithm[np.ndarray]):
         num_actor_mbs = 0
         num_critic_mbs = 0
 
+        plastic_info: dict[str, float] = {}
+
         for _ in range(self.updates_per_iteration):
             idx = torch.randperm(batch_size, device=self.device)
 
@@ -554,6 +587,10 @@ class PPO(SARLAlgorithm[np.ndarray]):
                         advantages_mb,
                         self.entropy_coef,
                     )
+
+                    for key, value in actor_info.items():
+                        if key.startswith("actor/"):
+                            plastic_info[key] = value
 
                     max_kl_seen = max(max_kl_seen, actor_info.get("approx_kl", 0.0))
 
@@ -581,10 +618,18 @@ class PPO(SARLAlgorithm[np.ndarray]):
 
                 # ---- Critic ----
                 critic_info = self.update_critic_minibatch(states_mb, returns_mb)
+                for key, value in critic_info.items():
+                    if key.startswith("critic/"):
+                        plastic_info[key] = value
+
                 sum_critic_loss += critic_info["critic_loss"]
                 num_critic_mbs += 1
 
         info: dict[str, Any] = {}
+
+        info.update(plastic_info)
+        info.update(self.actor_plasticity.summary(prefix="actor"))
+        info.update(self.critic_plasticity.summary(prefix="critic"))
 
         # ---------------------------------------------------------
         # Core Losses
