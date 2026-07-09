@@ -100,6 +100,7 @@ class PlasticityConfig(SubscriptableClass):
     rank_interval: int = 1
     knife_interval: int = 100_000
 
+    replacement_accumulate: bool = False
     compute_rank: bool = True
     training_only: bool = True
     include_output_layer: bool = False

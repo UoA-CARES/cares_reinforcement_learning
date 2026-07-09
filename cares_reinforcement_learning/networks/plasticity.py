@@ -72,9 +72,27 @@ class NetworkPlasticityManager:
         self.age: dict[str, torch.Tensor] = {}
         self.accumulated_replacements: dict[str, torch.Tensor] = {}
 
-        # ReDo-style dormancy tracking.
-        self.activation_abs_ema: dict[str, torch.Tensor] = {}
-        self.activity_frac_ema: dict[str, torch.Tensor] = {}
+        # Paper-style dead-unit tracking from the Nature CBP paper.
+        # A unit is "dead" if it is active on less than 1% of samples in the
+        # measurement window. For ReLU-style activations this follows their
+        # `(features > 0).mean(dim=0)` logging.
+        self.active_window_sum: dict[str, torch.Tensor] = {}
+        self.active_window_count: dict[str, torch.Tensor] = {}
+        self.active_lifetime_sum: dict[str, torch.Tensor] = {}
+        self.active_lifetime_count: dict[str, torch.Tensor] = {}
+
+        # Behaviour-window activation buffers for paper-aligned dead-unit and
+        # representation-rank measurements. These buffers intentionally collect
+        # activations when the network is in eval mode, which matches this PPO
+        # implementation's rollout/action-collection path. They are not used by
+        # CBP replacement itself.
+        self.activation_window: dict[str, list[torch.Tensor]] = {}
+        self.activation_window_rows: dict[str, int] = {}
+
+        # ReDo-style dormancy tracking. This is a normalized activation-magnitude
+        # metric and is intentionally named separately from paper-style dead units.
+        self.redo_activation_abs_ema: dict[str, torch.Tensor] = {}
+        self.redo_activity_frac_ema: dict[str, torch.Tensor] = {}
 
         # KNIFE-style RUA tracking.
         # Window values are reset on the configured summary/log interval.
@@ -178,15 +196,23 @@ class NetworkPlasticityManager:
             if not self.enabled:
                 return
 
-            if self.config.training_only and not self.model.training:
-                return
-
             if not torch.is_tensor(output):
                 return
 
             activation = output.detach()
 
             if activation.ndim != 2:
+                return
+
+            # Paper-aligned measurement window: collect behaviour activations
+            # during rollout/action selection. In this PPO implementation the
+            # networks are put in eval mode while collecting actions, so this
+            # avoids mixing PPO minibatch-training activations into the rank and
+            # dead-unit measurements.
+            if not self.model.training:
+                self._record_activation_window(site, activation)
+
+            if self.config.training_only and not self.model.training:
                 return
 
             self._update_activation_metrics(site, activation)
@@ -225,8 +251,15 @@ class NetworkPlasticityManager:
         self.age[site.name] = torch.zeros(num_units, device=device)
         self.accumulated_replacements[site.name] = torch.zeros(1, device=device)
 
-        self.activation_abs_ema[site.name] = torch.zeros(num_units, device=device)
-        self.activity_frac_ema[site.name] = torch.zeros(num_units, device=device)
+        self.active_window_sum[site.name] = torch.zeros(num_units, device=device)
+        self.active_window_count[site.name] = torch.zeros(num_units, device=device)
+        self.active_lifetime_sum[site.name] = torch.zeros(num_units, device=device)
+        self.active_lifetime_count[site.name] = torch.zeros(num_units, device=device)
+        self.activation_window[site.name] = []
+        self.activation_window_rows[site.name] = 0
+
+        self.redo_activation_abs_ema[site.name] = torch.zeros(num_units, device=device)
+        self.redo_activity_frac_ema[site.name] = torch.zeros(num_units, device=device)
 
         self.update_activity_window_sum[site.name] = torch.zeros(
             num_units, device=device
@@ -240,6 +273,43 @@ class NetworkPlasticityManager:
         self.update_activity_lifetime_count[site.name] = torch.zeros(
             num_units, device=device
         )
+
+    @torch.no_grad()
+    def _record_activation_window(
+        self,
+        site: FeatureSite,
+        activation: torch.Tensor,
+    ) -> None:
+        num_units = activation.shape[1]
+        device = activation.device
+        self._ensure_site_state(site, num_units, device)
+
+        max_rows = int(self.config.activation_window_size)
+        if max_rows <= 0:
+            return
+
+        chunk = activation.detach().float().cpu()
+        self.activation_window[site.name].append(chunk)
+        self.activation_window_rows[site.name] += int(chunk.shape[0])
+
+        while (
+            self.activation_window[site.name]
+            and self.activation_window_rows[site.name] > max_rows
+        ):
+            removed = self.activation_window[site.name].pop(0)
+            self.activation_window_rows[site.name] -= int(removed.shape[0])
+
+    @torch.no_grad()
+    def _activation_window_tensor(self, site_name: str) -> torch.Tensor | None:
+        chunks = self.activation_window.get(site_name, [])
+        if not chunks:
+            return None
+
+        window = torch.cat(chunks, dim=0)
+        max_rows = int(self.config.activation_window_size)
+        if max_rows > 0 and window.shape[0] > max_rows:
+            window = window[-max_rows:]
+        return window
 
     @torch.no_grad()
     def _update_activation_metrics(
@@ -263,14 +333,25 @@ class NetworkPlasticityManager:
 
         activation_abs_mean = activation.abs().mean(dim=0)
 
-        self.activation_abs_ema[site.name].mul_(decay).add_(
+        # Paper-style activity fraction: for ReLU networks, a unit is active when
+        # its post-activation output is strictly positive. This is the metric used
+        # in the original logging code: `(features > 0).float().mean(dim=0)`.
+        batch_active_fraction = (activation > 0.0).float().mean(dim=0)
+        self.active_window_sum[site.name].add_(batch_active_fraction)
+        self.active_window_count[site.name].add_(1.0)
+        self.active_lifetime_sum[site.name].add_(batch_active_fraction)
+        self.active_lifetime_count[site.name].add_(1.0)
+
+        # ReDo-style activity/dormancy diagnostics use activation magnitude, not
+        # the paper-style firing fraction.
+        self.redo_activation_abs_ema[site.name].mul_(decay).add_(
             (1.0 - decay) * activation_abs_mean
         )
 
         batch_activity = (
             (activation.abs() > self.config.activity_threshold).float().mean(dim=0)
         )
-        self.activity_frac_ema[site.name].mul_(decay).add_(
+        self.redo_activity_frac_ema[site.name].mul_(decay).add_(
             (1.0 - decay) * batch_activity
         )
 
@@ -345,9 +426,14 @@ class NetworkPlasticityManager:
         volatile_threshold = self.config.volatile_threshold
 
         unit_count_total = 0.0
-        dormant_frac_weighted_sum = 0.0
-        activity_frac_weighted_sum = 0.0
-        utility_mean_weighted_sum = 0.0
+        dead_units_frac_weighted_sum = 0.0
+        active_fraction_weighted_sum = 0.0
+        dead_units_lifetime_frac_weighted_sum = 0.0
+        active_lifetime_fraction_weighted_sum = 0.0
+
+        redo_dormant_units_frac_weighted_sum = 0.0
+        redo_activity_frac_weighted_sum = 0.0
+        contribution_utility_mean_weighted_sum = 0.0
 
         update_activity_window_weighted_sum = 0.0
         stagnant_frac_window_weighted_sum = 0.0
@@ -357,14 +443,13 @@ class NetworkPlasticityManager:
         stagnant_frac_lifetime_weighted_sum = 0.0
         volatile_frac_lifetime_weighted_sum = 0.0
 
-        weight_count_total = 0.0
-        weight_abs_weighted_sum = 0.0
-
         utility_p10s: list[float] = []
         rua_window_p10s: list[float] = []
         rua_lifetime_p10s: list[float] = []
         stable_ranks: list[float] = []
         effective_ranks: list[float] = []
+        stable_rank_final_layer: float | None = None
+        effective_rank_final_layer: float | None = None
 
         all_utility: list[torch.Tensor] = []
         all_rua_window: list[torch.Tensor] = []
@@ -379,39 +464,114 @@ class NetworkPlasticityManager:
             clean_name = site.name.replace(".", "_")
             num_units = float(site.producer_module.out_features)
 
-            activation_abs = self.activation_abs_ema[site.name]
-            layer_mean_abs = activation_abs.mean().clamp_min(1e-12)
-            dormant_score = activation_abs / layer_mean_abs
+            activity_window = self._activation_window_tensor(site.name)
+            if activity_window is not None and activity_window.shape[0] > 0:
+                # Nature/CBP-paper metric: a ReLU unit is dead if it is active
+                # on less than 1% of samples in the recent behaviour window.
+                active_fraction = (activity_window > 0.0).float().mean(dim=0)
+                dead_units_frac = (active_fraction < 0.01).float().mean().item()
+                active_fraction_mean = active_fraction.mean().item()
 
-            dormant_frac = (
-                (dormant_score <= self.config.dormant_threshold).float().mean().item()
-            )
-            activity_frac_mean = self.activity_frac_ema[site.name].mean().item()
+                info[f"{prefix}/{clean_name}/dead_units_frac"] = dead_units_frac
+                info[f"{prefix}/{clean_name}/active_fraction_mean"] = (
+                    active_fraction_mean
+                )
+                info[f"{prefix}/{clean_name}/active_fraction_p10"] = torch.quantile(
+                    active_fraction, 0.10
+                ).item()
+                info[f"{prefix}/{clean_name}/activity_window_size"] = float(
+                    activity_window.shape[0]
+                )
 
-            info[f"{prefix}/{clean_name}/dormant_frac"] = dormant_frac
-            info[f"{prefix}/{clean_name}/dormant_score_mean"] = (
-                dormant_score.mean().item()
+                dead_units_frac_weighted_sum += dead_units_frac * num_units
+                active_fraction_weighted_sum += active_fraction_mean * num_units
+
+                if should_rank:
+                    rank_metrics = self._rank_metrics(activity_window)
+                    for key, value in rank_metrics.items():
+                        info[f"{prefix}/{clean_name}/{key}"] = value
+
+                    if "stable_rank" in rank_metrics:
+                        stable_ranks.append(rank_metrics["stable_rank"])
+                        stable_rank_final_layer = rank_metrics["stable_rank"]
+
+                    if "effective_rank" in rank_metrics:
+                        effective_ranks.append(rank_metrics["effective_rank"])
+                        effective_rank_final_layer = rank_metrics["effective_rank"]
+
+            active_lifetime_count = self.active_lifetime_count[site.name].clamp_min(1.0)
+            active_lifetime_fraction = (
+                self.active_lifetime_sum[site.name] / active_lifetime_count
             )
-            info[f"{prefix}/{clean_name}/dormant_score_p10"] = torch.quantile(
-                dormant_score, 0.10
+            dead_units_lifetime_frac = (
+                (active_lifetime_fraction < 0.01).float().mean().item()
+            )
+            active_lifetime_fraction_mean = active_lifetime_fraction.mean().item()
+
+            info[f"{prefix}/{clean_name}/dead_units_lifetime_frac"] = (
+                dead_units_lifetime_frac
+            )
+            info[f"{prefix}/{clean_name}/active_lifetime_fraction_mean"] = (
+                active_lifetime_fraction_mean
+            )
+
+            dead_units_lifetime_frac_weighted_sum += (
+                dead_units_lifetime_frac * num_units
+            )
+            active_lifetime_fraction_weighted_sum += (
+                active_lifetime_fraction_mean * num_units
+            )
+
+            redo_activation_abs = self.redo_activation_abs_ema[site.name]
+            redo_layer_mean_abs = redo_activation_abs.mean().clamp_min(1e-12)
+            redo_dormancy_score = redo_activation_abs / redo_layer_mean_abs
+
+            redo_dormant_units_frac = (
+                (redo_dormancy_score <= self.config.dormant_threshold)
+                .float()
+                .mean()
+                .item()
+            )
+            redo_activity_frac_mean = (
+                self.redo_activity_frac_ema[site.name].mean().item()
+            )
+
+            info[f"{prefix}/{clean_name}/redo_dormant_units_frac"] = (
+                redo_dormant_units_frac
+            )
+            info[f"{prefix}/{clean_name}/redo_dormancy_score_mean"] = (
+                redo_dormancy_score.mean().item()
+            )
+            info[f"{prefix}/{clean_name}/redo_dormancy_score_p10"] = torch.quantile(
+                redo_dormancy_score, 0.10
             ).item()
-            info[f"{prefix}/{clean_name}/activity_frac_mean"] = activity_frac_mean
+            info[f"{prefix}/{clean_name}/redo_activity_frac_mean"] = (
+                redo_activity_frac_mean
+            )
 
-            dormant_frac_weighted_sum += dormant_frac * num_units
-            activity_frac_weighted_sum += activity_frac_mean * num_units
+            redo_dormant_units_frac_weighted_sum += redo_dormant_units_frac * num_units
+            redo_activity_frac_weighted_sum += redo_activity_frac_mean * num_units
 
-            utility = self.bias_corrected_utility[site.name]
+            contribution_utility = self.bias_corrected_utility[site.name]
 
-            utility_mean = utility.mean().item()
-            utility_p10 = torch.quantile(utility, 0.10).item()
+            contribution_utility_mean = contribution_utility.mean().item()
+            contribution_utility_p10 = torch.quantile(contribution_utility, 0.10).item()
 
-            info[f"{prefix}/{clean_name}/utility_mean"] = utility_mean
-            info[f"{prefix}/{clean_name}/utility_p10"] = utility_p10
-            info[f"{prefix}/{clean_name}/utility_min"] = utility.min().item()
+            info[f"{prefix}/{clean_name}/contribution_utility_mean"] = (
+                contribution_utility_mean
+            )
+            info[f"{prefix}/{clean_name}/contribution_utility_p10"] = (
+                contribution_utility_p10
+            )
+            info[f"{prefix}/{clean_name}/contribution_utility_min"] = (
+                contribution_utility.min().item()
+            )
 
-            utility_mean_weighted_sum += utility_mean * num_units
-            utility_p10s.append(utility_p10)
-            all_utility.append(utility.detach().flatten())
+            contribution_utility_mean_weighted_sum += (
+                contribution_utility_mean * num_units
+            )
+            utility_p10s.append(contribution_utility_p10)
+            all_utility.append(contribution_utility.detach().flatten())
 
             window_count = self.update_activity_window_count[site.name].clamp_min(1.0)
             update_activity_window = (
@@ -433,13 +593,17 @@ class NetworkPlasticityManager:
                     (rua_window > volatile_threshold).float().mean().item()
                 )
 
-                info[f"{prefix}/{clean_name}/update_activity_mean"] = (
+                info[f"{prefix}/{clean_name}/knife_update_activity_mean"] = (
                     update_activity_window_mean
                 )
-                info[f"{prefix}/{clean_name}/rua_mean"] = rua_window.mean().item()
-                info[f"{prefix}/{clean_name}/rua_p10"] = rua_window_p10
-                info[f"{prefix}/{clean_name}/stagnant_frac"] = stagnant_frac_window
-                info[f"{prefix}/{clean_name}/volatile_frac"] = volatile_frac_window
+                info[f"{prefix}/{clean_name}/knife_rua_mean"] = rua_window.mean().item()
+                info[f"{prefix}/{clean_name}/knife_rua_p10"] = rua_window_p10
+                info[f"{prefix}/{clean_name}/knife_stagnant_units_frac"] = (
+                    stagnant_frac_window
+                )
+                info[f"{prefix}/{clean_name}/knife_volatile_units_frac"] = (
+                    volatile_frac_window
+                )
 
                 update_activity_window_weighted_sum += (
                     update_activity_window_mean * num_units
@@ -472,17 +636,17 @@ class NetworkPlasticityManager:
                     (rua_lifetime > volatile_threshold).float().mean().item()
                 )
 
-                info[f"{prefix}/{clean_name}/update_activity_lifetime_mean"] = (
+                info[f"{prefix}/{clean_name}/knife_update_activity_lifetime_mean"] = (
                     update_activity_lifetime_mean
                 )
-                info[f"{prefix}/{clean_name}/rua_lifetime_mean"] = (
+                info[f"{prefix}/{clean_name}/knife_rua_lifetime_mean"] = (
                     rua_lifetime.mean().item()
                 )
-                info[f"{prefix}/{clean_name}/rua_lifetime_p10"] = rua_lifetime_p10
-                info[f"{prefix}/{clean_name}/stagnant_frac_lifetime"] = (
+                info[f"{prefix}/{clean_name}/knife_rua_lifetime_p10"] = rua_lifetime_p10
+                info[f"{prefix}/{clean_name}/knife_stagnant_units_lifetime_frac"] = (
                     stagnant_frac_lifetime
                 )
-                info[f"{prefix}/{clean_name}/volatile_frac_lifetime"] = (
+                info[f"{prefix}/{clean_name}/knife_volatile_units_lifetime_frac"] = (
                     volatile_frac_lifetime
                 )
 
@@ -499,114 +663,146 @@ class NetworkPlasticityManager:
                 rua_lifetime_p10s.append(rua_lifetime_p10)
                 all_rua_lifetime.append(rua_lifetime.detach().flatten())
 
-            weight_abs_mean = site.producer_module.weight.detach().abs().mean().item()
-            weight_count = float(site.producer_module.weight.numel())
-
-            info[f"{prefix}/{clean_name}/weight_abs_mean"] = weight_abs_mean
-
-            weight_abs_weighted_sum += weight_abs_mean * weight_count
-            weight_count_total += weight_count
-
             unit_count_total += num_units
-
-            if should_rank and site.name in self.last_activation:
-                rank_metrics = self._rank_metrics(self.last_activation[site.name])
-                for key, value in rank_metrics.items():
-                    info[f"{prefix}/{clean_name}/{key}"] = value
-
-                if "stable_rank" in rank_metrics:
-                    stable_ranks.append(rank_metrics["stable_rank"])
-
-                if "effective_rank" in rank_metrics:
-                    effective_ranks.append(rank_metrics["effective_rank"])
 
             rua_sites_to_reset.append(site.name)
 
         if unit_count_total > 0:
-            info[f"{prefix}/dormant_frac_mean"] = (
-                dormant_frac_weighted_sum / unit_count_total
+            info[f"{prefix}/dead_units_frac"] = (
+                dead_units_frac_weighted_sum / unit_count_total
             )
-            info[f"{prefix}/activity_frac_mean"] = (
-                activity_frac_weighted_sum / unit_count_total
+            info[f"{prefix}/active_fraction_mean"] = (
+                active_fraction_weighted_sum / unit_count_total
             )
-            info[f"{prefix}/utility_mean"] = (
-                utility_mean_weighted_sum / unit_count_total
+            info[f"{prefix}/dead_units_lifetime_frac"] = (
+                dead_units_lifetime_frac_weighted_sum / unit_count_total
+            )
+            info[f"{prefix}/active_lifetime_fraction_mean"] = (
+                active_lifetime_fraction_weighted_sum / unit_count_total
+            )
+
+            info[f"{prefix}/redo_dormant_units_frac"] = (
+                redo_dormant_units_frac_weighted_sum / unit_count_total
+            )
+            info[f"{prefix}/redo_activity_frac_mean"] = (
+                redo_activity_frac_weighted_sum / unit_count_total
+            )
+            info[f"{prefix}/contribution_utility_mean"] = (
+                contribution_utility_mean_weighted_sum / unit_count_total
             )
 
             if update_activity_window_weighted_sum > 0:
-                info[f"{prefix}/update_activity_mean"] = (
+                info[f"{prefix}/knife_update_activity_mean"] = (
                     update_activity_window_weighted_sum / unit_count_total
                 )
-                info[f"{prefix}/stagnant_frac_mean"] = (
+                info[f"{prefix}/knife_stagnant_units_frac"] = (
                     stagnant_frac_window_weighted_sum / unit_count_total
                 )
-                info[f"{prefix}/volatile_frac_mean"] = (
+                info[f"{prefix}/knife_volatile_units_frac"] = (
                     volatile_frac_window_weighted_sum / unit_count_total
                 )
 
             if update_activity_lifetime_weighted_sum > 0:
-                info[f"{prefix}/update_activity_lifetime_mean"] = (
+                info[f"{prefix}/knife_update_activity_lifetime_mean"] = (
                     update_activity_lifetime_weighted_sum / unit_count_total
                 )
-                info[f"{prefix}/stagnant_frac_lifetime_mean"] = (
+                info[f"{prefix}/knife_stagnant_units_lifetime_frac"] = (
                     stagnant_frac_lifetime_weighted_sum / unit_count_total
                 )
-                info[f"{prefix}/volatile_frac_lifetime_mean"] = (
+                info[f"{prefix}/knife_volatile_units_lifetime_frac"] = (
                     volatile_frac_lifetime_weighted_sum / unit_count_total
                 )
 
-        if weight_count_total > 0:
-            info[f"{prefix}/weight_abs_mean"] = (
-                weight_abs_weighted_sum / weight_count_total
-            )
+        self._add_weight_magnitude_metrics(info, prefix)
 
         if utility_p10s:
-            info[f"{prefix}/utility_p10_mean"] = sum(utility_p10s) / len(utility_p10s)
+            info[f"{prefix}/contribution_utility_p10_mean"] = sum(utility_p10s) / len(
+                utility_p10s
+            )
 
         if all_utility:
             utility_global = torch.cat(all_utility)
-            info[f"{prefix}/utility_p10_global"] = torch.quantile(
+            info[f"{prefix}/contribution_utility_p10_global"] = torch.quantile(
                 utility_global, 0.10
             ).item()
 
         if rua_window_p10s:
-            info[f"{prefix}/rua_p10_mean"] = sum(rua_window_p10s) / len(rua_window_p10s)
+            info[f"{prefix}/knife_rua_p10_mean"] = sum(rua_window_p10s) / len(
+                rua_window_p10s
+            )
 
         if all_rua_window:
             rua_window_global = torch.cat(all_rua_window)
-            info[f"{prefix}/rua_p10_global"] = torch.quantile(
+            info[f"{prefix}/knife_rua_p10_global"] = torch.quantile(
                 rua_window_global, 0.10
             ).item()
 
         if rua_lifetime_p10s:
-            info[f"{prefix}/rua_lifetime_p10_mean"] = sum(rua_lifetime_p10s) / len(
+            info[f"{prefix}/knife_rua_lifetime_p10_mean"] = sum(
                 rua_lifetime_p10s
-            )
+            ) / len(rua_lifetime_p10s)
 
         if all_rua_lifetime:
             rua_lifetime_global = torch.cat(all_rua_lifetime)
-            info[f"{prefix}/rua_lifetime_p10_global"] = torch.quantile(
+            info[f"{prefix}/knife_rua_lifetime_p10_global"] = torch.quantile(
                 rua_lifetime_global, 0.10
             ).item()
 
         if stable_ranks:
             info[f"{prefix}/stable_rank_mean"] = sum(stable_ranks) / len(stable_ranks)
 
+        if stable_rank_final_layer is not None:
+            info[f"{prefix}/stable_rank_final_layer"] = stable_rank_final_layer
+
         if effective_ranks:
             info[f"{prefix}/effective_rank_mean"] = sum(effective_ranks) / len(
                 effective_ranks
             )
 
+        if effective_rank_final_layer is not None:
+            info[f"{prefix}/effective_rank_final_layer"] = effective_rank_final_layer
+
         info[f"{prefix}/units_replaced_total"] = float(self.total_units_replaced)
 
-        should_reset_window_rua = self.model.training and should_log
-        if should_reset_window_rua:
+        should_reset_window_metrics = self.model.training and should_log
+        if should_reset_window_metrics:
             for site_name in rua_sites_to_reset:
+                self.active_window_sum[site_name].zero_()
+                self.active_window_count[site_name].zero_()
                 self.update_activity_window_sum[site_name].zero_()
                 self.update_activity_window_count[site_name].zero_()
+                self.activation_window[site_name].clear()
+                self.activation_window_rows[site_name] = 0
 
         self.last_summary = info
         return info
+
+    @torch.no_grad()
+    def _add_weight_magnitude_metrics(
+        self,
+        info: dict[str, float],
+        prefix: str,
+    ) -> None:
+        total_abs_weight = 0.0
+        total_weight_count = 0.0
+
+        for module_name, module in self.model.named_modules():
+            if not isinstance(module, nn.Linear):
+                continue
+
+            clean_name = module_name.replace(".", "_") if module_name else "linear"
+            weight_abs_mean = module.weight.detach().abs().mean().item()
+            weight_count = float(module.weight.numel())
+
+            info[f"{prefix}/{clean_name}/average_weight_magnitude"] = weight_abs_mean
+
+            total_abs_weight += weight_abs_mean * weight_count
+            total_weight_count += weight_count
+
+        if total_weight_count > 0:
+            info[f"{prefix}/average_weight_magnitude"] = (
+                total_abs_weight / total_weight_count
+            )
 
     @torch.no_grad()
     def _rank_metrics(self, activation: torch.Tensor) -> dict[str, float]:
@@ -697,12 +893,31 @@ class NetworkPlasticityManager:
         if eligible_indices.numel() == 0:
             return torch.empty(0, dtype=torch.long, device=utility.device)
 
-        self.accumulated_replacements[site.name].add_(
-            self.config.replacement_rate * eligible_indices.numel()
-        )
+        expected_replacements = self.config.replacement_rate * eligible_indices.numel()
 
-        num_replace = int(self.accumulated_replacements[site.name].item())
-        self.accumulated_replacements[site.name].sub_(float(num_replace))
+        if self.config.replacement_accumulate:
+            # Algorithm-1 style deterministic accumulator: same long-run expected
+            # replacement rate, but lower step-to-step variance and possible multi-unit
+            # replacement when the accumulator exceeds 1.
+            self.accumulated_replacements[site.name].add_(expected_replacements)
+            num_replace = int(self.accumulated_replacements[site.name].item())
+            self.accumulated_replacements[site.name].sub_(float(num_replace))
+        else:
+            # Reference-repo default behaviour: accumulate=False in GnT.
+            # The integer part is always replaced, and the fractional part is
+            # handled by one Bernoulli draw. For normal CBP settings where
+            # replacement_rate * eligible_units < 1, this means replacing either
+            # zero or one unit per site per update.
+            expected_tensor = torch.tensor(
+                expected_replacements,
+                device=utility.device,
+                dtype=torch.float32,
+            )
+            num_replace = int(torch.floor(expected_tensor).item())
+            fractional_part = expected_tensor - float(num_replace)
+
+            if torch.rand((), device=utility.device) < fractional_part:
+                num_replace += 1
 
         if num_replace <= 0:
             return torch.empty(0, dtype=torch.long, device=utility.device)
@@ -745,8 +960,13 @@ class NetworkPlasticityManager:
         self.mean_feature_act[site.name][unit_idx] = 0.0
         self.age[site.name][unit_idx] = 0.0
 
-        self.activation_abs_ema[site.name][unit_idx] = 0.0
-        self.activity_frac_ema[site.name][unit_idx] = 0.0
+        self.active_window_sum[site.name][unit_idx] = 0.0
+        self.active_window_count[site.name][unit_idx] = 0.0
+        self.active_lifetime_sum[site.name][unit_idx] = 0.0
+        self.active_lifetime_count[site.name][unit_idx] = 0.0
+
+        self.redo_activation_abs_ema[site.name][unit_idx] = 0.0
+        self.redo_activity_frac_ema[site.name][unit_idx] = 0.0
 
         self.update_activity_window_sum[site.name][unit_idx] = 0.0
         self.update_activity_window_count[site.name][unit_idx] = 0.0
