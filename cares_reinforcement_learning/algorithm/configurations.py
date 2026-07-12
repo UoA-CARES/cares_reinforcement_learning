@@ -95,6 +95,7 @@ class PlasticityConfig(SubscriptableClass):
 
     activity_threshold: float = 1e-5
     dormant_threshold: float = 0.01
+    activation_window_size: int = 10_000
 
     log_interval: int = 1
     rank_interval: int = 1
