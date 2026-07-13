@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
+
 # This (tries to) implement SimBa architecture, which is taken from https://arxiv.org/pdf/2410.09754
 
+
 class RunningStatsNorm(nn.Module):
-    """ This keeps a running average and variance for each input to normalize observations.
+    """This keeps a running average and variance for each input to normalize observations.
 
     Args:
         input_dim: how many values are in the input
@@ -33,7 +35,9 @@ class RunningStatsNorm(nn.Module):
                 old_sum_of_squares = self.running_var * old_count
                 batch_sum_of_squares = batch_var * batch_count
                 mean_correction = delta**2 * ((old_count * batch_count) / new_count)
-                new_var = (old_sum_of_squares + batch_sum_of_squares + mean_correction) / new_count
+                new_var = (
+                    old_sum_of_squares + batch_sum_of_squares + mean_correction
+                ) / new_count
 
                 self.running_mean.copy_(new_mean)
                 self.running_var.copy_(new_var)
@@ -44,16 +48,19 @@ class RunningStatsNorm(nn.Module):
 
 class SimBaBlock(nn.Module):
     """
-        This is the residual processing block.
+    This is the residual processing block.
 
-        Args:
-            hidden_dim: internal network dimensions
-        """
+    Args:
+        hidden_dim: internal network dimensions
+    """
+
     def __init__(self, hidden_dim: int):
         super().__init__()
         self.norm = nn.LayerNorm(hidden_dim)
         self.mlp = nn.Sequential(
-            nn.Linear(hidden_dim, 4 * hidden_dim), # This uses the paper's recommended 4 times, it is not fixed
+            nn.Linear(
+                hidden_dim, 4 * hidden_dim
+            ),  # This uses the paper's recommended 4 times, it is not fixed
             nn.ReLU(),
             nn.Linear(4 * hidden_dim, hidden_dim),
         )
@@ -85,9 +92,7 @@ class SimBaNetwork(nn.Module):
 
         self.rsnorm = RunningStatsNorm(input_dim)
         self.input = nn.Linear(input_dim, hidden_dim)
-        self.blocks = nn.ModuleList(
-            [SimBaBlock(hidden_dim) for _ in range(num_blocks)]
-        )
+        self.blocks = nn.ModuleList([SimBaBlock(hidden_dim) for _ in range(num_blocks)])
         self.post_norm = nn.LayerNorm(hidden_dim)
         self.output = nn.Linear(hidden_dim, output_dim)
 

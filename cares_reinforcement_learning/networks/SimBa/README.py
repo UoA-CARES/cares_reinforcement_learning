@@ -1,4 +1,4 @@
-'''
+"""
 Computer Vision and Natural Language Processing models
 have had success by increasing the number of parameters
 that they use. Despite fears of overfitting, including a
@@ -37,4 +37,4 @@ in Sony's paper to get what the running normalization should do.
 2. I've copied across some normalization code from Sony, which I think happens before it is part of the
 neural network, but I don't understand most of the code.
 
-'''
+"""
