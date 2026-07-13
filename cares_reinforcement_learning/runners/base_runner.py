@@ -140,7 +140,7 @@ class BaseRunner(ABC):
             self.env_config,
             self.train_seed,
             self.eval_seed,
-            bool(self.alg_config.image_observation),
+            self.alg_config.uses_image_observation(),
         )
 
         # Set the seed for everything

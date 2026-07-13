@@ -46,9 +46,15 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self.max_steps_exploration = config.max_steps_exploration
         self.max_steps_training = config.max_steps_training
 
-        self.image_observation = config.image_observation
+        self.preprocess_networks = config.get_preprocess_networks()
+        self.vector_network = self.preprocess_networks.get("vector_network")
+        self.image_network = self.preprocess_networks.get("image_network")
+        self.image_observation = config.uses_image_observation()
 
         self.device = device
+
+    def get_preprocess_network(self, name: str) -> Any | None:
+        return self.preprocess_networks.get(name)
 
     @abstractmethod
     def act(
@@ -222,11 +228,12 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         """
         return {}
 
-
 class SARLAlgorithm(
     Algorithm[SARLObservation, ActType, SARLMemoryBuffer], Generic[ActType]
-): ...
-
+): 
+    def get_state_from_observations_modes(self, observation: SARLObservation) -> np.ndarray:
+        # Apply default mode of using vector state for now - can be overridden in subclasses to use image state or a combination of both
+        return observation.vector_state
 
 class MARLAlgorithm(
     Algorithm[MARLObservation, ActType, MARLMemoryBuffer], Generic[ActType]

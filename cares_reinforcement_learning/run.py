@@ -62,7 +62,7 @@ def main_with_runner():
         logger.warning(
             "Training checkpoints will be saved - be aware this will increase disk usage (memory buffer)."
         )
-        if coordinator.alg_config.image_observation:
+        if coordinator.alg_config.uses_image_observation():
             no_gpu_answer = input(
                 "Image observations are being used with checkpoints - this will take up a lot of disk space: Do you want to disable this? [y/n]"
             )

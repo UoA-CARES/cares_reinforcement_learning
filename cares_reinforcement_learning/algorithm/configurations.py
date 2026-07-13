@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from enum import Enum
 
@@ -80,6 +80,27 @@ class MLPConfig(BaseModel):
     layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
 
 
+class PreprocessNetworkConfig(SubscriptableClass):
+    model_config = ConfigDict(extra="allow")
+
+    vector_network: Any | None = None
+    image_network: Any | None = None
+
+    def to_network_map(self) -> dict[str, Any]:
+        networks: dict[str, Any] = {}
+
+        if self.vector_network is not None:
+            networks["vector_network"] = self.vector_network
+
+        if self.image_network is not None:
+            networks["image_network"] = self.image_network
+
+        if self.model_extra:
+            networks.update(self.model_extra)
+
+        return networks
+
+
 class AlgorithmConfig(SubscriptableClass):
     """
     Configuration class for the algorithm.
@@ -96,7 +117,11 @@ class AlgorithmConfig(SubscriptableClass):
         max_steps_training (int]): Maximum number of steps for training.
         number_steps_per_train_policy (int]): Number of steps per updating the training policy.
 
-        image_observation (int]): Whether the observation is an image.
+        image_observation (int]): Legacy flag indicating whether the environment should emit image observations.
+
+        preprocess_networks (dict[str, Any]): Named preprocess network definitions keyed by
+            observation mode, for example ``vector_network``, ``image_network`` or
+            ``lidar_network``.
 
         model_path (str | None]): Path to a pre-trained model.
 
@@ -119,10 +144,19 @@ class AlgorithmConfig(SubscriptableClass):
 
     image_observation: int = 0
     marl_observation: int = 0
+    preprocess_networks: PreprocessNetworkConfig = Field(
+        default_factory=PreprocessNetworkConfig
+    )
 
     model_path: str | None = None
 
     repetition_num_episodes: int = 0
+
+    def get_preprocess_networks(self) -> dict[str, Any]:
+        return self.preprocess_networks.to_network_map()
+
+    def uses_image_observation(self) -> bool:
+        return bool(self.image_observation) or self.preprocess_networks.image_network is not None
 
 
 ###################################

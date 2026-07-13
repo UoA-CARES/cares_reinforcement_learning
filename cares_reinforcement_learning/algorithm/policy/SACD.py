@@ -104,16 +104,16 @@ class SACD(SAC):
 
         self.entropy = None
 
-        self.apply_actor_film = False
-        self.apply_critic_film = False
+        # self.apply_actor_film = False
+        # self.apply_critic_film = False
 
-        if hasattr(self.actor_net, 'film_layers') and len(self.actor_net.film_layers) > 0:
-            self.apply_actor_film = True
-            self.actor_net.enable_film(num_tasks)
+        # if hasattr(self.actor_net, 'film_layers') and len(self.actor_net.film_layers) > 0:
+        #     self.apply_actor_film = True
+        #     self.actor_net.enable_film(num_tasks)
 
-        if hasattr(self.critic_net.Q1, 'film_layers') and len(self.critic_net.Q1.film_layers) > 0:
-            self.apply_critic_film = True
-            self.critic_net.enable_film(num_tasks)
+        # if hasattr(self.critic_net.Q1, 'film_layers') and len(self.critic_net.Q1.film_layers) > 0:
+        #     self.apply_critic_film = True
+        #     self.critic_net.enable_film(num_tasks)
 
         self.normalise_state = config.normalise_state
         if hasattr(config, "encoder_type"):
@@ -278,9 +278,9 @@ class SACD(SAC):
         
         self.actor_net.eval()
 
-        if self.apply_actor_film:
-            tasks = torch.tensor(np.asarray(observation.extras["tasks"]), dtype=torch.float32, device=self.device).unsqueeze(0)
-            self.actor_net.update_film_params(tasks)
+        # if self.apply_actor_film:
+        #     tasks = torch.tensor(np.asarray(observation.extras["tasks"]), dtype=torch.float32, device=self.device).unsqueeze(0)
+        #     self.actor_net.update_film_params(tasks)
 
         # TODO: Must be updated to handle image states as well
         state = observation.vector_state
@@ -365,8 +365,8 @@ class SACD(SAC):
         :return: Critic loss info for logging and PER priorities
         :rtype: tuple[dict[str, float], np.ndarray]
         """
-        if self.apply_critic_film:
-            self.critic_net.update_film_params(tasks)
+        # if self.apply_critic_film:
+        #     self.critic_net.update_film_params(tasks)
         
         q_target = self._get_bootstrapped_value_estimate(next_states, rewards, dones)
 
@@ -398,8 +398,8 @@ class SACD(SAC):
             old_entropies: torch.Tensor = None, 
             tasks: torch.Tensor = None
         ) -> tuple[float, float]:
-        if self.apply_actor_film:
-            self.actor_net.update_film_params(tasks)
+        # if self.apply_actor_film:
+        #     self.actor_net.update_film_params(tasks)
         
         info = {}
         _, (action_probs, log_action_probs), _ = self.actor_net(states)
