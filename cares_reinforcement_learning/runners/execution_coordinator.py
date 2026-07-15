@@ -118,7 +118,11 @@ class ExecutionCoordinator:
 
         logger.info(f"Base Log Directory: {self.base_log_dir}")
 
-    def _listen_for_progress(self, queue: Queue, futures: list[Any]) -> None:
+    def _listen_for_progress(
+        self,
+        queue: Queue,
+        futures: list[concurrent.futures.Future[Any]],
+    ) -> None:
         progress = Progress(
             TextColumn("[bold blue]{task.fields[seed]}"),
             BarColumn(),
@@ -130,15 +134,18 @@ class ExecutionCoordinator:
 
         tasks: dict[int, int] = {}
         done_seeds: set[int] = set()
+        completed_futures: set[int] = set()
 
         with progress:
             while True:
-                try:
-                    msg = queue.get_nowait()
-                except Empty:
-                    msg = None
+                consumed_message = False
+                while True:
+                    try:
+                        msg = queue.get_nowait()
+                    except Empty:
+                        break
 
-                if msg:
+                    consumed_message = True
                     seed = msg["seed"]
 
                     if seed not in tasks:
@@ -160,8 +167,26 @@ class ExecutionCoordinator:
                         done_seeds.add(seed)
                         progress.console.log(f"[green]Seed {seed} completed!")
 
-                if len(done_seeds) == len(futures):
+                any_future_completed = False
+                for future_index, future in enumerate(futures):
+                    if future_index in completed_futures or not future.done():
+                        continue
+
+                    completed_futures.add(future_index)
+                    any_future_completed = True
+
+                    exc = future.exception()
+                    if exc is not None:
+                        for other_future in futures:
+                            if other_future is not future and not other_future.done():
+                                other_future.cancel()
+                        raise exc
+
+                if len(completed_futures) == len(futures):
                     break
+
+                if not consumed_message and not any_future_completed:
+                    time.sleep(0.05)
 
     def _test_single_seed(
         self,
