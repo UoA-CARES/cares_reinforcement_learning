@@ -27,7 +27,7 @@ class MARLDroneEnvironment(MARLEnvironment):
         self.env = task_factory.make(
             task_name=config.task,
             use_simulator=cast(Literal[0, 1], config.use_simulator),
-            num_agents=config.num_agents,        
+            num_agents=config.num_agents,
         )
 
         self.possible_agents: list[str] = list(self.env.possible_agents)
@@ -104,7 +104,7 @@ class MARLDroneEnvironment(MARLEnvironment):
     @cached_property
     def num_agents(self) -> int:
         return len(self.possible_agents)
-    
+
     def get_available_actions(self) -> dict[str, np.ndarray]:
         return {
             agent: np.ones(self.action_num, dtype=np.int32)
@@ -145,10 +145,7 @@ class MARLDroneEnvironment(MARLEnvironment):
         self,
         rewards: dict[str, float],
     ) -> dict[str, float]:
-        return {
-            agent: float(rewards.get(agent, 0.0))
-            for agent in self.possible_agents
-        }
+        return {agent: float(rewards.get(agent, 0.0)) for agent in self.possible_agents}
 
     def _complete_bool_dict(
         self,
@@ -156,8 +153,7 @@ class MARLDroneEnvironment(MARLEnvironment):
         default: bool = True,
     ) -> dict[str, bool]:
         return {
-            agent: bool(values.get(agent, default))
-            for agent in self.possible_agents
+            agent: bool(values.get(agent, default)) for agent in self.possible_agents
         }
 
     def _filter_action_to_active_agents(
@@ -218,12 +214,9 @@ class MARLDroneEnvironment(MARLEnvironment):
         Step the drone_gym MARL environment and return a CARES MultiAgentExperience.
         """
 
-
         # action = self._filter_action_to_active_agents(action)
 
-        agent_states, rewards, dones, truncations, infos = self.env.step(
-            action
-        )
+        agent_states, rewards, dones, truncations, infos = self.env.step(action)
 
         complete_agent_states = self._complete_agent_states(agent_states)
 
@@ -259,4 +252,3 @@ class MARLDroneEnvironment(MARLEnvironment):
 
     def close(self) -> None:
         self.env.close()
-        
