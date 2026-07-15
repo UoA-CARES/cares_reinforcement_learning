@@ -77,9 +77,6 @@ class MARLDroneEnvironment(MARLEnvironment):
         """
         Return observation and state dimensions for each agent and the global critic.
         """
-        # TODO: This considers possible_agents, but should we consider only active agents? 
-        # Does CARES RL accept that?
-        # Does num_agents have to be updated dynamically as agents terminate? 
         obs_spaces = {
             agent: int(self.env.observation_space(agent).shape[0])
             for agent in self.possible_agents
@@ -259,3 +256,7 @@ class MARLDroneEnvironment(MARLEnvironment):
 
     def get_overlay_info(self) -> dict:
         return {}
+
+    def close(self) -> None:
+        self.env.close()
+        
