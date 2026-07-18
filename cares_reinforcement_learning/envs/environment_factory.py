@@ -117,6 +117,14 @@ class EnvironmentFactory:
                 env = MPE2Environment(config, train_seed)
                 eval_env = MPE2Environment(config, eval_seed)
 
+            case cfg.MultiF1TenthConfig():
+                from cares_reinforcement_learning.envs.marl.f1tenth.multi_f1tenth_environment import (
+                    F1TenthMARLEnvironment,
+                )
+
+                env = F1TenthMARLEnvironment(config, train_seed)
+                eval_env = env
+
             case cfg.SMACConfig():
                 from cares_reinforcement_learning.envs.marl.smac.smac import (
                     SMACEnvironment,
@@ -132,6 +140,14 @@ class EnvironmentFactory:
 
                 env = SMAC2Environment(config, train_seed)
                 eval_env = SMAC2Environment(config, eval_seed)
+
+            case cfg.MARLDroneConfig():
+                from cares_reinforcement_learning.envs.marl.drone.drone_environment import (
+                    MARLDroneEnvironment,
+                )
+
+                env = MARLDroneEnvironment(config, train_seed)
+                eval_env = env
 
             case _:
                 raise ValueError(f"Unknown environment: {type(config)}")

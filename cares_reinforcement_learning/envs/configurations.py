@@ -91,6 +91,11 @@ class SMACConfig(GymEnvironmentConfig):
     record_video_fps: int = 5
 
 
+class MultiF1TenthConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "multi_f1tenth"
+    task: str = "track"
+
+
 class SMAC2Config(GymEnvironmentConfig):
     gym: ClassVar[str] = "smac2"
 
@@ -108,3 +113,10 @@ class MPEConfig(GymEnvironmentConfig):
     continuous_actions: int = 1
 
     record_video_fps: int = 5
+
+
+class MARLDroneConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "marl_drone"
+    task: str
+    use_simulator: int = 1  # 1 for simulator (DroneSim), 0 for real drone (Drone)
+    num_agents: int
