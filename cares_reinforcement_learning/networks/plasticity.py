@@ -447,8 +447,10 @@ class NetworkPlasticityManager:
         rua_window_p10s: list[float] = []
         rua_lifetime_p10s: list[float] = []
         stable_ranks: list[float] = []
+        stable_rank_pcts: list[float] = []
         effective_ranks: list[float] = []
         stable_rank_final_layer: float | None = None
+        stable_rank_pct_final_layer: float | None = None
         effective_rank_final_layer: float | None = None
 
         all_utility: list[torch.Tensor] = []
@@ -487,13 +489,19 @@ class NetworkPlasticityManager:
                 active_fraction_weighted_sum += active_fraction_mean * num_units
 
                 if should_rank:
-                    rank_metrics = self._rank_metrics(activity_window)
+                    rank_metrics = self._rank_metrics(
+                        activity_window, num_units=num_units
+                    )
                     for key, value in rank_metrics.items():
                         info[f"{prefix}/{clean_name}/{key}"] = value
 
                     if "stable_rank" in rank_metrics:
                         stable_ranks.append(rank_metrics["stable_rank"])
                         stable_rank_final_layer = rank_metrics["stable_rank"]
+
+                    if "stable_rank_pct" in rank_metrics:
+                        stable_rank_pcts.append(rank_metrics["stable_rank_pct"])
+                        stable_rank_pct_final_layer = rank_metrics["stable_rank_pct"]
 
                     if "effective_rank" in rank_metrics:
                         effective_ranks.append(rank_metrics["effective_rank"])
@@ -754,6 +762,14 @@ class NetworkPlasticityManager:
         if stable_rank_final_layer is not None:
             info[f"{prefix}/stable_rank_final_layer"] = stable_rank_final_layer
 
+        if stable_rank_pcts:
+            info[f"{prefix}/stable_rank_pct_mean"] = sum(stable_rank_pcts) / len(
+                stable_rank_pcts
+            )
+
+        if stable_rank_pct_final_layer is not None:
+            info[f"{prefix}/stable_rank_pct_final_layer"] = stable_rank_pct_final_layer
+
         if effective_ranks:
             info[f"{prefix}/effective_rank_mean"] = sum(effective_ranks) / len(
                 effective_ranks
@@ -805,7 +821,9 @@ class NetworkPlasticityManager:
             )
 
     @torch.no_grad()
-    def _rank_metrics(self, activation: torch.Tensor) -> dict[str, float]:
+    def _rank_metrics(
+        self, activation: torch.Tensor, num_units: float | None = None
+    ) -> dict[str, float]:
         if activation.shape[0] < 2:
             return {}
 
@@ -821,10 +839,13 @@ class NetworkPlasticityManager:
 
         singular_sum = singular_values.sum()
         if singular_sum <= 0:
-            return {
+            metrics = {
                 "stable_rank": 0.0,
                 "effective_rank": 0.0,
             }
+            if num_units:
+                metrics["stable_rank_pct"] = 0.0
+            return metrics
 
         cumulative_ratio = torch.cumsum(singular_values, dim=0) / singular_sum
         stable_rank = float(torch.searchsorted(cumulative_ratio, 0.99).item() + 1)
@@ -834,10 +855,20 @@ class NetworkPlasticityManager:
         entropy = -(probs * torch.log(probs.clamp_min(1e-12))).sum()
         effective_rank = torch.exp(entropy).item()
 
-        return {
+        metrics = {
             "stable_rank": stable_rank,
             "effective_rank": effective_rank,
         }
+
+        # Nature paper (Fig. 2d, Fig. 4b) plots stable rank scaled to the
+        # layer's maximum possible rank (its unit count), i.e. 0-100. This
+        # denominator is the layer width, not min(n_samples, n_units) from
+        # the SVD itself -- it's "how much of this layer's capacity is
+        # actually being used," not "how much of the sampled batch's rank."
+        if num_units:
+            metrics["stable_rank_pct"] = 100.0 * stable_rank / num_units
+
+        return metrics
 
     @torch.no_grad()
     def step_replacement(self) -> dict[str, float]:
