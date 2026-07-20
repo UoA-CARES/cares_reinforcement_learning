@@ -9,11 +9,9 @@ import logging
 import multiprocessing
 import time
 from multiprocessing.queues import Queue
-from queue import Empty
 from typing import Any
 
 import yaml
-from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 
 import cares_reinforcement_learning.runners.execution_logger as logs
 from cares_reinforcement_learning.algorithm.configurations import (
