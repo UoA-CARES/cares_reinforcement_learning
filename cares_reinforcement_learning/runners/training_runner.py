@@ -167,10 +167,6 @@ class TrainingRunner(BaseRunner):
 
     def _select_exploration_action(self, train_step_counter: int) -> ActionSample:
         """Handle exploration phase action selection."""
-        self.logger.info(
-            f"Running Exploration Steps {train_step_counter + 1}/{self.max_steps_exploration}"
-        )
-
         return ActionSample(self.env.sample_action(), source="exploration")
 
     def _select_repetition_action(self, episode_timesteps: int) -> ActionSample:
@@ -277,13 +273,6 @@ class TrainingRunner(BaseRunner):
 
             episode_stats.step()
 
-            status = (
-                "training"
-                if train_step_counter >= self.max_steps_exploration
-                else "exploration"
-            )
-            self._report_progress(episode_num + 1, train_step_counter + 1, status)
-
             # Determine action based on training phase
             action_sample = self._select_action(
                 train_step_counter, episode_stats.steps, state
@@ -357,6 +346,13 @@ class TrainingRunner(BaseRunner):
                     **info,
                     display=True,
                 )
+
+                status = (
+                    "training"
+                    if train_step_counter >= self.max_steps_exploration
+                    else "exploration"
+                )
+                self._report_progress(episode_num + 1, train_step_counter + 1, status)
 
                 # Handle any logic at episode end
                 self._finalise_episode(
