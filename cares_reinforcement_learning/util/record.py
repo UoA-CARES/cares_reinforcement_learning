@@ -9,11 +9,10 @@ import numpy as np
 import pandas as pd
 
 import cares_reinforcement_learning.plotter as plt
-
 import cares_reinforcement_learning.runners.execution_logger as logs
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
-from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 from cares_reinforcement_learning.algorithm.configurations import SubscriptableClass
+from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
 
 
 class Record:
@@ -29,6 +28,8 @@ class Record:
         task: str,
         agent: Algorithm | None = None,
         record_video: bool = True,
+        record_plot: bool = True,
+        plot_interval: int = 1,
         record_checkpoints: bool = False,
         checkpoint_interval: int = 1,
         logger: logging.Logger | None = None,
@@ -41,6 +42,8 @@ class Record:
             task (str): The name of the task being performed.
             agent (Algorithm, optional): The reinforcement learning agent. Defaults to None.
             record_video (bool, optional): Whether to record videos during training/evaluation. Defaults to True.
+            record_plot (bool, optional): Whether to enable plotting. Defaults to True.
+            plot_interval (int, optional): Interval (in episodes) at which to update plots. Defaults to 1.
             record_checkpoints (bool, optional): Whether to save checkpoints of the agent and memory buffer. Defaults to False.
             checkpoint_interval (int, optional): Interval (in episodes) at which to save checkpoints. Defaults to 1.
         """
@@ -55,19 +58,25 @@ class Record:
         self.algorithm = algorithm
         self.task = task
 
-        self.train_data = pd.DataFrame()
-        self.eval_data = pd.DataFrame()
-
         self.agent = agent
 
-        self.record_checkpoints = record_checkpoints
-        self.memory_buffer: MemoryBuffer | None = None
+        self.train_rows: list[dict] = []
+        self.train_columns: list[str] = []
+
+        self.eval_rows: list[dict] = []
+        self.eval_columns: list[str] = []
 
         self.record_video = record_video
         self.video: cv2.VideoWriter | None = None
 
         self.log_count = 0
-        self.checkpoint_interval = checkpoint_interval
+
+        self.record_checkpoints = record_checkpoints
+        self.checkpoint_interval = max(1, checkpoint_interval)
+        self.memory_buffer: MemoryBuffer | None = None
+
+        self.record_plot = record_plot
+        self.train_plot_interval = max(1, plot_interval)
 
         self.logger = logger or logs.get_record_logger()
 
@@ -78,9 +87,13 @@ class Record:
         self.current_sub_directory = f"{self.base_directory}/{sub_directory}"
 
         self.log_count = 0
+        self.best_reward = float("-inf")
 
-        self.train_data = pd.DataFrame()
-        self.eval_data = pd.DataFrame()
+        self.train_rows = []
+        self.train_columns = []
+
+        self.eval_rows = []
+        self.eval_columns = []
 
         self.__initialise_sub_directory()
 
@@ -172,11 +185,60 @@ class Record:
                 f"{self.current_sub_directory}/models/{folder_name}", f"{file_name}"
             )
 
-    def _save_data(self, data_frame: pd.DataFrame, filename: str) -> None:
-        if data_frame.empty:
-            self.logger.warning("Trying to save an Empty Dataframe")
+    def _plot_train(self) -> None:
+        if not self.train_rows:
+            return
 
-        data_frame.to_csv(f"{self.current_sub_directory}/data/{filename}", index=False)
+        train_dataframe = pd.DataFrame(
+            self.train_rows,
+            columns=self.train_columns,
+        )
+
+        plt.plot_train(
+            train_dataframe,
+            f"Training-{self.algorithm}-{self.task}",
+            self.algorithm,
+            self.current_sub_directory,
+            "train",
+            20,
+        )
+
+    def _append_or_rewrite_data(
+        self,
+        data: list[dict],
+        logs: dict,
+        filename: str,
+        known_columns: list[str],
+    ) -> None:
+        path = Path(self.current_sub_directory) / "data" / filename
+
+        new_columns = [column for column in logs if column not in known_columns]
+
+        data.append(dict(logs))
+
+        if new_columns:
+            known_columns.extend(new_columns)
+
+            # Rewrite only when the CSV schema changes.
+            pd.DataFrame(
+                data,
+                columns=known_columns,
+            ).to_csv(
+                path,
+                index=False,
+            )
+            return
+
+        # Normal path: append one row.
+        pd.DataFrame(
+            [logs],
+            columns=known_columns,
+        ).to_csv(
+            path,
+            mode="a",
+            header=not path.exists() or path.stat().st_size == 0,
+            index=False,
+        )
 
     def _print_log(self, **logs) -> None:
         string_values = []
@@ -192,106 +254,149 @@ class Record:
 
         self.logger.info(string_out)
 
-    def log_train(self, display: bool = False, **logs) -> None:
+    def log_train(
+        self,
+        display: bool = False,
+        **logs,
+    ) -> None:
         self.log_count += 1
 
         if display:
             self._print_log(**logs)
 
-        self.train_data = pd.concat(
-            [self.train_data, pd.DataFrame([logs])], ignore_index=True
+        self._append_or_rewrite_data(
+            data=self.train_rows,
+            logs=logs,
+            filename="train.csv",
+            known_columns=self.train_columns,
         )
 
-        if self.log_count % self.checkpoint_interval == 0:
-            self._save_data(self.train_data, "train.csv")
+        if self.record_checkpoints and self.log_count % self.checkpoint_interval == 0:
+            self._save_checkpoint(logs["total_steps"])
 
-            if self.record_checkpoints:
-                self._save_checkpoint(logs["total_steps"])
-
-            plt.plot_train(
-                self.train_data,
-                f"Training-{self.algorithm}-{self.task}",
-                f"{self.algorithm}",
-                self.current_sub_directory,
-                "train",
-                20,
-            )
+        if self.record_plot and self.log_count % self.train_plot_interval == 0:
+            self._plot_train()
 
         reward = logs["episode_reward"]
 
         if reward > self.best_reward:
             self.logger.info(
-                f"New highest reward of {reward} during training! Saving model..."
+                f"New highest reward of {reward} during training! " "Saving model..."
             )
             self.best_reward = reward
-
-            self.save_agent(f"{self.algorithm}", "highest_reward")
+            self.save_agent(
+                self.algorithm,
+                "highest_reward",
+            )
 
     def get_last_logged_step(self) -> int:
-        if self.train_data.empty:
+        if not self.train_rows:
             return 0
-        return int(self.train_data["total_steps"].iloc[-1])
 
-    def log_eval(self, display: bool = False, **logs) -> None:
-        if display:
-            self._print_log(**logs)
+        return int(self.train_rows[-1].get("total_steps", 0))
 
-        self.eval_data = pd.concat(
-            [self.eval_data, pd.DataFrame([logs])], ignore_index=True
+    def _plot_eval(self) -> None:
+        if not self.eval_rows:
+            return
+
+        eval_dataframe = pd.DataFrame(
+            self.eval_rows,
+            columns=self.eval_columns,
         )
 
-        self._save_data(self.eval_data, "eval.csv")
-
         plt.plot_eval(
-            self.eval_data,
+            eval_dataframe,
             f"Evaluation-{self.algorithm}-{self.task}",
-            f"{self.algorithm}",
+            self.algorithm,
             self.current_sub_directory,
             "eval",
         )
 
-        self.save_agent(f"{self.algorithm}", f"{logs['total_steps']}")
+    def log_eval(
+        self,
+        display: bool = False,
+        **logs,
+    ) -> None:
+        if display:
+            self._print_log(**logs)
+
+        self._append_or_rewrite_data(
+            data=self.eval_rows,
+            logs=logs,
+            filename="eval.csv",
+            known_columns=self.eval_columns,
+        )
+
+        if self.record_plot:
+            self._plot_eval()
+
+        self.save_agent(
+            self.algorithm,
+            f"{logs['total_steps']}",
+        )
 
     def save(self) -> None:
         self.logger.info("Saving final outputs")
 
-        self._save_data(self.train_data, "train.csv")
-        self._save_data(self.eval_data, "eval.csv")
-
-        if not self.eval_data.empty:
-            plt.plot_eval(
-                self.eval_data,
-                f"Evaluation-{self.algorithm}-{self.task}",
-                f"{self.algorithm}",
-                self.current_sub_directory,
-                "eval",
-            )
-        if not self.train_data.empty:
-            plt.plot_train(
-                self.train_data,
-                f"Training-{self.algorithm}-{self.task}",
-                f"{self.algorithm}",
-                self.current_sub_directory,
-                "train",
-                20,
+        if self.train_columns:
+            pd.DataFrame(
+                self.train_rows,
+                columns=self.train_columns,
+            ).to_csv(
+                Path(self.current_sub_directory) / "data" / "train.csv",
+                index=False,
             )
 
-        self.save_agent(f"{self.algorithm}", "final")
+        if self.eval_columns:
+            pd.DataFrame(
+                self.eval_rows,
+                columns=self.eval_columns,
+            ).to_csv(
+                Path(self.current_sub_directory) / "data" / "eval.csv",
+                index=False,
+            )
+
+        self._plot_eval()
+        self._plot_train()
+
+        self.save_agent(
+            self.algorithm,
+            "final",
+        )
+
+        self.stop_video()
 
     def load(self, base_directory: Path) -> None:
-        """
-        Loads training and evaluation data from the given base directory into the Record instance.
-        """
-        train_path = os.path.join(base_directory, "data", "train.csv")
-        eval_path = os.path.join(base_directory, "data", "eval.csv")
+        train_path = Path(base_directory) / "data" / "train.csv"
+        eval_path = Path(base_directory) / "data" / "eval.csv"
 
-        self.train_data = pd.DataFrame()
-        self.eval_data = pd.DataFrame()
+        self.train_rows = []
+        self.train_columns = []
 
-        if os.path.exists(train_path):
-            self.train_data = pd.read_csv(train_path)
-        if os.path.exists(eval_path):
-            self.eval_data = pd.read_csv(eval_path)
+        self.eval_rows = []
+        self.eval_columns = []
+
+        if train_path.exists() and train_path.stat().st_size > 0:
+            train_dataframe = pd.read_csv(train_path)
+
+            self.train_columns = list(train_dataframe.columns)
+            self.train_rows = train_dataframe.to_dict(orient="records")
+            self.log_count = len(self.train_rows)
+
+            if "episode_reward" in train_dataframe.columns:
+                reward_values = pd.to_numeric(
+                    train_dataframe["episode_reward"],
+                    errors="coerce",
+                )
+
+                if reward_values.notna().any():
+                    self.best_reward = float(reward_values.max())
+
+        if eval_path.exists() and eval_path.stat().st_size > 0:
+            eval_dataframe = pd.read_csv(eval_path)
+
+            self.eval_columns = list(eval_dataframe.columns)
+            self.eval_rows = eval_dataframe.to_dict(orient="records")
 
     def __initialise_base_directory(self) -> None:
         # Use exist_ok=True to handle race conditions in parallel execution

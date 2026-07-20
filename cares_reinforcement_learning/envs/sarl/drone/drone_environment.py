@@ -61,3 +61,6 @@ class DroneEnvironment(SARLEnvironment):
 
     def grab_frame(self, height=720, width=1280) -> np.ndarray:
         return self.env.grab_frame(height, width)
+
+    def close(self) -> None:
+        self.env.close()

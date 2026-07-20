@@ -35,15 +35,18 @@ class TrainingConfig(SubscriptableClass):
 
     seeds: list[int] = [10]
     number_steps_per_evaluation: int = 10000
+
     number_eval_episodes: int = 10
     record_eval_video: int = 1
     eval_episodes_to_record: int = 1
 
+    record_plot: int = 1
+    plot_interval: int = 1
+
+    save_train_checkpoints: int = 0
     checkpoint_interval: int = 1
 
     max_workers: int = 1
-
-    save_train_checkpoints: int = 0
 
     display: int = 0
 

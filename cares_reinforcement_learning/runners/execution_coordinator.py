@@ -9,20 +9,21 @@ import logging
 import multiprocessing
 import time
 from multiprocessing.queues import Queue
-from queue import Empty
 from typing import Any
 
 import yaml
-from rich.progress import BarColumn, Progress, TextColumn, TimeElapsedColumn
 
 import cares_reinforcement_learning.runners.execution_logger as logs
-from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
-from cares_reinforcement_learning.runners.evaluation_runner import EvaluationRunner
-from cares_reinforcement_learning.runners.training_runner import TrainingRunner
 from cares_reinforcement_learning.algorithm.configurations import (
     AlgorithmConfig,
     TrainingConfig,
 )
+from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
+from cares_reinforcement_learning.runners.evaluation_runner import EvaluationRunner
+from cares_reinforcement_learning.runners.parallel_progress_monitor import (
+    ParallelProgressMonitor,
+)
+from cares_reinforcement_learning.runners.training_runner import TrainingRunner
 from cares_reinforcement_learning.util.record import Record
 from cares_reinforcement_learning.util.rl_parser import RunConfig
 
@@ -118,51 +119,6 @@ class ExecutionCoordinator:
 
         logger.info(f"Base Log Directory: {self.base_log_dir}")
 
-    def _listen_for_progress(self, queue: Queue, futures: list[Any]) -> None:
-        progress = Progress(
-            TextColumn("[bold blue]{task.fields[seed]}"),
-            BarColumn(),
-            TextColumn("{task.percentage:>3.0f}%"),
-            TextColumn("{task.fields[status]}"),
-            TextColumn("[cyan]{task.completed}/{task.total}"),
-            TimeElapsedColumn(),
-        )
-
-        tasks: dict[int, int] = {}
-        done_seeds: set[int] = set()
-
-        with progress:
-            while True:
-                try:
-                    msg = queue.get_nowait()
-                except Empty:
-                    msg = None
-
-                if msg:
-                    seed = msg["seed"]
-
-                    if seed not in tasks:
-                        total = msg.get("total", 1)
-                        tasks[seed] = progress.add_task(
-                            f"Seed {seed}",
-                            total=total,
-                            seed=f"Seed {seed}",
-                            status=msg.get("status", ""),
-                        )
-
-                    progress.update(
-                        tasks[seed],  # type: ignore[arg-type]
-                        completed=msg.get("step", 0),
-                        status=msg.get("status", ""),
-                    )
-
-                    if msg.get("status") == "done":
-                        done_seeds.add(seed)
-                        progress.console.log(f"[green]Seed {seed} completed!")
-
-                if len(done_seeds) == len(futures):
-                    break
-
     def _test_single_seed(
         self,
         seed: int,
@@ -224,7 +180,11 @@ class ExecutionCoordinator:
                     for i, seed in enumerate(self.train_seeds)
                 ]
 
-                self._listen_for_progress(progress_queue, futures)  # type: ignore[arg-type]
+                ParallelProgressMonitor(
+                    progress_queue=progress_queue,  # type: ignore[arg-type]
+                    futures=futures,
+                    logger=logger,
+                ).run()
 
         logger.info(f"Completed testing for all {len(self.train_seeds)} seeds")
 
@@ -327,7 +287,11 @@ class ExecutionCoordinator:
                     for i, seed in enumerate(self.train_seeds)
                 ]
 
-                self._listen_for_progress(progress_queue, futures)  # type: ignore[arg-type]
+                ParallelProgressMonitor(
+                    progress_queue=progress_queue,  # type: ignore[arg-type]
+                    futures=futures,
+                    logger=logger,
+                ).run()
 
         logger.info(f"Completed evaluation for all {len(self.train_seeds)} seeds")
 
@@ -433,7 +397,11 @@ class ExecutionCoordinator:
                     for i, seed in enumerate(self.train_seeds)
                 ]
 
-                self._listen_for_progress(progress_queue, futures)  # type: ignore[arg-type]
+                ParallelProgressMonitor(
+                    progress_queue=progress_queue,  # type: ignore[arg-type]
+                    futures=futures,
+                    logger=logger,
+                ).run()
 
         logger.info(f"Completed all {len(self.train_seeds)} seeds")
 
@@ -451,9 +419,8 @@ class ExecutionCoordinator:
             )
             self._train_single_seed(
                 seed=seed,
-                save_configurations=(
-                    iteration == 0
-                ),  # Save configs only for first seed
+                # Save configs only for first seed
+                save_configurations=(iteration == 0),
             )
 
         logger.info(f"Completed all {len(self.train_seeds)} seeds sequentially")
