@@ -29,7 +29,7 @@ class Record:
         agent: Algorithm | None = None,
         record_video: bool = True,
         record_plot: bool = True,
-        plot_interval: int = 500,
+        plot_interval: int = 1,
         record_checkpoints: bool = False,
         checkpoint_interval: int = 1,
         logger: logging.Logger | None = None,
