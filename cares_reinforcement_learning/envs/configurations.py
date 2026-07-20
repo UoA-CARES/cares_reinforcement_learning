@@ -113,3 +113,10 @@ class MPEConfig(GymEnvironmentConfig):
     continuous_actions: int = 1
 
     record_video_fps: int = 5
+
+
+class MARLDroneConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "marl_drone"
+    task: str
+    use_simulator: int = 1  # 1 for simulator (DroneSim), 0 for real drone (Drone)
+    num_agents: int

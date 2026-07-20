@@ -377,3 +377,6 @@ class TrainingRunner(BaseRunner):
         # Save record and report completion
         self.record.save()
         self._report_progress(episode_num + 1, train_step_counter + 1, "done")
+
+        self.env.close()
+        self.env_eval.close()
