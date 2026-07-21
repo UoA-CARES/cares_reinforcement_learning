@@ -66,7 +66,6 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import SACConfig
-from cares_reinforcement_learning.algorithm.plasticity_adam import PlasticityAdam
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.common import (
@@ -74,7 +73,6 @@ from cares_reinforcement_learning.networks.common import (
     TanhGaussianPolicy,
     TwinQNetwork,
 )
-from cares_reinforcement_learning.networks.plasticity import NetworkPlasticityManager
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import (
@@ -118,31 +116,11 @@ class SAC(SARLAlgorithm[np.ndarray]):
 
         self.target_entropy = -self.actor_net.num_actions
 
-        optimiser_cls = (
-            PlasticityAdam
-            if config.plasticity_config.replacement_enabled
-            else torch.optim.Adam
-        )
-
-        self.actor_net_optimiser = optimiser_cls(
+        self.actor_net_optimiser = torch.optim.Adam(
             self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
-        self.critic_net_optimiser = optimiser_cls(
+        self.critic_net_optimiser = torch.optim.Adam(
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
-        )
-
-        self.actor_plasticity = NetworkPlasticityManager(
-            model=self.actor_net,
-            optimizer=self.actor_net_optimiser,
-            config=config.plasticity_config,
-            name="actor",
-        )
-
-        self.critic_plasticity = NetworkPlasticityManager(
-            model=self.critic_net,
-            optimizer=self.critic_net_optimiser,
-            config=config.plasticity_config,
-            name="critic",
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
@@ -236,9 +214,6 @@ class SAC(SARLAlgorithm[np.ndarray]):
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()
         self.critic_net_optimiser.step()
-
-        info |= self.critic_plasticity.step_replacement()
-        info |= self.critic_plasticity.summary("critic")
 
         # Update the Priorities - PER only
         priorities = (
@@ -355,8 +330,6 @@ class SAC(SARLAlgorithm[np.ndarray]):
         self.actor_net_optimiser.zero_grad()
         actor_loss.backward()
         self.actor_net_optimiser.step()
-        info |= self.actor_plasticity.step_replacement()
-        info |= self.actor_plasticity.summary("actor")
 
         # update the temperature (alpha)
         alpha_loss = -(self.log_alpha * (log_pi + self.target_entropy).detach()).mean()

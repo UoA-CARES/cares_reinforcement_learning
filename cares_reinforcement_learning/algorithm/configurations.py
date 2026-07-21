@@ -84,12 +84,20 @@ class MLPConfig(BaseModel):
 
 
 class PlasticityConfig(SubscriptableClass):
-    enabled: bool = True
+    enabled: bool = False
     replacement_enabled: bool = False
     replacement_strategy: Literal["cbp"] = "cbp"
 
-    replacement_rate: float = 1e-4
-    maturity_threshold: int = 10_000
+    # Algorithm-specific
+    replacement_rate: float
+    maturity_threshold: int
+    activation_window_size: int
+
+    log_interval: int
+    rank_interval: int
+    knife_interval: int
+
+    # Mechanism-wide defaults
     utility_decay: float = 0.99
 
     stagnant_threshold: float = 0.25
@@ -98,11 +106,6 @@ class PlasticityConfig(SubscriptableClass):
 
     activity_threshold: float = 1e-5
     dormant_threshold: float = 0.01
-    activation_window_size: int = 10_000
-
-    log_interval: int = 1
-    rank_interval: int = 1
-    knife_interval: int = 100_000
 
     replacement_accumulate: bool = False
     compute_rank: bool = True
@@ -156,8 +159,6 @@ class AlgorithmConfig(SubscriptableClass):
     model_path: str | None = None
 
     repetition_num_episodes: int = 0
-
-    plasticity_config: PlasticityConfig = PlasticityConfig()
 
 
 ###################################
@@ -380,8 +381,6 @@ class RainbowConfig(C51Config):
 class PPOConfig(AlgorithmConfig):
     algorithm: str = "PPO"
 
-    plasticity_config: PlasticityConfig = PlasticityConfig()
-
     actor_lr: float = 3e-4
     actor_lr_params: dict[str, Any] = Field(
         default_factory=lambda: {
@@ -421,6 +420,18 @@ class PPOConfig(AlgorithmConfig):
     max_steps_exploration: Literal[0] = Field(default=0)
 
     use_value_normalisation: int = 0
+
+    # Plasticity
+    plasticity_config: PlasticityConfig = Field(
+        default_factory=lambda: PlasticityConfig(
+            replacement_rate=1e-5,
+            maturity_threshold=1_000,
+            activation_window_size=10_000,
+            log_interval=1,
+            rank_interval=1,
+            knife_interval=10,
+        )
+    )
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
@@ -474,8 +485,6 @@ class SACConfig(AlgorithmConfig):
     beta: float = 0.4
     per_alpha: float = 0.6
     min_priority: float = 1e-6
-
-    # Plasticity
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
