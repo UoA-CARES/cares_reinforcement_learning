@@ -76,6 +76,7 @@ Notes:
 
 import logging
 import os
+from contextlib import contextmanager, nullcontext
 from typing import Any
 
 import numpy as np
@@ -180,6 +181,14 @@ class PPO(SARLAlgorithm[np.ndarray]):
             device=self.device,
         )
 
+    @contextmanager
+    def _capture_plastic_metrics(self):
+        with (
+            self.actor_plasticity.capture_metrics(),
+            self.critic_plasticity.capture_metrics(),
+        ):
+            yield
+
     def _dist(self, mean: torch.Tensor) -> Normal:
         log_std = self.log_std.clamp(self.min_log_std, self.max_log_std)
         # mean: [B, act_dim] or [act_dim]
@@ -217,7 +226,11 @@ class PPO(SARLAlgorithm[np.ndarray]):
         self.critic_net.eval()
         state = observation.vector_state
 
-        with torch.no_grad():
+        capture_context = (
+            nullcontext() if evaluation else self._capture_plastic_metrics()
+        )
+
+        with capture_context, torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)  # add batch dimension
 
@@ -266,11 +279,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
         returns_mb: torch.Tensor,  # [mb]
     ) -> dict[str, float]:
 
-        v = self.critic_net(states_mb).view(-1)
-        critic_loss = F.mse_loss(v, returns_mb)
+        with self.critic_plasticity.capture_training():
+            v = self.critic_net(states_mb).view(-1)
+            critic_loss = F.mse_loss(v, returns_mb)
 
-        self.critic_net_optimiser.zero_grad()
-        critic_loss.backward()
+            self.critic_net_optimiser.zero_grad()
+            critic_loss.backward()
+
         if self.max_grad_norm is not None:
             torch.nn.utils.clip_grad_norm_(
                 self.critic_net.parameters(), self.max_grad_norm
@@ -323,26 +338,29 @@ class PPO(SARLAlgorithm[np.ndarray]):
         entropy_coef: float,
     ) -> tuple[bool, dict[str, float]]:
 
-        curr_log_probs, entropy, u_mb = self._evaluate_actions(
-            states_mb,
-            actions_mb,
-        )
+        with self.actor_plasticity.capture_training():
+            curr_log_probs, entropy, u_mb = self._evaluate_actions(
+                states_mb,
+                actions_mb,
+            )
 
-        log_ratio = curr_log_probs - old_logp_mb
-        ratios = torch.exp(log_ratio)
+            log_ratio = curr_log_probs - old_logp_mb
+            ratios = torch.exp(log_ratio)
 
-        unclipped_objective = ratios * advantages_mb
-        clipped_ratio = torch.clamp(ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip)
-        clipped_objective = clipped_ratio * advantages_mb
+            unclipped_objective = ratios * advantages_mb
+            clipped_ratio = torch.clamp(
+                ratios, 1.0 - self.eps_clip, 1.0 + self.eps_clip
+            )
+            clipped_objective = clipped_ratio * advantages_mb
 
-        policy_objective = torch.min(unclipped_objective, clipped_objective)
+            policy_objective = torch.min(unclipped_objective, clipped_objective)
 
-        actor_loss = -policy_objective.mean()
+            actor_loss = -policy_objective.mean()
 
-        actor_loss = actor_loss - entropy_coef * entropy.mean()
+            actor_loss = actor_loss - entropy_coef * entropy.mean()
 
-        self.actor_net_optimiser.zero_grad()
-        actor_loss.backward()
+            self.actor_net_optimiser.zero_grad()
+            actor_loss.backward()
 
         log_std_grad = (
             self.log_std.grad.abs().mean().item()

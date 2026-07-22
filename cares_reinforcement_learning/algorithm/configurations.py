@@ -88,11 +88,12 @@ class PlasticityConfig(SubscriptableClass):
     replacement_enabled: bool = False
     replacement_strategy: Literal["cbp"] = "cbp"
 
-    # Algorithm-specific
+    # Replacement schedule — algorithm-specific
     replacement_rate: float
     maturity_threshold: int
     activation_window_size: int
 
+    # Diagnostics schedule — algorithm-specific
     log_interval: int
     rank_interval: int
     knife_interval: int
@@ -382,22 +383,10 @@ class PPOConfig(AlgorithmConfig):
     algorithm: str = "PPO"
 
     actor_lr: float = 3e-4
-    actor_lr_params: dict[str, Any] = Field(
-        default_factory=lambda: {
-            # "betas": (0.9, 0.999),
-            # "eps": 1e-8,
-            # "weight_decay": 1e-4,
-        }
-    )
+    actor_lr_params: dict[str, Any] = Field(default_factory=dict)
 
     critic_lr: float = 1e-3
-    critic_lr_params: dict[str, Any] = Field(
-        default_factory=lambda: {
-            # "betas": (0.9, 0.999),
-            # "eps": 1e-8,
-            # "weight_decay": 1e-4,
-        }
-    )
+    critic_lr_params: dict[str, Any] = Field(default_factory=dict)
 
     gamma: float = 0.99
     eps_clip: float = 0.2
