@@ -48,6 +48,11 @@ class GymEnvironmentConfig(SubscriptableClass):
 class OpenAIConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "openai"
 
+    slippery_friction: int = 0
+    slippery_switch_every: int = 2_000_000
+    slippery_min_friction: float = 0.02
+    slippery_max_friction: float = 2.0
+
 
 class DMCSConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "dmcs"
