@@ -83,6 +83,40 @@ class MLPConfig(BaseModel):
     layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
 
 
+class PlasticityConfig(SubscriptableClass):
+    enabled: bool = False
+    replacement_enabled: bool = False
+    replacement_strategy: Literal["cbp"] = "cbp"
+
+    # Replacement schedule — algorithm-specific
+    replacement_rate: float
+    maturity_threshold: int
+    activation_window_size: int
+
+    # Diagnostics schedule — algorithm-specific
+    log_interval: int
+    rank_interval: int
+    knife_interval: int
+
+    # Mechanism-wide defaults
+    utility_decay: float = 0.99
+
+    stagnant_threshold: float = 0.25
+    volatile_threshold: float = 3.0
+    rua_eps: float = 1e-12
+
+    activity_threshold: float = 1e-5
+    dormant_threshold: float = 0.01
+
+    replacement_accumulate: bool = False
+    compute_rank: bool = True
+    training_only: bool = True
+    include_output_layer: bool = False
+
+    init: str = "kaiming"
+    activation_name: str = "relu"
+
+
 class AlgorithmConfig(SubscriptableClass):
     """
     Configuration class for the algorithm.
@@ -350,6 +384,7 @@ class PPOConfig(AlgorithmConfig):
 
     actor_lr: float = 3e-4
     actor_lr_params: dict[str, Any] = Field(default_factory=dict)
+
     critic_lr: float = 1e-3
     critic_lr_params: dict[str, Any] = Field(default_factory=dict)
 
@@ -361,7 +396,7 @@ class PPOConfig(AlgorithmConfig):
     entropy_end: float = 0.0
     entropy_decay: int = 0
 
-    target_kl: float | None = 0.02
+    target_kl: float | None = None
 
     max_grad_norm: float | None = 0.5
     log_std_bounds: list[float] = [-5.0, -0.5]
@@ -374,6 +409,18 @@ class PPOConfig(AlgorithmConfig):
     max_steps_exploration: Literal[0] = Field(default=0)
 
     use_value_normalisation: int = 0
+
+    # Plasticity
+    plasticity_config: PlasticityConfig = Field(
+        default_factory=lambda: PlasticityConfig(
+            replacement_rate=1e-5,
+            maturity_threshold=1_000,
+            activation_window_size=10_000,
+            log_interval=1,
+            rank_interval=1,
+            knife_interval=10,
+        )
+    )
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
