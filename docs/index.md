@@ -18,3 +18,5 @@ This section provides practical guidance on using the CARES Reinforcement Learni
 ## Developer Guide
 This section provides a comprehensive overview of the CARES Reinforcement Learning framework, including its architecture, core abstractions, and development patterns. It outlines how the codebase is structured, the conventions used throughout, and how components interact. Whether you're extending existing functionality or implementing new algorithms, these guides are designed to help you navigate the system and develop within it effectively.
 
+## Statistical Methodology
+This section provides a detailed explanation of the statistical methods used in the CARES Reinforcement Learning framework for evaluating and comparing reinforcement learning algorithms. It covers the metrics, statistical tests, and analysis techniques employed to assess algorithm performance, ensuring that results are robust, interpretable, and reproducible.

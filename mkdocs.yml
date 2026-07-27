@@ -37,6 +37,11 @@ nav:
       - Abstractions: developer_guide/abstractions.md
       - Algorithm: developer_guide/algorithm.md
       - Environments: developer_guide/environments.md
+  - Statistical Analysis:
+      - Overview: stats/index.md
+      - User Guide: stats/user_guide.md
+      - Methodology: stats/methodology.md
+      - FAQ: stats/faq.md
 
 markdown_extensions:
   - pymdownx.highlight:
