@@ -50,4 +50,8 @@ Only with `--allow-unmatched-seeds`. This changes task-level tests to independen
 
 For a solid general benchmark, target 10–15 tasks and 10 seeds per algorithm per task. Increase seeds when variability is high or expected effects are modest.
 
+## Why isn't statistical significance enough?
+
+Statistical significance alone does not describe the magnitude or practical importance of an improvement. The CARES RL Statistical Tool therefore emphasises effect estimates (IQM, Probability of Improvement, Mean Superiority) together with confidence intervals, using hypothesis tests only as supplementary evidence.
+
 --8<-- "include/links.md"

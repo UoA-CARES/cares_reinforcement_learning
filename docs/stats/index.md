@@ -6,6 +6,14 @@ The CARES RL Statistical Tool produces publication-ready statistical summaries f
 
 ![Cross Play Overview](../images/statistics.png)
 
+!!! note "Statistical Philosophy"
+    The tool prioritises robust effect estimation over binary hypothesis testing. The recommended interpretation sequence is:
+
+    1. Estimate the effect.
+    2. Quantify uncertainty.
+    3. Compare methods directly.
+    4. Use significance tests as supplementary evidence.
+
 ## Quick Start
 
 The CARES RL Statistical Tool supports three common analysis workflows:

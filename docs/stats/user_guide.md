@@ -4,6 +4,52 @@
 
 This page explains how to structure experiment logs, run analyses, select comparison conditions, and interpret the generated report and output files.
 
+##  Experimental Design
+
+The CARES RL Statistical Tool is designed to compare multiple reinforcement learning algorithms or configurations across one or more benchmark tasks. The tool assumes that each algorithm or configuration is represented by a unique comparison condition, and that each condition has been evaluated using multiple independent training seeds.
+
+The recommended experimental design is:
+
+| Stage | Tasks | Seeds per algorithm per task | Purpose |
+|---|---:|---:|---|
+| Development | 3–5 | 3–5 | Debugging, screening and rapid iteration. |
+| Minimum final evidence | 6–10 | 5 | Defensible only with strong effects and honest uncertainty. |
+| Solid benchmark | 10–15 | 10 | Recommended default for a serious benchmark claim. |
+| Very strong benchmark | 15–30+ | 10–20 | Broad, high-confidence evidence or modest expected effects. |
+
+!!! tip "Recommended default"
+    For a general-purpose RL benchmark, target **10–15 tasks with 10 seeds per algorithm per task**.
+
+###  Tasks and seeds answer different questions
+
+- More **seeds** improve precision under training randomness.
+- More **tasks** improve evidence that the result generalises across environments.
+
+After reaching roughly ten seeds, adding relevant tasks is often more informative than repeatedly increasing seeds on a narrow benchmark.
+
+###  Matched seeds
+
+Use the same seed IDs for all algorithms when feasible. This makes the experimental design balanced and enables the supplementary paired comparisons.
+
+!!! warning "Do not selectively add seeds"
+    Set the minimum seed count and any extension rule before inspecting whether a result is nearly favourable. Adding seeds only to rescue an inconclusive comparison introduces researcher degrees of freedom.
+
+###  Baselines
+
+A convincing benchmark should include:
+
+- the closest methodological baseline;
+- strong current algorithms for the environment family;
+- any method explicitly claimed to be improved upon;
+- a simpler reference where useful.
+
+###  Hyperparameter fairness
+
+Report whether each algorithm used published defaults, equal tuning budgets or independently optimised configurations.
+
+!!! warning
+    Do not tune repeatedly on the same final benchmark tasks and then present those tasks as untouched evidence of generalisation.
+
 ## Data Format
 
 The tool discovers either a single task or a directory containing multiple tasks - all tasks must be structured consistently. Each task contains one or more algorithm runs, each of which contains one or more numeric seed directories. Every seed directory must contain a `data/eval.csv` file with evaluation metrics logged at one or more training steps.
@@ -15,7 +61,7 @@ The tool discovers either a single task or a directory containing multiple tasks
 
 ```text
 benchmark_root/
-├── walker_walk/
+├── ball_in_cup/
 │   ├── SAC/
 │   │   ├── alg_config.json
 │   │   ├── env_config.json
@@ -41,15 +87,16 @@ walker_walk/
 └── YourAlgorithm/
 ```
 
-The algorithm name is read from:
+!!! note "Algorithm identity"
+    The algorithm name is read from:
 
-```json
-{
-  "algorithm": "SAC"
-}
-```
+    ```json
+    {
+    "algorithm": "SAC"
+    }
+    ```
 
-inside `alg_config.json`. The algorithm directory name itself is not used as the canonical algorithm identity.
+    inside `alg_config.json`. The algorithm directory name itself is not used as the canonical algorithm identity.
 
 !!! warning "Comparison labels must be unique"
     In a standard benchmark, algorithm names must be unique within each task. When multiple runs use the same algorithm, supply one or more `--comparison-parameter` paths so each experimental condition receives a distinct comparison label.
@@ -89,8 +136,6 @@ The tool verifies selected environment, training and algorithm settings before c
 
 This prevents statistics from being generated for runs that are not experimentally comparable - in order to generate statistically valid results, the compared runs must be compatible in their configuration.
 
-### Seeds
-
 By default, seed IDs and counts must match across algorithms for a given task. Use `--allow-unmatched-seeds` only when the experiments were intentionally designed as independent samples or this isn't a concern for the analysis.
 
 ```text
@@ -101,6 +146,9 @@ Novel:[0, 1, 2, 3, 4]
 
 !!! note "Why matched seeds are still preferred"
     Probability of improvement compares all runs from one algorithm with all runs from another and does not use one-to-one seed identities. Matched seeds are nevertheless good experimental practice and support the supplementary paired tests retained in raw task outputs.
+
+!!! warning "Strict Validation"
+    The tool intentionally refuses to compare experiments with incompatible evaluation schedules or training configurations because such comparisons are not statistically meaningful.
 
 ## Running an Analysis
 
@@ -114,7 +162,10 @@ cares-rl-stats benchmark_root \
 
 This analyses every discovered task, writes task-level outputs, performs cross-task analysis when more than one task is present and generates `statistical_report.pdf`.
 
-The value supplied to `--reference-comparison` must exactly match a discovered comparison label. In a standard benchmark this is normally the algorithm name.
+!!! tip "Recommended paper workflow"
+    Specify `--reference-comparison` for the final paper analysis. The PDF and benchmark folder will then include a dedicated reference-comparison analysis against every baseline.
+
+    The value supplied to `--reference-comparison` must exactly match a discovered comparison label. In a standard benchmark this is normally the algorithm name.
 
 ### Ablations and Parameter Sweeps
 
@@ -142,7 +193,8 @@ The dotted path begins with one of the loaded configuration names:
 - `env_config`
 - `train_config`
 
-Do not add a comparison parameter when it has the same value for every run and does not define a meaningful experimental condition.
+!!! warning "Do not use non-distinguishing parameters"
+    Do not supply a comparison parameter that has the same value for every run and does not define a meaningful experimental condition.
 
 ### Single-task command
 
@@ -182,34 +234,13 @@ cares-rl-stats benchmark_root \
     --primary-performance-metric final_window_auc
 ```
 
-!!! note
-    The other curve summaries are still retained in the raw CSV outputs.
+!!! note "Configurable window sizes"
+    The early and final window sizes are configurable using the corresponding command-line options. By default, each window covers 25% and 10% of the evaluation curve respectively. All curve summaries are retained in the raw CSV outputs regardless of the selected primary performance metric.
 
-### Reproducibility controls
-
-```bash
-cares-rl-stats benchmark_root \
-    --output results \
-    --bootstrap-samples 10000 \
-    --bootstrap-confidence 0.95 \
-    --random-seed 0 \
-    --figure-dpi 300
-```
-
-### Optional output controls
-
-```bash
-#### Skip statistical figures
-cares-rl-stats benchmark_root --output results --no-statistical-figures
-
-#### Skip only the PDF report
-cares-rl-stats benchmark_root --output results --no-pdf-report
-```
-
-!!! tip "Recommended paper workflow"
-    Specify `--reference-comparison` for the final paper analysis. The PDF and benchmark folder will then include a dedicated reference-comparison analysis against every baseline.
-
-
+    ```python
+    --early-window-fraction 0.25
+    --final-window-fraction 0.10
+    ```
 
 ## Generated Outputs
 
@@ -274,177 +305,66 @@ results/
 
 For one task, the `tasks/<task>/` directory and PDF are produced. The `benchmark/` directory is omitted because there is no cross-task aggregation.
 
-## Reading the PDF Report
+## Output Schema
 
-The PDF is a guided summary, not a replacement for the raw data.
+### `seed_metrics.csv`
 
-The reference-comparison section appears only when `--reference-comparison` is supplied.
+One row per comparison condition, seed, evaluation metric and performance summary.
 
-### Recommended reading order
+Key fields include:
 
-1. Read the **Executive Summary** for the factual headline.
-2. Inspect the **Benchmark Overview** for roster-wide performance and consistency.
-3. Use the **Reference Comparison** section for direct claims about the selected reference comparison.
-4. Inspect **Per-Task Results** to identify strengths, weaknesses and unstable environments.
-5. Use **Friedman/Nemenyi** only as supplementary consistency evidence.
-6. Confirm configuration and bootstrap details in **Methodology**.
+- `algorithm`
+- `seed`
+- `evaluation_metric`
+- `direction`
+- `performance_metric`
+- `value`
 
-!!! warning "The top-ranked method is not automatically decisively better"
-    Check confidence intervals and direct pairwise probabilities. A small difference in mean superiority or average rank may be practically inconclusive.
+### `algorithm_summary.csv`
 
-### Factual reporting style
+Per-task comparison condition summaries for every evaluation metric and AUC summary.
 
-A supported statement is:
+Typical fields include IQM, BCa interval, mean, standard deviation, minimum, maximum, seed count and rank.
 
-> YourAlgorithm achieved a mean superiority of 0.79 with a 95% confidence interval of [0.73, 0.84] and ranked first on 8 of 12 tasks.
+### `pairwise_comparisons.csv`
 
-An unsupported causal interpretation is:
+Per-task pairwise results, including test information, probability of improvement and Cliff's delta.
 
-> YourAlgorithm performs better because it explores more effectively.
+Orientation follows the stored `algorithm_a` and `algorithm_b` columns. Inspect the probability column name before interpreting direction.
 
-The statistics describe **what happened**, not **why it happened**.
+### `benchmark_summary.csv`
 
+One row per comparison condition, evaluation metric and performance summary.
 
+Contains mean superiority and its interval, rank summaries, Top-k counts/rates and bootstrap metadata.
 
-## Interpretation Workflow
+### `cross_task_pairwise.csv`
 
-Use this sequence for every final analysis.
+Complete pairwise benchmark output, including:
 
-### 1. Confirm validity
+- W-T-L task counts;
+- mean probability that comparison condition A is better;
+- fixed-task stratified bootstrap interval;
+- mean and median rank differences;
+- supplementary task-rank Wilcoxon result;
+- Holm-adjusted p-value.
 
-Check that the run completed without validation warnings or incompatible configurations.
+### `reference_comparison.csv`
 
-### 2. Inspect per-task performance
+Reorients the pairwise benchmark output so the named reference comparison is always the focal condition.
 
-Look for:
+Key columns:
 
-- low or negative-return failures;
-- unusually wide IQM intervals;
-- tasks where the reference comparison clearly underperforms;
-- sensitivity to early versus final performance.
+- `reference_comparison`
+- `comparator`
+- `probability_reference_better`
+- confidence interval bounds
+- tasks won, tied and lost
+- `ci_supports_advantage`
+- `ci_supports_disadvantage`
 
-### 3. Inspect direct reference comparisons
-
-For each baseline, record:
-
-- probability the reference comparison is better;
-- confidence interval;
-- W-T-L task record;
-- tasks responsible for losses.
-
-### 4. Inspect the benchmark summary
-
-Use mean superiority to describe roster-wide performance and rank statistics to describe consistency.
-
-### 5. Inspect supplementary rank tests
-
-Use Friedman/Nemenyi to check whether the rank pattern is strong enough to support a benchmark-wide rank distinction.
-
-### 6. Write a bounded conclusion
-
-A strong conclusion contains:
-
-- benchmark scope;
-- effect estimate;
-- uncertainty;
-- consistency;
-- known weaknesses.
-
-!!! example "Balanced conclusion"
-    Across 12 tasks and 10 seeds per algorithm, YourAlgorithm achieved the highest mean superiority and an estimated 0.82 probability of improvement over SAC. The 95% interval [0.74, 0.89] favoured YourAlgorithm, although it ranked below SAC on one task and had wider uncertainty on two additional tasks.
-
-
-
-## Experimental Design
-
-### Recommended scale
-
-| Stage | Tasks | Seeds per algorithm per task | Purpose |
-|---|---:|---:|---|
-| Development | 3–5 | 3–5 | Debugging, screening and rapid iteration. |
-| Minimum final evidence | 6–10 | 5 | Defensible only with strong effects and honest uncertainty. |
-| Solid benchmark | 10–15 | 10 | Recommended default for a serious benchmark claim. |
-| Very strong benchmark | 15–30+ | 10–20 | Broad, high-confidence evidence or modest expected effects. |
-
-!!! tip "Recommended default"
-    For a general-purpose RL benchmark, target **10–15 tasks with 10 seeds per algorithm per task**.
-
-### Tasks and seeds answer different questions
-
-- More **seeds** improve precision under training randomness.
-- More **tasks** improve evidence that the result generalises across environments.
-
-After reaching roughly ten seeds, adding relevant tasks is often more informative than repeatedly increasing seeds on a narrow benchmark.
-
-### Matched seeds
-
-Use the same seed IDs for all algorithms when feasible. This makes the experimental design balanced and enables the supplementary paired comparisons.
-
-!!! warning "Do not selectively add seeds"
-    Set the minimum seed count and any extension rule before inspecting whether a result is nearly favourable. Adding seeds only to rescue an inconclusive comparison introduces researcher degrees of freedom.
-
-### Baselines
-
-A convincing benchmark should include:
-
-- the closest methodological baseline;
-- strong current algorithms for the environment family;
-- any method explicitly claimed to be improved upon;
-- a simpler reference where useful.
-
-### Hyperparameter fairness
-
-Report whether each algorithm used published defaults, equal tuning budgets or independently optimised configurations.
-
-!!! warning
-    Do not tune repeatedly on the same final benchmark tasks and then present those tasks as untouched evidence of generalisation.
-
-
-
-## Common Mistakes
-
-### Averaging raw rewards across tasks
-
-Reward scales differ, so the result is dominated by large-magnitude environments.
-
-!!! danger
-    Do not calculate a pooled benchmark IQM, mean or median from raw task returns.
-
-Use probability of improvement, mean superiority or ranks for cross-task summaries.
-
-### Reporting only the best seed
-
-The best seed measures selection luck, not expected algorithm performance.
-
-### Treating five seeds as universally sufficient
-
-Five seeds may be usable for expensive experiments, but it is a floor rather than a general target. Inspect interval width and instability.
-
-### Treating a p-value as effect magnitude
-
-A small p-value does not imply a large or practically important improvement.
-
-### Calling overlapping intervals "no difference"
-
-An interval overlapping 0.5 means the current data do not resolve the pairwise direction at the selected confidence level. It does not prove equality.
-
-### Calling non-overlapping algorithm IQM intervals a pairwise test
-
-Separate one-sample intervals are not identical to a direct interval on the difference or probability of improvement. Use the direct pairwise output.
-
-### Ignoring metric direction
-
-A runtime or error metric may be lower-is-better. Declaring it as `higher` reverses every pairwise interpretation.
-
-### Over-interpreting rank
-
-An average-rank improvement from 2.0 to 1.8 may represent tiny or large practical differences. Consult probability and task-level magnitudes.
-
-### Treating mean superiority as universal
-
-It changes when the algorithm roster changes. Report the baselines included and use direct comparisons for claims about a named method.
-
-
+!!! tip
+    Use this file for the main reference-comparison table in a paper.
 
 ## Command-Line Reference
 
@@ -469,8 +389,5 @@ cares-rl-stats TASKS --output OUTPUT [options]
 | `--reference-comparison` | unset | Algorithm to feature as the reference comparison. |
 | `--figure-dpi` | `300` | Figure resolution; minimum accepted value is 72. |
 | `--primary-performance-metric` | `auc` | One of `auc`, `early_window_auc`, `final_window_auc`. |
-
-!!! note
-    `--primary-performance-metric` changes the publication-focused tables and report. All three curve summaries remain in the raw outputs.
 
 --8<-- "include/links.md"

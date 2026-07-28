@@ -117,13 +117,17 @@ def _algorithm_summary(
 
 def _pairwise(seed_metrics: pd.DataFrame, design: ComparisonDesign) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
+
     groups = seed_metrics.groupby(["evaluation_metric", "direction"], sort=False)
+
     for (metric, direction), metric_group in groups:
         algorithms = list(dict.fromkeys(metric_group["algorithm"]))
         for performance_metric in PERFORMANCE_METRICS:
             for algorithm_a, algorithm_b in itertools.combinations(algorithms, 2):
+
                 a_group = metric_group[metric_group["algorithm"] == algorithm_a]
                 b_group = metric_group[metric_group["algorithm"] == algorithm_b]
+
                 if design is ComparisonDesign.PAIRED:
                     merged = a_group[["seed", performance_metric]].merge(
                         b_group[["seed", performance_metric]],
@@ -168,15 +172,18 @@ def _pairwise(seed_metrics: pd.DataFrame, design: ComparisonDesign) -> pd.DataFr
 
     result = pd.DataFrame(rows)
     result["p_value_holm"] = np.nan
+
     families = result.groupby(
         ["evaluation_metric", "performance_metric"], sort=False
     ).groups
+
     for indices in families.values():
         indices = list(indices)
         result.loc[indices, "p_value_holm"] = statistics.holm_correction(
             result.loc[indices, "p_value"].to_numpy(dtype=np.float64)
         )
     result["significant_holm_0_05"] = result["p_value_holm"] < 0.05
+
     return result
 
 

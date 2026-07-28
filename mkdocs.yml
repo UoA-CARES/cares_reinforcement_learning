@@ -41,6 +41,7 @@ nav:
       - Overview: stats/index.md
       - User Guide: stats/user_guide.md
       - Methodology: stats/methodology.md
+      - Reporting: stats/reporting.md
       - FAQ: stats/faq.md
 
 markdown_extensions:
