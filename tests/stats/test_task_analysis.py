@@ -51,7 +51,10 @@ def _algorithm(
     for seed in seeds:
         data = path / str(seed) / "data"
         data.mkdir(parents=True)
+<<<<<<< HEAD
 
+=======
+>>>>>>> 0bfd1e4a281f227fe9c5fee9e4fa4c0e0088c40c
         pd.DataFrame(
             {
                 "total_steps": [10, 10, 20, 20],
@@ -63,6 +66,7 @@ def _algorithm(
                 ],
             }
         ).to_csv(data / "eval.csv", index=False)
+<<<<<<< HEAD
 
     return DiscoveredRun(
         comparison_name=name.upper(),
@@ -70,6 +74,9 @@ def _algorithm(
         variant_parameters={},
         root=path,
     )
+=======
+    return path
+>>>>>>> 0bfd1e4a281f227fe9c5fee9e4fa4c0e0088c40c
 
 
 def test_unmatched_seed_analysis_is_independent_and_auditable(tmp_path: Path):
