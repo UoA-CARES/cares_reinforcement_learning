@@ -1,6 +1,10 @@
 import numpy as np
 
-from cares_rl_statistics.metrics import compute_curve_metrics, trapezoidal_auc, window_auc
+from cares_rl_statistics.metrics import (
+    compute_curve_metrics,
+    trapezoidal_auc,
+    window_auc,
+)
 
 
 def test_constant_curve_raw_auc():

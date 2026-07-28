@@ -13,11 +13,15 @@ def _make_run(root: Path, name: str, seeds: list[int]) -> Path:
     path.mkdir()
     (path / "alg_config.json").write_text('{"max_steps_training": 20}')
     (path / "env_config.json").write_text('{"domain":"x","task":"y","gym":"z"}')
-    (path / "train_config.json").write_text('{"number_steps_per_evaluation":10,"number_eval_episodes":2}')
+    (path / "train_config.json").write_text(
+        '{"number_steps_per_evaluation":10,"number_eval_episodes":2}'
+    )
     for seed in seeds:
         data_dir = path / str(seed) / "data"
         data_dir.mkdir(parents=True)
-        pd.DataFrame({"total_steps": [10, 10, 20, 20], "episode_reward": [1., 2., 3., 4.]}).to_csv(data_dir / "eval.csv", index=False)
+        pd.DataFrame(
+            {"total_steps": [10, 10, 20, 20], "episode_reward": [1.0, 2.0, 3.0, 4.0]}
+        ).to_csv(data_dir / "eval.csv", index=False)
     return path
 
 
@@ -38,4 +42,8 @@ def test_step_grid_mismatch_is_never_relaxed(tmp_path: Path):
     frame.loc[frame["total_steps"] == 20, "total_steps"] = 30
     frame.to_csv(b_path / "1" / "data" / "eval.csv", index=False)
     with pytest.raises(ValueError, match="complete evaluation step grid"):
-        validate_runs([load_algorithm_run("A", a_path), load_algorithm_run("B", b_path)], [MetricSpec("episode_reward")], AnalysisOptions(allow_unmatched_seeds=True))
+        validate_runs(
+            [load_algorithm_run("A", a_path), load_algorithm_run("B", b_path)],
+            [MetricSpec("episode_reward")],
+            AnalysisOptions(allow_unmatched_seeds=True),
+        )

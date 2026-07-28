@@ -14,7 +14,9 @@ def _algorithm(root: Path, task: str, algorithm: str) -> None:
         (path / name).write_text(json.dumps({}), encoding="utf-8")
     seed = path / "10" / "data"
     seed.mkdir(parents=True)
-    pd.DataFrame({"step": [1], "episode_reward": [1]}).to_csv(seed / "eval.csv", index=False)
+    pd.DataFrame({"step": [1], "episode_reward": [1]}).to_csv(
+        seed / "eval.csv", index=False
+    )
 
 
 def test_discovers_multiple_tasks(tmp_path: Path) -> None:

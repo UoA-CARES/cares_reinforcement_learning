@@ -17,11 +17,17 @@ def _algorithm(root: Path, name: str, seeds: list[int], offset: float) -> Path:
     for seed in seeds:
         data = path / str(seed) / "data"
         data.mkdir(parents=True)
-        pd.DataFrame({
-            "total_steps": [10, 10, 20, 20],
-            "episode_reward": [1 + offset + seed, 2 + offset + seed,
-                               3 + offset + seed, 4 + offset + seed],
-        }).to_csv(data / "eval.csv", index=False)
+        pd.DataFrame(
+            {
+                "total_steps": [10, 10, 20, 20],
+                "episode_reward": [
+                    1 + offset + seed,
+                    2 + offset + seed,
+                    3 + offset + seed,
+                    4 + offset + seed,
+                ],
+            }
+        ).to_csv(data / "eval.csv", index=False)
     return path
 
 
