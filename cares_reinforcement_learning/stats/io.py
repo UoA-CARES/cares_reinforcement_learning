@@ -2,14 +2,23 @@ from __future__ import annotations
 
 import json
 import pathlib
-from collections.abc import Mapping
-from typing import Any, cast
+from collections.abc import Iterator
+from typing import Any, TypeVar, cast
 
 import pandas as pd
+from pydantic import BaseModel, ValidationError
 
+from cares_reinforcement_learning.algorithm.configurations import (
+    AlgorithmConfig,
+    TrainingConfig,
+)
+from cares_reinforcement_learning.envs.configurations import (
+    GymEnvironmentConfig,
+)
 from cares_reinforcement_learning.stats.models import (
     AlgorithmRun,
     DiscoveredRun,
+    RunConfiguration,
     SeedRun,
 )
 
@@ -18,6 +27,8 @@ REQUIRED_CONFIG_FILES: dict[str, str] = {
     "env_config": "env_config.json",
     "train_config": "train_config.json",
 }
+
+ConfigModel = TypeVar("ConfigModel", bound=BaseModel)
 
 
 def load_json_object(path: pathlib.Path) -> dict[str, Any]:
@@ -36,11 +47,119 @@ def load_json_object(path: pathlib.Path) -> dict[str, Any]:
     return cast(dict[str, Any], value)
 
 
-def load_run_configs(root: pathlib.Path) -> dict[str, dict[str, Any]]:
-    return {
-        source: load_json_object(root / filename)
-        for source, filename in REQUIRED_CONFIG_FILES.items()
-    }
+def _all_subclasses(model_type: type[ConfigModel]) -> Iterator[type[ConfigModel]]:
+    """Yield every currently imported concrete subclass recursively."""
+    for subclass in model_type.__subclasses__():
+        yield subclass
+        yield from _all_subclasses(subclass)
+
+
+def _algorithm_registry() -> dict[str, type[AlgorithmConfig]]:
+    registry: dict[str, type[AlgorithmConfig]] = {}
+
+    for config_type in _all_subclasses(AlgorithmConfig):
+        field = config_type.model_fields.get("algorithm")
+        if field is None:
+            continue
+
+        default = field.default
+        if isinstance(default, str) and default:
+            previous = registry.get(default)
+            if previous is not None and previous is not config_type:
+                raise RuntimeError(
+                    f"Algorithm configuration {default!r} is defined by both "
+                    f"{previous.__name__} and {config_type.__name__}."
+                )
+            registry[default] = config_type
+
+    return registry
+
+
+def _environment_registry() -> dict[str, type[GymEnvironmentConfig]]:
+    registry: dict[str, type[GymEnvironmentConfig]] = {}
+
+    for config_type in _all_subclasses(GymEnvironmentConfig):
+        gym = getattr(config_type, "gym", None)
+        if not isinstance(gym, str) or not gym:
+            continue
+
+        previous = registry.get(gym)
+        if previous is not None and previous is not config_type:
+            raise RuntimeError(
+                f"Environment configuration {gym!r} is defined by both "
+                f"{previous.__name__} and {config_type.__name__}."
+            )
+        registry[gym] = config_type
+
+    return registry
+
+
+def _validate_model(
+    config_type: type[ConfigModel],
+    data: dict[str, Any],
+    path: pathlib.Path,
+) -> ConfigModel:
+    try:
+        return config_type.model_validate(data)
+    except ValidationError as error:
+        raise ValueError(
+            f"Configuration validation failed for {path} using "
+            f"{config_type.__name__}:\n{error}"
+        ) from error
+
+
+def load_algorithm_config(path: pathlib.Path) -> AlgorithmConfig:
+    data = load_json_object(path)
+    algorithm = data.get("algorithm")
+
+    if not isinstance(algorithm, str) or not algorithm.strip():
+        raise ValueError(f"Missing valid string field 'algorithm' in {path}")
+
+    algorithm = algorithm.strip()
+    registry = _algorithm_registry()
+    config_type = registry.get(algorithm)
+
+    if config_type is None:
+        raise ValueError(
+            f"Unsupported algorithm {algorithm!r} in {path}. "
+            f"Known algorithms: {sorted(registry)}"
+        )
+
+    return _validate_model(config_type, data, path)
+
+
+def load_environment_config(path: pathlib.Path) -> GymEnvironmentConfig:
+    data = load_json_object(path)
+    gym = data.get("gym")
+
+    if not isinstance(gym, str) or not gym.strip():
+        raise ValueError(f"Missing valid string field 'gym' in {path}")
+
+    gym = gym.strip()
+    registry = _environment_registry()
+    config_type = registry.get(gym)
+
+    if config_type is None:
+        raise ValueError(
+            f"Unsupported environment type {gym!r} in {path}. "
+            f"Known environment types: {sorted(registry)}"
+        )
+
+    return _validate_model(config_type, data, path)
+
+
+def load_training_config(path: pathlib.Path) -> TrainingConfig:
+    data = load_json_object(path)
+    return _validate_model(TrainingConfig, data, path)
+
+
+def load_run_configuration(root: pathlib.Path) -> RunConfiguration:
+    """Load and validate all three CARES RL configuration files for a run."""
+    return RunConfiguration(
+        algorithm=load_algorithm_config(root / REQUIRED_CONFIG_FILES["alg_config"]),
+        environment=load_environment_config(root / REQUIRED_CONFIG_FILES["env_config"]),
+        training=load_training_config(root / REQUIRED_CONFIG_FILES["train_config"]),
+    )
 
 
 def _seed_eval_path(seed_dir: pathlib.Path) -> pathlib.Path:
@@ -55,9 +174,16 @@ def load_algorithm_run(discovered: DiscoveredRun) -> AlgorithmRun:
     if not root.is_dir():
         raise NotADirectoryError(f"Algorithm run directory does not exist: {root}")
 
-    configs = load_run_configs(root)
-    seeds: dict[int, SeedRun] = {}
+    configuration = discovered.configuration
 
+    configured_algorithm = configuration.algorithm.algorithm.strip()
+    if configured_algorithm != discovered.algorithm:
+        raise ValueError(
+            f"Discovered algorithm {discovered.algorithm!r} does not match "
+            f"alg_config.json value {configured_algorithm!r} in {root}."
+        )
+
+    seeds: dict[int, SeedRun] = {}
     for child in sorted(root.iterdir(), key=lambda path: path.name):
         if not child.is_dir():
             continue
@@ -87,8 +213,6 @@ def load_algorithm_run(discovered: DiscoveredRun) -> AlgorithmRun:
         algorithm=discovered.algorithm,
         variant_parameters=dict(discovered.variant_parameters),
         root=root,
-        alg_config=cast(Mapping[str, Any], configs["alg_config"]),
-        env_config=cast(Mapping[str, Any], configs["env_config"]),
-        train_config=cast(Mapping[str, Any], configs["train_config"]),
+        configuration=configuration,
         seeds=seeds,
     )

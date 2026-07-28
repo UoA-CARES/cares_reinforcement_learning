@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from cares_reinforcement_learning.stats.io import load_run_configuration
 from cares_reinforcement_learning.stats.models import (
     AnalysisOptions,
     DiscoveredRun,
@@ -12,17 +13,18 @@ from cares_reinforcement_learning.stats.task_analysis import run_task_analysis
 
 def _algorithm(
     root: Path,
-    name: str,
+    comparison_name: str,
+    algorithm: str,
     seeds: list[int],
     offset: float,
 ) -> DiscoveredRun:
-    path = root / name
+    path = root / comparison_name
     path.mkdir()
 
     (path / "alg_config.json").write_text(
         json.dumps(
             {
-                "algorithm": name,
+                "algorithm": algorithm,
                 "max_steps_training": 20,
             }
         ),
@@ -31,9 +33,9 @@ def _algorithm(
     (path / "env_config.json").write_text(
         json.dumps(
             {
-                "domain": "x",
-                "task": "y",
-                "gym": "z",
+                "domain": "control_suite",
+                "task": "test_task",
+                "gym": "dmcs",
             }
         ),
         encoding="utf-8",
@@ -64,16 +66,20 @@ def _algorithm(
         ).to_csv(data / "eval.csv", index=False)
 
     return DiscoveredRun(
-        comparison_name=name.upper(),
-        algorithm=name.upper(),
+        comparison_name=comparison_name,
+        algorithm=algorithm,
         variant_parameters={},
         root=path,
+        configuration=load_run_configuration(path),
     )
 
 
-def test_unmatched_seed_analysis_is_independent_and_auditable(tmp_path: Path):
-    a = _algorithm(tmp_path, "a", [1, 2, 3], 0.0)
-    b = _algorithm(tmp_path, "b", [10, 20, 30, 40], 1.0)
+def test_unmatched_seed_analysis_is_independent_and_auditable(
+    tmp_path: Path,
+) -> None:
+    a = _algorithm(tmp_path, "A", "SAC", [1, 2, 3], 0.0)
+    b = _algorithm(tmp_path, "B", "TD3", [10, 20, 30, 40], 1.0)
+
     result = run_task_analysis(
         [a, b],
         tmp_path / "output",
@@ -83,6 +89,7 @@ def test_unmatched_seed_analysis_is_independent_and_auditable(tmp_path: Path):
             random_seed=2,
         ),
     )
+
     pairwise = result["pairwise"]
     assert set(pairwise["comparison_design"]) == {"independent"}
     assert set(pairwise["test"]) == {"mann_whitney_u"}
@@ -91,14 +98,20 @@ def test_unmatched_seed_analysis_is_independent_and_auditable(tmp_path: Path):
     assert set(result["algorithm_summary"]["bootstrap_resampling_unit"]) == {"seed"}
 
 
-def test_publication_outputs_follow_statistical_hierarchy(tmp_path: Path):
-    a = _algorithm(tmp_path, "a", [1, 2, 3], 0.0)
-    b = _algorithm(tmp_path, "b", [1, 2, 3], 1.0)
+def test_publication_outputs_follow_statistical_hierarchy(
+    tmp_path: Path,
+) -> None:
+    a = _algorithm(tmp_path, "A", "SAC", [1, 2, 3], 0.0)
+    b = _algorithm(tmp_path, "B", "TD3", [1, 2, 3], 1.0)
     output = tmp_path / "output"
+
     result = run_task_analysis(
         [a, b],
         output,
-        options=AnalysisOptions(bootstrap_samples=50, random_seed=2),
+        options=AnalysisOptions(
+            bootstrap_samples=50,
+            random_seed=2,
+        ),
     )
 
     expected = {
@@ -112,6 +125,7 @@ def test_publication_outputs_follow_statistical_hierarchy(tmp_path: Path):
     }
     assert expected.issubset({path.name for path in output.iterdir()})
     assert set(result["task_summary"]["opponents"]) == {1}
+
     auc = result["task_summary"][result["task_summary"]["performance_metric"] == "auc"]
     superiority = sorted(auc["task_superiority"])
     assert superiority[0] < 0.5 < superiority[1]

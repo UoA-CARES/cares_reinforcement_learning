@@ -523,13 +523,31 @@ def run_cross_task_analysis(
     algorithms_by_group_task = summaries.groupby([*GROUP_COLUMNS, "task"])[
         "algorithm"
     ].apply(set)
+
     for group_key, group_sets in algorithms_by_group_task.groupby(level=GROUP_COLUMNS):
-        unique_sets = {frozenset(value) for value in group_sets}
-        if len(unique_sets) != 1:
-            raise ValueError(
-                "Every task must contain the same algorithms within each metric group: "
-                f"{group_key!r}."
+        task_sets = {task: algorithms for (*_, task), algorithms in group_sets.items()}
+
+        unique_sets = {frozenset(algorithms) for algorithms in task_sets.values()}
+        if len(unique_sets) <= 1:
+            continue
+
+        expected = sorted(set.union(*task_sets.values()))
+
+        details = "\n".join(
+            (
+                f"  {task}: "
+                f"{sorted(algorithms)}"
+                f"{'' if algorithms == set(expected) else f' (missing: {sorted(set(expected) - algorithms)})'}"
             )
+            for task, algorithms in sorted(task_sets.items())
+        )
+
+        raise ValueError(
+            "Every task must contain the same algorithms within each metric group.\n"
+            f"Group: {group_key!r}\n"
+            f"Expected algorithms: {expected}\n"
+            f"Task contents:\n{details}"
+        )
 
     task_superiority = _task_superiority(pairwise)
     benchmark = _benchmark_summary(summaries, task_superiority, seed_metrics, options)

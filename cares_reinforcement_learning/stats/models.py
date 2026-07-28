@@ -8,6 +8,14 @@ from typing import Any, Literal
 
 import pandas as pd
 
+from cares_reinforcement_learning.algorithm.configurations import (
+    AlgorithmConfig,
+    TrainingConfig,
+)
+from cares_reinforcement_learning.envs.configurations import (
+    GymEnvironmentConfig,
+)
+
 MetricDirection = Literal["higher", "lower"]
 
 
@@ -56,6 +64,15 @@ def _format_parameter_value(value: Any) -> str:
 
 
 @dataclasses.dataclass(frozen=True)
+class RunConfiguration:
+    """Validated CARES RL configuration files belonging to one result run."""
+
+    algorithm: AlgorithmConfig
+    environment: GymEnvironmentConfig
+    training: TrainingConfig
+
+
+@dataclasses.dataclass(frozen=True)
 class DiscoveredRun:
     """A result directory and the comparison identity derived from its configs."""
 
@@ -63,6 +80,7 @@ class DiscoveredRun:
     algorithm: str
     variant_parameters: Mapping[str, Any]
     root: pathlib.Path
+    configuration: RunConfiguration
 
 
 @dataclasses.dataclass(frozen=True)
@@ -114,9 +132,7 @@ class AlgorithmRun:
     algorithm: str
     variant_parameters: Mapping[str, Any]
     root: pathlib.Path
-    alg_config: Mapping[str, Any]
-    env_config: Mapping[str, Any]
-    train_config: Mapping[str, Any]
+    configuration: RunConfiguration
     seeds: Mapping[int, SeedRun]
 
 

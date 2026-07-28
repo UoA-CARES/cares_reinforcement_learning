@@ -34,7 +34,9 @@ def _matching_values(
 ) -> None:
     for key in keys:
         values = {
-            run.comparison_name: getattr(run, config_name).get(key, None)
+            run.comparison_name: getattr(
+                getattr(run.configuration, config_name), key, None
+            )
             for run in runs
         }
         if len({repr(value) for value in values.values()}) != 1:
@@ -80,14 +82,14 @@ def validate_runs(
     if len({metric.column for metric in metrics}) != len(metrics):
         raise ValueError("Evaluation metric columns must be unique.")
 
-    _matching_values(runs, "env_config", ENV_MATCH_KEYS)
-    _matching_values(runs, "train_config", TRAIN_MATCH_KEYS)
-    _matching_values(runs, "alg_config", ALG_MATCH_KEYS)
+    _matching_values(runs, "environment", ENV_MATCH_KEYS)
+    _matching_values(runs, "training", TRAIN_MATCH_KEYS)
+    _matching_values(runs, "algorithm", ALG_MATCH_KEYS)
 
     reference_steps: np.ndarray | None = None
     reference_episodes: np.ndarray | None = None
     for run in runs:
-        expected_episodes = int(run.train_config["number_eval_episodes"])
+        expected_episodes = run.configuration.training.number_eval_episodes
         for seed, seed_run in sorted(run.seeds.items()):
             name = f"{run.comparison_name} seed {seed}"
             _validate_frame(name, seed_run.eval_data, metrics)

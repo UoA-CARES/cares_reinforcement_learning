@@ -4,13 +4,16 @@ import pathlib
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from pydantic import BaseModel
+
 from cares_reinforcement_learning.stats.io import (
     REQUIRED_CONFIG_FILES,
-    load_run_configs,
+    load_run_configuration,
 )
 from cares_reinforcement_learning.stats.models import (
     ComparisonIdentity,
     DiscoveredRun,
+    RunConfiguration,
 )
 
 
@@ -20,21 +23,18 @@ def _is_result_run(path: pathlib.Path) -> bool:
     )
 
 
-def _read_algorithm_name(
-    run_directory: pathlib.Path,
-    configs: Mapping[str, Mapping[str, Any]],
-) -> str:
-    config_path = run_directory / REQUIRED_CONFIG_FILES["alg_config"]
-    algorithm = configs["alg_config"].get("algorithm")
-
-    if not isinstance(algorithm, str) or not algorithm.strip():
-        raise ValueError(f"Missing valid string field 'algorithm' in {config_path}")
-
-    return algorithm.strip()
+def _config_sources(
+    configuration: RunConfiguration,
+) -> dict[str, BaseModel]:
+    return {
+        "alg_config": configuration.algorithm,
+        "env_config": configuration.environment,
+        "train_config": configuration.training,
+    }
 
 
 def _resolve_config_value(
-    configs: Mapping[str, Mapping[str, Any]],
+    configuration: RunConfiguration,
     path: str,
 ) -> Any:
     source, separator, field_path = path.partition(".")
@@ -46,20 +46,42 @@ def _resolve_config_value(
             f"of {valid_sources} and include a field name."
         )
 
-    if source not in REQUIRED_CONFIG_FILES:
+    sources = _config_sources(configuration)
+    if source not in sources:
         valid_sources = ", ".join(REQUIRED_CONFIG_FILES)
         raise ValueError(
             f"Unknown configuration source {source!r} in {path!r}. "
             f"Expected one of: {valid_sources}."
         )
 
-    value: Any = configs[source]
+    value: Any = sources[source]
+    traversed = source
     for field in field_path.split("."):
-        if not isinstance(value, Mapping) or field not in value:
-            raise ValueError(f"Configuration path {path!r} was not found.")
-        value = value[field]
+        traversed = f"{traversed}.{field}"
 
-    if isinstance(value, (Mapping, list, tuple, set)):
+        if isinstance(value, BaseModel):
+            if field not in value.model_fields:
+                raise ValueError(
+                    f"Configuration path {path!r} was not found; "
+                    f"{traversed!r} is not a field of "
+                    f"{type(value).__name__}."
+                )
+            value = getattr(value, field)
+        elif isinstance(value, Mapping):
+            if field not in value:
+                raise ValueError(
+                    f"Configuration path {path!r} was not found; "
+                    f"mapping key {traversed!r} is missing."
+                )
+            value = value[field]
+        else:
+            raise ValueError(
+                f"Configuration path {path!r} was not found; "
+                f"{traversed.rsplit('.', 1)[0]!r} resolves to "
+                f"{type(value).__name__}, not a nested configuration."
+            )
+
+    if isinstance(value, (BaseModel, Mapping, list, tuple, set)):
         raise ValueError(
             f"Configuration path {path!r} resolves to a non-scalar "
             f"{type(value).__name__}; comparison parameters must be scalar."
@@ -72,10 +94,11 @@ def _build_discovered_run(
     run_directory: pathlib.Path,
     comparison_parameters: Sequence[str],
 ) -> DiscoveredRun:
-    configs = load_run_configs(run_directory)
-    algorithm = _read_algorithm_name(run_directory, configs)
+    configuration = load_run_configuration(run_directory)
+    algorithm = configuration.algorithm.algorithm.strip()
+
     parameters = tuple(
-        (path.rsplit(".", 1)[-1], _resolve_config_value(configs, path))
+        (path.rsplit(".", 1)[-1], _resolve_config_value(configuration, path))
         for path in comparison_parameters
     )
 
@@ -92,6 +115,7 @@ def _build_discovered_run(
         algorithm=identity.algorithm,
         variant_parameters=identity.variant_parameters,
         root=run_directory,
+        configuration=configuration,
     )
 
 
