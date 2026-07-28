@@ -1,35 +1,82 @@
+import json
 from pathlib import Path
 
 import pandas as pd
 
-from cares_rl_statistics.models import AnalysisOptions
-from cares_rl_statistics.task_analysis import run_task_analysis
+from cares_reinforcement_learning.stats.models import (
+    AnalysisOptions,
+    DiscoveredRun,
+)
+from cares_reinforcement_learning.stats.task_analysis import run_task_analysis
 
 
-def _algorithm(root: Path, name: str, seeds: list[int], offset: float) -> Path:
+def _algorithm(
+    root: Path,
+    name: str,
+    seeds: list[int],
+    offset: float,
+) -> DiscoveredRun:
     path = root / name
     path.mkdir()
-    (path / "alg_config.json").write_text('{"max_steps_training": 20}')
-    (path / "env_config.json").write_text('{"domain":"x","task":"y","gym":"z"}')
-    (path / "train_config.json").write_text(
-        '{"number_steps_per_evaluation":10,"number_eval_episodes":2}'
+
+    (path / "alg_config.json").write_text(
+        json.dumps(
+            {
+                "algorithm": name,
+                "max_steps_training": 20,
+            }
+        ),
+        encoding="utf-8",
     )
+    (path / "env_config.json").write_text(
+        json.dumps(
+            {
+                "domain": "x",
+                "task": "y",
+                "gym": "z",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (path / "train_config.json").write_text(
+        json.dumps(
+            {
+                "number_steps_per_evaluation": 10,
+                "number_eval_episodes": 2,
+            }
+        ),
+        encoding="utf-8",
+    )
+
     for seed in seeds:
         data = path / str(seed) / "data"
         data.mkdir(parents=True)
-        pd.DataFrame({
-            "total_steps": [10, 10, 20, 20],
-            "episode_reward": [1 + offset + seed, 2 + offset + seed,
-                               3 + offset + seed, 4 + offset + seed],
-        }).to_csv(data / "eval.csv", index=False)
-    return path
+
+        pd.DataFrame(
+            {
+                "total_steps": [10, 10, 20, 20],
+                "episode_reward": [
+                    1 + offset + seed,
+                    2 + offset + seed,
+                    3 + offset + seed,
+                    4 + offset + seed,
+                ],
+            }
+        ).to_csv(data / "eval.csv", index=False)
+
+    return DiscoveredRun(
+        comparison_name=name.upper(),
+        algorithm=name.upper(),
+        variant_parameters={},
+        root=path,
+    )
 
 
 def test_unmatched_seed_analysis_is_independent_and_auditable(tmp_path: Path):
     a = _algorithm(tmp_path, "a", [1, 2, 3], 0.0)
     b = _algorithm(tmp_path, "b", [10, 20, 30, 40], 1.0)
     result = run_task_analysis(
-        {"A": a, "B": b},
+        [a, b],
         tmp_path / "output",
         options=AnalysisOptions(
             allow_unmatched_seeds=True,
@@ -50,7 +97,7 @@ def test_publication_outputs_follow_statistical_hierarchy(tmp_path: Path):
     b = _algorithm(tmp_path, "b", [1, 2, 3], 1.0)
     output = tmp_path / "output"
     result = run_task_analysis(
-        {"A": a, "B": b},
+        [a, b],
         output,
         options=AnalysisOptions(bootstrap_samples=50, random_seed=2),
     )
