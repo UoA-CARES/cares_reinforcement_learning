@@ -13,7 +13,6 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.platypus import (
     Image,
-    KeepTogether,
     PageBreak,
     Paragraph,
     SimpleDocTemplate,
@@ -22,7 +21,12 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from cares_reinforcement_learning.stats.models import AnalysisOptions
+from cares_reinforcement_learning.reporting.analysis import statistics
+from cares_reinforcement_learning.reporting.analysis.models import (
+    AnalysisOptions,
+    BenchmarkAnalysisResult,
+    TaskAnalysisResult,
+)
 
 
 def _latex(frame: pd.DataFrame, path: pathlib.Path, caption: str, label: str) -> None:
@@ -36,15 +40,12 @@ def _available_columns(frame: pd.DataFrame, columns: Sequence[str]) -> list[str]
     return [column for column in columns if column in frame.columns]
 
 
-def write_task_outputs(
-    output: pathlib.Path,
+def _prepare_task_publication_frames(
     summary: pd.DataFrame,
     pairwise: pd.DataFrame,
     task_summary: pd.DataFrame,
     options: AnalysisOptions,
-    comparison_design: str,
-    warnings: Sequence[str],
-) -> None:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     primary = options.primary_performance_metric
     performance = summary[summary["performance_metric"] == primary].copy()
     performance = performance.sort_values(["evaluation_metric", "rank"])[
@@ -64,13 +65,6 @@ def write_task_outputs(
             ],
         )
     ]
-    performance.to_csv(output / "task_performance.csv", index=False)
-    _latex(
-        performance,
-        output / "task_performance.tex",
-        "Task performance using observed IQM and BCa bootstrap confidence intervals.",
-        "tab:task_performance",
-    )
 
     significance_column = (
         "significant_holm"
@@ -98,13 +92,6 @@ def write_task_outputs(
     comparisons = pairwise[pairwise["performance_metric"] == primary].copy()[
         comparison_columns
     ]
-    comparisons.to_csv(output / "pairwise_statistics.csv", index=False)
-    _latex(
-        comparisons,
-        output / "pairwise_statistics.tex",
-        "Pairwise evidence from observed seed-level performance metrics.",
-        "tab:pairwise_statistics",
-    )
 
     overview = (
         task_summary[task_summary["performance_metric"] == primary]
@@ -122,6 +109,105 @@ def write_task_outputs(
         ]
         .sort_values(["evaluation_metric", "iqm_rank"])
     )
+
+    return performance, comparisons, overview
+
+
+def _prepare_cross_task_publication_frames(
+    benchmark: pd.DataFrame,
+    pairwise: pd.DataFrame,
+    options: AnalysisOptions,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    primary = options.primary_performance_metric
+    publication_columns = _available_columns(
+        benchmark,
+        [
+            "algorithm",
+            "evaluation_metric",
+            "mean_superiority",
+            "superiority_ci_low",
+            "superiority_ci_high",
+            "average_rank",
+            "average_rank_ci_low",
+            "average_rank_ci_high",
+            "median_rank",
+            "rank_std",
+            "rank_iqr",
+            "top_1_count",
+            "top_1_rate",
+            "top_2_count",
+            "top_2_rate",
+            "top_3_count",
+            "top_3_rate",
+            "n_tasks",
+        ],
+    )
+    benchmark_publication = benchmark[
+        benchmark["performance_metric"] == primary
+    ].copy()[publication_columns]
+    benchmark_publication = benchmark_publication.sort_values(
+        ["evaluation_metric", "mean_superiority", "average_rank"],
+        ascending=[True, False, True],
+    )
+
+    pairwise_columns = _available_columns(
+        pairwise,
+        [
+            "evaluation_metric",
+            "algorithm_a",
+            "algorithm_b",
+            "wins_a",
+            "ties",
+            "wins_b",
+            "win_rate_a",
+            "mean_probability_a_better",
+            "probability_a_better_ci_low",
+            "probability_a_better_ci_high",
+            "mean_rank_difference_a_minus_b",
+            "n_tasks",
+        ],
+    )
+    pairwise_publication = pairwise[pairwise["performance_metric"] == primary].copy()[
+        pairwise_columns
+    ]
+    pairwise_publication = pairwise_publication.sort_values(
+        ["evaluation_metric", "algorithm_a", "algorithm_b"]
+    )
+
+    return benchmark_publication, pairwise_publication
+
+
+def write_task_outputs(
+    output: pathlib.Path,
+    summary: pd.DataFrame,
+    pairwise: pd.DataFrame,
+    task_summary: pd.DataFrame,
+    options: AnalysisOptions,
+    comparison_design: str,
+    warnings: Sequence[str],
+) -> None:
+    performance, comparisons, overview = _prepare_task_publication_frames(
+        summary,
+        pairwise,
+        task_summary,
+        options,
+    )
+    performance.to_csv(output / "task_performance.csv", index=False)
+    _latex(
+        performance,
+        output / "task_performance.tex",
+        "Task performance using observed IQM and BCa bootstrap confidence intervals.",
+        "tab:task_performance",
+    )
+
+    comparisons.to_csv(output / "pairwise_statistics.csv", index=False)
+    _latex(
+        comparisons,
+        output / "pairwise_statistics.tex",
+        "Pairwise evidence from observed seed-level performance metrics.",
+        "tab:pairwise_statistics",
+    )
+
     overview.to_csv(output / "task_summary.csv", index=False)
     _latex(
         overview,
@@ -132,7 +218,7 @@ def write_task_outputs(
 
     lines = [
         f"Comparison design: {comparison_design}.",
-        f"Primary performance metric: raw trapezoidal {primary}.",
+        f"Primary performance metric: raw trapezoidal {options.primary_performance_metric}.",
         (
             f"Algorithm IQM intervals: {options.bootstrap_confidence:.0%} BCa "
             f"bootstrap, {options.bootstrap_samples:,} resamples, "
@@ -173,36 +259,10 @@ def write_cross_task_outputs(
     nemenyi: pd.DataFrame,
     options: AnalysisOptions,
 ) -> None:
-    primary = options.primary_performance_metric
-    publication_columns = _available_columns(
+    publication, pairwise_publication = _prepare_cross_task_publication_frames(
         benchmark,
-        [
-            "algorithm",
-            "evaluation_metric",
-            "mean_superiority",
-            "superiority_ci_low",
-            "superiority_ci_high",
-            "average_rank",
-            "average_rank_ci_low",
-            "average_rank_ci_high",
-            "median_rank",
-            "rank_std",
-            "rank_iqr",
-            "top_1_count",
-            "top_1_rate",
-            "top_2_count",
-            "top_2_rate",
-            "top_3_count",
-            "top_3_rate",
-            "n_tasks",
-        ],
-    )
-    publication = benchmark[benchmark["performance_metric"] == primary].copy()[
-        publication_columns
-    ]
-    publication = publication.sort_values(
-        ["evaluation_metric", "mean_superiority", "average_rank"],
-        ascending=[True, False, True],
+        pairwise,
+        options,
     )
     publication.to_csv(output / "benchmark_performance.csv", index=False)
     _latex(
@@ -218,29 +278,6 @@ def write_cross_task_outputs(
     # Publication pairwise output deliberately prioritises probability of
     # improvement. Rank-based Wilcoxon evidence remains available in the raw
     # cross_task_pairwise.csv written by cross_task_analysis.py.
-    pairwise_columns = _available_columns(
-        pairwise,
-        [
-            "evaluation_metric",
-            "algorithm_a",
-            "algorithm_b",
-            "wins_a",
-            "ties",
-            "wins_b",
-            "win_rate_a",
-            "mean_probability_a_better",
-            "probability_a_better_ci_low",
-            "probability_a_better_ci_high",
-            "mean_rank_difference_a_minus_b",
-            "n_tasks",
-        ],
-    )
-    pairwise_publication = pairwise[pairwise["performance_metric"] == primary].copy()[
-        pairwise_columns
-    ]
-    pairwise_publication = pairwise_publication.sort_values(
-        ["evaluation_metric", "algorithm_a", "algorithm_b"]
-    )
     pairwise_publication.to_csv(
         output / "cross_task_pairwise_publication.csv", index=False
     )
@@ -331,15 +368,6 @@ def write_cross_task_outputs(
 # ---------------------------------------------------------------------------
 # PDF report
 # ---------------------------------------------------------------------------
-
-
-def _read_csv(path: pathlib.Path) -> pd.DataFrame:
-    if not path.exists() or path.stat().st_size == 0:
-        return pd.DataFrame()
-    try:
-        return pd.read_csv(path)
-    except pd.errors.EmptyDataError:
-        return pd.DataFrame()
 
 
 def _display_name(value: object) -> str:
@@ -485,23 +513,16 @@ def _reference_comparison(
         if reference_name not in {algorithm_a, algorithm_b}:
             continue
 
-        probability_a = float(row["mean_probability_a_better"])
-        low_a = float(row["probability_a_better_ci_low"])
-        high_a = float(row["probability_a_better_ci_high"])
-        if algorithm_a == reference_name:
-            opponent = algorithm_b
-            probability = probability_a
-            low = low_a
-            high = high_a
-            wins = int(row.get("wins_a", 0))
-            losses = int(row.get("wins_b", 0))
-        else:
-            opponent = algorithm_a
-            probability = 1.0 - probability_a
-            low = 1.0 - high_a
-            high = 1.0 - low_a
-            wins = int(row.get("wins_b", 0))
-            losses = int(row.get("wins_a", 0))
+        reference_is_a = algorithm_a == reference_name
+        opponent = algorithm_b if reference_is_a else algorithm_a
+        probability, low, high = statistics.orient_probability_interval(
+            float(row["mean_probability_a_better"]),
+            float(row["probability_a_better_ci_low"]),
+            float(row["probability_a_better_ci_high"]),
+            reference_is_a=reference_is_a,
+        )
+        wins = int(row.get("wins_a" if reference_is_a else "wins_b", 0))
+        losses = int(row.get("wins_b" if reference_is_a else "wins_a", 0))
 
         rows.append(
             {
@@ -585,8 +606,8 @@ def _write_reference_comparison_outputs(
 
 def _build_pdf_report(
     output_path: pathlib.Path,
-    results_root: pathlib.Path,
-    task_outputs: Mapping[str, pathlib.Path],
+    task_results: Mapping[str, TaskAnalysisResult],
+    benchmark_result: BenchmarkAnalysisResult | None,
     benchmark_output: pathlib.Path | None,
     options: AnalysisOptions,
     reference_comparison: str | None,
@@ -721,11 +742,14 @@ def _build_pdf_report(
     pairwise = pd.DataFrame()
     friedman = pd.DataFrame()
     nemenyi = pd.DataFrame()
-    if benchmark_output is not None:
-        benchmark = _read_csv(benchmark_output / "benchmark_performance.csv")
-        pairwise = _read_csv(benchmark_output / "cross_task_pairwise_publication.csv")
-        friedman = _read_csv(benchmark_output / "friedman.csv")
-        nemenyi = _read_csv(benchmark_output / "nemenyi.csv")
+    if benchmark_result is not None:
+        benchmark, pairwise = _prepare_cross_task_publication_frames(
+            benchmark_result.benchmark_summary,
+            benchmark_result.cross_task_pairwise,
+            options,
+        )
+        friedman = benchmark_result.friedman_tests
+        nemenyi = benchmark_result.nemenyi_posthoc
 
     reference_comparison_frame = pd.DataFrame()
     if reference_comparison is not None:
@@ -767,7 +791,7 @@ def _build_pdf_report(
                 pd.DataFrame(
                     [
                         {
-                            "tasks": len(task_outputs),
+                            "tasks": len(task_results),
                             "primary_metric": options.primary_performance_metric,
                             "confidence": options.bootstrap_confidence,
                             "bootstrap_samples": options.bootstrap_samples,
@@ -962,26 +986,27 @@ def _build_pdf_report(
                     ],
                 )
             )
-            figure = (
-                benchmark_output
-                / "figures"
-                / f"{str(metric).replace(' ', '_')}__{options.primary_performance_metric}"
-                / "pairwise_dominance.png"
-            )
-            if figure.exists():
-                image = Image(str(figure))
-                image._restrictSize(page_width, 115 * mm)
-                story.extend(
-                    [
-                        Spacer(1, 3 * mm),
-                        image,
-                        paragraph(
-                            "Pairwise probability-of-improvement matrix. Rows are the "
-                            "candidate algorithms and columns are their opponents.",
-                            "Caption",
-                        ),
-                    ]
+            if benchmark_output is not None:
+                figure = (
+                    benchmark_output
+                    / "figures"
+                    / f"{str(metric).replace(' ', '_')}__{options.primary_performance_metric}"
+                    / "pairwise_dominance.png"
                 )
+                if figure.exists():
+                    image = Image(str(figure))
+                    image._restrictSize(page_width, 115 * mm)
+                    story.extend(
+                        [
+                            Spacer(1, 3 * mm),
+                            image,
+                            paragraph(
+                                "Pairwise probability-of-improvement matrix. Rows are the "
+                                "candidate algorithms and columns are their opponents.",
+                                "Caption",
+                            ),
+                        ]
+                    )
 
     section_number = (
         (5 if reference_comparison is not None else 4) if not benchmark.empty else 2
@@ -1001,9 +1026,13 @@ def _build_pdf_report(
         )
     )
 
-    for task_name, task_dir in task_outputs.items():
-        performance = _read_csv(task_dir / "task_performance.csv")
-        task_pairwise = _read_csv(task_dir / "pairwise_statistics.csv")
+    for task_name, task_result in task_results.items():
+        performance, task_pairwise, _ = _prepare_task_publication_frames(
+            task_result.algorithm_summary,
+            task_result.pairwise,
+            task_result.task_summary,
+            options,
+        )
         story.append(Paragraph(task_name, styles["SubsectionTitle"]))
         if not performance.empty:
             for metric, group in performance.groupby("evaluation_metric", sort=False):
@@ -1087,7 +1116,7 @@ def _build_pdf_report(
                             "performance_metric",
                             "n_tasks",
                             "n_algorithms",
-                            "statistic",
+                            "test_statistic",
                             "p_value",
                             "significant",
                         ],
@@ -1108,7 +1137,7 @@ def _build_pdf_report(
                             "performance_metric",
                             "algorithm_a",
                             "algorithm_b",
-                            "average_rank_difference",
+                            "absolute_rank_difference",
                             "critical_difference",
                             "significant",
                         ],
@@ -1164,17 +1193,22 @@ def _build_pdf_report(
 
 def write_pdf_report(
     results_root: str | pathlib.Path,
-    task_outputs: Mapping[str, str | pathlib.Path],
+    task_results: Mapping[str, TaskAnalysisResult],
+    benchmark_result: BenchmarkAnalysisResult | None,
     benchmark_output: str | pathlib.Path | None,
     options: AnalysisOptions,
     reference_comparison: str | None = None,
 ) -> pathlib.Path:
     """Generate the final guided PDF after all statistical outputs are written."""
     root = pathlib.Path(results_root)
-    tasks = {name: pathlib.Path(path) for name, path in task_outputs.items()}
     benchmark = pathlib.Path(benchmark_output) if benchmark_output is not None else None
     destination = root / "statistical_report.pdf"
     _build_pdf_report(
-        destination, root, tasks, benchmark, options, reference_comparison
+        destination,
+        task_results,
+        benchmark_result,
+        benchmark,
+        options,
+        reference_comparison,
     )
     return destination

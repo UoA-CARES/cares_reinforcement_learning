@@ -70,16 +70,25 @@ For example:
 
 ## Plotting
 
-The `cares-rl-plot` utility can plot the data from one or multiple training sessions. Features include:
+The `cares-rl-plot` utility can plot data from one task, multiple tasks, or explicit run directories.
+
+For full plotting workflows and all plotting options, see the [Plotting Guide](plotting.md).
+
+Core features include:
 
 - Plot multiple runs for comparison
 - Support for dual y-axes (e.g., reward and loss on the same plot)
 - Customizable axis labels, title, font sizes, and legend
-- Plots are saved as PNGs in the given folder `-s <PATH_TO_OUTPUT>` directory
+- Plots are saved to the given `--output <PATH_TO_OUTPUT>` directory
 
-**Example** Plot and compare the results of two or more training instances:
+**Example** Plot and compare explicit run directories as one task:
 ```sh
-cares-rl-plot -s ~/cares_rl_logs -d <PATH_TO_ONE> <PATH_TO_TWO>
+cares-rl-plot --data <PATH_TO_ONE> <PATH_TO_TWO> --output ~/cares_rl_plots
+```
+
+**Example** Plot one discovered task:
+```sh
+cares-rl-plot --task <TASK_DIRECTORY> --output ~/cares_rl_plots
 ```
 
 !!! tip "Full Plotting Options"

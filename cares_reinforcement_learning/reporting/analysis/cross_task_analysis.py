@@ -1,49 +1,33 @@
 from __future__ import annotations
 
 import itertools
-import pathlib
 from collections.abc import Mapping
 
 import numpy as np
 import pandas as pd
 
-from cares_reinforcement_learning.stats import reporting, statistics
-from cares_reinforcement_learning.stats.models import AnalysisOptions
-from cares_reinforcement_learning.stats.statistical_plots import (
-    write_cross_task_figures,
+from cares_reinforcement_learning.reporting.analysis import statistics
+from cares_reinforcement_learning.reporting.analysis.metrics import (
+    METRIC_GROUP_COLUMNS,
+)
+from cares_reinforcement_learning.reporting.analysis.models import (
+    AnalysisOptions,
+    BenchmarkAnalysisResult,
+    TaskAnalysisResult,
 )
 
-GROUP_COLUMNS = ["evaluation_metric", "performance_metric"]
 
-
-def _load_task(
-    task: str, directory: pathlib.Path
+def _task_frames(
+    task: str,
+    result: TaskAnalysisResult,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    summary = pd.read_csv(directory / "algorithm_summary.csv")
-    pairwise = pd.read_csv(directory / "pairwise_comparisons.csv")
-    seed_metrics = pd.read_csv(directory / "seed_metrics.csv")
+    summary = result.algorithm_summary.copy()
+    pairwise = result.pairwise.copy()
+    seed_metrics = result.seed_metrics.copy()
     summary.insert(0, "task", task)
     pairwise.insert(0, "task", task)
     seed_metrics.insert(0, "task", task)
     return summary, pairwise, seed_metrics
-
-
-def _percentile_interval(
-    bootstrap_replicates: np.ndarray,
-    confidence: float,
-) -> tuple[float, float]:
-    """Return a two-sided percentile bootstrap confidence interval."""
-    replicates = np.asarray(bootstrap_replicates, dtype=np.float64)
-    if replicates.ndim != 1 or replicates.size == 0:
-        raise ValueError(
-            "Percentile interval requires one-dimensional bootstrap replicates."
-        )
-    if not np.isfinite(replicates).all():
-        raise ValueError("Bootstrap replicates must be finite.")
-
-    alpha = (1.0 - confidence) / 2.0
-    low, high = np.quantile(replicates, [alpha, 1.0 - alpha])
-    return float(low), float(high)
 
 
 def _task_seed_values(
@@ -123,7 +107,7 @@ def _stratified_pairwise_probability_ci(
             )
         replicates[replicate_index] = float(np.mean(probabilities))
 
-    return _percentile_interval(replicates, options.bootstrap_confidence)
+    return statistics.percentile_interval(replicates, options.bootstrap_confidence)
 
 
 def _stratified_algorithm_superiority_ci(
@@ -196,21 +180,18 @@ def _stratified_algorithm_superiority_ci(
             task_values[task_index] = float(np.mean(opponent_probabilities))
         replicates[replicate_index] = float(np.mean(task_values))
 
-    return _percentile_interval(replicates, options.bootstrap_confidence)
+    return statistics.percentile_interval(replicates, options.bootstrap_confidence)
 
 
 def _task_superiority(pairwise: pd.DataFrame) -> pd.DataFrame:
     rows: list[dict[str, object]] = []
-    groups = pairwise.groupby(["task", *GROUP_COLUMNS], sort=False)
-    for (task, metric, performance_metric), group in groups:
+    for (task, metric, performance_metric), group in pairwise.groupby(
+        ["task", *METRIC_GROUP_COLUMNS],
+        sort=False,
+    ):
         algorithms = sorted(set(group["algorithm_a"]).union(group["algorithm_b"]))
         for algorithm in algorithms:
-            probabilities: list[float] = []
-            for row in group.itertuples(index=False):
-                if row.algorithm_b == algorithm:
-                    probabilities.append(float(row.probability_b_better))
-                elif row.algorithm_a == algorithm:
-                    probabilities.append(1.0 - float(row.probability_b_better))
+            probabilities = statistics.probability_for_algorithm(group, algorithm)
             rows.append(
                 {
                     "task": task,
@@ -218,7 +199,7 @@ def _task_superiority(pairwise: pd.DataFrame) -> pd.DataFrame:
                     "performance_metric": performance_metric,
                     "algorithm": algorithm,
                     "task_superiority": float(np.mean(probabilities)),
-                    "opponents": len(probabilities),
+                    "opponents": int(probabilities.size),
                 }
             )
     return pd.DataFrame(rows)
@@ -230,9 +211,8 @@ def _benchmark_summary(
     seed_metrics: pd.DataFrame,
     options: AnalysisOptions,
 ) -> pd.DataFrame:
-    rng = np.random.default_rng(options.random_seed)
     rows: list[dict[str, object]] = []
-    groups = summaries.groupby([*GROUP_COLUMNS, "algorithm"], sort=False)
+    groups = summaries.groupby([*METRIC_GROUP_COLUMNS, "algorithm"], sort=False)
 
     for (evaluation_metric, performance_metric, algorithm), algorithm_rows in groups:
         algorithm_rows = algorithm_rows.sort_values("task")
@@ -250,15 +230,22 @@ def _benchmark_summary(
             )
 
         rank_ci = statistics.bootstrap_bca_ci(
-            ranks, np.mean, options.bootstrap_samples, options.bootstrap_confidence, rng
+            ranks,
+            np.mean,
+            options.bootstrap_samples,
+            options.bootstrap_confidence,
+            statistics.child_rng(
+                options.random_seed,
+                "benchmark_rank",
+                evaluation_metric,
+                performance_metric,
+                algorithm,
+            ),
         )
-        direction_values = algorithm_rows["direction"].dropna().unique()
-        if direction_values.size != 1:
-            raise ValueError(
-                f"Inconsistent metric direction for {evaluation_metric!r}/"
-                f"{performance_metric!r}."
-            )
-        direction = str(direction_values[0])
+        direction = statistics.require_single_direction(
+            algorithm_rows,
+            context=f"{evaluation_metric!r}/{performance_metric!r}",
+        )
         tasks = algorithm_rows["task"].tolist()
         all_algorithms = sorted(
             summaries[
@@ -276,7 +263,13 @@ def _benchmark_summary(
             algorithm,
             opponents,
             options,
-            rng,
+            statistics.child_rng(
+                options.random_seed,
+                "benchmark_superiority",
+                evaluation_metric,
+                performance_metric,
+                algorithm,
+            ),
         )
         q1, q3 = np.quantile(ranks, [0.25, 0.75])
         n_tasks = int(ranks.size)
@@ -316,39 +309,16 @@ def _benchmark_summary(
     return pd.DataFrame(rows)
 
 
-def _probability_a_better(
-    task_rows: pd.DataFrame,
-    algorithm_a: str,
-    algorithm_b: str,
-) -> float:
-    direct = task_rows[
-        (task_rows["algorithm_a"] == algorithm_a)
-        & (task_rows["algorithm_b"] == algorithm_b)
-    ]
-    if len(direct) == 1:
-        return 1.0 - float(direct.iloc[0]["probability_b_better"])
-    reverse = task_rows[
-        (task_rows["algorithm_a"] == algorithm_b)
-        & (task_rows["algorithm_b"] == algorithm_a)
-    ]
-    if len(reverse) == 1:
-        return float(reverse.iloc[0]["probability_b_better"])
-    raise ValueError(
-        f"Missing pairwise comparison for {algorithm_a!r} vs {algorithm_b!r}."
-    )
-
-
 def _cross_task_pairwise(
     summaries: pd.DataFrame,
     pairwise: pd.DataFrame,
     seed_metrics: pd.DataFrame,
     options: AnalysisOptions,
 ) -> pd.DataFrame:
-    rng = np.random.default_rng(options.random_seed)
     rows: list[dict[str, object]] = []
 
     for (evaluation_metric, performance_metric), summary_group in summaries.groupby(
-        GROUP_COLUMNS, sort=False
+        METRIC_GROUP_COLUMNS, sort=False
     ):
         pairwise_group = pairwise[
             (pairwise["evaluation_metric"] == evaluation_metric)
@@ -362,31 +332,36 @@ def _cross_task_pairwise(
         for algorithm_a, algorithm_b in itertools.combinations(algorithms, 2):
             probabilities = np.asarray(
                 [
-                    _probability_a_better(
+                    statistics.pairwise_probability(
                         pairwise_group[pairwise_group["task"] == task],
-                        algorithm_a,
-                        algorithm_b,
+                        candidate=algorithm_a,
+                        baseline=algorithm_b,
                     )
                     for task in rank_table.index
                 ],
                 dtype=np.float64,
             )
-            direction_values = summary_group["direction"].dropna().unique()
-            if direction_values.size != 1:
-                raise ValueError(
-                    f"Inconsistent metric direction for {evaluation_metric!r}/"
-                    f"{performance_metric!r}."
-                )
+            direction = statistics.require_single_direction(
+                summary_group,
+                context=f"{evaluation_metric!r}/{performance_metric!r}",
+            )
             probability_ci = _stratified_pairwise_probability_ci(
                 seed_metrics,
                 rank_table.index.tolist(),
                 evaluation_metric,
                 performance_metric,
-                str(direction_values[0]),
+                direction,
                 algorithm_a,
                 algorithm_b,
                 options,
-                rng,
+                statistics.child_rng(
+                    options.random_seed,
+                    "cross_task_pairwise",
+                    evaluation_metric,
+                    performance_metric,
+                    algorithm_a,
+                    algorithm_b,
+                ),
             )
             ranks_a = rank_table[algorithm_a].to_numpy(dtype=np.float64)
             ranks_b = rank_table[algorithm_b].to_numpy(dtype=np.float64)
@@ -428,16 +403,11 @@ def _cross_task_pairwise(
                 }
             )
 
-    result = pd.DataFrame(rows)
-    result["p_value_holm"] = np.nan
-    result["significant_holm"] = False
-    for _, indices in result.groupby(GROUP_COLUMNS, sort=False).groups.items():
-        adjusted = statistics.holm_correction(
-            result.loc[indices, "p_value"].to_numpy(dtype=np.float64)
-        )
-        result.loc[indices, "p_value_holm"] = adjusted
-        result.loc[indices, "significant_holm"] = adjusted < options.significance_level
-    return result
+    return statistics.add_holm_correction(
+        pd.DataFrame(rows),
+        family_columns=METRIC_GROUP_COLUMNS,
+        significance_level=options.significance_level,
+    )
 
 
 def _friedman_and_nemenyi(
@@ -449,7 +419,7 @@ def _friedman_and_nemenyi(
     critical_differences: dict[tuple[str, str], float] = {}
 
     for (evaluation_metric, performance_metric), group in summaries.groupby(
-        GROUP_COLUMNS, sort=False
+        METRIC_GROUP_COLUMNS, sort=False
     ):
         matrix = group.pivot(index="task", columns="algorithm", values="rank")
         if matrix.isna().any().any():
@@ -506,42 +476,26 @@ def _friedman_and_nemenyi(
     return pd.DataFrame(friedman_rows), pd.DataFrame(nemenyi_rows), critical_differences
 
 
-def run_cross_task_analysis(
-    task_output_dirs: Mapping[str, str | pathlib.Path],
-    output_dir: str | pathlib.Path,
-    options: AnalysisOptions = AnalysisOptions(),
-) -> dict[str, pd.DataFrame]:
-    loaded = [
-        _load_task(task, pathlib.Path(path)) for task, path in task_output_dirs.items()
-    ]
-    summaries = pd.concat([summary for summary, _, _ in loaded], ignore_index=True)
-    pairwise = pd.concat(
-        [comparisons for _, comparisons, _ in loaded], ignore_index=True
-    )
-    seed_metrics = pd.concat([metrics for _, _, metrics in loaded], ignore_index=True)
-
-    algorithms_by_group_task = summaries.groupby([*GROUP_COLUMNS, "task"])[
+def _validate_algorithm_rosters(summaries: pd.DataFrame) -> None:
+    algorithms_by_group_task = summaries.groupby([*METRIC_GROUP_COLUMNS, "task"])[
         "algorithm"
     ].apply(set)
 
-    for group_key, group_sets in algorithms_by_group_task.groupby(level=GROUP_COLUMNS):
+    for group_key, group_sets in algorithms_by_group_task.groupby(
+        level=METRIC_GROUP_COLUMNS
+    ):
         task_sets = {task: algorithms for (*_, task), algorithms in group_sets.items()}
-
-        unique_sets = {frozenset(algorithms) for algorithms in task_sets.values()}
-        if len(unique_sets) <= 1:
+        if len({frozenset(value) for value in task_sets.values()}) <= 1:
             continue
 
         expected = sorted(set.union(*task_sets.values()))
-
         details = "\n".join(
             (
-                f"  {task}: "
-                f"{sorted(algorithms)}"
+                f"  {task}: {sorted(algorithms)}"
                 f"{'' if algorithms == set(expected) else f' (missing: {sorted(set(expected) - algorithms)})'}"
             )
             for task, algorithms in sorted(task_sets.items())
         )
-
         raise ValueError(
             "Every task must contain the same algorithms within each metric group.\n"
             f"Group: {group_key!r}\n"
@@ -549,41 +503,52 @@ def run_cross_task_analysis(
             f"Task contents:\n{details}"
         )
 
+
+def run_cross_task_analysis(
+    task_results: Mapping[str, TaskAnalysisResult],
+    options: AnalysisOptions | None = None,
+) -> BenchmarkAnalysisResult:
+    if options is None:
+        options = AnalysisOptions()
+    loaded = [_task_frames(task, result) for task, result in task_results.items()]
+    summaries = pd.concat(
+        [summary for summary, _, _ in loaded],
+        ignore_index=True,
+    )
+    pairwise = pd.concat(
+        [comparisons for _, comparisons, _ in loaded],
+        ignore_index=True,
+    )
+    seed_metrics = pd.concat(
+        [metrics for _, _, metrics in loaded],
+        ignore_index=True,
+    )
+
+    _validate_algorithm_rosters(summaries)
+
     task_superiority = _task_superiority(pairwise)
-    benchmark = _benchmark_summary(summaries, task_superiority, seed_metrics, options)
+    benchmark = _benchmark_summary(
+        summaries,
+        task_superiority,
+        seed_metrics,
+        options,
+    )
     cross_task_pairwise = _cross_task_pairwise(
-        summaries, pairwise, seed_metrics, options
+        summaries,
+        pairwise,
+        seed_metrics,
+        options,
     )
-    friedman, nemenyi, critical_differences = _friedman_and_nemenyi(summaries, options)
+    friedman, nemenyi, _ = _friedman_and_nemenyi(summaries, options)
 
-    output = pathlib.Path(output_dir)
-    output.mkdir(parents=True, exist_ok=True)
-    summaries.to_csv(output / "task_algorithm_summaries.csv", index=False)
-    pairwise.to_csv(output / "task_pairwise_comparisons.csv", index=False)
-    seed_metrics.to_csv(output / "task_seed_metrics.csv", index=False)
-    task_superiority.to_csv(output / "task_superiority.csv", index=False)
-    benchmark.to_csv(output / "benchmark_summary.csv", index=False)
-    cross_task_pairwise.to_csv(output / "cross_task_pairwise.csv", index=False)
-    friedman.to_csv(output / "friedman_tests.csv", index=False)
-    nemenyi.to_csv(output / "nemenyi_posthoc.csv", index=False)
-
-    reporting.write_cross_task_outputs(
-        output, benchmark, cross_task_pairwise, friedman, nemenyi, options
+    result = BenchmarkAnalysisResult(
+        benchmark_summary=benchmark,
+        cross_task_pairwise=cross_task_pairwise,
+        friedman_tests=friedman,
+        nemenyi_posthoc=nemenyi,
+        task_superiority=task_superiority,
+        task_algorithm_summaries=summaries,
+        task_pairwise_comparisons=pairwise,
+        task_seed_metrics=seed_metrics,
     )
-    if options.generate_statistical_figures:
-        write_cross_task_figures(
-            output,
-            summaries,
-            benchmark,
-            cross_task_pairwise,
-            critical_differences,
-            options.figure_dpi,
-        )
-
-    return {
-        "benchmark_summary": benchmark,
-        "cross_task_pairwise": cross_task_pairwise,
-        "friedman_tests": friedman,
-        "nemenyi_posthoc": nemenyi,
-        "task_superiority": task_superiority,
-    }
+    return result

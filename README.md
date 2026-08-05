@@ -99,7 +99,7 @@ cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
 
 Plot training results
 ```bash
-cares-rl-plot -s ~/cares_rl_logs -d <PATH_TO_RUN>
+cares-rl-plot --task <TASK_DIRECTORY> --output <OUTPUT_DIRECTORY>
 ```
 
 # Usage
@@ -273,25 +273,37 @@ This folder will contain the following directories and information saved during 
 ```
 
 ## Plotting
-The plotting utility in will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
+The plotting utility plots training and evaluation logs from one task, multiple tasks, or an explicit list of run directories.
 
-Running 'cares-rl-plot -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
+Running `cares-rl-plot -h` provides full plotting options, including custom plot panels via repeated `--plot` specifications.
 
 ```sh
 cares-rl-plot -h
 ```
 
-Plot the results of a single training instance
+Plot one discovered task
 
 ```sh
-cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
+cares-rl-plot --task ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS --output ~/cares_rl_plots
 ```
 
-Plot and compare the results of two or more training instances
+Plot and compare explicit run directories as one task
 
 ```sh
-cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
+cares-rl-plot --data \
+    ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS \
+    ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS \
+    --output ~/cares_rl_plots
 ```
+
+## Statistical Analysis
+The statistical analysis pipeline (`cares-rl-stats`) computes task-level and cross-task summaries, publication tables, and an optional guided PDF report.
+
+```sh
+cares-rl-stats benchmark_root --output results
+```
+
+Use the statistical docs under `docs/stats/` for methodology, interpretation guidance, and full command reference.
 
 # Supported Algorithms 
 

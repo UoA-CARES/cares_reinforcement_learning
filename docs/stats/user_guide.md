@@ -377,6 +377,7 @@ cares-rl-stats TASKS --output OUTPUT [options]
 | `TASKS` | required | Single task directory or directory containing tasks. |
 | `--output` | required | Destination root. |
 | `--metric COLUMN[:higher|lower]` | `episode_reward:higher` | Evaluation metric; repeatable. |
+| `--comparison-parameter` | unset | Dotted config path used to distinguish same-algorithm conditions; repeatable. |
 | `--allow-unmatched-seeds` | off | Permit explicitly independent seed samples. |
 | `--early-window-fraction` | `0.25` | Fraction of training used for early AUC. |
 | `--final-window-fraction` | `0.10` | Fraction of training used for final AUC. |
@@ -384,10 +385,14 @@ cares-rl-stats TASKS --output OUTPUT [options]
 | `--bootstrap-confidence` | `0.95` | Confidence level. |
 | `--random-seed` | `0` | Bootstrap random seed. |
 | `--significance-level` | `0.05` | Alpha for supplementary tests and Holm flags. |
-| `--no-statistical-figures` | off | Disable cross-task figures. |
+| `--no-learning-curves` | off | Disable cross-task learning-curve figures. |
 | `--no-pdf-report` | off | Disable the guided PDF. |
 | `--reference-comparison` | unset | Algorithm to feature as the reference comparison. |
+| `--step-column` | `total_steps` | Evaluation x-axis column used for AUC and figures. |
+| `--figure-columns` | auto | Number of subplot columns in benchmark learning curves. |
+| `--figure-format` | `png` | Output figure format; repeatable. |
 | `--figure-dpi` | `300` | Figure resolution; minimum accepted value is 72. |
+| `--no-figure-std` | off | Disable standard-deviation shading in learning curves. |
 | `--primary-performance-metric` | `auc` | One of `auc`, `early_window_auc`, `final_window_auc`. |
 
 --8<-- "include/links.md"

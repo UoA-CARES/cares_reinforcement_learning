@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import os
@@ -5,14 +6,18 @@ from datetime import datetime
 from pathlib import Path
 
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import cares_reinforcement_learning.plotter as plt
+import cares_reinforcement_learning.reporting.plotting.models as plotting_models
+import cares_reinforcement_learning.reporting.plotting.renderer as renderer
 import cares_reinforcement_learning.runners.execution_logger as logs
 from cares_reinforcement_learning.algorithm.algorithm import Algorithm
 from cares_reinforcement_learning.algorithm.configurations import SubscriptableClass
 from cares_reinforcement_learning.memory.memory_buffer import MemoryBuffer
+from cares_reinforcement_learning.reporting.models import PlotRun, PlotTask
+from cares_reinforcement_learning.reporting.plotting.models import PlotSource
 
 
 class Record:
@@ -185,6 +190,49 @@ class Record:
                 f"{self.current_sub_directory}/models/{folder_name}", f"{file_name}"
             )
 
+    def _plot_dataframe(
+        self,
+        frame: pd.DataFrame,
+        source: PlotSource,
+    ) -> None:
+        """Render one live training or evaluation frame through the reporting plotter."""
+        plot_task = PlotTask(
+            name=self.task,
+            runs=(
+                PlotRun(
+                    name=self.algorithm,
+                    train_frames={0: frame} if source == "train" else {},
+                    eval_frames={0: frame} if source == "eval" else {},
+                ),
+            ),
+        )
+
+        default_specs = dict(plotting_models.default_figure_specs())
+        spec = dataclasses.replace(
+            default_specs[source],
+            title=f"{source.title()} — {self.algorithm} — {self.task}",
+            dpi=150,
+        )
+
+        figure = renderer.render_task(
+            plot_task,
+            spec,
+            train_window_size=20,
+            show_seeds=False,
+            show_mean=True,
+            show_std=False,
+        )
+        try:
+            renderer.save_figure(
+                figure,
+                Path(self.current_sub_directory) / "figures",
+                source,
+                formats=("png",),
+                dpi=spec.dpi,
+            )
+        finally:
+            plt.close(figure)
+
     def _plot_train(self) -> None:
         if not self.train_rows:
             return
@@ -193,15 +241,7 @@ class Record:
             self.train_rows,
             columns=self.train_columns,
         )
-
-        plt.plot_train(
-            train_dataframe,
-            f"Training-{self.algorithm}-{self.task}",
-            self.algorithm,
-            self.current_sub_directory,
-            "train",
-            20,
-        )
+        self._plot_dataframe(train_dataframe, "train")
 
     def _append_or_rewrite_data(
         self,
@@ -303,14 +343,7 @@ class Record:
             self.eval_rows,
             columns=self.eval_columns,
         )
-
-        plt.plot_eval(
-            eval_dataframe,
-            f"Evaluation-{self.algorithm}-{self.task}",
-            self.algorithm,
-            self.current_sub_directory,
-            "eval",
-        )
+        self._plot_dataframe(eval_dataframe, "eval")
 
     def log_eval(
         self,

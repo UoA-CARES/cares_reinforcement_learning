@@ -1,10 +1,26 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+METRIC_GROUP_COLUMNS = ["evaluation_metric", "performance_metric"]
 PERFORMANCE_METRICS = ("auc", "early_window_auc", "final_window_auc")
+
+
+def ensure_required_columns(
+    frame: pd.DataFrame,
+    required_columns: Sequence[str],
+    *,
+    context: str,
+) -> pd.DataFrame:
+    columns = tuple(required_columns)
+    missing = sorted(set(columns).difference(frame.columns))
+    if missing:
+        raise ValueError(f"{context} is missing required columns: {missing}")
+    return frame.loc[:, columns].copy()
 
 
 def aggregate_evaluation_curve(
@@ -36,21 +52,21 @@ def _slice_curve(
     return window_steps, window_values
 
 
-def trapezoidal_auc(
+def _trapezoidal_auc(
     steps: npt.NDArray[np.float64],
     values: npt.NDArray[np.float64],
 ) -> float:
     return float(np.trapz(values, x=steps))
 
 
-def window_auc(
+def _window_auc(
     steps: npt.NDArray[np.float64],
     values: npt.NDArray[np.float64],
     start: float,
     end: float,
 ) -> float:
     window_steps, window_values = _slice_curve(steps, values, start, end)
-    return trapezoidal_auc(window_steps, window_values)
+    return _trapezoidal_auc(window_steps, window_values)
 
 
 def compute_curve_metrics(
@@ -62,10 +78,12 @@ def compute_curve_metrics(
     start = float(steps[0])
     end = float(steps[-1])
     width = end - start
+
     early_end = start + early_fraction * width
     final_start = end - final_fraction * width
+
     return {
-        "auc": trapezoidal_auc(steps, values),
-        "early_window_auc": window_auc(steps, values, start, early_end),
-        "final_window_auc": window_auc(steps, values, final_start, end),
+        "auc": _trapezoidal_auc(steps, values),
+        "early_window_auc": _window_auc(steps, values, start, early_end),
+        "final_window_auc": _window_auc(steps, values, final_start, end),
     }
