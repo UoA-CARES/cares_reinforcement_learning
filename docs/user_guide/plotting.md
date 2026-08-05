@@ -103,7 +103,7 @@ Format:
 "source=train;x=<VALUE>;y=<Y1_A>,...,<Y1_Z>;y2=<Y2_A>,...,<Y2_Z>;title=<TITLE>"
 ```
 
-Example `--task':
+Example `--task`:
 
 ```bash
 cares-rl-plot \

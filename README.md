@@ -99,7 +99,7 @@ cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
 
 Plot training results
 ```bash
-cares-rl-plot -d <PATH_TO_TRAINING_DATA> --output <OUTPUT_DIRECTORY>
+cares-rl-plot -d <PATH_TO_RUN_DIRECTORY> --output <OUTPUT_DIRECTORY>
 ```
 
 # Usage

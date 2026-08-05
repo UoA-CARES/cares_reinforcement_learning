@@ -7,6 +7,9 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 
 import matplotlib
+
+matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -21,8 +24,6 @@ from cares_reinforcement_learning.reporting.plotting.models import (
     PanelSpec,
     SeriesSpec,
 )
-
-matplotlib.use("Agg")
 
 _LINESTYLES = ("-", "--", "-.", ":")
 SeedFrame = tuple[int, pd.DataFrame]
