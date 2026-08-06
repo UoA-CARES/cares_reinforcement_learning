@@ -4,6 +4,8 @@
 
 This guide covers the CARES RL plotting CLI utility, which can plot data from one task, multiple tasks, or explicit run directories. It supports multi-panel figures, dual y-axes, and a wide range of customization options.
 
+By default, single-panel figures use a more spacious layout, while multi-panel figures and combined task comparisons use a compact publication-oriented layout. Individual figure dimensions and font sizes can be overridden from the command line.
+
 ## Command Overview
 
 ```text
@@ -19,6 +21,16 @@ Input modes:
 Output:
 
 - `--output` is required for figure generation.
+
+### Default Figures
+
+When no `--plot` options are supplied, the command generates two learning-curve
+figures:
+
+- training episode reward against total steps;
+- evaluation episode reward against total steps.
+
+For combined `--tasks` input, each default metric is rendered as a task-grid figure. With `--task`, `--data`, or `--tasks --separate`, each task receives independent train and evaluation reward figures.
 
 ### Task Plotting
 
@@ -97,11 +109,27 @@ Supported keys:
 - `title`, `x_label`, `y_label`, `y2_label`.
 - `x_scale`, `y_scale`, `y2_scale` (`linear` or `log`).
 
-Format:
+Each specification contains semicolon-separated `key=value` fields:
 
 ```text
-"source=train;x=<VALUE>;y=<Y1_A>,...,<Y1_Z>;y2=<Y2_A>,...,<Y2_Z>;title=<TITLE>"
+source=<train|eval>;
+x=<X_COLUMN>;
+y=<PRIMARY_COLUMN>[,<PRIMARY_COLUMN>...];
+y2=<SECONDARY_COLUMN>[,<SECONDARY_COLUMN>...];
+title=<PANEL_TITLE>;
+x_label=<DISPLAY_X_LABEL>;
+y_label=<DISPLAY_Y_LABEL>;
+y2_label=<DISPLAY_SECONDARY_Y_LABEL>;
+x_scale=<linear|log>;
+y_scale=<linear|log>;
+y2_scale=<linear|log>
 ```
+
+Only `source` and `y` are required. The default x-axis column is
+`total_steps`.
+
+The `x_label`, `y_label`, and `y2_label` values change only the displayed axis
+text; they do not change which data columns are plotted.
 
 Example `--task`:
 
@@ -177,8 +205,12 @@ cares-rl-plot \
 
 ![Comparison Example](../images/comparison-example.png)
 
-### Legend Labels
-Use `--legend-label` to override the legend label for each discovered comparison in the order they are discovered.
+### Legends
+Single-panel figures place the legend inside the plotting axes.
+
+Multi-panel and combined task-grid figures use one shared legend below the subplot grid. When a plot uses both primary and secondary y-axes, each axis receives a separate legend row identified by its metric or overridden axis label.
+
+Use `--legend-label` to override the legend label for each discovered method in the order they are discovered or given.
 
 ```bash
 cares-rl-plot \
@@ -197,16 +229,28 @@ cares-rl-plot \
         --list-comparisons
     ```
 
-### Layout and Style Controls
+### Layout Controls
 
 Common formatting options:
 
 - `--title`
 - `--rows`, `--columns`
-- `--width`, `--panel-height`
+- `--figure-width`: total figure width in inches
+- `--row-height`: height allocated to each subplot row in inches
 - `--dpi`
-- `--format` (repeatable, default `png`)
-- `--label-fontsize`, `--title-fontsize`, `--ticks-fontsize`, `--legend-fontsize`
+- `--format` (repeatable; default `png`)
+- `--label-fontsize`, `--title-fontsize`, `--ticks-fontsize`,
+  `--legend-fontsize` (points)
+
+Total figure height is:
+
+```text
+row height × number of subplot rows
+```
+
+The automatic defaults adapt to single-panel and multi-panel figures. Figure
+width remains fixed as columns are added, allowing multi-panel plots to fit
+within a publication-width figure.
 
 Example:
 
@@ -215,20 +259,30 @@ cares-rl-plot \
     --task <TASK_DIRECTORY> \
     --title "HalfCheetah Comparison" \
     --columns 2 \
-    --width 14 \
-    --panel-height 4.5 \
+    --figure-width 6.8 \
+    --row-height 1.9 \
     --format png \
     --format pdf \
     --dpi 300 \
     --output ~/cares_rl_plots
 ```
 
+!!! note "Saved Figure Dimensions"
+    Figure width and row height are passed to Matplotlib in inches. Raster resolution is determined by these dimensions and `--dpi`. Saved files use tight bounding-box cropping, so the final pixel dimensions may differ slightly from the nominal figure size.
+
 ## Train-Series Processing
 
 For train-series smoothing and alignment:
 
-- `--train-window-size`: centered rolling mean window (default `20`).
-- `--train-bin-size`: optional fixed step bin width before aggregation (default `1`).
+- `--train-window-size`: centered rolling mean window applied independently to
+  each training seed before aggregation. Default: `20`.
+- `--train-bin-size`: optional fixed training-step bin width used to align
+  seeds before aggregation. Binning is disabled by default.
+
+Training curves are smoothed independently within each seed before cross-seed
+aggregation. Evaluation curves are not smoothed. When `--train-bin-size` is
+provided, training observations are assigned to fixed-width step bins within
+each seed before the mean and standard deviation are calculated across seeds.
 
 Display controls:
 

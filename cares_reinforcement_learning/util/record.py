@@ -207,20 +207,20 @@ class Record:
             ),
         )
 
-        default_specs = dict(plotting_models.default_figure_specs())
+        default_specs = dict(plotting_models.default_figure_specs(compact=False))
         spec = dataclasses.replace(
             default_specs[source],
             title=f"{source.title()} — {self.algorithm} — {self.task}",
             dpi=150,
+            train_window_size=20,
+            show_seeds=False,
+            show_mean=True,
+            show_std=False,
         )
 
         figure = renderer.render_task(
             plot_task,
             spec,
-            train_window_size=20,
-            show_seeds=False,
-            show_mean=True,
-            show_std=False,
         )
         try:
             renderer.save_figure(

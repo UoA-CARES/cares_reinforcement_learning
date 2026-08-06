@@ -18,7 +18,12 @@ from cares_reinforcement_learning.reporting.analysis.models import (
 )
 import cares_reinforcement_learning.reporting.analysis.task_analysis as task_analysis
 from cares_reinforcement_learning.reporting.models import LoadedTask, PlotTask
-from cares_reinforcement_learning.reporting.plotting.models import PanelSpec, SeriesSpec
+from cares_reinforcement_learning.reporting.plotting.models import (
+    FigureSpec,
+    PanelSpec,
+    SeriesSpec,
+    plot_style_spec,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -196,12 +201,22 @@ def _run_cross_task_analysis(
             y_label=metric.column,
         )
         metric_title = metric.column.replace("_", " ").title()
-        figure = renderer.render_tasks(
-            plot_tasks,
-            plot=plot,
+
+        style = plot_style_spec(compact=len(plot_tasks) > 1)
+        spec = FigureSpec(
+            panels=(plot,),
+            style=style,
             title=f"{metric_title} ({metric.direction} is better)",
             columns=args.figure_columns,
+            dpi=args.figure_dpi,
             show_std=not args.no_figure_std,
+            show_mean=True,
+            show_seeds=False,
+            show_panel_titles=True,
+        )
+        figure = renderer.render_tasks(
+            plot_tasks,
+            spec=spec,
         )
         renderer.save_figure(
             figure,

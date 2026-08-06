@@ -16,7 +16,9 @@ from cares_reinforcement_learning.reporting.plotting.models import (
     FigureSpec,
     PanelSpec,
     PlotSource,
+    PlotStyleSpec,
     SeriesSpec,
+    plot_style_spec,
 )
 
 LoadedTasks: TypeAlias = dict[str, LoadedTask]
@@ -24,14 +26,36 @@ PlotTasks: TypeAlias = dict[str, PlotTask]
 
 
 def _parse_plot(value: str) -> PanelSpec:
-    """Parse one plot definition.
+    """Parse one plot specification.
 
-    Format:
-      source=train;x=total_steps;y=actor_loss,critic_loss;y2=alpha;title=Losses
+    Required fields:
+      source=train|eval
+      y=<metric>[,<metric>]
 
-    Required keys: source and y. x defaults to total_steps. y2 is optional.
-    For one task, repeated --plot arguments become subplots in one figure.
-    For combined tasks, each --plot produces one figure whose subplots are tasks.
+    Optional fields:
+      x=<metric>                 Default: total_steps
+      y2=<metric>[,<metric>]     Secondary y-axis metrics
+      title=<text>               Panel title
+      x_label=<text>             Display label for the x-axis
+      y_label=<text>             Display label for the primary y-axis
+      y2_label=<text>            Display label for the secondary y-axis
+      x_scale=linear|log
+      y_scale=linear|log
+      y2_scale=linear|log
+
+    Examples:
+      source=eval;y=episode_reward
+
+      source=train;y=actor_loss;x_label=Environment Steps;y_label=Actor Loss
+
+      source=train;y=critic_loss;y2=alpha;\
+        x_label=Environment Steps;\
+        y_label=Critic Loss;\
+        y2_label=Temperature;\
+        title=Training Diagnostics
+
+    Repeating --plot creates multiple panels for one task. With combined
+    --tasks, each --plot specification creates one task-grid figure.
     """
     fields: dict[str, str] = {}
     for item in value.split(";"):
@@ -101,111 +125,259 @@ def _build_parser() -> argparse.ArgumentParser:
         prog="cares-rl-plot",
         description="Plot CARES RL training and evaluation logs.",
     )
+
+    # ------------------------------------------------------------------
+    # Input selection
+    # ------------------------------------------------------------------
+
     inputs = parser.add_mutually_exclusive_group(required=True)
     inputs.add_argument(
         "--tasks",
         type=pathlib.Path,
-        help="Root containing multiple task directories.",
+        metavar="DIR",
+        help="Root directory containing multiple task folders.",
     )
     inputs.add_argument(
         "--task",
         type=pathlib.Path,
-        help="One task directory containing algorithm result folders.",
+        metavar="DIR",
+        help="Single task directory containing algorithm result folders.",
     )
     inputs.add_argument(
         "-d",
         "--data",
         nargs="+",
         type=pathlib.Path,
-        help="Arbitrary algorithm result folders to compare as one task.",
+        metavar="DIR",
+        help="Explicit algorithm result folders to compare as one task.",
     )
 
-    parser.add_argument(
+    # ------------------------------------------------------------------
+    # General
+    # ------------------------------------------------------------------
+
+    general = parser.add_argument_group("General")
+
+    general.add_argument(
         "--output",
         type=pathlib.Path,
+        metavar="DIR",
         help="Output directory. Required unless --list-comparisons is used.",
     )
-    parser.add_argument(
+    general.add_argument(
+        "--format",
+        action="append",
+        dest="formats",
+        default=None,
+        metavar="FORMAT",
+        help="Output format (png, pdf, svg, ...). May be repeated. Default: png.",
+    )
+    general.add_argument(
+        "--dpi",
+        type=int,
+        default=300,
+        metavar="DPI",
+        help="Output resolution in dots per inch. Default: 300.",
+    )
+    general.add_argument(
+        "--title",
+        default=None,
+        metavar="TITLE",
+        help="Override the figure title.",
+    )
+
+    # ------------------------------------------------------------------
+    # Comparison
+    # ------------------------------------------------------------------
+
+    comparison = parser.add_argument_group("Comparison")
+
+    comparison.add_argument(
         "--comparison-parameter",
         action="append",
         default=[],
         metavar="CONFIG_PATH",
         help=(
-            "Dotted typed-configuration path used to distinguish runs of the "
-            "same algorithm. May be supplied repeatedly."
+            "Typed configuration path used to distinguish runs of the same "
+            "algorithm. May be supplied multiple times."
         ),
     )
-    parser.add_argument(
+    comparison.add_argument(
         "--legend-label",
         action="append",
         default=[],
         metavar="LABEL",
         help=(
-            "Override legend labels in discovered comparison order. May be "
-            "supplied repeatedly. With --data, labels follow the supplied "
-            "directory order."
+            "Override legend labels in discovered comparison order. "
+            "May be supplied multiple times."
         ),
     )
-    parser.add_argument(
+    comparison.add_argument(
         "--list-comparisons",
         action="store_true",
-        help="Print discovered comparison order and exit without plotting.",
+        help="Print the discovered comparison order and exit.",
     )
-    parser.add_argument(
+
+    # ------------------------------------------------------------------
+    # Plot specification
+    # ------------------------------------------------------------------
+
+    plotting = parser.add_argument_group("Plot specification")
+
+    plotting.add_argument(
         "--plot",
         action="append",
         type=_parse_plot,
         default=None,
         metavar="SPEC",
         help=(
-            "Plot definition. Repeat to request several plots. With --task or "
-            "--tasks --separate, plots become subplots in each task figure. "
-            "With combined --tasks, each plot creates one task-grid figure."
+            "Plot specification using semicolon-separated key=value fields. "
+            "Required: source=<train|eval>;y=<metric>[,<metric>]. "
+            "Optional: x=<metric>;y2=<metric>[,<metric>];title=<text>;"
+            "x_label=<text>;y_label=<text>;y2_label=<text>;"
+            "x_scale=<linear|log>;y_scale=<linear|log>;"
+            "y2_scale=<linear|log>. "
+            "Repeat --plot to create multiple panels. "
+            "Example: --plot "
+            "'source=train;y=critic_loss;y2=alpha;"
+            "x_label=Environment Steps;"
+            "y_label=Critic Loss;"
+            "y2_label=Temperature;"
+            "title=Training Diagnostics'."
         ),
     )
-    parser.add_argument(
+    plotting.add_argument(
         "--separate",
         action="store_true",
         help=(
-            "With --tasks, render one figure per task instead of combining tasks. "
-            "This is equivalent to running --task for every discovered task."
+            "With --tasks, render one figure per task instead of one combined figure."
         ),
     )
-    parser.add_argument("--title", default=None)
-    parser.add_argument("--rows", type=int, default=None)
-    parser.add_argument("--columns", type=int, default=None)
-    parser.add_argument("--width", type=float, default=12.0)
-    parser.add_argument("--panel-height", type=float, default=5.0)
-    parser.add_argument("--dpi", type=int, default=300)
-    parser.add_argument(
-        "--format",
-        action="append",
+
+    # ------------------------------------------------------------------
+    # Layout
+    # ------------------------------------------------------------------
+
+    layout = parser.add_argument_group("Layout")
+
+    layout.add_argument(
+        "--rows",
+        type=int,
         default=None,
-        dest="formats",
-        help="Output format. May be repeated. Default: png.",
+        metavar="N",
+        help="Number of subplot rows. Default: automatic.",
     )
-    parser.add_argument(
+    layout.add_argument(
+        "--columns",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Number of subplot columns. Default: automatic.",
+    )
+    layout.add_argument(
+        "--figure-width",
+        dest="figure_width",
+        type=float,
+        default=None,
+        metavar="INCHES",
+        help=(
+            "Total figure width in inches. "
+            "Defaults are chosen automatically for single and multi-panel figures."
+        ),
+    )
+    layout.add_argument(
+        "--row-height",
+        dest="row_height",
+        type=float,
+        default=None,
+        metavar="INCHES",
+        help=(
+            "Height allocated to each subplot row in inches. "
+            "Total figure height is row_height x number of rows."
+        ),
+    )
+
+    # ------------------------------------------------------------------
+    # Training processing
+    # ------------------------------------------------------------------
+
+    processing = parser.add_argument_group("Training processing")
+
+    processing.add_argument(
         "--train-window-size",
         type=int,
         default=20,
-        help="Centered rolling mean window for training series. Default: 20.",
+        metavar="N",
+        help="Centered rolling mean window applied to training curves. Default: 20.",
     )
-    parser.add_argument(
+    processing.add_argument(
         "--train-bin-size",
         type=float,
         default=None,
+        metavar="STEPS",
         help=(
             "Optional fixed training-step bin width used to align seeds before "
             "cross-seed aggregation."
         ),
     )
-    parser.add_argument("--plot-seeds", action="store_true")
-    parser.add_argument("--no-mean", action="store_true")
-    parser.add_argument("--no-std", action="store_true")
-    parser.add_argument("--label-fontsize", type=int, default=13)
-    parser.add_argument("--title-fontsize", type=int, default=16)
-    parser.add_argument("--ticks-fontsize", type=int, default=10)
-    parser.add_argument("--legend-fontsize", type=int, default=9)
+
+    # ------------------------------------------------------------------
+    # Display
+    # ------------------------------------------------------------------
+
+    display = parser.add_argument_group("Display")
+
+    display.add_argument(
+        "--plot-seeds",
+        action="store_true",
+        help="Plot individual seed curves in addition to the aggregate.",
+    )
+    display.add_argument(
+        "--no-mean",
+        action="store_true",
+        help="Hide the aggregate mean curve.",
+    )
+    display.add_argument(
+        "--no-std",
+        action="store_true",
+        help="Hide the standard deviation envelope.",
+    )
+
+    # ------------------------------------------------------------------
+    # Font overrides
+    # ------------------------------------------------------------------
+
+    fonts = parser.add_argument_group("Font overrides")
+
+    fonts.add_argument(
+        "--label-fontsize",
+        type=int,
+        default=None,
+        metavar="PT",
+        help="Axis label font size in points.",
+    )
+    fonts.add_argument(
+        "--title-fontsize",
+        type=int,
+        default=None,
+        metavar="PT",
+        help="Figure/panel title font size in points.",
+    )
+    fonts.add_argument(
+        "--ticks-fontsize",
+        type=int,
+        default=None,
+        metavar="PT",
+        help="Axis tick label font size in points.",
+    )
+    fonts.add_argument(
+        "--legend-fontsize",
+        type=int,
+        default=None,
+        metavar="PT",
+        help="Legend font size in points.",
+    )
+
     return parser
 
 
@@ -380,6 +552,43 @@ def _print_loaded_task(task: LoadedTask) -> None:
         )
 
 
+def _resolved_plot_style(
+    args: argparse.Namespace,
+    *,
+    compact: bool,
+) -> PlotStyleSpec:
+    preset = plot_style_spec(compact=compact)
+    return dataclasses.replace(
+        preset,
+        figure_width=(
+            args.figure_width if args.figure_width is not None else preset.figure_width
+        ),
+        row_height=(
+            args.row_height if args.row_height is not None else preset.row_height
+        ),
+        label_fontsize=(
+            args.label_fontsize
+            if args.label_fontsize is not None
+            else preset.label_fontsize
+        ),
+        title_fontsize=(
+            args.title_fontsize
+            if args.title_fontsize is not None
+            else preset.title_fontsize
+        ),
+        ticks_fontsize=(
+            args.ticks_fontsize
+            if args.ticks_fontsize is not None
+            else preset.ticks_fontsize
+        ),
+        legend_fontsize=(
+            args.legend_fontsize
+            if args.legend_fontsize is not None
+            else preset.legend_fontsize
+        ),
+    )
+
+
 def _print_render_settings(
     args: argparse.Namespace,
     formats: Sequence[str],
@@ -388,12 +597,15 @@ def _print_render_settings(
     print(f"Output: {args.output.expanduser().resolve()}")
     print(f"Formats: {', '.join(formats)}; DPI: {args.dpi}")
     print(
-        f"Figure: width={args.width}, panel_height={args.panel_height}, "
+        f"Figure: figure_width={args.figure_width or 'default'}, "
+        f"row_height={args.row_height or 'default'}, "
         f"rows={args.rows or 'auto'}, columns={args.columns or 'auto'}"
     )
     print(
-        f"Fonts: labels={args.label_fontsize}, titles={args.title_fontsize}, "
-        f"ticks={args.ticks_fontsize}, legend={args.legend_fontsize}"
+        f"Fonts: labels={args.label_fontsize or 'default'}, "
+        f"titles={args.title_fontsize or 'default'}, "
+        f"ticks={args.ticks_fontsize or 'default'}, "
+        f"legend={args.legend_fontsize or 'default'}"
     )
     print(
         f"Training processing: window={args.train_window_size}, "
@@ -414,19 +626,23 @@ def _explicit_figure_spec(
     args: argparse.Namespace,
     task_name: str,
     plots: Sequence[PanelSpec],
+    *,
+    compact: bool,
 ) -> FigureSpec:
+    style = _resolved_plot_style(args, compact=compact)
     return FigureSpec(
         panels=tuple(plots),
         title=args.title or task_name,
         rows=args.rows,
         columns=args.columns,
-        width=args.width,
-        height=args.panel_height,
-        label_fontsize=args.label_fontsize,
-        title_fontsize=args.title_fontsize,
-        ticks_fontsize=args.ticks_fontsize,
-        legend_fontsize=args.legend_fontsize,
         dpi=args.dpi,
+        style=style,
+        train_window_size=args.train_window_size,
+        train_bin_size=args.train_bin_size,
+        show_seeds=args.plot_seeds,
+        show_mean=not args.no_mean,
+        show_std=not args.no_std,
+        show_panel_titles=True,
     )
 
 
@@ -435,26 +651,28 @@ def _apply_figure_overrides(
     args: argparse.Namespace,
     *,
     title: str,
+    compact: bool,
 ) -> FigureSpec:
+    style = _resolved_plot_style(args, compact=compact)
     return dataclasses.replace(
         spec,
         title=args.title or title,
         rows=args.rows if args.rows is not None else spec.rows,
         columns=args.columns if args.columns is not None else spec.columns,
-        width=args.width,
-        height=args.panel_height,
-        label_fontsize=args.label_fontsize,
-        title_fontsize=args.title_fontsize,
-        ticks_fontsize=args.ticks_fontsize,
-        legend_fontsize=args.legend_fontsize,
         dpi=args.dpi,
+        style=style,
+        train_window_size=args.train_window_size,
+        train_bin_size=args.train_bin_size,
+        show_seeds=args.plot_seeds,
+        show_mean=not args.no_mean,
+        show_std=not args.no_std,
     )
 
 
 def _combined_task_panels(args: argparse.Namespace) -> tuple[PanelSpec, ...]:
     if args.plot is not None:
         return tuple(args.plot)
-    return tuple(spec.panels[0] for _, spec in plotting_models.default_figure_specs())
+    return tuple(panel for _, panel in plotting_models.default_panels())
 
 
 def _render_combined_tasks(
@@ -466,22 +684,24 @@ def _render_combined_tasks(
 
     for plot in _combined_task_panels(args):
         print(f"Rendering combined task figure: {_plot_description(plot)}")
-        figure = renderer.render_tasks(
-            tasks,
-            plot=plot,
+        style = _resolved_plot_style(args, compact=True)
+        spec = FigureSpec(
+            panels=(plot,),
             title=args.title,
+            rows=args.rows,
             columns=args.columns,
-            panel_width=args.width / max(1, args.columns or 3),
-            panel_height=args.panel_height,
+            dpi=args.dpi,
+            style=style,
             train_window_size=args.train_window_size,
             train_bin_size=args.train_bin_size,
             show_seeds=args.plot_seeds,
             show_mean=not args.no_mean,
             show_std=not args.no_std,
-            label_fontsize=args.label_fontsize,
-            title_fontsize=args.title_fontsize,
-            ticks_fontsize=args.ticks_fontsize,
-            legend_fontsize=args.legend_fontsize,
+            show_panel_titles=True,
+        )
+        figure = renderer.render_tasks(
+            tasks,
+            spec=spec,
         )
         paths = renderer.save_figure(
             figure,
@@ -510,13 +730,25 @@ def _render_task(
                 _apply_figure_overrides(
                     spec,
                     args,
-                    title=f"{task_name} — {suffix.title()}",
+                    title=task_name,
+                    compact=False,
                 ),
             )
-            for suffix, spec in plotting_models.default_figure_specs()
+            for suffix, spec in plotting_models.default_figure_specs(compact=False)
         )
     else:
-        figure_specs = ((None, _explicit_figure_spec(args, task_name, args.plot)),)
+        compact = len(args.plot) > 1
+        figure_specs = (
+            (
+                None,
+                _explicit_figure_spec(
+                    args,
+                    task_name,
+                    args.plot,
+                    compact=compact,
+                ),
+            ),
+        )
 
     for suffix, spec in figure_specs:
         print(f"  Rendering figure: {spec.title or task_name}")
@@ -526,11 +758,6 @@ def _render_task(
         figure = renderer.render_task(
             task,
             spec,
-            train_window_size=args.train_window_size,
-            train_bin_size=args.train_bin_size,
-            show_seeds=args.plot_seeds,
-            show_mean=not args.no_mean,
-            show_std=not args.no_std,
         )
         output_name = task_name if suffix is None else f"{task_name}-{suffix}"
         paths = renderer.save_figure(
