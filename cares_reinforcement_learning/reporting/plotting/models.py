@@ -11,11 +11,7 @@ PlotScale = Literal["linear", "log"]
 @dataclasses.dataclass(frozen=True)
 class PlotStyleSpec:
     figure_width: float
-<<<<<<< HEAD
     row_height: float | None
-=======
-    row_height: float
->>>>>>> main
     label_fontsize: int
     title_fontsize: int
     ticks_fontsize: int
