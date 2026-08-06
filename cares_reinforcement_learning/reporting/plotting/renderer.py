@@ -613,6 +613,116 @@ def _share_repeated_axis_labels(
             axis.set_ylabel("")
 
 
+def _render_subplot_grid(
+    *,
+    spec: FigureSpec,
+    rows: int,
+    columns: int,
+    plot_items: Sequence[tuple[PlotTask, PanelSpec, bool]],
+    grid_title: str | None,
+    color_by_comparison: Mapping[str, str],
+    use_shared_legend: bool,
+    primary_legend_title: str | None,
+    secondary_legend_title: str | None,
+    sharex: bool = False,
+    sharey: bool = False,
+) -> Figure:
+    """Render a configured collection of task/panel pairs into one subplot grid."""
+    item_count = len(plot_items)
+    if item_count < 1:
+        raise ValueError("At least one plot item is required.")
+
+    figure_width, figure_height = _figure_size(spec, rows=rows)
+    figure, axes = plt.subplots(
+        rows,
+        columns,
+        figsize=(figure_width, figure_height),
+        squeeze=False,
+        sharex=sharex,
+        sharey=sharey,
+    )
+
+    primary_shared_handles: list[Artist] = []
+    primary_shared_labels: list[str] = []
+    secondary_shared_handles: list[Artist] = []
+    secondary_shared_labels: list[str] = []
+
+    for (task, panel, show_panel_title), axis in zip(
+        plot_items,
+        axes.flat,
+        strict=False,
+    ):
+        primary_entries, secondary_entries = _plot_panel(
+            axis,
+            task,
+            spec,
+            panel,
+            show_legend=not use_shared_legend,
+            color_by_comparison=color_by_comparison,
+            show_panel_title=show_panel_title,
+        )
+
+        if not use_shared_legend:
+            continue
+
+        primary_handles, primary_labels = primary_entries
+        secondary_handles, secondary_labels = secondary_entries
+
+        _merge_legend_entries(
+            primary_shared_handles,
+            primary_shared_labels,
+            primary_handles,
+            primary_labels,
+        )
+        _merge_legend_entries(
+            secondary_shared_handles,
+            secondary_shared_labels,
+            secondary_handles,
+            secondary_labels,
+        )
+
+    _remove_unused_axes(axes, item_count)
+
+    _share_repeated_axis_labels(
+        axes,
+        used_count=item_count,
+        rows=rows,
+        columns=columns,
+    )
+
+    legend_rows = 0
+    if use_shared_legend:
+        legend_rows = _draw_shared_legends(
+            figure,
+            spec,
+            primary_handles=primary_shared_handles,
+            primary_labels=primary_shared_labels,
+            secondary_handles=secondary_shared_handles,
+            secondary_labels=secondary_shared_labels,
+            primary_title=primary_legend_title,
+            secondary_title=secondary_legend_title,
+        )
+
+    if grid_title:
+        figure.suptitle(
+            grid_title,
+            fontsize=spec.style.title_fontsize + 2,
+            y=spec.style.title_y,
+        )
+
+    bottom = _legend_bottom_margin(spec, legend_rows)
+    top = spec.style.top_rect if grid_title else 1.0
+
+    figure.tight_layout(
+        rect=(0.0, bottom, 1.0, top),
+        pad=spec.style.layout_pad,
+        w_pad=spec.style.layout_w_pad,
+        h_pad=spec.style.layout_h_pad,
+    )
+
+    return figure
+
+
 def render_task(
     task: PlotTask,
     spec: FigureSpec,
@@ -623,86 +733,37 @@ def render_task(
         rows=spec.rows,
         columns=spec.columns,
     )
-    colors = _comparison_colors((task,))
+
     multiple_panels = len(spec.panels) > 1
-    figure_width, figure_height = _figure_size(spec, rows=rows)
-    figure, axes = plt.subplots(
-        rows,
-        columns,
-        figsize=(figure_width, figure_height),
-        squeeze=False,
-    )
-    primary_shared_handles: list[Artist] = []
-    primary_shared_labels: list[str] = []
-    secondary_shared_handles: list[Artist] = []
-    secondary_shared_labels: list[str] = []
 
-    for panel, axis in zip(spec.panels, axes.flat):
-        primary_entries, secondary_entries = _plot_panel(
-            axis,
+    plot_items = tuple(
+        (
             task,
-            spec,
             panel,
-            show_legend=not multiple_panels,
-            color_by_comparison=colors,
-            show_panel_title=multiple_panels and spec.show_panel_titles,
+            multiple_panels and spec.show_panel_titles,
         )
-        if multiple_panels:
-            primary_handles, primary_labels = primary_entries
-            secondary_handles, secondary_labels = secondary_entries
-            _merge_legend_entries(
-                primary_shared_handles,
-                primary_shared_labels,
-                primary_handles,
-                primary_labels,
-            )
-            _merge_legend_entries(
-                secondary_shared_handles,
-                secondary_shared_labels,
-                secondary_handles,
-                secondary_labels,
-            )
+        for panel in spec.panels
+    )
 
-    _remove_unused_axes(axes, len(spec.panels))
-    _share_repeated_axis_labels(
-        axes,
-        used_count=len(spec.panels),
+    return _render_subplot_grid(
+        spec=spec,
         rows=rows,
         columns=columns,
+        plot_items=plot_items,
+        grid_title=spec.title or task.name,
+        color_by_comparison=_comparison_colors((task,)),
+        use_shared_legend=multiple_panels,
+        primary_legend_title=(
+            _shared_axis_legend_title(spec.panels, "primary")
+            if multiple_panels
+            else None
+        ),
+        secondary_legend_title=(
+            _shared_axis_legend_title(spec.panels, "secondary")
+            if multiple_panels
+            else None
+        ),
     )
-
-    legend_rows = 0
-    if multiple_panels:
-        legend_rows = _draw_shared_legends(
-            figure,
-            spec,
-            primary_handles=primary_shared_handles,
-            primary_labels=primary_shared_labels,
-            secondary_handles=secondary_shared_handles,
-            secondary_labels=secondary_shared_labels,
-            primary_title=_shared_axis_legend_title(
-                spec.panels,
-                "primary",
-            ),
-            secondary_title=_shared_axis_legend_title(
-                spec.panels,
-                "secondary",
-            ),
-        )
-
-    figure.suptitle(
-        spec.title or task.name,
-        fontsize=spec.style.title_fontsize + 2,
-        y=spec.style.title_y,
-    )
-    bottom = _legend_bottom_margin(spec, legend_rows)
-    figure.tight_layout(
-        rect=(0.0, bottom, 1.0, spec.style.top_rect),
-        pad=spec.style.layout_pad,
-        w_pad=spec.style.layout_w_pad,
-        h_pad=spec.style.layout_h_pad,
-    )
-    return figure
 
 
 def _figure_size(spec: FigureSpec, *, rows: int) -> tuple[float, float]:
@@ -726,91 +787,40 @@ def render_tasks(
 ) -> Figure:
     """Render one plot across several tasks, with one subplot per task."""
     ordered_tasks = tuple(tasks)
-    rows, resolved_columns = _grid_shape(
+
+    if len(spec.panels) != 1:
+        raise ValueError("Combined task figures must contain exactly one panel.")
+
+    rows, columns = _grid_shape(
         len(ordered_tasks),
         rows=spec.rows,
         columns=spec.columns,
     )
-    if len(spec.panels) != 1:
-        raise ValueError("Combined task figures must contain exactly one panel.")
+
     panel = spec.panels[0]
-    figure_width, figure_height = _figure_size(spec, rows=rows)
-    figure, axes = plt.subplots(
-        rows,
-        resolved_columns,
-        figsize=(figure_width, figure_height),
-        squeeze=False,
+
+    plot_items = tuple(
+        (
+            task,
+            dataclasses.replace(panel, title=task.name),
+            True,
+        )
+        for task in ordered_tasks
+    )
+
+    return _render_subplot_grid(
+        spec=spec,
+        rows=rows,
+        columns=columns,
+        plot_items=plot_items,
+        grid_title=spec.title,
+        color_by_comparison=_comparison_colors(ordered_tasks),
+        use_shared_legend=True,
+        primary_legend_title=_axis_legend_title(panel, "primary"),
+        secondary_legend_title=_axis_legend_title(panel, "secondary"),
         sharex=False,
         sharey=False,
     )
-    colors = _comparison_colors(ordered_tasks)
-    primary_shared_handles: list[Artist] = []
-    primary_shared_labels: list[str] = []
-    secondary_shared_handles: list[Artist] = []
-    secondary_shared_labels: list[str] = []
-
-    for task, axis in zip(ordered_tasks, axes.flat, strict=False):
-        task_plot = dataclasses.replace(panel, title=task.name)
-        primary_entries, secondary_entries = _plot_panel(
-            axis,
-            task,
-            spec,
-            task_plot,
-            show_legend=False,
-            color_by_comparison=colors,
-            show_panel_title=True,
-        )
-        primary_handles, primary_labels = primary_entries
-        secondary_handles, secondary_labels = secondary_entries
-        _merge_legend_entries(
-            primary_shared_handles,
-            primary_shared_labels,
-            primary_handles,
-            primary_labels,
-        )
-        _merge_legend_entries(
-            secondary_shared_handles,
-            secondary_shared_labels,
-            secondary_handles,
-            secondary_labels,
-        )
-
-    if spec.title:
-        figure.suptitle(
-            spec.title,
-            fontsize=spec.style.title_fontsize + 2,
-            y=spec.style.title_y,
-        )
-
-    _remove_unused_axes(axes, len(ordered_tasks))
-
-    legend_rows = _draw_shared_legends(
-        figure,
-        spec,
-        primary_handles=primary_shared_handles,
-        primary_labels=primary_shared_labels,
-        secondary_handles=secondary_shared_handles,
-        secondary_labels=secondary_shared_labels,
-        primary_title=_axis_legend_title(panel, "primary"),
-        secondary_title=_axis_legend_title(panel, "secondary"),
-    )
-
-    _share_repeated_axis_labels(
-        axes,
-        used_count=len(ordered_tasks),
-        rows=rows,
-        columns=resolved_columns,
-    )
-
-    bottom = _legend_bottom_margin(spec, legend_rows)
-    top = spec.style.top_rect if spec.title else 1.0
-    figure.tight_layout(
-        rect=(0.0, bottom, 1.0, top),
-        pad=spec.style.layout_pad,
-        w_pad=spec.style.layout_w_pad,
-        h_pad=spec.style.layout_h_pad,
-    )
-    return figure
 
 
 def _safe_filename(value: str) -> str:
