@@ -183,16 +183,38 @@ def _series_label(run: PlotRun, panel: PanelSpec, series: SeriesSpec) -> str:
     return f"{run.name} — {series.label or series.column}"
 
 
-def _grid_shape(spec: FigureSpec) -> tuple[int, int]:
-    count = len(spec.panels)
-    if spec.rows is not None and spec.columns is not None:
-        return spec.rows, spec.columns
-    if spec.rows is not None:
-        return spec.rows, math.ceil(count / spec.rows)
-    if spec.columns is not None:
-        return math.ceil(count / spec.columns), spec.columns
-    columns = min(2, count)
-    return math.ceil(count / columns), columns
+def _grid_shape(
+    count: int,
+    *,
+    rows: int | None,
+    columns: int | None,
+    max_columns: int = 3,
+) -> tuple[int, int]:
+    """Resolve a subplot grid for a given number of plotted items."""
+    if count < 1:
+        raise ValueError("At least one item is required to create a subplot grid.")
+
+    if rows is not None and rows < 1:
+        raise ValueError("rows must be positive when supplied.")
+
+    if columns is not None and columns < 1:
+        raise ValueError("columns must be positive when supplied.")
+
+    if rows is not None and columns is not None:
+        if rows * columns < count:
+            raise ValueError(
+                "rows x columns is smaller than the number of items to plot."
+            )
+        return rows, columns
+
+    if rows is not None:
+        return rows, math.ceil(count / rows)
+
+    if columns is not None:
+        return math.ceil(count / columns), columns
+
+    resolved_columns = min(max_columns, count)
+    return math.ceil(count / resolved_columns), resolved_columns
 
 
 def _color_cycle(size: int) -> list[str]:
@@ -596,7 +618,11 @@ def render_task(
     spec: FigureSpec,
 ) -> Figure:
     """Render one figure for a single task."""
-    rows, columns = _grid_shape(spec)
+    rows, columns = _grid_shape(
+        len(spec.panels),
+        rows=spec.rows,
+        columns=spec.columns,
+    )
     colors = _comparison_colors((task,))
     multiple_panels = len(spec.panels) > 1
     figure_width, figure_height = _figure_size(spec, rows=rows)
@@ -679,32 +705,6 @@ def render_task(
     return figure
 
 
-def _tasks_grid_shape(
-    task_count: int,
-    rows: int | None,
-    columns: int | None,
-) -> tuple[int, int]:
-    if task_count < 1:
-        raise ValueError("At least one task is required for a combined task figure.")
-    if rows is not None and rows < 1:
-        raise ValueError("rows must be positive when supplied.")
-    if columns is not None:
-        if columns < 1:
-            raise ValueError("columns must be positive when supplied.")
-    if rows is not None and columns is not None:
-        if rows * columns < task_count:
-            raise ValueError(
-                "rows × columns is smaller than the number of tasks to plot."
-            )
-        return rows, columns
-    if rows is not None:
-        return rows, math.ceil(task_count / rows)
-    if columns is not None:
-        return math.ceil(task_count / columns), columns
-    resolved_columns = min(2, task_count)
-    return math.ceil(task_count / resolved_columns), resolved_columns
-
-
 def _figure_size(spec: FigureSpec, *, rows: int) -> tuple[float, float]:
     """Resolve fixed figure width with row-scaled total height."""
     return spec.style.figure_width, spec.style.row_height * rows
@@ -726,10 +726,10 @@ def render_tasks(
 ) -> Figure:
     """Render one plot across several tasks, with one subplot per task."""
     ordered_tasks = tuple(tasks)
-    rows, resolved_columns = _tasks_grid_shape(
+    rows, resolved_columns = _grid_shape(
         len(ordered_tasks),
-        spec.rows,
-        spec.columns,
+        rows=spec.rows,
+        columns=spec.columns,
     )
     if len(spec.panels) != 1:
         raise ValueError("Combined task figures must contain exactly one panel.")
