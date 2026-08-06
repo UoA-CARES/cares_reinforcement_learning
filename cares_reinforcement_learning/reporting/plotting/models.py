@@ -11,7 +11,7 @@ PlotScale = Literal["linear", "log"]
 @dataclasses.dataclass(frozen=True)
 class PlotStyleSpec:
     figure_width: float
-    row_height: float
+    row_height: float | None
     label_fontsize: int
     title_fontsize: int
     ticks_fontsize: int
@@ -36,7 +36,6 @@ class PlotStyleSpec:
     def __post_init__(self) -> None:
         for value, name in (
             (self.figure_width, "figure_width"),
-            (self.row_height, "row_height"),
             (self.label_fontsize, "label_fontsize"),
             (self.title_fontsize, "title_fontsize"),
             (self.ticks_fontsize, "ticks_fontsize"),
@@ -48,6 +47,9 @@ class PlotStyleSpec:
         ):
             if value <= 0:
                 raise ValueError(f"{name} must be positive.")
+
+        if self.row_height is not None and self.row_height <= 0:
+            raise ValueError("row_height must be positive when supplied.")
 
         for value, name in (
             (self.seed_alpha, "seed_alpha"),
@@ -77,7 +79,7 @@ def plot_style_spec(*, compact: bool) -> PlotStyleSpec:
     if compact:
         return PlotStyleSpec(
             figure_width=6.8,
-            row_height=1.7,
+            row_height=None,
             label_fontsize=7,
             title_fontsize=8,
             ticks_fontsize=6,

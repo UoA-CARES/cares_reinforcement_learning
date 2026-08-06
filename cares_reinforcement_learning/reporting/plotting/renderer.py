@@ -632,7 +632,11 @@ def _render_subplot_grid(
     if item_count < 1:
         raise ValueError("At least one plot item is required.")
 
-    figure_width, figure_height = _figure_size(spec, rows=rows)
+    figure_width, figure_height = _figure_size(
+        spec,
+        rows=rows,
+        columns=columns,
+    )
     figure, axes = plt.subplots(
         rows,
         columns,
@@ -766,9 +770,24 @@ def render_task(
     )
 
 
-def _figure_size(spec: FigureSpec, *, rows: int) -> tuple[float, float]:
-    """Resolve fixed figure width with row-scaled total height."""
-    return spec.style.figure_width, spec.style.row_height * rows
+def _figure_size(
+    spec: FigureSpec,
+    *,
+    rows: int,
+    columns: int,
+) -> tuple[float, float]:
+    """Resolve total figure size from its grid geometry."""
+    row_height = spec.style.row_height
+
+    if row_height is None:
+        panel_width = spec.style.figure_width / columns
+        panel_aspect = spec.style.axes_box_aspect or 1.0
+        row_height = panel_width * panel_aspect
+
+    return (
+        spec.style.figure_width,
+        row_height * rows,
+    )
 
 
 def _comparison_colors(tasks: Sequence[PlotTask]) -> dict[str, str]:
