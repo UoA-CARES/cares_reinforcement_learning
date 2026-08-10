@@ -88,8 +88,9 @@ class SAC(SARLAlgorithm[np.ndarray]):
         critic_network: TwinQNetwork | EnsembleCritic,
         config: SACConfig,
         device: torch.device,
+        policy_type="policy"
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(policy_type=policy_type, config=config, device=device)
 
         self.gamma = config.gamma
         self.tau = config.tau

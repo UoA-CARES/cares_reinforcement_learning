@@ -909,15 +909,17 @@ class SACDConfig(SACConfig):
     target_update_freq: int = 1
     use_per_buffer: int = 1
 
-    # SAC and SACD specific configs
+    # SAC configs
     target_entropy_multiplier: float = 0.98
     init_entropy_alpha: float = 1.0
-    use_clipped_q: bool = True
+    auto_entropy_tuning: bool = True
+
+    # SACD specific configs
+    use_clipped_q: bool = False
     q_clip_epsilon: float = 0.5
     use_average_q: bool = True
     use_entropy_penalty: bool = True
     entropy_penalty_beta: float = 0.5
-    auto_entropy_tuning: bool = True
 
     # Network configs
     normalise_state: bool = True
@@ -977,37 +979,6 @@ class SACDConfig(SACConfig):
             TrainableLayer(layer_type="Linear"),
         ]
     )
-
-    # Image State Configs
-    # encoder_type: str = ImageEncoderType.VANILLA_AE.value
-    latent_dim: int = 512
-
-    # AutoEncoder configs
-    autoencoder_config: VanillaAEConfig = VanillaAEConfig(
-        latent_dim=latent_dim,
-        num_layers=4,
-        num_filters=32,
-        kernel_size=3,
-        latent_lambda=1e-6,
-        encoder_optim_kwargs={"lr": 1e-3},
-        decoder_optim_kwargs={"lr": 1e-3, "weight_decay": 1e-7},
-    )
-    encoder_tau: float = 0.05
-
-    # Encoder Network Config
-    conv_config: MLPConfig = MLPConfig(
-        layers=[
-            TrainableLayer(layer_type="Conv2d", out_features=32, params={"kernel_size": 8, "stride": 4, "padding": 0}),
-            FunctionLayer(layer_type="ReLU",),
-            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 4, "stride": 2, "padding": 0}),
-            FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Conv2d", out_features=64, params={"kernel_size": 3, "stride": 1, "padding": 0}),
-            FunctionLayer(layer_type="ReLU"),
-        ]
-    )
-
-    # Simple ConvNet Encoder Config
-    shared_conv_net: bool = True
 
 
 ###################################
