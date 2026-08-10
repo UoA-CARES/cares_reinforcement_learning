@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 import pathlib
 from collections.abc import Iterator, Mapping, Sequence
@@ -368,15 +369,21 @@ def _discover_runs(
     roots: Sequence[pathlib.Path],
     comparison_parameters: Sequence[str] = (),
 ) -> tuple[DiscoveredRun, ...]:
-    """Build plotting runs from explicitly supplied algorithm result folders."""
+    """Build plotting runs from explicitly supplied result directories.
+
+    Each supplied directory is treated as an independent comparison condition.
+    Comparison parameters may still be used to produce more descriptive default
+    labels, but they are not required to distinguish explicit --data inputs.
+    """
     parameters = tuple(comparison_parameters)
     if len(parameters) != len(set(parameters)):
         raise ValueError("Each comparison parameter may be supplied only once.")
 
     discovered: list[DiscoveredRun] = []
-    seen_names: dict[str, pathlib.Path] = {}
+
     for raw_root in roots:
         root = raw_root.expanduser().resolve()
+
         if not root.exists():
             raise FileNotFoundError(f"Input directory does not exist: {root}")
         if not root.is_dir():
@@ -388,20 +395,44 @@ def _discover_runs(
                 f"Expected configuration files: {expected}."
             )
 
-        run = _build_discovered_run(root, parameters)
-        previous = seen_names.get(run.comparison_name)
-        if previous is not None:
-            raise ValueError(
-                f"Multiple supplied runs resolve to comparison label "
-                f"{run.comparison_name!r}: {previous} and {root}. Add the "
-                "changed fields with --comparison-parameter."
+        discovered.append(
+            _build_discovered_run(
+                root,
+                parameters,
             )
-        seen_names[run.comparison_name] = root
-        discovered.append(run)
+        )
 
     if not discovered:
         raise ValueError("At least one arbitrary algorithm directory is required.")
-    return tuple(discovered)
+
+    # Explicit --data inputs are independent comparisons even when their
+    # configuration-derived names are identical. Preserve normal names when
+    # unique and number only duplicates, in supplied directory order.
+    name_counts: dict[str, int] = {}
+    for run in discovered:
+        name_counts[run.comparison_name] = name_counts.get(run.comparison_name, 0) + 1
+
+    name_occurrences: dict[str, int] = {}
+    resolved: list[DiscoveredRun] = []
+
+    for run in discovered:
+        base_name = run.comparison_name
+
+        if name_counts[base_name] == 1:
+            comparison_name = base_name
+        else:
+            occurrence = name_occurrences.get(base_name, 0) + 1
+            name_occurrences[base_name] = occurrence
+            comparison_name = f"{base_name} [{occurrence}]"
+
+        resolved.append(
+            dataclasses.replace(
+                run,
+                comparison_name=comparison_name,
+            )
+        )
+
+    return tuple(resolved)
 
 
 def _infer_task_name(runs: Sequence[DiscoveredRun]) -> str:
