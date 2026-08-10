@@ -63,7 +63,6 @@ import torch
 
 import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.configurations import LA3PSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
@@ -94,24 +93,16 @@ class LA3PSAC(SAC):
         info: dict[str, Any] = {}
 
         # Convert into tensors using helper method
-        (
-            observartion_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            _,
-            _,
-        ) = memory_sampler.sample_to_tensors(sample, self.device)
+        sample_tensor = memory_sampler.sample_to_tensors(sample, self.device)
 
         with torch.no_grad():
             with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(
-                    next_observation_tensor.vector_state_tensor
+                    sample_tensor.next_observation.vector_state
                 )
 
             target_q_values_one, target_q_values_two = self.target_critic_net(
-                next_observation_tensor.vector_state_tensor, next_actions
+                sample_tensor.next_observation.vector_state, next_actions
             )
 
             target_q_values = (
@@ -120,12 +111,12 @@ class LA3PSAC(SAC):
             )
 
             q_target = (
-                rewards_tensor * self.reward_scale
-                + self.gamma * (1 - dones_tensor) * target_q_values
+                sample_tensor.reward * self.reward_scale
+                + self.gamma * (1 - sample_tensor.done) * target_q_values
             )
 
         q_values_one, q_values_two = self.critic_net(
-            observartion_tensor.vector_state_tensor, actions_tensor
+            sample_tensor.observation.vector_state, sample_tensor.action
         )
 
         td_error_one = (q_values_one - q_target).abs()
@@ -258,7 +249,7 @@ class LA3PSAC(SAC):
         )
 
         actor_info = self._update_actor_alpha(
-            observation_tensor.vector_state_tensor, weights_tensor
+            observation_tensor.vector_state, weights_tensor
         )
         info_uniform |= actor_info
 
@@ -295,7 +286,7 @@ class LA3PSAC(SAC):
         weights_tensor = torch.tensor(weights, dtype=torch.float32, device=self.device)
 
         actor_info = self._update_actor_alpha(
-            observation_tensor.vector_state_tensor, weights_tensor
+            observation_tensor.vector_state, weights_tensor
         )
         info_priority |= actor_info
 

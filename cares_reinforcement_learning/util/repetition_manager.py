@@ -106,7 +106,8 @@ class RepetitionManager:
 
     def record_action(self, action) -> None:
         """Record an action for potential repetition."""
-        self.buffer.record_action(action)
+        if self.enabled:
+            self.buffer.record_action(action)
 
     def should_repeat(self, episode_timesteps: int) -> bool:
         """
@@ -135,6 +136,8 @@ class RepetitionManager:
         Returns:
             Action from the best episode
         """
+        if not self.enabled:
+            raise ValueError("Repetition is not on. Change config.")
         if not self.should_repeat(episode_timesteps):
             raise ValueError("Cannot get repetition action when not repeating")
 
@@ -156,6 +159,7 @@ class RepetitionManager:
             in_training_phase: Whether we're past exploration phase
         """
         if not self.enabled:
+            self.buffer.reset()
             return
 
         if self.is_repeating:

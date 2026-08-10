@@ -60,9 +60,7 @@ class SARLEnvironment(BaseEnvironment[SARLObservation]):
         channels *= self.frames_to_stack
         image_space = (channels, self.frame_height, self.frame_width)
 
-        vector_space = self._vector_space
-
-        return {"image": image_space, "vector": vector_space}
+        return {"image": image_space, "vector": self._vector_space}
 
     @cached_property
     @abc.abstractmethod
@@ -70,7 +68,7 @@ class SARLEnvironment(BaseEnvironment[SARLObservation]):
         raise NotImplementedError("Override this method")
 
     @abc.abstractmethod
-    def sample_action(self):
+    def sample_action(self) -> np.ndarray | int:
         raise NotImplementedError("Override this method")
 
     @abc.abstractmethod
@@ -122,7 +120,9 @@ class SARLEnvironment(BaseEnvironment[SARLObservation]):
         return self.observation
 
     @abc.abstractmethod
-    def _step(self, action):
+    def _step(
+        self, action: np.ndarray | int
+    ) -> tuple[np.ndarray, float, bool, bool, dict]:
         raise NotImplementedError("Override this method")
 
     def step(self, action: np.ndarray) -> SingleAgentExperience:

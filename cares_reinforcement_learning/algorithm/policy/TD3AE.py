@@ -389,16 +389,7 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
         )
 
         # Sample and convert to tensors using multimodal sampling
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            _,  # extras ignored
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -407,23 +398,23 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        assert observation_tensor.image_state_tensor is not None
+        assert sample_tensor.observation.image_state is not None
 
         info: dict[str, Any] = {}
 
         critic_info, priorities = self._update_critic(
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
+            sample_tensor.observation,
+            sample_tensor.action,
+            sample_tensor.reward,
+            sample_tensor.next_observation,
+            sample_tensor.done,
+            sample_tensor.weights,
         )
         info |= critic_info
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update Actor
-            actor_info = self._update_actor(observation_tensor)
+            actor_info = self._update_actor(sample_tensor.observation)
             info |= actor_info
 
             # Update target network params
@@ -455,7 +446,7 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
             )
 
         if self.learn_counter % self.decoder_update_freq == 0:
-            ae_info = self._update_autoencoder(observation_tensor.image_state_tensor)
+            ae_info = self._update_autoencoder(sample_tensor.observation.image_state)
             info |= ae_info
 
         # Update the Priorities

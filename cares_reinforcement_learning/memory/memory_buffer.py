@@ -573,27 +573,24 @@ class MARLMemoryBuffer(MemoryBuffer[MultiAgentExperience]):
         first = n_step_buffer[0]
         last = n_step_buffer[-1]
 
-        # Start from the last step in the window
-        n_reward = list(last.reward)
+        n_reward = last.reward.copy()
         n_next_observation = last.next_observation
-        n_done = list(last.done)
-        n_truncated = list(last.truncated)
+        n_done = last.done.copy()
+        n_truncated = last.truncated.copy()
 
-        # Walk backwards over earlier transitions (excluding last)
         for n_exp in reversed(list(n_step_buffer)[:-1]):
-            # WARNING: This currently assumes that all agents share the same done/truncated flags
             step_terminal = n_exp.done_flag or n_exp.truncated_flag
 
-            # discounted accumulation per agent
             if step_terminal:
                 n_next_observation = n_exp.next_observation
-                n_done = list(n_exp.done)
-                n_truncated = list(n_exp.truncated)
+                n_done = n_exp.done.copy()
+                n_truncated = n_exp.truncated.copy()
 
-            n_reward = [
-                r + self.gamma * nr * (1 - int(step_terminal))
-                for r, nr in zip(n_exp.reward, n_reward)
-            ]
+            n_reward = {
+                agent_id: reward
+                + self.gamma * n_reward[agent_id] * (1 - int(step_terminal))
+                for agent_id, reward in n_exp.reward.items()
+            }
 
         return MultiAgentExperience(
             observation=first.observation,

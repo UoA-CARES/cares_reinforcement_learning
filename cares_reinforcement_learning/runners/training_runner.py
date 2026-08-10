@@ -58,7 +58,7 @@ class TrainingRunner(BaseRunner):
 
         # TrainingRunner-specific setup
         self.progress_queue = progress_queue
-        self.display = bool(self.env_config.display)
+        self.display = bool(self.training_config.display)
 
         # Create memory (needed for training)
         self.memory_buffer = self.memory_factory.create_memory(self.alg_config)
@@ -167,12 +167,7 @@ class TrainingRunner(BaseRunner):
 
     def _select_exploration_action(self, train_step_counter: int) -> ActionSample:
         """Handle exploration phase action selection."""
-        self.logger.info(
-            f"Running Exploration Steps {train_step_counter + 1}/{self.max_steps_exploration}"
-        )
-
         exploration_extras = self.agent.get_exploration_extras()
-
         return ActionSample(self.env.sample_action(), source="exploration", extras=exploration_extras)
 
     def _select_repetition_action(self, episode_timesteps: int) -> ActionSample:
@@ -271,19 +266,13 @@ class TrainingRunner(BaseRunner):
 
         # Main training loop
         train_step_counter = self.start_training_step
+        train_info = {}
         for train_step_counter in range(
             self.start_training_step, int(self.max_steps_training)
         ):
             info: dict = {}
 
             episode_stats.step()
-
-            status = (
-                "training"
-                if train_step_counter >= self.max_steps_exploration
-                else "exploration"
-            )
-            self._report_progress(episode_num + 1, train_step_counter + 1, status)
 
             # Determine action based on training phase
             action_sample = self._select_action(
@@ -332,7 +321,6 @@ class TrainingRunner(BaseRunner):
                     episode_stats.get_episode_reward(),
                     episode_end,
                 )
-                info |= train_info
 
             # Evaluate agent periodically
             if (train_step_counter + 1) % self.number_steps_per_evaluation == 0:
@@ -345,6 +333,9 @@ class TrainingRunner(BaseRunner):
             if episode_end:
                 episode_time = time.time() - episode_start
 
+                info |= train_info
+                train_info = {}
+
                 info.update(episode_stats.summary())
 
                 # Log training data
@@ -356,6 +347,13 @@ class TrainingRunner(BaseRunner):
                     **info,
                     display=True,
                 )
+
+                status = (
+                    "training"
+                    if train_step_counter >= self.max_steps_exploration
+                    else "exploration"
+                )
+                self._report_progress(episode_num + 1, train_step_counter + 1, status)
 
                 # Handle any logic at episode end
                 self._finalise_episode(
@@ -380,3 +378,6 @@ class TrainingRunner(BaseRunner):
         # Save record and report completion
         self.record.save()
         self._report_progress(episode_num + 1, train_step_counter + 1, "done")
+
+        self.env.close()
+        self.env_eval.close()

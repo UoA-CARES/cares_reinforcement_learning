@@ -595,16 +595,7 @@ class TD7(SARLAlgorithm[np.ndarray]):
         self.learn_counter += 1
 
         # Use the helper to sample and prepare tensors in one step
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            _,  # extras ignored
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -617,12 +608,12 @@ class TD7(SARLAlgorithm[np.ndarray]):
             episode_context,
             memory_buffer,
             indices,
-            observation_tensor.vector_state_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
-            dones_tensor,
-            weights_tensor,
+            sample_tensor.observation.vector_state,
+            sample_tensor.action,
+            sample_tensor.reward,
+            sample_tensor.next_observation.vector_state,
+            sample_tensor.done,
+            sample_tensor.weights,
         )
 
         return info

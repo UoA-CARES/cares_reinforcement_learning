@@ -570,16 +570,7 @@ class SACD(SAC):
     ) -> dict[str, Any]:
         self.learn_counter += 1
 
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            extras_tensor,
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -588,31 +579,34 @@ class SACD(SAC):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        if extras_tensor is not None:
-            old_entropies_tensor = torch.Tensor([extra["entropy"] for extra in extras_tensor]).to(self.device)
+        if sample_tensor.train_data is not None:
+            old_entropies_tensor = torch.Tensor([item["entropy"] for item in sample_tensor.train_data]).to(self.device)
 
         info = {}
 
+
+        obs_state_tensor = sample_tensor.observation.vector_state
+        next_obs_state_tensor = sample_tensor.next_observation.vector_state
         if self.normalise_state:
-            observation_tensor = observation_tensor.vector_state_tensor / 255.0
-            next_observation_tensor = next_observation_tensor.vector_state_tensor / 255.0
+            obs_state_tensor = obs_state_tensor / 255.0
+            next_obs_state_tensor = next_obs_state_tensor / 255.0
 
         # Update the Critic
         critic_info, priorities = self._update_critic(
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
+            obs_state_tensor,
+            sample_tensor.action,
+            sample_tensor.reward,
+            next_obs_state_tensor,
+            sample_tensor.done,
+            sample_tensor.weights,
         )
         info.update(critic_info)
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
             actor_info = self._update_actor_alpha(
-                observation_tensor, 
-                old_entropies_tensor, 
+                obs_state_tensor,
+                old_entropies_tensor
             )
             
             info.update(actor_info)

@@ -43,7 +43,7 @@ class GripperEnvironment(SARLEnvironment):
         action_num = self.env.gripper.num_motors
         return action_num
 
-    def sample_action(self):
+    def sample_action(self) -> np.ndarray:
         action = self.env.sample_action()
         return hlp.normalize(action, self.max_action_value, self.min_action_value)
 
@@ -51,10 +51,10 @@ class GripperEnvironment(SARLEnvironment):
         if hasattr(self.env, "set_seed"):
             self.env.set_seed(seed)
 
-    def _reset(self, training: bool = True):
+    def _reset(self, training: bool = True) -> np.ndarray:
         return self.env.reset()
 
-    def _step(self, action):
+    def _step(self, action) -> tuple:
         action = hlp.denormalize(action, self.max_action_value, self.min_action_value)
         return self.env.step(action)
 

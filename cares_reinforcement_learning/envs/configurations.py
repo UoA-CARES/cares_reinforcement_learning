@@ -27,9 +27,6 @@ class GymEnvironmentConfig(SubscriptableClass):
     domain: str = ""
     task: str
 
-    display: int = 0
-    save_train_checkpoints: int = 0
-
     # stochastic noise configuration
     state_std: float = 0.0
     action_std: float = 0.0
@@ -50,6 +47,11 @@ class GymEnvironmentConfig(SubscriptableClass):
 
 class OpenAIConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "openai"
+
+    slippery_friction: int = 0
+    slippery_switch_every: int = 2_000_000
+    slippery_min_friction: float = 0.02
+    slippery_max_friction: float = 2.0
 
 
 class DMCSConfig(GymEnvironmentConfig):
@@ -75,6 +77,11 @@ class DroneConfig(GymEnvironmentConfig):
     use_simulator: int = 1  # 1 for simulator (DroneSim), 0 for real drone (Drone)
 
 
+class F1TenthConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "f1tenth"
+    task: str = "track"
+
+
 class GripperConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "gripper"
 
@@ -87,6 +94,11 @@ class SMACConfig(GymEnvironmentConfig):
     task: str = "3m"
 
     record_video_fps: int = 5
+
+
+class MultiF1TenthConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "multi_f1tenth"
+    task: str = "track"
 
 
 class SMAC2Config(GymEnvironmentConfig):
@@ -103,6 +115,13 @@ class SMAC2Config(GymEnvironmentConfig):
 class MPEConfig(GymEnvironmentConfig):
     gym: ClassVar[str] = "mpe"
 
-    continuous_actions: int = 0
+    continuous_actions: int = 1
 
     record_video_fps: int = 5
+
+
+class MARLDroneConfig(GymEnvironmentConfig):
+    gym: ClassVar[str] = "marl_drone"
+    task: str
+    use_simulator: int = 1  # 1 for simulator (DroneSim), 0 for real drone (Drone)
+    num_agents: int

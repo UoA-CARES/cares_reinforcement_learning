@@ -249,16 +249,7 @@ class DQN(SARLAlgorithm[int]):
             return {}
 
         # Use training_utils to sample and prepare batch
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            _,  # extras ignored
-            indices,
-        ) = memory_sampler.sample(
+        sample, indices = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
@@ -271,16 +262,16 @@ class DQN(SARLAlgorithm[int]):
         sample_size = len(indices)
 
         # Reshape tensors to match DQN's expected dimensions
-        rewards_tensor = rewards_tensor.view(-1)
-        dones_tensor = dones_tensor.view(-1)
-        weights_tensor = weights_tensor.view(-1)
+        rewards_tensor = sample.reward.view(-1)
+        dones_tensor = sample.done.view(-1)
+        weights_tensor = sample.weights.view(-1)
 
         # Calculate loss - overriden by C51
         elementwise_loss, train_info = self._compute_loss(
-            observation_tensor.vector_state_tensor,
-            actions_tensor,
+            sample.observation.vector_state,
+            sample.action,
             rewards_tensor,
-            next_observation_tensor.vector_state_tensor,
+            sample.next_observation.vector_state,
             dones_tensor,
             sample_size,
         )

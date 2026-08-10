@@ -1,16 +1,30 @@
 <p align="center">
-<img src="./media/logo.png" alt="CARES reinforcement learning package logo" style="width: 80%;"/>
+  <a href="https://robotlearningteam.org/">
+    <img src="docs/images/logo.png" alt="CARES Reinforcement Learning Logo" width="80%"/>
+  </a>
 </p>
 
 A modular reinforcement learning framework for training and evaluating RL algorithms across diverse environments.
 
+[![Documentation](https://img.shields.io/badge/docs-mkdocs-blue)](https://uoa-cares.github.io/cares_reinforcement_learning/)
 ![Python](https://img.shields.io/badge/python-3.10--3.12-blue.svg)
 ![GitHub release](https://img.shields.io/github/v/release/UoA-CARES/cares_reinforcement_learning)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-# Motivation
+# Introduction
+The CARES Reinforcement Learning package is a modular and extensible framework for developing, training, and evaluating reinforcement learning algorithms. It provides a consistent interface across value-based, policy-based, and multi-agent methods, enabling clear comparisons between approaches in a single code base. Designed with research and real-world robotics applications in mind. This code base has been designed for the local team but we feel it has utility beyond our research group and are open to contributions/suggestions from others. 
 
-**Reinforcement Learning Algorithms** (that is to say, *how* the Neural Networks are updated) stay the same no matter the application. This package is designed so that these algorithms are only programmed **once** and can be *"plugged & played"* into different environments.
+## Documentation
+
+Full documentation: https://uoa-cares.github.io/cares_reinforcement_learning/
+
+The docs are split into three main sections:
+
+- **User Guide** — how to use the library, run experiments, configure environments, and train agents
+- **Developer Guide** — how to add algorithms, environments, replay buffers, and contribute to the codebase
+- **Learning Reinforcement Learning** — conceptual guides covering reinforcement learning fundamentals, algorithm intuition, core theory, and practical understanding of methods used throughout the library.
+
+New users should usually start with the User Guide, while contributors should begin with the Developer Guide.
 
 # Installation Instructions
 We recommend using the Stable release versions if you are just looking to use the package directly. If you are seeking to develop the package further then follow the Development Environment instructions for installation.
@@ -29,6 +43,11 @@ Clone the **main** branch for the latest features - note this branch may not be 
 
 ### Development Environment (UV/pyenv)
 We recommend using **pyenv** to manage Python versions and **uv** to manage dependencies and work with reproducible environments from papers. This is because we have various other gym packages that can be installed and used and the general pyenv environment is useful to manage them together. This setup should be used those looking to contribute to the code base or various gym packages.
+
+Clone the latest main of CARES Reinforcement Learning.
+```bash
+git clone https://github.com/UoA-CARES/cares_reinforcement_learning.git
+```
 
 #### 1. Install uv and pyenv
 
@@ -80,7 +99,7 @@ cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
 
 Plot training results
 ```bash
-cares-rl-plot -s ~/cares_rl_logs -d <PATH_TO_RUN>
+cares-rl-plot -d <PATH_TO_RUN_DIRECTORY> --output <OUTPUT_DIRECTORY>
 ```
 
 # Usage
@@ -135,6 +154,39 @@ The test command is used to run evaluation loops on a trained reinforcement lear
 cares-rl test --data_path <PATH_TO_TRAINING_DATA> --eval_seed <EVAL_SEED> --episodes <NUM_EPISODES>
 ```
 
+### Plotting
+The plotting utility plots training and evaluation logs from one task, multiple tasks, or an explicit list of run directories.
+
+Running `cares-rl-plot -h` provides full plotting options, including custom plot panels via repeated `--plot` specifications.
+
+```sh
+cares-rl-plot -h
+```
+
+Plot one discovered task
+
+```sh
+cares-rl-plot --task ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS --output ~/cares_rl_plots
+```
+
+Plot and compare explicit run directories as one task
+
+```sh
+cares-rl-plot -d \
+    ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS \
+    ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS \
+    --output ~/cares_rl_plots
+```
+
+### Statistical Analysis
+The statistical analysis pipeline (`cares-rl-stats`) computes task-level and cross-task summaries, publication tables, and a guided PDF report.
+
+```sh
+cares-rl-stats benchmark_root --output results
+```
+
+Use the statistical docs for full details.
+
 ## Gym Environments
 This package contains wrappers for the following gym environments - these wrapper standardise the different interfaces various tasks/environments use so we can use the same algorithm interface. 
 
@@ -186,6 +238,13 @@ cares-rl train cli --gym drone --task move_2d SAC
 
 <p align="center">
     <img alt="crazyfly" src="./media/crazyfly.jpg" style="width: 35%;"/>
+</p>
+
+### F1Tenth Gym V2.0
+The F1Tenth gym contains all the code for training F1Tenth cars in autonomous racing. 
+
+<p align="center">
+    <img alt="crazyfly" src="./media/f1tenth-min.png" style="width: 50%;"/>
 </p>
 
 ### Multi Agent Enviroments
@@ -244,27 +303,6 @@ This folder will contain the following directories and information saved during 
 |  ├─ SEED_N
 |  |  ├─ ...
 |  ├─ ...
-```
-
-## Plotting
-The plotting utility in will plot the data contained in the training data based on the format created by the Record class. An example of how to plot the data from one or multiple training sessions together is shown below.
-
-Running 'cares-rl-plot -h' will provide details on the plotting parameters and control arguments. You can custom set the font size and text for the title, and axis labels - defaults will be taken from the data labels in the csv files.
-
-```sh
-cares-rl-plot -h
-```
-
-Plot the results of a single training instance
-
-```sh
-cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM/ALGORITHM-TASK-YY_MM_DD:HH:MM:SS
-```
-
-Plot and compare the results of two or more training instances
-
-```sh
-cares-rl-plot -s ~/cares_rl_logs -d ~/cares_rl_logs/ALGORITHM_A/ALGORITHM_A-TASK-YY_MM_DD:HH:MM:SS ~/cares_rl_logs/ALGORITHM_B/ALGORITHM_B-TASK-YY_MM_DD:HH:MM:SS
 ```
 
 # Supported Algorithms 
@@ -331,7 +369,7 @@ Multi-Agent Reinforcement Learning algorithms (MARL).
 | ITD3        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MATD3       | Vector (MARL)              | Continuous   | [MATD3](https://arxiv.org/pdf/1910.01465)                   |
 | ISAC        | Vector (MARL)              | Continuous   | N/A                                                         |
-| MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://doi.org/10.1609/aaai.v33i01.33014213)       |
+| MASAC       | Vector (MARL)              | Continuous   | [MASAC](https://arxiv.org/abs/2009.09361)       |
 | IPPO        | Vector (MARL)              | Continuous   | N/A                                                         |
 | MAPPO       | Vector (MARL)              | Continuous   | [MAPPO](https://arxiv.org/abs/2103.01955)                   |
 

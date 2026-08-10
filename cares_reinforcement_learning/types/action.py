@@ -3,7 +3,9 @@ from typing import Any, Generic, TypeVar
 
 import numpy as np
 
-ActType = TypeVar("ActType", bound=int | np.ndarray | list[int] | list[np.ndarray])
+ActType = TypeVar(
+    "ActType", bound=int | np.ndarray | dict[str, int] | dict[str, np.ndarray]
+)
 
 
 @dataclass(frozen=True, slots=True)

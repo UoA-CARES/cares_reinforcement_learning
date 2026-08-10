@@ -26,10 +26,10 @@ class DroneEnvironment(SARLEnvironment):
 
         self.set_seed(self.seed)
 
-    def _reset(self, training: bool = True):
+    def _reset(self, training: bool = True) -> np.ndarray:
         return self.env.reset(training)
 
-    def sample_action(self):
+    def sample_action(self) -> np.ndarray:
         action = self.env.sample_action()
         return hlp.normalize(action, self.max_action_value, self.min_action_value)
 
@@ -39,7 +39,7 @@ class DroneEnvironment(SARLEnvironment):
     def get_overlay_info(self) -> dict:
         return self.env.get_overlay_info()
 
-    def _step(self, action):
+    def _step(self, action) -> tuple:
         action = hlp.denormalize(action, self.max_action_value, self.min_action_value)
         return self.env.step(action)
 
@@ -61,3 +61,6 @@ class DroneEnvironment(SARLEnvironment):
 
     def grab_frame(self, height=720, width=1280) -> np.ndarray:
         return self.env.grab_frame(height, width)
+
+    def close(self) -> None:
+        self.env.close()

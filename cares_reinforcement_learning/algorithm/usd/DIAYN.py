@@ -142,23 +142,21 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         if len(memory_buffer) < self.batch_size:
             return {}
 
-        (
-            observation_tensor,
-            actions_tensor,
-            rewards_tensor,
-            next_observation_tensor,
-            dones_tensor,
-            weights_tensor,
-            train_data,
-            indices,
-        ) = memory_sampler.sample(
+        sample_tensor, _ = memory_sampler.sample(
             memory=memory_buffer,
             batch_size=self.batch_size,
             device=self.device,
             use_per_buffer=0,  # DIAYN does not use PER
         )
 
-        batch_size = len(observation_tensor.vector_state_tensor)
+        train_data = sample_tensor.train_data
+        observation_tensor = sample_tensor.observation
+        next_observation_tensor = sample_tensor.next_observation
+        actions_tensor = sample_tensor.action
+        dones_tensor = sample_tensor.done
+        weights_tensor = sample_tensor.weights
+
+        batch_size = len(observation_tensor.vector_state)
 
         skills = [extra["skill"] for extra in train_data]
         zs_tensor = torch.tensor(skills, dtype=torch.long, device=self.device)
@@ -166,24 +164,22 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         # Concatenate zs (skills) as one-hot to states
         # pylint: disable-next=not-callable
         zs_one_hot = F.one_hot(zs_tensor, num_classes=self.num_skills).to(
-            observation_tensor.vector_state_tensor.dtype
+            observation_tensor.vector_state.dtype
         )
 
         states_z_tensor = torch.cat(
-            [observation_tensor.vector_state_tensor, zs_one_hot], dim=1
+            [observation_tensor.vector_state, zs_one_hot], dim=1
         )
 
         next_states_z_tensor = torch.cat(
-            [next_observation_tensor.vector_state_tensor, zs_one_hot], dim=1
+            [next_observation_tensor.vector_state, zs_one_hot], dim=1
         )
 
         # Derive rewards from the discriminator
         p_z = torch.as_tensor(self.p_z, dtype=torch.float32, device=self.device)  # (K,)
 
         # Choose state vs next_state; keeping your current next_state choice:
-        logits = self.discriminator_net(
-            observation_tensor.vector_state_tensor
-        )  # (B, K)
+        logits = self.discriminator_net(observation_tensor.vector_state)  # (B, K)
 
         z_idx = zs_tensor.unsqueeze(1)  # (B, 1)
         logq = F.log_softmax(logits, dim=-1)  # (B, K)
@@ -217,11 +213,11 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
 
         observation_z_tensor = replace(
             observation_tensor,
-            vector_state_tensor=states_z_tensor,
+            vector_state=states_z_tensor,
         )
         next_observation_z_tensor = replace(
             next_observation_tensor,
-            vector_state_tensor=next_states_z_tensor,
+            vector_state=next_states_z_tensor,
         )
 
         agent_info, _ = self.skills_agent.update_from_batch(
