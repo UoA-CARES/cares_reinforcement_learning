@@ -249,28 +249,19 @@ def _sample_to_tensors_marl(
 
     for agent_id in agent_ids:
         action_tensors[agent_id] = torch.as_tensor(
-            np.stack(
-                [exp.action[agent_id] for exp in buffer_sample.experiences],
-                axis=0,
-            ),
+            np.stack(actions[agent_id], axis=0),
             dtype=action_dtype,
             device=device,
         )
 
         reward_tensors[agent_id] = torch.as_tensor(
-            np.stack(
-                [exp.reward[agent_id] for exp in buffer_sample.experiences],
-                axis=0,
-            ),
+            np.stack(rewards[agent_id], axis=0),
             dtype=rewards_dtype,
             device=device,
         ).unsqueeze(-1)
 
         done_tensors[agent_id] = torch.as_tensor(
-            np.stack(
-                [exp.done[agent_id] for exp in buffer_sample.experiences],
-                axis=0,
-            ),
+            np.stack(dones[agent_id], axis=0),
             dtype=dones_dtype,
             device=device,
         ).unsqueeze(-1)
