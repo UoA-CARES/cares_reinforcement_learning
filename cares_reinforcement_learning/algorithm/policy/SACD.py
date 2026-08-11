@@ -78,7 +78,7 @@ import torch
 import torch.nn.functional as F
 
 from cares_reinforcement_learning.algorithm.policy import SAC
-from cares_reinforcement_learning.algorithm.configurations import ImageEncoderType, SACDConfig
+from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 
 from cares_reinforcement_learning.types.action import ActionSample

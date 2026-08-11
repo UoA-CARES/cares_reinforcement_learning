@@ -846,7 +846,7 @@ class SDARConfig(SACConfig):
 
 
 class SACDConfig(SACConfig):
-    algorithm: str = Field("SACD", Literal=True)
+    algorithm: str = "SACD"
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
@@ -862,7 +862,7 @@ class SACDConfig(SACConfig):
     n_step: int = 10
     policy_update_freq: int = 1
     target_update_freq: int = 1
-    use_per_buffer: int = 1
+    use_per_buffer: int = 0
 
     # SAC configs
     target_entropy_multiplier: float = 0.98
@@ -870,7 +870,7 @@ class SACDConfig(SACConfig):
     auto_entropy_tuning: bool = True
 
     # SACD specific configs
-    use_clipped_q: bool = False
+    use_clipped_q: bool = True
     q_clip_epsilon: float = 0.5
     use_average_q: bool = True
     use_entropy_penalty: bool = True
