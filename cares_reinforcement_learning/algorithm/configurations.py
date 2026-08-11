@@ -4,8 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-from enum import Enum
-
 from cares_reinforcement_learning.encoders.configurations import (
     BurgessConfig,
     VanillaAEConfig,
@@ -15,11 +13,6 @@ from cares_reinforcement_learning.encoders.configurations import (
 
 # NOTE: If a parameter is a list then don't wrap with Optional leave as implicit optional - list[type] = default
 
-
-class ImageEncoderType(str, Enum):
-    VANILLA_AE = "vanilla_ae"
-    CONV_NET = "conv_net"
-    # Add more encoder types as needed
 
 class SubscriptableClass(BaseModel):
     def __getitem__(self, item):
@@ -896,7 +889,6 @@ class SACDConfig(SACConfig):
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
-                    # FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
                 ]),
             TrainableLayer(layer_type="Linear", out_features=512),
@@ -907,7 +899,6 @@ class SACDConfig(SACConfig):
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
-                    # FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
                 ]),
             TrainableLayer(layer_type="Linear"),
@@ -924,7 +915,6 @@ class SACDConfig(SACConfig):
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
-                    # FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
                 ]),
             TrainableLayer(layer_type="Linear", out_features=512),
@@ -935,7 +925,6 @@ class SACDConfig(SACConfig):
                     FunctionLayer(layer_type="ReLU"),
                     TrainableLayer(layer_type="Linear", out_features=512),
                     NormLayer(layer_type="LayerNorm"),
-                    # FiLMLayer(layer_type="FiLM"),
                     FunctionLayer(layer_type="ReLU"),
                 ]),
             TrainableLayer(layer_type="Linear"),
