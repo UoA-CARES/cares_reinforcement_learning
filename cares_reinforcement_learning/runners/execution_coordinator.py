@@ -23,6 +23,7 @@ from cares_reinforcement_learning.runners.evaluation_runner import EvaluationRun
 from cares_reinforcement_learning.runners.parallel_progress_monitor import (
     ParallelProgressMonitor,
 )
+from cares_reinforcement_learning.runners.time_format import format_elapsed_duration
 from cares_reinforcement_learning.runners.training_runner import TrainingRunner
 from cares_reinforcement_learning.util.record import Record
 from cares_reinforcement_learning.util.rl_parser import RunConfig
@@ -228,9 +229,7 @@ class ExecutionCoordinator:
 
         end_time = time.time()
         elapsed_time = end_time - start_time
-        logger.info(
-            f"Testing completed. Time: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}"
-        )
+        logger.info(f"Testing completed. Time: {format_elapsed_duration(elapsed_time)}")
 
     def _evaluate_single_seed(
         self,
@@ -338,7 +337,7 @@ class ExecutionCoordinator:
         end_time = time.time()
         elapsed_time = end_time - start_time
         logger.info(
-            f"Evaluation completed. Time: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}"
+            f"Evaluation completed. Time: {format_elapsed_duration(elapsed_time)}"
         )
 
     def _train_single_seed(
@@ -439,7 +438,7 @@ class ExecutionCoordinator:
         end_time = time.time()
         elapsed_time = end_time - start_time
         logger.info(
-            f"Training completed. Time: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}"
+            f"Training completed. Time: {format_elapsed_duration(elapsed_time)}"
         )
 
     def run(self) -> None:

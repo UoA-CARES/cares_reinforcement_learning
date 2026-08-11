@@ -9,6 +9,7 @@ from cares_reinforcement_learning.memory.memory_buffer import (
     SARLMemoryBuffer,
 )
 from cares_reinforcement_learning.runners.base_runner import BaseRunner, EpisodeStats
+from cares_reinforcement_learning.runners.time_format import format_elapsed_duration
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.util.repetition_manager import RepetitionManager
@@ -371,7 +372,7 @@ class TrainingRunner(BaseRunner):
         end_time = time.time()
         elapsed_time = end_time - start_time
         self.logger.info(
-            f"Training completed. Time: {time.strftime('%H:%M:%S', time.gmtime(elapsed_time))}"
+            f"Training completed. Time: {format_elapsed_duration(elapsed_time)}"
         )
 
         # Save record and report completion
