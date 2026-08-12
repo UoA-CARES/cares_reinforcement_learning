@@ -305,18 +305,36 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         checkpoint = {
             "actor": self.actor_net.state_dict(),
             "critic": self.critic_net.state_dict(),
+            "target_actor": self.target_actor_net.state_dict(),
+            "target_critic": self.target_critic_net.state_dict(),
             "actor_optimizer": self.actor_net_optimiser.state_dict(),
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
+            "learn_counter": self.learn_counter,
         }
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models and optimisers have been saved...")
 
     def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+        )
 
         self.actor_net.load_state_dict(checkpoint["actor"])
         self.critic_net.load_state_dict(checkpoint["critic"])
 
+        # Backward compatibility: older checkpoints may not include target nets.
+        if "target_actor" in checkpoint:
+            self.target_actor_net.load_state_dict(checkpoint["target_actor"])
+        else:
+            self.target_actor_net.load_state_dict(checkpoint["actor"])
+
+        if "target_critic" in checkpoint:
+            self.target_critic_net.load_state_dict(checkpoint["target_critic"])
+        else:
+            self.target_critic_net.load_state_dict(checkpoint["critic"])
+
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
+
+        self.learn_counter = int(checkpoint.get("learn_counter", 0))
         logging.info("models and optimisers have been loaded...")
