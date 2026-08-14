@@ -86,7 +86,6 @@ from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.networks import functional as fnc
 
 
@@ -160,14 +159,19 @@ class SACD(SAC):
                 [self.log_alpha], lr=config.alpha_lr
             )
 
-        if config.use_clipped_q:
+        # Additional configs
+        self.use_clipped_q = config.use_clipped_q
+        self.use_average_q = config.use_average_q
+        self.use_entropy_penalty = config.use_entropy_penalty
+
+        if self.use_clipped_q:
             self.q_clip_epsilon = config.q_clip_epsilon
             self._get_critic_loss = self._get_clipped_critic_loss
 
-        if config.use_average_q:
+        if self.use_average_q:
             self._get_min_q_target = self._get_avg_q_target
 
-        if config.use_entropy_penalty:
+        if self.use_entropy_penalty:
             self.entropy_penalty_beta = config.entropy_penalty_beta
 
         self.entropy = None
@@ -360,7 +364,7 @@ class SACD(SAC):
         if self.entropy is not None:
             entropy = self.entropy.item()
 
-        return ActionSample(action=action.cpu(), source="policy", extras={"entropy": entropy})
+        return ActionSample(action=action.item(), source="policy", extras={"entropy": entropy})
     
 
     def _compute_next_state_q_value(self, next_states: torch.Tensor, rewards: torch.Tensor, dones: torch.Tensor) -> torch.Tensor:
@@ -431,12 +435,13 @@ class SACD(SAC):
         next_state_entropies, min_next_q_target, expected_next_q_value, bootstrapped_q_value = self._compute_next_state_q_value(next_states, rewards, dones)
 
         # Calculate critic loss and update critic networks
-        act = actions.long()
+        act = actions.long().unsqueeze(-1)
         critic_loss = self._get_critic_loss(states, act, bootstrapped_q_value, weights=weights)
         self.critic_net_optimiser.zero_grad()
         critic_loss.total_loss.backward()
         self.critic_net_optimiser.step()
 
+        priorities = None
         if self.use_per_buffer:
             # Update the Priorities
             td_error_one = (critic_loss.q_values_one - bootstrapped_q_value).abs()
@@ -579,8 +584,10 @@ class SACD(SAC):
             per_weight_normalisation=self.per_weight_normalisation,
         )
 
-        if sample_tensor.train_data is not None:
+        if self.use_entropy_penalty:
             old_entropies_tensor = torch.Tensor([item["entropy"] for item in sample_tensor.train_data]).to(self.device)
+        else:
+            old_entropies_tensor = None
 
         info = {}
 

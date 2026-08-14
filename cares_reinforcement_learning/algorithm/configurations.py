@@ -859,7 +859,7 @@ class SACDConfig(SACConfig):
     buffer_size: int = 100_000
     max_steps_exploration: int = 20_000
     number_steps_per_train_policy: int = 4
-    n_step: int = 10
+    n_step: int = 1
     policy_update_freq: int = 1
     target_update_freq: int = 1
     use_per_buffer: int = 0
@@ -873,7 +873,7 @@ class SACDConfig(SACConfig):
     use_clipped_q: bool = True
     q_clip_epsilon: float = 0.5
     use_average_q: bool = True
-    use_entropy_penalty: bool = True
+    use_entropy_penalty: bool = False
     entropy_penalty_beta: float = 0.5
 
     # Network configs
@@ -883,25 +883,8 @@ class SACDConfig(SACConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(
-                main_layers=[
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
-                    FunctionLayer(layer_type="ReLU"),
-                ]),
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(
-                main_layers=[
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
-                    FunctionLayer(layer_type="ReLU"),
-                ]),
-            TrainableLayer(layer_type="Linear"),
         ]
     )
 
@@ -909,24 +892,8 @@ class SACDConfig(SACConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(
-                main_layers=[
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
-                    FunctionLayer(layer_type="ReLU"),
-                ]),
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            ResidualLayer(
-                main_layers=[
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    NormLayer(layer_type="LayerNorm"),
-                    FunctionLayer(layer_type="ReLU"),
-                ]),
             TrainableLayer(layer_type="Linear"),
         ]
     )
