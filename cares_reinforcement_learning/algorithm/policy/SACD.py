@@ -372,8 +372,9 @@ class SACD(SAC):
         if self.entropy is not None:
             entropy = self.entropy.item()
 
-        return ActionSample(action=action.item(), source="policy", extras={"entropy": entropy})
-    
+        return ActionSample(
+            action=action.item(), source="policy", extras={"entropy": entropy}
+        )
 
     def _compute_next_state_q_value(
         self, next_states: torch.Tensor, rewards: torch.Tensor, dones: torch.Tensor
@@ -619,7 +620,9 @@ class SACD(SAC):
         )
 
         if self.use_entropy_penalty:
-            old_entropies_tensor = torch.Tensor([item["entropy"] for item in sample_tensor.train_data]).to(self.device)
+            old_entropies_tensor = torch.Tensor(
+                [item["entropy"] for item in sample_tensor.train_data]
+            ).to(self.device)
         else:
             old_entropies_tensor = None
 
