@@ -6,17 +6,17 @@ from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 
 
 class BaseActor(nn.Module):
-    def __init__(self, act_net: nn.Module, discretisation_input_size: int, num_actions: int):
+    def __init__(
+        self, act_net: nn.Module, discretisation_input_size: int, num_actions: int
+    ):
         super().__init__()
 
         self.act_net = act_net
         self.num_actions = num_actions
 
         self.discrete_net = nn.Sequential(
-            nn.Linear(discretisation_input_size, num_actions), 
-            nn.Softmax(dim=-1)
+            nn.Linear(discretisation_input_size, num_actions), nn.Softmax(dim=-1)
         )
-
 
     def forward(
         self, state: torch.Tensor
@@ -32,8 +32,7 @@ class BaseActor(nn.Module):
         log_action_probs = torch.log(action_probs + zero_offset)
 
         return sample_action, (action_probs, log_action_probs), most_probable_action
-    
-    
+
     def set_encoder(self, encoder: nn.Module) -> None:
         """Adds an encoder network to the actor."""
         self.encoder = encoder
@@ -42,16 +41,13 @@ class BaseActor(nn.Module):
             self.network,
         )
 
-    
     def get_encoder(self) -> nn.Module:
         """Returns the encoder network of the actor."""
         return self.encoder
-    
 
     def enable_film(self, num_tasks: int) -> None:
         self.film_layers = self.network.film_layers
         self.film_fc_layer = nn.Linear(num_tasks, len(self.film_layers) * 2).cuda()
-
 
     def update_film_params(self, tasks: torch.Tensor) -> torch.Tensor:
         # Assume tasks is of shape (batch_size, num_tasks)
@@ -60,9 +56,10 @@ class BaseActor(nn.Module):
             scales = film_params[:, 2 * i]
             shifts = film_params[:, 2 * i + 1]
             film_layer.set_film_parameters(scales, shifts)
-    
 
-    def __call__(self, state: torch.Tensor) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
+    def __call__(
+        self, state: torch.Tensor
+    ) -> tuple[torch.Tensor, tuple[torch.Tensor, torch.Tensor], torch.Tensor]:
         return super().__call__(state)
 
 
