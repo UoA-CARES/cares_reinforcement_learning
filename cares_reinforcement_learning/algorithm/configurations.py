@@ -90,8 +90,8 @@ class PlasticityConfig(SubscriptableClass):
     replacement_strategy: Literal["cbp"] = "cbp"
 
     # CBP / replacement — optimiser update clock
-    replacement_rate: float = 1e-5
-    maturity_threshold_updates: int = 1_000
+    replacement_rate: float = 1e-4
+    maturity_threshold_updates: int = 10_000
     cbp_utility_decay: float = 0.99
     replacement_accumulate: bool = False
 
