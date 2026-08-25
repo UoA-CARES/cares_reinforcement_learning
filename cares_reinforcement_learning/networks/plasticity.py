@@ -209,7 +209,6 @@ class NetworkPlasticityManager:
         self.name = name
 
         self.enabled = config.enabled
-        self.step_count = 0
         self.total_units_replaced = 0
 
         self.replacement_strategy = config.replacement_strategy
@@ -447,7 +446,7 @@ class NetworkPlasticityManager:
     ) -> None:
         state = self._ensure_site_state(site, activation.shape[1], activation.device)
 
-        max_rows = int(self.config.activation_window_size)
+        max_rows = int(self.config.activity_window_env_steps)
         if max_rows <= 0:
             return
 
@@ -468,7 +467,7 @@ class NetworkPlasticityManager:
             return None
 
         window = torch.cat(chunks, dim=0)
-        max_rows = int(self.config.activation_window_size)
+        max_rows = int(self.config.activity_window_env_steps)
         if max_rows > 0 and window.shape[0] > max_rows:
             window = window[-max_rows:]
         return window
@@ -479,53 +478,46 @@ class NetworkPlasticityManager:
         site: FeatureSite,
         activation: torch.Tensor,
     ) -> None:
-        state = self._ensure_site_state(site, activation.shape[1], activation.device)
-        decay = self.config.utility_decay
-
-        state.last_activation = activation
-        state.utility.age.add_(1.0)
-
-        bias_correction = 1.0 - torch.pow(
-            torch.tensor(decay, device=activation.device), state.utility.age
+        state = self._ensure_site_state(
+            site,
+            activation.shape[1],
+            activation.device,
         )
-        bias_correction.clamp_min_(1e-12)
+        decay = self.config.redo_decay
+
+        # Save the activation from this training forward pass.
+        #
+        # CBP/GnT utility is deliberately NOT updated here. The reference
+        # implementation performs its utility/age update inside gen_and_test(),
+        # which PPO calls after optimizer.step(). We therefore retain the
+        # activation here and consume it in _update_cbp_utility() after the
+        # optimiser has updated the network weights.
+        state.last_activation = activation
 
         activation_abs_mean = activation.abs().mean(dim=0)
 
         # Paper-style firing statistics. A ReLU unit is active when its
         # post-activation value is strictly positive.
         batch_active_fraction = (activation > 0.0).float().mean(dim=0)
+
         state.activity.window.total.add_(batch_active_fraction)
         state.activity.window.count.add_(1.0)
+
         state.activity.lifetime.total.add_(batch_active_fraction)
         state.activity.lifetime.count.add_(1.0)
 
-        # ReDo tracks normalized activation magnitude separately from the
-        # paper-style positive-activation statistic above.
+        # ReDo diagnostics.
         state.redo.activation_abs_ema.mul_(decay).add_(
             (1.0 - decay) * activation_abs_mean
         )
+
         batch_activity = (
-            (activation.abs() > self.config.activity_threshold).float().mean(dim=0)
+            (activation.abs() > self.config.redo_activity_threshold).float().mean(dim=0)
         )
+
         state.redo.activity_fraction_ema.mul_(decay).add_(
             (1.0 - decay) * batch_activity
         )
-
-        state.utility.mean_feature_activation.mul_(decay).add_(
-            (1.0 - decay) * activation.mean(dim=0)
-        )
-
-        if site.consumer_module is not None:
-            output_weight_magnitude = (
-                site.consumer_module.weight.detach().abs().mean(dim=0)
-            )
-            instantaneous_utility = output_weight_magnitude * activation_abs_mean
-        else:
-            instantaneous_utility = activation_abs_mean
-
-        state.utility.ema.mul_(decay).add_((1.0 - decay) * instantaneous_utility)
-        state.utility.bias_corrected.copy_(state.utility.ema / bias_correction)
 
     @torch.no_grad()
     def _update_gradient_metrics(
@@ -541,7 +533,7 @@ class NetworkPlasticityManager:
 
         grad_norm = weight_grad.norm(p=2, dim=1)
         weight_norm = weight.norm(p=2, dim=1)
-        update_activity = grad_norm / (weight_norm + self.config.rua_eps)
+        update_activity = grad_norm / (weight_norm + self.config.knife_eps)
 
         state.knife.window.total.add_(update_activity)
         state.knife.window.count.add_(1.0)
@@ -553,8 +545,8 @@ class NetworkPlasticityManager:
     #
     # Called periodically by the training loop. Computes and returns
     # diagnostics from the state accumulated in the section above, at the
-    # cadence configured in PlasticityConfig (log_interval / rank_interval /
-    # knife_interval).
+    # cadence configured in PlasticityConfig (statistics_interval_env_steps / rank_interval_env_steps /
+    # knife_interval_env_steps).
     #
     # Call tree, in the order methods appear below:
     #   summary()
@@ -577,6 +569,7 @@ class NetworkPlasticityManager:
     @torch.no_grad()
     def summary(
         self,
+        env_step: int,
         prefix: str | None = None,
         force: bool = False,
     ) -> dict[str, float]:
@@ -584,9 +577,8 @@ class NetworkPlasticityManager:
         if not self.enabled:
             return {}
 
-        self.step_count += 1
-        should_log, should_rank, should_knife = self._summary_schedule(force)
-        if not should_log and not should_rank:
+        should_log, should_rank, should_knife = self._summary_schedule(env_step, force)
+        if not should_log and not should_rank and not should_knife:
             return {}
 
         prefix = prefix or self.name
@@ -601,6 +593,7 @@ class NetworkPlasticityManager:
             summary = self._summarize_site(
                 site=site,
                 state=state,
+                should_log=should_log,
                 should_rank=should_rank,
                 should_knife=should_knife,
             )
@@ -618,29 +611,21 @@ class NetworkPlasticityManager:
         self.last_summary = info
         return info
 
-    def _summary_schedule(self, force: bool) -> tuple[bool, bool, bool]:
-        should_log = force or self.step_count % self.config.log_interval == 0
-        should_rank = self.config.compute_rank and (
-            force or self.step_count % self.config.rank_interval == 0
+    def _summary_schedule(self, env_step: int, force: bool) -> tuple[bool, bool, bool]:
+        should_log = force or env_step % self.config.statistics_interval_env_steps == 0
+        should_rank = self.config.rank_enabled and (
+            force or env_step % self.config.rank_interval_env_steps == 0
         )
 
-        # KNIFE is deliberately gated as a multiple of log_interval, rather
-        # than an independent step-count check like rank_interval, so its
-        # accumulation window always aligns with a should_log reset (see
-        # _reset_summary_windows). Otherwise the window could be logged
-        # without being reset, silently reporting a stale multi-interval
-        # average under the same key as a fresh one.
-        log_count = self.step_count // self.config.log_interval
-        should_knife = force or (
-            should_log and log_count % self.config.knife_interval == 0
-        )
+        should_knife = force or (env_step % self.config.knife_interval_env_steps == 0)
+
         return should_log, should_rank, should_knife
 
-    @torch.no_grad()
     def _summarize_site(
         self,
         site: FeatureSite,
         state: SiteState,
+        should_log: bool,
         should_rank: bool,
         should_knife: bool,
     ) -> SiteSummary:
@@ -650,10 +635,13 @@ class NetworkPlasticityManager:
             distributions={},
         )
 
-        self._summarize_recent_activity(result, state, should_rank)
-        self._summarize_lifetime_activity(result, state)
-        self._summarize_redo(result, state)
-        self._summarize_utility(result, state)
+        if should_log or should_rank:
+            self._summarize_recent_activity(result, state, should_rank)
+
+        if should_log:
+            self._summarize_lifetime_activity(result, state)
+            self._summarize_redo(result, state)
+            self._summarize_utility(result, state)
 
         if should_knife:
             self._summarize_knife(result, state)
@@ -687,7 +675,7 @@ class NetworkPlasticityManager:
         active_fraction = (activity_window > 0.0).float().mean(dim=0)
         result.metrics.update(
             {
-                "dead_units_frac": ((active_fraction < 0.01).float().mean().item()),
+                "dead_units_frac": ((active_fraction <= 0.01).float().mean().item()),
                 "active_fraction_mean": active_fraction.mean().item(),
                 "active_fraction_p10": torch.quantile(active_fraction, 0.10).item(),
                 "activity_window_size": float(activity_window.shape[0]),
@@ -775,7 +763,7 @@ class NetworkPlasticityManager:
         result.metrics.update(
             {
                 "dead_units_lifetime_frac": (
-                    (active_fraction < 0.01).float().mean().item()
+                    (active_fraction <= 0.01).float().mean().item()
                 ),
                 "active_lifetime_fraction_mean": active_fraction.mean().item(),
             }
@@ -789,7 +777,7 @@ class NetworkPlasticityManager:
     ) -> None:
         # ReDo dormancy score, per [Sokar2023]: a unit's normalized
         # activation magnitude relative to its layer's mean. A unit is
-        # dormant when this score falls at or below dormant_threshold
+        # dormant when this score falls at or below redo_dormant_threshold
         # (the paper's default is 0.1).
         #
         # What this means: this is a softer, magnitude-based precursor to
@@ -807,7 +795,7 @@ class NetworkPlasticityManager:
         result.metrics.update(
             {
                 "redo_dormant_units_frac": (
-                    (dormancy_score <= self.config.dormant_threshold)
+                    (dormancy_score <= self.config.redo_dormant_threshold)
                     .float()
                     .mean()
                     .item()
@@ -872,8 +860,8 @@ class NetworkPlasticityManager:
     ) -> None:
         # [Liu2026]: update activity UA_i = ||grad_i|| / (||weight_i|| + eps),
         # time-averaged, then normalized by the layer's mean UA to get RUA_i.
-        # A unit is stagnant when RUA_i falls below stagnant_threshold
-        # (paper default 0.25) and volatile when it exceeds volatile_threshold.
+        # A unit is stagnant when RUA_i falls below knife_stagnant_threshold
+        # (paper default 0.25) and volatile when it exceeds knife_volatile_threshold.
         #
         # What this means: this is a gradient-side view of plasticity loss,
         # complementary to the activation-side metrics above (dead units,
@@ -900,10 +888,10 @@ class NetworkPlasticityManager:
                 f"knife_rua{suffix}_mean": rua.mean().item(),
                 f"knife_rua{suffix}_p10": torch.quantile(rua, 0.10).item(),
                 f"knife_stagnant_units{suffix}_frac": (
-                    (rua < self.config.stagnant_threshold).float().mean().item()
+                    (rua < self.config.knife_stagnant_threshold).float().mean().item()
                 ),
                 f"knife_volatile_units{suffix}_frac": (
-                    (rua > self.config.volatile_threshold).float().mean().item()
+                    (rua > self.config.knife_volatile_threshold).float().mean().item()
                 ),
             }
         )
@@ -1095,8 +1083,87 @@ class NetworkPlasticityManager:
     # =========================================================================
 
     @torch.no_grad()
+    def _update_cbp_utility(self, site: FeatureSite) -> None:
+        """Update CBP/GnT age and contribution utility after optimizer.step().
+
+        The activation comes from the training forward pass immediately preceding
+        the optimiser update. The outgoing weights are read here, after the
+        optimiser step, matching the ordering of the reference GnT implementation.
+        """
+        state = self.site_states.get(site.name)
+
+        if state is None or state.last_activation is None:
+            return
+
+        activation = state.last_activation
+        decay = self.config.cbp_utility_decay
+
+        # GnT increments feature age once for each generate-and-test step.
+        state.utility.age.add_(1.0)
+
+        # Adam-style bias correction used by the reference GnT implementation.
+        decay_tensor = torch.as_tensor(
+            decay,
+            device=state.utility.age.device,
+            dtype=state.utility.age.dtype,
+        )
+
+        bias_correction = 1.0 - torch.pow(
+            decay_tensor,
+            state.utility.age,
+        )
+        bias_correction.clamp_min_(1e-12)
+
+        # Running mean feature activation.
+        #
+        # This is retained for the bias compensation performed if the feature
+        # is subsequently replaced.
+        state.utility.mean_feature_activation.mul_(decay).add_(
+            (1.0 - decay) * activation.mean(dim=0)
+        )
+
+        activation_abs_mean = activation.abs().mean(dim=0)
+
+        if site.consumer_module is not None:
+            # IMPORTANT:
+            # step_replacement() is called after optimizer.step(), therefore
+            # these are the UPDATED outgoing weights, matching GnT.update_utility().
+            output_weight_magnitude = (
+                site.consumer_module.weight.detach().abs().mean(dim=0)
+            )
+
+            instantaneous_utility = output_weight_magnitude * activation_abs_mean
+        else:
+            # Sites without a consumer cannot participate in CBP replacement,
+            # but retain an activation-only utility for diagnostics if such sites
+            # are explicitly enabled.
+            instantaneous_utility = activation_abs_mean
+
+        state.utility.ema.mul_(decay).add_((1.0 - decay) * instantaneous_utility)
+
+        state.utility.bias_corrected.copy_(state.utility.ema / bias_correction)
+
+        # Consume this forward-pass activation so an accidental second call to
+        # step_replacement() cannot count the same training forward twice.
+        state.last_activation = None
+
+    @torch.no_grad()
     def step_replacement(self) -> dict[str, float]:
-        if not self.enabled or not self.config.replacement_enabled:
+        if not self.enabled:
+            return {}
+
+        # -------------------------------------------------------------
+        # Update CBP/GnT state after optimizer.step()
+        # -------------------------------------------------------------
+        #
+        # The training forward hook stored each site's activation. We update
+        # feature age and contribution utility here so the utility uses the
+        # outgoing weights AFTER the optimiser update, matching reference GnT.
+        for site in self.sites:
+            self._update_cbp_utility(site)
+
+        # Utility can still be tracked when replacement itself is disabled.
+        if not self.config.replacement_enabled:
             return {}
 
         if self.replacement_strategy != "cbp":
@@ -1114,7 +1181,10 @@ class NetworkPlasticityManager:
             unit_indices = self._select_units_for_replacement(site)
 
             for unit_idx_tensor in unit_indices:
-                self._reset_unit(site, int(unit_idx_tensor.item()))
+                self._reset_unit(
+                    site,
+                    int(unit_idx_tensor.item()),
+                )
                 total_replaced += 1
 
         self.total_units_replaced += total_replaced
@@ -1137,7 +1207,7 @@ class NetworkPlasticityManager:
     def _select_units_by_cbp_utility(self, site: FeatureSite) -> torch.Tensor:
         # Continual Backprop / Generate-and-Test unit selection, per
         # [Dohare2024]: replace the lowest-contribution-utility units among
-        # those past maturity_threshold, at replacement_rate per step.
+        # those past maturity_threshold_updates, at replacement_rate per step.
         state = self.site_states.get(site.name)
         if state is None:
             return torch.empty(
@@ -1147,7 +1217,7 @@ class NetworkPlasticityManager:
         age = state.utility.age
         utility = state.utility.bias_corrected
 
-        eligible_indices = torch.where(age > self.config.maturity_threshold)[0]
+        eligible_indices = torch.where(age > self.config.maturity_threshold_updates)[0]
 
         if eligible_indices.numel() == 0:
             return torch.empty(0, dtype=torch.long, device=utility.device)
@@ -1163,21 +1233,16 @@ class NetworkPlasticityManager:
             num_replace = int(accumulator.item())
             accumulator.sub_(float(num_replace))
         else:
-            # Reference-repo default behaviour: accumulate=False in GnT.
-            # The integer part is always replaced, and the fractional part is
-            # handled by one Bernoulli draw. For normal CBP settings where
-            # replacement_rate * eligible_units < 1, this means replacing either
-            # zero or one unit per site per update.
-            expected_tensor = torch.tensor(
-                expected_replacements,
-                device=utility.device,
-                dtype=torch.float32,
-            )
-            num_replace = int(torch.floor(expected_tensor).item())
-            fractional_part = expected_tensor - float(num_replace)
+            # Reference GnT behaviour: stochastic replacement only when the
+            # expected number of replacements is below one. Otherwise truncate
+            # to the integer number of replacements.
+            num_replace_float = expected_replacements
 
-            if torch.rand((), device=utility.device) < fractional_part:
-                num_replace += 1
+            if num_replace_float < 1.0:
+                if torch.rand((), device=utility.device) <= num_replace_float:
+                    num_replace_float = 1.0
+
+            num_replace = int(num_replace_float)
 
         if num_replace <= 0:
             return torch.empty(0, dtype=torch.long, device=utility.device)
@@ -1200,7 +1265,7 @@ class NetworkPlasticityManager:
         state = self.site_states[site.name]
 
         if consumer.bias is not None:
-            decay = self.config.utility_decay
+            decay = self.config.cbp_utility_decay
             age = state.utility.age[unit_idx]
             bias_correction = 1.0 - decay ** age.item()
             bias_correction = max(bias_correction, 1e-12)
@@ -1251,23 +1316,23 @@ class NetworkPlasticityManager:
             layer.bias.data[unit_idx] = 0.0
 
     def _initialization_bound(self, layer: nn.Linear) -> float:
-        init = self.config.init.lower()
-        activation_name = self.config.activation_name.lower()
+        init = self.config.replacement_init.lower()
+        replacement_activation = self.config.replacement_activation.lower()
 
-        if activation_name in ["swish", "silu", "elu", "golu"]:
-            activation_name = "relu"
+        if replacement_activation in ["swish", "silu", "elu", "golu"]:
+            replacement_activation = "relu"
 
         if init == "default":
             return float((1.0 / layer.in_features) ** 0.5)
 
         if init == "xavier":
-            gain = nn.init.calculate_gain(activation_name)
+            gain = nn.init.calculate_gain(replacement_activation)
             return float(gain * (6.0 / (layer.in_features + layer.out_features)) ** 0.5)
 
         if init == "lecun":
             return float((3.0 / layer.in_features) ** 0.5)
 
-        gain = nn.init.calculate_gain(activation_name)
+        gain = nn.init.calculate_gain(replacement_activation)
         return float(gain * (3.0 / layer.in_features) ** 0.5)
 
     @torch.no_grad()

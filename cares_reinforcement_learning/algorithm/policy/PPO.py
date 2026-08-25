@@ -142,7 +142,9 @@ class PPO(SARLAlgorithm[np.ndarray]):
         self.log_std = torch.nn.Parameter(init_log_std)
 
         optim_cls = (
-            PlasticityAdam if config.plasticity_config.enabled else torch.optim.Adam
+            PlasticityAdam
+            if config.plasticity_config.replacement_enabled
+            else torch.optim.Adam
         )
 
         self.actor_net_optimiser = optim_cls(
@@ -646,8 +648,8 @@ class PPO(SARLAlgorithm[np.ndarray]):
         info: dict[str, Any] = {}
 
         info.update(plastic_info)
-        info.update(self.actor_plasticity.summary(prefix="actor"))
-        info.update(self.critic_plasticity.summary(prefix="critic"))
+        # info.update(self.actor_plasticity.summary(prefix="actor"))
+        # info.update(self.critic_plasticity.summary(prefix="critic"))
 
         # ---------------------------------------------------------
         # Core Losses
@@ -771,6 +773,25 @@ class PPO(SARLAlgorithm[np.ndarray]):
         )
 
         return info
+
+    def get_statistics(
+        self,
+        episode_context: EpisodeContext,  # pylint: disable=unused-argument
+    ) -> dict[str, Any]:
+        statistics: dict[str, Any] = {}
+
+        statistics.update(
+            self.actor_plasticity.summary(
+                prefix="actor", env_step=episode_context.training_step
+            )
+        )
+        statistics.update(
+            self.critic_plasticity.summary(
+                prefix="critic", env_step=episode_context.training_step
+            )
+        )
+
+        return statistics
 
     def save_models(self, filepath: str, filename: str) -> None:
         if not os.path.exists(filepath):

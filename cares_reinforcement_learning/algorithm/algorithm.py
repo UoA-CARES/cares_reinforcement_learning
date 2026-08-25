@@ -176,6 +176,16 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         """
         pass
 
+    def get_statistics(
+        self,
+        episode_context: EpisodeContext,  # pylint: disable=unused-argument
+    ) -> dict[str, Any]:
+        """
+        Get statistics related to the algorithm's performance or state.
+        This is a placeholder method and should be implemented in subclasses if needed.
+        """
+        return {}
+
     def soft_update_params(
         self, net: torch.nn.Module, target_net: torch.nn.Module, tau: float
     ) -> None:
