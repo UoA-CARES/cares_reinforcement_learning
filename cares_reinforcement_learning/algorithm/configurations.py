@@ -396,7 +396,7 @@ class PPOConfig(AlgorithmConfig):
     entropy_end: float = 0.0
     entropy_decay: int = 0
 
-    target_kl: float | None = None
+    target_kl: float | None = 0.02
 
     max_grad_norm: float | None = 0.5
     log_std_bounds: list[float] = [-5.0, -0.5]
@@ -882,6 +882,48 @@ class SACDConfig(AlgorithmConfig):
             TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=512),
+        ]
+    )
+
+
+class LagrangeMultiplierConfig(BaseModel):
+    init: float = 1
+    cost_limit: float = 20
+    upper_bound: float | None = None
+
+    lr: float = 3e-2  # also called step size
+    lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    update_method: Literal["fixed", "gradient_ascent", "pid_controller"] = (
+        "gradient_ascent"
+    )
+
+    pid_kp: float = 1e-4
+    pid_ki: float = 1e-4
+    pid_kd: float = 0
+    integral_max: float = 100
+
+
+class SACLagConfig(SACConfig):
+    algorithm: str = "SACLag"
+
+    cost_scale: float = 1.0
+    cost_gamma: float = 0.99
+
+    cost_critic_lr: float = 3e-4
+    cost_critic_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    lagrange_multiplier: LagrangeMultiplierConfig = Field(
+        default_factory=LagrangeMultiplierConfig
+    )
+
+    cost_critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
         ]
     )
 

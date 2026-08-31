@@ -200,6 +200,7 @@ class TrainingRunner(BaseRunner):
         episode_num: int,
         episode_timesteps: int,
         episode_reward: float,
+        episode_cost: float,
         episode_done: bool,
     ) -> dict:
         """Execute policy training step."""
@@ -208,6 +209,7 @@ class TrainingRunner(BaseRunner):
             episode=episode_num + 1,
             episode_steps=episode_timesteps,
             episode_reward=episode_reward,
+            episode_cost=episode_cost,
             episode_done=episode_done,
         )
 
@@ -308,6 +310,7 @@ class TrainingRunner(BaseRunner):
             self.memory_buffer.add(experience)  # type: ignore
 
             episode_stats.update_reward(experience.reward)
+            episode_stats.update_cost(experience.cost)
 
             # Train policy if conditions are met
             if (
@@ -319,6 +322,7 @@ class TrainingRunner(BaseRunner):
                     episode_num,
                     episode_stats.steps,
                     episode_stats.get_episode_reward(),
+                    episode_stats.get_episode_cost(),
                     episode_end,
                 )
 
