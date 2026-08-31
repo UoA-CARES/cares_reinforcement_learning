@@ -46,7 +46,7 @@ Key Behaviours:
     Automated lambda:
         - If the agent violates fewer constraints,
         - 𝜆 gradually decreases (vice versa).
-        - Gradient-ascent (GA) updates guarantee 
+        - Gradient-ascent (GA) updates guarantee
         - convergence to 𝜆*.
         - PID updates stabilize 𝜆 trajectory.
 
@@ -54,7 +54,7 @@ Limitations:
 - Finding the optimal 𝜆* is computationally expensive and highly
   task‑dependent.
 - GA updates often produce oscillatory lambda behavior.
-- PID updates introduce three extra hyperparameters and 
+- PID updates introduce three extra hyperparameters and
   do not guarantee convergence to 𝜆*.
 
 Advantages:
@@ -63,7 +63,6 @@ Advantages:
 
 SAC_lag = SAC + Cost critic +  Lagrange multiplier
 """
-
 
 import copy
 import logging
@@ -94,15 +93,9 @@ from cares_reinforcement_learning.types.observation import SARLObservationTensor
 
 # TODO: Move to right place
 class LagrangeMultiplier:
-    def __init__(
-        self,
-        config: LagrangeMultiplierConfig,
-        device: torch.device
-    ) -> None:
+    def __init__(self, config: LagrangeMultiplierConfig, device: torch.device) -> None:
 
-        self.value = torch.tensor(
-            config.init, dtype=torch.float32
-        ).to(device)
+        self.value = torch.tensor(config.init, dtype=torch.float32).to(device)
         self.upper_bound = config.upper_bound
         self.update_method = config.update_method
 
@@ -124,11 +117,7 @@ class LagrangeMultiplier:
             self._derivative: float = 0.0
             self._prev_error: float | None = None
 
-    def update(
-        self,
-        mean_episode_cost: float,
-        dt: float = 1.0
-    ) -> dict[str, Any]:
+    def update(self, mean_episode_cost: float, dt: float = 1.0) -> dict[str, Any]:
 
         if self.update_method == "fixed":
             return {"lagrange_multiplier_value": self.value.item()}
@@ -144,14 +133,11 @@ class LagrangeMultiplier:
                 'Available update methods are: "fixed", "gradient_ascent", "pid_controller".'
             )
 
-    def _update_via_gradient_ascent(
-        self,
-        mean_episode_cost: float
-    ) -> dict[str, Any]:
+    def _update_via_gradient_ascent(self, mean_episode_cost: float) -> dict[str, Any]:
 
         info: dict[str, Any] = {}
 
-        loss = - self.value * (mean_episode_cost - self.cost_limit)
+        loss = -self.value * (mean_episode_cost - self.cost_limit)
 
         self.optimiser.zero_grad()
         loss.backward()
@@ -165,9 +151,7 @@ class LagrangeMultiplier:
         return info
 
     def _update_via_pid_controller(
-        self,
-        mean_episode_cost: float,
-        dt: float
+        self, mean_episode_cost: float, dt: float
     ) -> dict[str, Any]:
 
         info: dict[str, Any] = {}
@@ -220,15 +204,15 @@ class SACLag(SAC):
         self.cost_gamma = config.cost_gamma
 
         self.cost_critic_net = cost_critic_network.to(self.device)
-        self.target_cost_critic_net = copy.deepcopy(
-            self.cost_critic_net
-        ).to(self.device)
+        self.target_cost_critic_net = copy.deepcopy(self.cost_critic_net).to(
+            self.device
+        )
         self.target_cost_critic_net.eval()
 
         self.cost_critic_net_optimiser = torch.optim.Adam(
             self.cost_critic_net.parameters(),
             lr=config.cost_critic_lr,
-            **config.cost_critic_lr_params
+            **config.cost_critic_lr_params,
         )
 
         self._lagrange_multiplier = LagrangeMultiplier(
@@ -258,8 +242,7 @@ class SACLag(SAC):
             next_q_values = self.target_cost_critic_net(next_states, next_actions)
 
             q_target = (
-                costs * self.cost_scale
-                + self.cost_gamma * (1 - dones) * next_q_values
+                costs * self.cost_scale + self.cost_gamma * (1 - dones) * next_q_values
             )
 
         q_values = self.cost_critic_net(states, actions)
@@ -275,8 +258,7 @@ class SACLag(SAC):
 
         # Update the Priorities - PER only
         priorities = (
-            td_error
-            .clamp(self.min_priority)
+            td_error.clamp(self.min_priority)
             .pow(self.per_alpha)
             .cpu()
             .data.numpy()
@@ -319,11 +301,14 @@ class SACLag(SAC):
 
         min_qf_pi = torch.minimum(qf_pi_one, qf_pi_two)
 
-        actor_loss = - (
+        actor_loss = -(
             min_qf_pi
-            - self.lagrange_multiplier * (cost_qf_pi - self._lagrange_multiplier.cost_limit)
+            - self.lagrange_multiplier
+            * (cost_qf_pi - self._lagrange_multiplier.cost_limit)
             - (self.alpha * log_pi)
-        ).mean() / (1 + self.lagrange_multiplier)  # Regularise gradients
+        ).mean() / (
+            1 + self.lagrange_multiplier
+        )  # Regularise gradients
 
         dq_da = torch.autograd.grad(
             outputs=actor_loss,
@@ -429,7 +414,9 @@ class SACLag(SAC):
         )
         info |= cost_critic_info
 
-        combined_priorities = np.maximum(priorities, cost_priorities)  # could try weighted average
+        combined_priorities = np.maximum(
+            priorities, cost_priorities
+        )  # could try weighted average
 
         if self.learn_counter % self.policy_update_freq == 0:
             # Update the Actor and Alpha
@@ -444,15 +431,9 @@ class SACLag(SAC):
         return info, combined_priorities
 
     def update_target_networks(self) -> None:
+        self.soft_update_params(self.critic_net, self.target_critic_net, self.tau)
         self.soft_update_params(
-            self.critic_net,
-            self.target_critic_net,
-            self.tau
-        )
-        self.soft_update_params(
-            self.cost_critic_net,
-            self.target_cost_critic_net,
-            self.tau
+            self.cost_critic_net, self.target_cost_critic_net, self.tau
         )
 
     def train(
@@ -498,9 +479,7 @@ class SACLag(SAC):
             mean_episode_cost = (
                 episode_context.episode_cost / episode_context.episode_steps
             )
-            info |= self.update_from_episode(
-                mean_episode_cost
-            )
+            info |= self.update_from_episode(mean_episode_cost)
 
         return info
 
@@ -537,7 +516,9 @@ class SACLag(SAC):
         self.target_cost_critic_net.load_state_dict(checkpoint["target_cost_critic"])
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
-        self.cost_critic_net_optimiser.load_state_dict(checkpoint["cost_critic_optimizer"])
+        self.cost_critic_net_optimiser.load_state_dict(
+            checkpoint["cost_critic_optimizer"]
+        )
 
         # Restore log_alpha from float
         self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)

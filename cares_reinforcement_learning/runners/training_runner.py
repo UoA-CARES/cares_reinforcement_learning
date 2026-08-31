@@ -227,7 +227,6 @@ class TrainingRunner(BaseRunner):
         """Handle episode completion and repetition logic."""
         in_training_phase = train_step_counter > self.max_steps_exploration
         self.repetition_manager.finish_episode(episode_reward, in_training_phase)
-        
 
     def _run_evaluation(self, train_step_counter: int) -> None:
         """Execute evaluation phase."""
@@ -361,7 +360,9 @@ class TrainingRunner(BaseRunner):
                 self._report_progress(episode_num + 1, train_step_counter + 1, status)
 
                 # Handle any logic at episode end
-                self._finalise_episode(train_step_counter, episode_stats.get_episode_reward())
+                self._finalise_episode(
+                    train_step_counter, episode_stats.get_episode_reward()
+                )
 
                 # Reset for next episode
                 state = self.env.reset()

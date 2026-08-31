@@ -895,7 +895,9 @@ class SACLagConfig(SACConfig):
     cost_critic_lr: float = 3e-4
     cost_critic_lr_params: dict[str, Any] = Field(default_factory=dict)
 
-    lagrange_multiplier: LagrangeMultiplierConfig = Field(default_factory=LagrangeMultiplierConfig)
+    lagrange_multiplier: LagrangeMultiplierConfig = Field(
+        default_factory=LagrangeMultiplierConfig
+    )
 
     cost_critic_config: MLPConfig = MLPConfig(
         layers=[

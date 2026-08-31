@@ -53,7 +53,7 @@ class EnvironmentFactory:
 
             case cfg.SafetyConfig():
                 from cares_reinforcement_learning.envs.sarl.safety.safety_environment import (
-                    SafetyEnvironment
+                    SafetyEnvironment,
                 )
 
                 env = SafetyEnvironment(

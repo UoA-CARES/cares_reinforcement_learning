@@ -14,10 +14,7 @@ from cares_reinforcement_learning.util import helpers as hlp
 
 class SafetyEnvironment(SARLEnvironment):
     def __init__(
-        self,
-        config: SafetyConfig,
-        seed: int,
-        image_observation: bool
+        self, config: SafetyConfig, seed: int, image_observation: bool
     ) -> None:
         super().__init__(config, seed, image_observation)
 
@@ -25,7 +22,7 @@ class SafetyEnvironment(SARLEnvironment):
             id=config.task,
             autoreset=False,
             render_mode="rgb_array",
-            camera_name="fixedfar"
+            camera_name="fixedfar",
         )
         self.set_seed(self.seed)
 
