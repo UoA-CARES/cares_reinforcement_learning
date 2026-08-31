@@ -30,6 +30,7 @@ class SARLTensorSample:
     observation: SARLObservationTensors
     action: torch.Tensor
     reward: torch.Tensor
+    cost: torch.Tensor
     next_observation: SARLObservationTensors
     done: torch.Tensor
     weights: torch.Tensor
@@ -160,6 +161,7 @@ def _sample_to_tensors_sarl(
     states_dtype: torch.dtype,
     action_dtype: torch.dtype,
     rewards_dtype: torch.dtype,
+    costs_dtype: torch.dtype,
     next_states_dtype: torch.dtype,
     dones_dtype: torch.dtype,
     weights_dtype: torch.dtype,
@@ -183,6 +185,7 @@ def _sample_to_tensors_sarl(
     observation_tensor = observation_to_tensors(observations, device, states_dtype)
     actions_tensor = torch.tensor(np.stack(actions), dtype=action_dtype, device=device)
     rewards_tensor = torch.tensor(np.stack(rewards), dtype=rewards_dtype, device=device)
+    costs_tensor = torch.tensor(np.stack(rewards), dtype=costs_dtype, device=device)
     next_observation_tensor = observation_to_tensors(
         next_observations, device, next_states_dtype
     )
@@ -192,6 +195,7 @@ def _sample_to_tensors_sarl(
     )
 
     rewards_tensor = rewards_tensor.unsqueeze(-1)
+    costs_tensor = costs_tensor.unsqueeze(-1)
     dones_tensor = dones_tensor.unsqueeze(-1)
     weights_tensor = weights_tensor.unsqueeze(-1)
 
@@ -199,6 +203,7 @@ def _sample_to_tensors_sarl(
         observation=observation_tensor,
         action=actions_tensor,
         reward=rewards_tensor,
+        cost=costs_tensor,
         next_observation=next_observation_tensor,
         done=dones_tensor,
         weights=weights_tensor,
@@ -315,6 +320,7 @@ def sample_to_tensors(
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
     rewards_dtype: torch.dtype = torch.float32,
+    costs_dtype: torch.dtype = torch.float32,
     next_states_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
@@ -326,6 +332,7 @@ def sample_to_tensors(
             states_dtype,
             action_dtype,
             rewards_dtype,
+            costs_dtype,
             next_states_dtype,
             dones_dtype,
             weights_dtype,
@@ -479,6 +486,7 @@ def sample(
     states_dtype: torch.dtype = torch.float32,
     action_dtype: torch.dtype = torch.float32,
     rewards_dtype: torch.dtype = torch.float32,
+    costs_dtype: torch.dtype = torch.float32,
     next_states_dtype: torch.dtype = torch.float32,
     dones_dtype: torch.dtype = torch.long,
     weights_dtype: torch.dtype = torch.float32,
@@ -501,6 +509,7 @@ def sample(
         states_dtype=states_dtype,
         action_dtype=action_dtype,
         rewards_dtype=rewards_dtype,
+        costs_dtype=costs_dtype,
         next_states_dtype=next_states_dtype,
         dones_dtype=dones_dtype,
         weights_dtype=weights_dtype,
