@@ -14,7 +14,6 @@ theme:
     - content.tooltips
     - navigation.instant
     - navigation.instant.preview
-    - content.tooltips
     - navigation.indexes
   logo: images/logo-small.png
 
