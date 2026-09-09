@@ -194,29 +194,6 @@ class TrainingRunner(BaseRunner):
 
         return action
 
-    def _update_policy(
-        self,
-        train_step_counter: int,
-        episode_num: int,
-        episode_timesteps: int,
-        episode_reward: float,
-        episode_done: bool,
-    ) -> dict:
-        """Execute policy training step."""
-        episode_context = EpisodeContext(
-            training_step=train_step_counter,
-            episode=episode_num + 1,
-            episode_steps=episode_timesteps,
-            episode_reward=episode_reward,
-            episode_done=episode_done,
-        )
-
-        train_info = {}
-        for _ in range(self.G):
-            train_info = self.agent.train(self.memory_buffer, episode_context)
-
-        return train_info
-
     def _finalise_episode(
         self,
         train_step_counter: int,
@@ -267,6 +244,8 @@ class TrainingRunner(BaseRunner):
         # Main training loop
         train_step_counter = self.start_training_step
         train_info = {}
+        agent_statistics: dict[str, Any] = {}
+
         for train_step_counter in range(
             self.start_training_step, int(self.max_steps_training)
         ):
@@ -309,18 +288,31 @@ class TrainingRunner(BaseRunner):
 
             episode_stats.update_reward(experience.reward)
 
+            episode_context = EpisodeContext(
+                training_step=train_step_counter,
+                episode=episode_num + 1,
+                episode_steps=episode_stats.steps,
+                episode_reward=episode_stats.get_episode_reward(),
+                episode_done=episode_end,
+            )
+
             # Train policy if conditions are met
             if (
                 train_step_counter >= self.max_steps_exploration
                 and (train_step_counter + 1) % self.number_steps_per_train_policy == 0
             ):
-                train_info = self._update_policy(
-                    train_step_counter,
-                    episode_num,
-                    episode_stats.steps,
-                    episode_stats.get_episode_reward(),
-                    episode_end,
-                )
+                for _ in range(self.G):
+                    step_train_info = self.agent.train(
+                        self.memory_buffer, episode_context
+                    )
+
+                    if step_train_info:
+                        train_info.update(step_train_info)
+
+            step_statistics = self.agent.get_statistics(episode_context)
+
+            if step_statistics:
+                agent_statistics.update(step_statistics)
 
             # Evaluate agent periodically
             if (train_step_counter + 1) % self.number_steps_per_evaluation == 0:
@@ -334,7 +326,10 @@ class TrainingRunner(BaseRunner):
                 episode_time = time.time() - episode_start
 
                 info |= train_info
+                info |= agent_statistics
+
                 train_info = {}
+                agent_statistics = {}
 
                 info.update(episode_stats.summary())
 

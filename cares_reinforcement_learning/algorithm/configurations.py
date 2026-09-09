@@ -84,37 +84,42 @@ class MLPConfig(BaseModel):
 
 
 class PlasticityConfig(SubscriptableClass):
+    # Master switches
     enabled: bool = False
     replacement_enabled: bool = False
     replacement_strategy: Literal["cbp"] = "cbp"
 
-    # Replacement schedule — algorithm-specific
-    replacement_rate: float
-    maturity_threshold: int
-    activation_window_size: int
-
-    # Diagnostics schedule — algorithm-specific
-    log_interval: int
-    rank_interval: int
-    knife_interval: int
-
-    # Mechanism-wide defaults
-    utility_decay: float = 0.99
-
-    stagnant_threshold: float = 0.25
-    volatile_threshold: float = 3.0
-    rua_eps: float = 1e-12
-
-    activity_threshold: float = 1e-5
-    dormant_threshold: float = 0.01
-
+    # CBP / replacement — optimiser update clock
+    replacement_rate: float = 1e-4
+    maturity_threshold_updates: int = 10_000
+    cbp_utility_decay: float = 0.99
     replacement_accumulate: bool = False
-    compute_rank: bool = True
+
+    # Diagnostics — environment step clock
+    activity_window_env_steps: int = 1_000
+    statistics_interval_env_steps: int = 1_000
+    rank_interval_env_steps: int = 10_000
+    knife_interval_env_steps: int = 10_000
+
+    rank_enabled: bool = True
+
+    # ReDo
+    redo_decay: float = 0.99
+    redo_activity_threshold: float = 1e-5
+    redo_dormant_threshold: float = 0.01
+
+    # KNIFE
+    knife_stagnant_threshold: float = 0.25
+    knife_volatile_threshold: float = 3.0
+    knife_eps: float = 1e-12
+
+    # Capture / layer behaviour
     training_only: bool = True
     include_output_layer: bool = False
 
-    init: str = "kaiming"
-    activation_name: str = "relu"
+    # Replacement initialization
+    replacement_init: str = "kaiming"
+    replacement_activation: str = "relu"
 
 
 class AlgorithmConfig(SubscriptableClass):
@@ -411,16 +416,7 @@ class PPOConfig(AlgorithmConfig):
     use_value_normalisation: int = 0
 
     # Plasticity
-    plasticity_config: PlasticityConfig = Field(
-        default_factory=lambda: PlasticityConfig(
-            replacement_rate=1e-5,
-            maturity_threshold=1_000,
-            activation_window_size=10_000,
-            log_interval=1,
-            rank_interval=1,
-            knife_interval=10,
-        )
-    )
+    plasticity_config: PlasticityConfig = Field(default_factory=PlasticityConfig)
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
