@@ -112,6 +112,7 @@ Summary:
 import logging
 import os
 from abc import abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, cast
 
@@ -119,9 +120,9 @@ import numpy as np
 import numpy.typing as npt
 import torch
 
+import cares_reinforcement_learning.algorithm.configurations as cfg
 import cares_reinforcement_learning.algorithm.policy as pol
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.algorithm.configurations as cfg
 from cares_reinforcement_learning.algorithm.algorithm import (
     MARLAlgorithm,
     SARLAlgorithm,
@@ -162,9 +163,15 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: IMARLConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.learning_units = learning_units
         self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
@@ -526,6 +533,7 @@ class IDDPG(IMARL[pol.DDPG]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.IDDPGConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -536,6 +544,7 @@ class IDDPG(IMARL[pol.DDPG]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
@@ -572,6 +581,7 @@ class ITD3(IMARL[pol.TD3]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.ITD3Config,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -582,6 +592,7 @@ class ITD3(IMARL[pol.TD3]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
@@ -621,6 +632,7 @@ class ISAC(IMARL[pol.SAC]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.ISACConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -631,6 +643,7 @@ class ISAC(IMARL[pol.SAC]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
@@ -668,6 +681,7 @@ class IPPO(IMARL[pol.PPO]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.IPPOConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -678,6 +692,7 @@ class IPPO(IMARL[pol.PPO]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

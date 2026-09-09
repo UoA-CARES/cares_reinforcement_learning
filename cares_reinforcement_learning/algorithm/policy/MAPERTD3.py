@@ -63,18 +63,18 @@ MaPER = PER + model-error-aware prioritization
          via shared environment prediction.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import MAPERTD3Config
 from cares_reinforcement_learning.algorithm.policy import TD3
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import MAPERTD3Config
 
 
 class MAPERTD3(TD3):
@@ -83,12 +83,14 @@ class MAPERTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: MAPERTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=critic_network,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

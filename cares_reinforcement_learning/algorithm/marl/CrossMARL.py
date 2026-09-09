@@ -1,5 +1,6 @@
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -21,9 +22,15 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_networks: dict[str, MARLAlgorithm[dict[str, np.ndarray]]],
         env_teams: dict[str, list[str]],
         config: CrossMARLConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.agent_networks = agent_networks
 

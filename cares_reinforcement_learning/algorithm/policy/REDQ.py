@@ -54,6 +54,7 @@ REDQ = SAC + Large Q-ensemble + Randomized subset
         minimization + High update-to-data ratio.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -61,14 +62,13 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import REDQConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import REDQConfig
 
 
 class REDQ(SAC):
@@ -80,12 +80,14 @@ class REDQ(SAC):
         actor_network: Actor,
         ensemble_critic: Critic,
         config: REDQConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=ensemble_critic,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

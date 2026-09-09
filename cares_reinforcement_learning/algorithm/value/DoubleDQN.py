@@ -44,11 +44,13 @@ Double DQN = DQN with decoupled action selection
              and action evaluation in the target.
 """
 
+from collections.abc import Callable
+
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import DoubleDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.DoubleDQN import Network
-from cares_reinforcement_learning.algorithm.configurations import DoubleDQNConfig
 
 
 class DoubleDQN(DQN):
@@ -56,6 +58,7 @@ class DoubleDQN(DQN):
         self,
         network: Network,
         config: DoubleDQNConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(network, config, device)
+        super().__init__(network, config, action_sampler, device)

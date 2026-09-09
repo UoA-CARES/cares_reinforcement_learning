@@ -55,6 +55,7 @@ DIAYN = unsupervised skill learning via
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
@@ -64,13 +65,13 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import DIAYNConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import DIAYNConfig
 
 
 class DIAYN(SARLAlgorithm[np.ndarray]):
@@ -79,9 +80,15 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         skills_agent: SAC,
         discriminator_network: Discriminator,
         config: DIAYNConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="usd", config=config, device=device)
+        super().__init__(
+            policy_type="usd",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.skills_agent = skills_agent
         self.discriminator_net = discriminator_network.to(device)

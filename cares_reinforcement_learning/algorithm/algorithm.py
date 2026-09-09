@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 from cares_reinforcement_learning.memory.memory_buffer import (
     MARLMemoryBuffer,
     Memory,
@@ -17,7 +19,6 @@ from cares_reinforcement_learning.types.observation import (
     Observation,
     SARLObservation,
 )
-from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 
 # Type variable for observation types (SARL or MARL)
 ObsType = TypeVar("ObsType", bound=Observation)
@@ -29,6 +30,7 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
         config: AlgorithmConfig,
+        action_sampler: Callable[[], ActType],
         device: torch.device,
     ):
         self.policy_type: Literal[
@@ -36,6 +38,8 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         ] = policy_type
 
         self.config = config
+
+        self.action_sampler: Callable[[], ActType] = action_sampler
 
         self.gamma = config.gamma
 
