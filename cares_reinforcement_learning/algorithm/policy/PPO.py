@@ -648,8 +648,6 @@ class PPO(SARLAlgorithm[np.ndarray]):
         info: dict[str, Any] = {}
 
         info.update(plastic_info)
-        # info.update(self.actor_plasticity.summary(prefix="actor"))
-        # info.update(self.critic_plasticity.summary(prefix="critic"))
 
         # ---------------------------------------------------------
         # Core Losses
