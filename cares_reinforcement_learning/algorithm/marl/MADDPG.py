@@ -181,6 +181,7 @@ For cooperative environments such as simple_spread:
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Literal
 
@@ -231,9 +232,15 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_id_to_critic_id: dict[str, str],
         critic_id_to_agent_ids: dict[str, list[str]],
         config: MADDPGConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # Physical trainable containers.
         #

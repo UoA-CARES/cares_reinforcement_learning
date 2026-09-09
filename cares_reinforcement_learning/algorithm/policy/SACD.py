@@ -65,6 +65,7 @@ SACD = SAC with categorical policy +
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -72,15 +73,14 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 
 
 class SACD(SARLAlgorithm[int]):
@@ -89,9 +89,15 @@ class SACD(SARLAlgorithm[int]):
         actor_network: Actor,
         critic_network: Critic,
         config: SACDConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(policy_type="discrete_policy", config=config, device=device)
+        super().__init__(
+            policy_type="discrete_policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)

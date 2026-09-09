@@ -45,6 +45,7 @@ Key Behaviour:
 QR-DQN = DQN + quantile-based distributional value learning.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import torch
@@ -63,9 +64,12 @@ class QRDQN(DQN):
         self,
         network: Network,
         config: QRDQNConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(network=network, config=config, device=device)
+        super().__init__(
+            network=network, config=config, action_sampler=action_sampler, device=device
+        )
 
         # QRDQN
         self.kappa = config.kappa

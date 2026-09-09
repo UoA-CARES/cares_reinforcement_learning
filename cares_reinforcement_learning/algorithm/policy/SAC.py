@@ -57,6 +57,7 @@ SAC = Maximum-Entropy RL + Twin Q Critics + Replay Buffer.
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -87,9 +88,15 @@ class SAC(SARLAlgorithm[np.ndarray]):
         actor_network: TanhGaussianPolicy,
         critic_network: TwinQNetwork | EnsembleCritic,
         config: SACConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.gamma = config.gamma
         self.tau = config.tau

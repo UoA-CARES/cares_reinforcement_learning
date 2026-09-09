@@ -49,6 +49,7 @@ DDPG = Deterministic Actor-Critic + Replay Buffer + Target Networks.
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -76,9 +77,15 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         actor_network: Actor,
         critic_network: Critic,
         config: DDPGConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)

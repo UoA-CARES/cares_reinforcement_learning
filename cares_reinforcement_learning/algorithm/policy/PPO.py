@@ -76,6 +76,7 @@ Notes:
 
 import logging
 import os
+from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from typing import Any
 
@@ -107,9 +108,15 @@ class PPO(SARLAlgorithm[np.ndarray]):
         actor_network: Actor,
         critic_network: Critic,
         config: PPOConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)

@@ -51,6 +51,7 @@ import copy
 import logging
 import os
 import random
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -74,9 +75,15 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
         network: SharedMultiAgentNetwork,
         mixer: QMixer,
         config: QMIXConfig,
+        action_sampler: Callable[[], dict[str, int]],
         device: torch.device,
     ):
-        super().__init__(policy_type="value", config=config, device=device)
+        super().__init__(
+            policy_type="value",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)

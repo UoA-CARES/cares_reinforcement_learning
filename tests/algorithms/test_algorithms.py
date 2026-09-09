@@ -184,7 +184,10 @@ def test_algorithms(tmp_path):
             }
 
         agent = factory.create_network(
-            observation_size=observation_size, action_num=action_num, config=alg_config
+            observation_size=observation_size,
+            action_num=action_num,
+            config=alg_config,
+            action_sampler=None,
         )
         assert agent is not None, f"{algorithm} was not created successfully"
 

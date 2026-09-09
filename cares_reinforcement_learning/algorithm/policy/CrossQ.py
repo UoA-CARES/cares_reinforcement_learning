@@ -55,16 +55,17 @@ CrossQ = SAC + cross-normalized critics
          enabling stable high-UTD training.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-from cares_reinforcement_learning.networks import functional as fnc
-from cares_reinforcement_learning.algorithm.policy import SAC
-from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
 from cares_reinforcement_learning.algorithm.configurations import CrossQConfig
+from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
 
 
 class CrossQ(SAC):
@@ -73,12 +74,14 @@ class CrossQ(SAC):
         actor_network: Actor,
         critic_network: Critic,
         config: CrossQConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=critic_network,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
