@@ -456,7 +456,9 @@ def create_DIAYN(
         "vector": observation_size["vector"] + config.num_skills,
     }
 
-    agent = create_SAC(sac_observation_size, action_num, config=config)
+    agent = create_SAC(
+        sac_observation_size, action_num, config=config, action_sampler=action_sampler
+    )
 
     discriminator = Discriminator(observation_size["vector"], config=config)
 
@@ -481,12 +483,13 @@ def create_DADS(
         "vector": observation_size["vector"] + config.z_dim,
     }
 
-    agent = create_SAC(sac_observation_size, action_num, config=config)
+    agent = create_SAC(
+        sac_observation_size, action_num, config=config, action_sampler=action_sampler
+    )
 
     discriminator = SkillDynamicsModel(
         observation_size=observation_size["vector"],
         config=config,
-        action_sampler=action_sampler,
     )
 
     device = hlp.get_device()
