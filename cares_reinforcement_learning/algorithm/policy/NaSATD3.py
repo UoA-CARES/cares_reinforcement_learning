@@ -204,6 +204,12 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         observation: SARLObservation,
         evaluation: bool = False,
     ) -> ActionSample[np.ndarray]:
+        self.act_counter = self.act_counter + 1 if not evaluation else self.act_counter
+
+        # Exploration phase: sample random actions
+        if self.act_counter <= self.max_steps_exploration and not evaluation:
+            return self._explore()
+
         self.actor_net.eval()
         self.autoencoder.eval()
 
@@ -216,7 +222,6 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
-                action += self.action_noise * np.random.randn(self.action_num)
                 noise = np.random.normal(
                     0, scale=self.action_noise, size=self.action_num
                 )

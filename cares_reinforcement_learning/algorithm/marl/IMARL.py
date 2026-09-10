@@ -264,6 +264,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
         actions = {}
         agent_extras = {}
+        source = "policy"
         for agent_name in self.agent_ids:
             agent_network = self._get_agent_network(agent_name)
             obs_i = cast(
@@ -280,8 +281,9 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
             agent_sample = agent_network.act(agent_observation, evaluation)
             actions[agent_name] = agent_sample.action
             agent_extras[agent_name] = agent_sample.extras
+            source = agent_sample.source
 
-        return ActionSample(action=actions, source="policy", extras=agent_extras)
+        return ActionSample(action=actions, source=source, extras=agent_extras)
 
     def _sample(
         self, memory_buffer: MARLMemoryBuffer

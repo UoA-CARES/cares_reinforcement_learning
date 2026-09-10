@@ -141,11 +141,16 @@ class SACD(SARLAlgorithm[int]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[int]:
+        self.act_counter = self.act_counter + 1 if not evaluation else self.act_counter
 
-        self.actor_net.eval()
+        # Exploration phase: sample random actions
+        if self.act_counter <= self.max_steps_exploration and not evaluation:
+            return self._explore()
 
+        # Exploitation phase: use policy to select actions
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)

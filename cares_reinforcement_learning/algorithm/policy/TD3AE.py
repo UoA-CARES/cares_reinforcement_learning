@@ -172,8 +172,14 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        self.actor_net.eval()
+        self.act_counter = self.act_counter + 1 if not evaluation else self.act_counter
 
+        # Exploration phase: sample random actions
+        if self.act_counter <= self.max_steps_exploration and not evaluation:
+            return self._explore()
+
+        # Exploitation phase: use policy to select actions
+        self.actor_net.eval()
         with torch.no_grad():
             observation_tensors = memory_sampler.observation_to_tensors(
                 [observation], self.device

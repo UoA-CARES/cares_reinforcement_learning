@@ -95,6 +95,7 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
 
         full_actions: dict[str, np.ndarray] = {}
         full_extras: dict[str, Any] = {}
+        full_source = "policy"
 
         for agent_team_name, agent_network in self.agent_networks.items():
             team_evaluation = evaluation or agent_team_name != self.learning_team_name
@@ -112,12 +113,15 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
                 action_extras=action_sample.extras,
             )
 
+            if agent_team_name == self.learning_team_name:
+                full_source = action_sample.source
+
         missing_agent_ids = set(agent_ids) - set(full_actions.keys())
         if missing_agent_ids:
             missing_keys = ", ".join(sorted(missing_agent_ids))
             raise KeyError(f"Missing actions for agents: {missing_keys}")
 
-        return ActionSample(action=full_actions, extras=full_extras, source="policy")
+        return ActionSample(action=full_actions, extras=full_extras, source=full_source)
 
     def train(
         self,

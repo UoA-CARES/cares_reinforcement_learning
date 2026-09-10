@@ -118,13 +118,19 @@ class DDPG(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        self.actor_net.eval()
+        self.act_counter = self.act_counter + 1 if not evaluation else self.act_counter
 
+        # Exploration phase: sample random actions
+        if self.act_counter <= self.max_steps_exploration and not evaluation:
+            return self._explore()
+
+        # Exploitation phase: use actor network
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = state_tensor.unsqueeze(0)  # Add batch dimension
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
@@ -134,7 +140,6 @@ class DDPG(SARLAlgorithm[np.ndarray]):
                 ).astype(np.float32)
                 action = action + noise
                 action = np.clip(action, -1, 1)
-
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")

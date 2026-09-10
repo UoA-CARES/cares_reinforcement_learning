@@ -39,6 +39,7 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
 
         self.config = config
 
+        self.act_counter = 0
         self.action_sampler: Callable[[], ActType] = action_sampler
 
         self.gamma = config.gamma
@@ -55,6 +56,13 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self.image_observation = config.image_observation
 
         self.device = device
+
+    def _explore(self) -> ActionSample[ActType]:
+        """
+        Exploration phase: sample random actions.
+        """
+        action = self.action_sampler()
+        return ActionSample(action=action, source="exploration")
 
     @abstractmethod
     def act(

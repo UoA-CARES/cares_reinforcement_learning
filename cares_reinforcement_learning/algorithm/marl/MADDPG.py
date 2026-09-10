@@ -441,6 +441,7 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
         avail_actions = observation.available_actions
 
         actions = {}
+        source = "policy"
 
         for agent_id in self.controlled_agent_ids:
             learning_unit_id = self.agent_id_to_actor_id[agent_id]
@@ -456,8 +457,9 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
             agent_sample = learning_unit.act(agent_observation, evaluation)
             actions[agent_id] = agent_sample.action
+            source = agent_sample.source
 
-        return ActionSample(action=actions, source="policy")
+        return ActionSample(action=actions, source=source)
 
     @staticmethod
     def _project_l2_ball(delta: torch.Tensor, eps: float) -> torch.Tensor:

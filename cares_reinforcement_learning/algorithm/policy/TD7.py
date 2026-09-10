@@ -222,10 +222,16 @@ class TD7(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        self.actor_net.eval()
+        self.act_counter = self.act_counter + 1 if not evaluation else self.act_counter
 
+        # Exploration phase: sample random actions
+        if self.act_counter <= self.max_steps_exploration and not evaluation:
+            return self._explore()
+
+        # Exploitation phase: use policy to select actions
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             # Fix: Use modern tensor creation
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
