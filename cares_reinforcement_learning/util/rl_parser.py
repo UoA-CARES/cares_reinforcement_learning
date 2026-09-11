@@ -7,6 +7,7 @@ import sys
 from argparse import Namespace
 from typing import Any, Union, get_args, get_origin
 
+from pydantic import BaseModel
 from pydantic_core import PydanticUndefined
 
 import cares_reinforcement_learning.envs.configurations as cfg
@@ -30,6 +31,13 @@ class RunConfig(SubscriptableClass):
     skip_prompts: bool = False
 
 
+def is_pydantic_model(annotation: Any) -> bool:
+    try:
+        return issubclass(annotation, BaseModel)
+    except TypeError:
+        return False
+
+
 def annotation_to_argparse_type(annotation: Any) -> type:
     """
     Convert a Pydantic v2 annotation into an argparse-compatible type function.
@@ -41,9 +49,7 @@ def annotation_to_argparse_type(annotation: Any) -> type:
         args = [a for a in get_args(annotation) if a is not type(None)]
         if len(args) == 1:
             return annotation_to_argparse_type(args[0])
-        else:
-            # Multi-type unions cannot map to a single type
-            return str
+        return str
 
     # Handle list inputs
     if origin is list:
@@ -57,6 +63,10 @@ def annotation_to_argparse_type(annotation: Any) -> type:
     # Basic built-in types
     if annotation in (int, float, str, bool):
         return annotation
+
+    # Nested Pydantic configuration
+    if is_pydantic_model(annotation):
+        return ast.literal_eval
 
     # Fallback
     return str
