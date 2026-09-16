@@ -20,9 +20,9 @@ CARES Reinforcement Learning provides a modular set of reinforcement learning al
 | Algorithm | Key Features | Reference |
 |-----------|--------------|-----------|
 | [PPO](ppo.md) | Clipped surrogate objective, GAE, on-policy | [Schulman et al., 2017](https://arxiv.org/abs/1707.06347) |
-| DDPG | Deterministic policy gradient | [Lillicrap et al., 2016](https://arxiv.org/abs/1509.02971) |
-| TD3 | Twin delayed DDPG, target policy smoothing | [Fujimoto et al., 2018](https://arxiv.org/abs/1802.09477) |
-| SAC | Soft actor-critic, maximum entropy | [Haarnoja et al., 2018](https://arxiv.org/abs/1801.01290) |
+| [DDPG](ddpg.md) | Deterministic policy gradient | [Lillicrap et al., 2016](https://arxiv.org/abs/1509.02971) |
+| [TD3](td3.md) | Twin delayed DDPG, target policy smoothing | [Fujimoto et al., 2018](https://arxiv.org/abs/1802.09477) |
+| [SAC](sac.md) | Soft actor-critic, maximum entropy | [Haarnoja et al., 2018](https://arxiv.org/abs/1801.01290) |
 | SACD | SAC for discrete action spaces | [Christodoulou, 2019](https://arxiv.org/abs/1910.07207) |
 | SACAE | SAC with an autoencoder for image observations | — |
 | TD3AE | TD3 with an autoencoder for image observations | — |
