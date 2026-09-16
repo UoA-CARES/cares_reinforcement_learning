@@ -8,6 +8,7 @@ from cares_reinforcement_learning.envs.marl.marl_environment import MARLEnvironm
 from cares_reinforcement_learning.envs.configurations import MultiF1TenthConfig
 from cares_reinforcement_learning.types.experience import MultiAgentExperience
 from cares_reinforcement_learning.types.observation import MARLObservation
+from cares_reinforcement_learning.util import helpers as hlp
 
 
 class F1TenthMARLEnvironment(MARLEnvironment):
@@ -102,7 +103,14 @@ class F1TenthMARLEnvironment(MARLEnvironment):
         return self.observation
 
     def step(self, action: dict[str, np.ndarray]) -> MultiAgentExperience:
-        obs_dict, rewards, terminateds, truncateds, infos = self.env.step(action)
+        denormalized_actions = {
+            agent: hlp.denormalize(action[agent], self.max_action_value[i], self.min_action_value[i])
+            for i, agent in enumerate(self.possible_agents)
+        }
+
+        print("RAW ACTIONS:", action)
+        print("DENORMALIZED ACTIONS:", denormalized_actions)
+        obs_dict, rewards, terminateds, truncateds, infos = self.env.step(denormalized_actions)
 
         next_observation = MARLObservation(
             global_state=self._build_global_state(obs_dict),
