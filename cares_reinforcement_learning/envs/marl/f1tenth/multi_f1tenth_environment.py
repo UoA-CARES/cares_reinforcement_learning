@@ -108,8 +108,6 @@ class F1TenthMARLEnvironment(MARLEnvironment):
             for i, agent in enumerate(self.possible_agents)
         }
 
-        print("RAW ACTIONS:", action)
-        print("DENORMALIZED ACTIONS:", denormalized_actions)
         obs_dict, rewards, terminateds, truncateds, infos = self.env.step(denormalized_actions)
 
         next_observation = MARLObservation(
