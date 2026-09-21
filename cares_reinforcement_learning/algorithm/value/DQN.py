@@ -281,6 +281,27 @@ class DQN(SARLAlgorithm[int]):
             info["q_value_next_std"] = best_next_q_values.std().item()
 
             # -------------------------------------------------
+            # Q-space statistics
+            # -------------------------------------------------
+
+            # Overall Q magnitude across all states and actions
+            info["q_all_mean"] = q_values.mean().item()
+            info["q_all_std"] = q_values.std().item()
+            info["q_all_min"] = q_values.min().item()
+            info["q_all_max"] = q_values.max().item()
+            info["q_all_abs_mean"] = q_values.abs().mean().item()
+
+            # Average range between best and worst action for each state
+            q_action_range = q_values.max(dim=1).values - q_values.min(dim=1).values
+
+            info["q_action_range_mean"] = q_action_range.mean().item()
+
+            # Per-action Q statistics across the sampled states
+            info["q_per_action_mean"] = q_values.mean(dim=0).cpu().tolist()
+
+            info["q_per_action_std"] = q_values.std(dim=0).cpu().tolist()
+
+            # -------------------------------------------------
             # TD target statistics
             # -------------------------------------------------
             info["q_target_mean"] = q_target.mean().item()
@@ -390,9 +411,11 @@ class DQN(SARLAlgorithm[int]):
 
         # Apply gradient clipping if max_grad_norm is set
         if self.max_grad_norm is not None:
-            torch.nn.utils.clip_grad_norm_(
+            grad_norm = torch.nn.utils.clip_grad_norm_(
                 self.network.parameters(), max_norm=self.max_grad_norm
             )
+            info["grad_norm"] = grad_norm.item()
+            info["grad_clipped"] = grad_norm.item() > self.max_grad_norm
 
         self.network_optimiser.step()
 
