@@ -113,6 +113,9 @@ class DQN(SARLAlgorithm[int]):
 
         self.learn_counter = 0
 
+    def _explore(self) -> int:
+        return random.randrange(self.network.num_actions)
+
     def _exploit(self, state: np.ndarray) -> int:
         self.network.eval()
         with torch.no_grad():
@@ -137,7 +140,7 @@ class DQN(SARLAlgorithm[int]):
             return ActionSample(action=self._exploit(state), source="policy")
 
         if random.random() < self.epsilon:
-            return self._explore()
+            return ActionSample(action=self._explore(), source="explore")
 
         return ActionSample(action=self._exploit(state), source="policy")
 
