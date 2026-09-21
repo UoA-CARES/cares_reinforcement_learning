@@ -197,42 +197,121 @@ class DQN(SARLAlgorithm[int]):
         # Logging / diagnostics (DQN)
         # -----------------------
         with torch.no_grad():
-            # Action histogram (batch-based)
-            greedy_actions = q_values.argmax(dim=1)  # [B]
+            info: dict[str, Any] = {}
+
+            # -------------------------------------------------
+            # Greedy action distribution
+            # -------------------------------------------------
+            greedy_actions = q_values.argmax(dim=1)
             num_actions = self.network.num_actions
-            counts = torch.bincount(greedy_actions, minlength=num_actions).float()
+
+            counts = torch.bincount(
+                greedy_actions,
+                minlength=num_actions,
+            ).float()
+
             probs = counts / counts.sum().clamp(min=1.0)
 
-            # Entropy: 0 = totally collapsed, higher = more spread
+            # 0 = same greedy action for every state
+            # higher = more diverse preferred actions
             entropy = -(probs * (probs + 1e-12).log()).sum()
 
-            td_error = best_q_values - q_target  # signed, shape [B]
-
-            # Logging Statistics
-            info: dict[str, Any] = {}
             info["greedy_action_entropy"] = entropy.item()
             info["greedy_action_max_prob"] = probs.max().item()
-            # Optional: full distribution (can be logged as list)
             info["greedy_action_probs"] = probs.cpu().tolist()
+
+            # Normalised entropy:
+            # 0 = complete action collapse
+            # 1 = evenly distributed greedy actions
+            if num_actions > 1:
+                info["greedy_action_entropy_normalised"] = (
+                    entropy / np.log(num_actions)
+                ).item()
+            else:
+                info["greedy_action_entropy_normalised"] = 0.0
+
+            # -------------------------------------------------
+            # Greedy action margin
+            # -------------------------------------------------
+            # Difference between the best and second-best Q-value.
+            # Larger values indicate a stronger action preference.
+            if num_actions > 1:
+                top_two_q_values = torch.topk(q_values, k=2, dim=1).values
+
+                action_margin = top_two_q_values[:, 0] - top_two_q_values[:, 1]
+
+                info["greedy_action_margin_mean"] = action_margin.mean().item()
+                info["greedy_action_margin_std"] = action_margin.std().item()
+            else:
+                info["greedy_action_margin_mean"] = 0.0
+                info["greedy_action_margin_std"] = 0.0
+
+            # -------------------------------------------------
+            # Action-value separation
+            # -------------------------------------------------
+            # Average spread of Q-values between available actions
+            # for each sampled state.
+            q_action_std = q_values.std(dim=1)
+
+            info["q_action_std_mean"] = q_action_std.mean().item()
+
+            # -------------------------------------------------
+            # TD error
+            # -------------------------------------------------
+            # Existing convention:
+            # Q(s,a) - target
+            td_error = q_target - best_q_values
 
             info["td_error_mean"] = td_error.mean().item()
             info["td_error_std"] = td_error.std().item()
             info["td_error_abs_mean"] = td_error.abs().mean().item()
 
+            # -------------------------------------------------
+            # Current Q-value statistics
+            # -------------------------------------------------
             info["q_value_mean"] = best_q_values.mean().item()
             info["q_value_max"] = best_q_values.max().item()
             info["q_value_std"] = best_q_values.std().item()
+
+            # -------------------------------------------------
+            # Next-state/bootstrap Q-value statistics
+            # -------------------------------------------------
             info["q_value_next_mean"] = best_next_q_values.mean().item()
             info["q_value_next_max"] = best_next_q_values.max().item()
             info["q_value_next_std"] = best_next_q_values.std().item()
+
+            # -------------------------------------------------
+            # TD target statistics
+            # -------------------------------------------------
             info["q_target_mean"] = q_target.mean().item()
             info["q_target_max"] = q_target.max().item()
             info["q_target_std"] = q_target.std().item()
+
+            # -------------------------------------------------
+            # Reward statistics
+            # -------------------------------------------------
             info["reward_mean"] = rewards_tensor.mean().item()
             info["reward_std"] = rewards_tensor.std().item()
-            info["overestimation_gap"] = (
-                (q_values.max(dim=1).values - best_next_q_values).mean().item()
+
+            reward_eps = 1e-8
+
+            info["reward_zero_fraction"] = (
+                (rewards_tensor.abs() <= reward_eps).float().mean().item()
             )
+
+            info["reward_positive_fraction"] = (
+                (rewards_tensor > reward_eps).float().mean().item()
+            )
+
+            info["reward_negative_fraction"] = (
+                (rewards_tensor < -reward_eps).float().mean().item()
+            )
+
+            # -------------------------------------------------
+            # Replay batch composition
+            # -------------------------------------------------
+            # Fraction of sampled transitions that are terminal.
+            info["terminal_fraction"] = dones_tensor.float().mean().item()
 
         return elementwise_loss, info
 
