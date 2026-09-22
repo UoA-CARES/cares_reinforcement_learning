@@ -247,7 +247,7 @@ class DQN(SARLAlgorithm[int]):
             # -------------------------------------------------
             # Average spread of Q-values between available actions
             # for each sampled state.
-            q_action_std = q_values.std(dim=1)
+            q_action_std = q_values.std(dim=1, unbiased=False)
 
             info["q_action_std_mean"] = q_action_std.mean().item()
 
