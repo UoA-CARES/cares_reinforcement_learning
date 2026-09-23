@@ -5,7 +5,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from cares_reinforcement_learning.encoders.configurations import (
-    BurgessConfig,
     VanillaAEConfig,
 )
 
@@ -134,7 +133,6 @@ class AlgorithmConfig(SubscriptableClass):
         G_model (int]): Updates per step UTD-ratio for MBRL.
         buffer_size (int]): Size of the memory buffer.
         batch_size (int]): Size of the training batch.
-        max_steps_exploration (int]): Maximum number of steps for exploration.
         max_steps_training (int]): Maximum number of steps for training.
         number_steps_per_train_policy (int]): Number of steps per updating the training policy.
 
@@ -156,7 +154,6 @@ class AlgorithmConfig(SubscriptableClass):
     buffer_size: int = 1000000
     batch_size: int = 256
 
-    max_steps_exploration: int = 1000
     max_steps_training: int = 1000000
 
     image_observation: int = 0
@@ -457,6 +454,8 @@ class SACConfig(AlgorithmConfig):
     gamma: float = 0.99
     tau: float = 0.005
     reward_scale: float = 1.0
+
+    max_steps_exploration: int = 1000
 
     log_std_bounds: list[float] = [-20, 2]
 
@@ -898,6 +897,8 @@ class DDPGConfig(AlgorithmConfig):
     action_noise_end: float = 0.05
     action_noise_decay: int = 1000000
 
+    max_steps_exploration: int = 1000
+
     gamma: float = 0.99
     tau: float = 0.005
 
@@ -938,6 +939,8 @@ class TD3Config(AlgorithmConfig):
     action_noise_start: float = 0.1
     action_noise_end: float = 0.1
     action_noise_decay: int = 1
+
+    max_steps_exploration: int = 1000
 
     # Target policy smoothing
     policy_noise_start: float = 0.2
@@ -1225,6 +1228,8 @@ class CTD4Config(TD3Config):
     action_noise_start: float = 0.1
     action_noise_end: float = 0.02
     action_noise_decay: int = 1000000
+
+    max_steps_exploration: int = 1000
 
     # Policy smoothing
     policy_noise_start: float = 0.2
@@ -1648,6 +1653,8 @@ class CrossMARLConfig(AlgorithmConfig):
     marl_observation: Literal[1] = Field(default=1)
 
     learning_team_name: str | None = None
+
+    max_steps_exploration: int = 0
 
     gamma: float = 0.99
 

@@ -98,6 +98,7 @@ class SDAR(SARLAlgorithm[np.ndarray]):
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
+        self.max_steps_exploration = config.max_steps_exploration
 
         # PER
         self.use_per_buffer = config.use_per_buffer
@@ -173,12 +174,6 @@ class SDAR(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        self.act_counter = self.act_counter + 1 if not evaluation else self.act_counter
-
-        # Exploration phase: sample random actions
-        if self.act_counter <= self.max_steps_exploration and not evaluation:
-            return self._explore()
-
         # Exploitation phase: use policy to select actions
         state = observation.vector_state
 
@@ -203,6 +198,16 @@ class SDAR(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step <= self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]

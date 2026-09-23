@@ -131,6 +131,13 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         action_sample.extras["skill"] = self.z
         return action_sample
 
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[np.ndarray]:
+        return self.act(observation, evaluation=False)
+
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state = replace(
             state, vector_state=self._concat_state_latent(state.vector_state)

@@ -148,6 +148,13 @@ class DQN(SARLAlgorithm[int]):
 
         return ActionSample(action=self._exploit(state), source="policy")
 
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[int]:
+        return self.act(observation, evaluation=False)
+
     def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
             state.vector_state, dtype=torch.float32, device=self.device

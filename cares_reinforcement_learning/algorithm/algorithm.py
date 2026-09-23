@@ -50,7 +50,6 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self.buffer_size = config.buffer_size
         self.batch_size = config.batch_size
 
-        self.max_steps_exploration = config.max_steps_exploration
         self.max_steps_training = config.max_steps_training
 
         self.image_observation = config.image_observation
@@ -69,6 +68,13 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self,
         observation: ObsType,
         evaluation: bool = False,
+    ) -> ActionSample[ActType]: ...
+
+    @abstractmethod
+    def train_act(
+        self,
+        observation: ObsType,
+        training_step: int,  # pylint: disable=unused-argument
     ) -> ActionSample[ActType]: ...
 
     def _fixed_step_bias_segments(

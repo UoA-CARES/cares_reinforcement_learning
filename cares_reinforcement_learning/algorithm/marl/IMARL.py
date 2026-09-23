@@ -188,6 +188,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         self._identity_tensor_cache: dict[
             tuple[str, str, torch.dtype], torch.Tensor
         ] = {}
+        self.max_steps_exploration = config.max_steps_exploration
 
     def _get_agent_network(self, agent_name: str) -> AgentType:
         learning_unit_id = self.agent_id_to_learning_unit_id[agent_name]
@@ -284,6 +285,16 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
             source = agent_sample.source
 
         return ActionSample(action=actions, source=source, extras=agent_extras)
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,
+    ) -> ActionSample[dict[str, np.ndarray]]:
+        if training_step <= self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _sample(
         self, memory_buffer: MARLMemoryBuffer

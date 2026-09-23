@@ -326,6 +326,7 @@ class MAPPOBatch:
 
 
 class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
+
     def __init__(
         self,
         learning_units: dict[str, PPO],
@@ -575,6 +576,13 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         return ActionSample(
             action=actions, source=source, extras={"log_prob": log_probs}
         )
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[dict[str, np.ndarray]]:
+        return self.act(observation, evaluation=False)
 
     def _update_critic_minibatch(
         self,

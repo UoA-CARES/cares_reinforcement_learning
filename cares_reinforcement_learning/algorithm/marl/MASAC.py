@@ -515,6 +515,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.max_steps_exploration = config.max_steps_exploration
 
         self.policy_update_freq = config.policy_update_freq
         self.target_update_freq = config.target_update_freq
@@ -551,6 +552,16 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
             source = agent_sample.source
 
         return ActionSample(action=actions, source=source)
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,
+    ) -> ActionSample[dict[str, np.ndarray]]:
+        if training_step <= self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _team_alpha(self, team_id: str) -> torch.Tensor:
         return self.team_log_alpha[team_id].exp()

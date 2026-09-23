@@ -77,7 +77,9 @@ class TrainingRunner(BaseRunner):
 
         # Algorithm Training parameters
         self.max_steps_training = self.alg_config.max_steps_training
-        self.max_steps_exploration = self.alg_config.max_steps_exploration
+        self.max_steps_exploration = getattr(
+            self.alg_config, "max_steps_exploration", 0
+        )
         self.number_steps_per_train_policy = (
             self.alg_config.number_steps_per_train_policy
         )
@@ -172,17 +174,19 @@ class TrainingRunner(BaseRunner):
 
         return action
 
-    def _select_policy_action(self, state) -> ActionSample:
+    def _select_policy_action(self, state, training_step: int) -> ActionSample:
         """Handle policy-based action selection."""
-        action = self.agent.act(state, evaluation=False)
+        action = self.agent.train_act(state, training_step=training_step)
 
         return action
 
-    def _select_action(self, episode_step: int, state) -> ActionSample:
+    def _select_action(
+        self, episode_step: int, state, training_step: int
+    ) -> ActionSample:
         if self.repetition_manager.should_repeat(episode_step):
             action = self._select_repetition_action(episode_step)
         else:
-            action = self._select_policy_action(state)
+            action = self._select_policy_action(state, training_step)
 
         return action
 
@@ -246,7 +250,11 @@ class TrainingRunner(BaseRunner):
             episode_stats.step()
 
             # Determine action based on training phase
-            action_sample = self._select_action(episode_stats.steps, state)
+            action_sample = self._select_action(
+                episode_stats.steps,
+                state,
+                train_step_counter,
+            )
 
             # Record action and execute step
             self.repetition_manager.record_action(action_sample)

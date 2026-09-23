@@ -110,6 +110,7 @@ class SACD(SARLAlgorithm[int]):
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
+        self.max_steps_exploration = config.max_steps_exploration
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -141,12 +142,6 @@ class SACD(SARLAlgorithm[int]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[int]:
-        self.act_counter = self.act_counter + 1 if not evaluation else self.act_counter
-
-        # Exploration phase: sample random actions
-        if self.act_counter <= self.max_steps_exploration and not evaluation:
-            return self._explore()
-
         # Exploitation phase: use policy to select actions
         state = observation.vector_state
 
@@ -163,6 +158,16 @@ class SACD(SARLAlgorithm[int]):
         self.actor_net.train()
 
         return ActionSample(action=action.item(), source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[int]:
+        if training_step <= self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     @property
     def alpha(self) -> torch.Tensor:
