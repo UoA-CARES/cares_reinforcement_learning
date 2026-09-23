@@ -187,6 +187,13 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
 
         return ActionSample(action=actions, source="policy")
 
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[dict[str, int]]:
+        return self.act(observation, evaluation=False)
+
     def _compute_loss(
         self,
         obs_tensors: torch.Tensor,
