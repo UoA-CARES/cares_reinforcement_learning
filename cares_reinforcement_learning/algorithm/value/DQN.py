@@ -120,40 +120,38 @@ class DQN(SARLAlgorithm[int]):
 
         self.learn_counter = 0
 
-    def _exploit(self, state: np.ndarray) -> int:
+    def act(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> ActionSample[int]:
+        """
+        Select the greedy action from the learned Q-function.
+        """
+        state = observation.vector_state
+
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
             action = int(torch.argmax(q_values, dim=1).item())
-
         self.network.train()
 
-        return action
-
-    def act(
-        self, observation: SARLObservation, evaluation: bool = False
-    ) -> ActionSample[int]:
-        """
-        Select an action from the policy based on epsilon-greedy strategy.
-        """
-        state = observation.vector_state
-
-        if evaluation:
-            return ActionSample(action=self._exploit(state), source="policy")
-
-        if random.random() < self.epsilon:
-            return self._explore()
-
-        return ActionSample(action=self._exploit(state), source="policy")
+        return ActionSample(action=action, source="policy")
 
     def train_act(
         self,
         observation: SARLObservation,
-        training_step: int,  # pylint: disable=unused-argument
+        training_step: int,
     ) -> ActionSample[int]:
-        return self.act(observation, evaluation=False)
+        """
+        Select an action for training using epsilon-greedy exploration.
+        """
+        self.epsilon = self.epsilon_scheduler.get_value(training_step)
+
+        if random.random() < self.epsilon:
+            return self._explore()
+
+        return self.act(observation)
 
     def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
@@ -351,10 +349,6 @@ class DQN(SARLAlgorithm[int]):
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
-
-        training_step = episode_context.training_step
-
-        self.epsilon = self.epsilon_scheduler.get_value(training_step)
 
         if len(memory_buffer) < self.batch_size:
             return {}

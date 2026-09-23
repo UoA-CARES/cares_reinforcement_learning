@@ -171,6 +171,8 @@ class TD3(SARLAlgorithm[np.ndarray]):
         if training_step <= self.max_steps_exploration:
             return self._explore()
 
+        self.action_noise = self.action_noise_scheduler.get_value(training_step)
+
         return self.act(observation, evaluation=False)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
@@ -374,10 +376,6 @@ class TD3(SARLAlgorithm[np.ndarray]):
         self.learn_counter += 1
 
         self.policy_noise = self.policy_noise_scheduler.get_value(
-            episode_context.training_step
-        )
-
-        self.action_noise = self.action_noise_scheduler.get_value(
             episode_context.training_step
         )
 
