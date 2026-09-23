@@ -144,7 +144,7 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         observation: SARLObservation,
         training_step: int,
     ) -> ActionSample[np.ndarray]:
-        if training_step <= self.max_steps_exploration:
+        if training_step < self.max_steps_exploration:
             return self._explore()
 
         return self.act(observation, evaluation=False)

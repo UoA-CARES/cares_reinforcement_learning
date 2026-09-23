@@ -1654,8 +1654,6 @@ class CrossMARLConfig(AlgorithmConfig):
 
     learning_team_name: str | None = None
 
-    max_steps_exploration: int = 0
-
     gamma: float = 0.99
 
     agents_config: dict[str, AlgorithmConfig] = Field(default_factory=dict)
