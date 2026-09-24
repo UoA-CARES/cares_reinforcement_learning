@@ -76,6 +76,7 @@ Notes:
 
 import logging
 import os
+from collections.abc import Callable
 from contextlib import contextmanager, nullcontext
 from typing import Any
 
@@ -107,9 +108,15 @@ class PPO(SARLAlgorithm[np.ndarray]):
         actor_network: Actor,
         critic_network: Critic,
         config: PPOConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -261,6 +268,13 @@ class PPO(SARLAlgorithm[np.ndarray]):
             source="policy",
             extras={"log_prob": float(log_prob.item()), "value": float(value.item())},
         )
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[np.ndarray]:
+        return self.act(observation, evaluation=False)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(

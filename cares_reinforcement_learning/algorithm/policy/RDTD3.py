@@ -65,6 +65,7 @@ RD-PER = PER with Reward Prediction Error
          replacing TD-error as the priority signal.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -72,11 +73,11 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import RDTD3Config
 from cares_reinforcement_learning.algorithm.policy import TD3
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import RDTD3Config
 
 
 class RDTD3(TD3):
@@ -85,9 +86,10 @@ class RDTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: RDTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(actor_network, critic_network, config, action_sampler, device)
         # RD-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0

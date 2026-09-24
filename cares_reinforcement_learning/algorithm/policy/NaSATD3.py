@@ -79,6 +79,7 @@ NaSA-TD3 = TD3 + Autoencoder + Novelty bonus + Surprise bonus.
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -91,8 +92,6 @@ from skimage.metrics import structural_similarity as ssim
 from torch import nn
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import NaSATD3Config
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
@@ -100,6 +99,7 @@ from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAut
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.types.action import ActionSample
@@ -116,12 +116,19 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         actor_network: Actor,
         critic_network: Critic,
         config: NaSATD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.max_steps_exploration = config.max_steps_exploration
 
         self.ensemble_size = config.ensemble_size
         self.intrinsic_on = config.intrinsic_on
@@ -210,7 +217,6 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
                 # this is part the TD3 too, add noise to the action
-                action += self.action_noise * np.random.randn(self.action_num)
                 noise = np.random.normal(
                     0, scale=self.action_noise, size=self.action_num
                 )
@@ -220,6 +226,18 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
         self.autoencoder.train()
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        self.action_noise = self.action_noise_scheduler.get_value(training_step)
+
+        return self.act(observation, evaluation=False)
 
     def _update_critic(
         self,
@@ -439,10 +457,6 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         self.learn_counter += 1
 
         self.policy_noise = self.policy_noise_scheduler.get_value(
-            episode_context.training_step
-        )
-
-        self.action_noise = self.action_noise_scheduler.get_value(
             episode_context.training_step
         )
 

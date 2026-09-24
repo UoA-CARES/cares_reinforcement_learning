@@ -53,11 +53,14 @@ DroQ = SAC + high update-to-data ratio
        + dropout-regularized critics.
 """
 
+from collections.abc import Callable
+
+import numpy as np
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import DroQConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.DroQ import Actor, Critic
-from cares_reinforcement_learning.algorithm.configurations import DroQConfig
 
 
 class DroQ(SAC):
@@ -66,6 +69,7 @@ class DroQ(SAC):
         actor_network: Actor,
         critic_network: Critic,
         config: DroQConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(actor_network, critic_network, config, action_sampler, device)

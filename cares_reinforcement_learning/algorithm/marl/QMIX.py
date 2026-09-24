@@ -51,6 +51,7 @@ import copy
 import logging
 import os
 import random
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -74,9 +75,15 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
         network: SharedMultiAgentNetwork,
         mixer: QMixer,
         config: QMIXConfig,
+        action_sampler: Callable[[], dict[str, int]],
         device: torch.device,
     ):
-        super().__init__(policy_type="value", config=config, device=device)
+        super().__init__(
+            policy_type="value",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)
@@ -133,19 +140,18 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
         return torch.stack(obs_list, dim=1)
 
     def act(
-        self, observation: MARLObservation, evaluation: bool = False
+        self,
+        observation: MARLObservation,
+        evaluation: bool = False,  # pylint: disable=unused-argument
     ) -> ActionSample[dict[str, int]]:
         """
-        Epsilon-greedy per-agent action selection.
-        Each agent decides independently whether to explore or exploit.
+        Select greedy actions from the learned per-agent Q-functions.
         """
         actions = {}
 
         agent_states = observation.agent_states
         agent_ids = list(agent_states.keys())
-        available_actions = observation.available_actions
 
-        # Get greedy actions for all agents once
         observation_tensors = memory_sampler.observation_to_tensors(
             [observation], self.device
         )
@@ -160,23 +166,40 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
         self.network.eval()
         with torch.no_grad():
             q_values = self.network(obs_tensors)  # [1, num_agents, num_actions]
+
             mask = avail_actions_tensors == 0
             q_values = q_values.masked_fill(mask, -1e9)
-            greedy_actions = q_values.argmax(dim=2).squeeze(0)  # [num_agents]
+
+            greedy_actions = q_values.argmax(dim=2).squeeze(0)
+
         self.network.train()
 
         for agent_id in range(self.num_agents):
-            agent_name = agent_ids[agent_id]  # consistent ordering in dict
-            if evaluation:
-                # Always exploit in evaluation mode
-                actions[agent_name] = int(greedy_actions[agent_id])
-            else:
-                # Each agent decides independently
-                if random.random() < self.epsilon:
-                    avail_actions_ind = np.nonzero(available_actions[agent_name])[0]
-                    actions[agent_name] = int(np.random.choice(avail_actions_ind))
-                else:
-                    actions[agent_name] = int(greedy_actions[agent_id])
+            agent_name = agent_ids[agent_id]
+            actions[agent_name] = int(greedy_actions[agent_id])
+
+        return ActionSample(action=actions, source="policy")
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,
+    ) -> ActionSample[dict[str, int]]:
+        """
+        Select training actions using per-agent epsilon-greedy exploration.
+        """
+        self.epsilon = self.epsilon_scheduler.get_value(training_step)
+
+        action_sample = self.act(observation)
+        actions = action_sample.action.copy()
+
+        available_actions = observation.available_actions
+
+        for agent_name in actions:
+            if random.random() < self.epsilon:
+                available = np.nonzero(available_actions[agent_name])[0]
+
+                actions[agent_name] = int(np.random.choice(available))
 
         return ActionSample(action=actions, source="policy")
 

@@ -49,16 +49,16 @@ Scope:
 LAP = PER + Huber critic loss + clipped priorities.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.algorithm.lossess as loss
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.configurations import LAPSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 
 
@@ -68,12 +68,14 @@ class LAPSAC(SAC):
         actor_network: Actor,
         critic_network: Critic,
         config: LAPSACConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=critic_network,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

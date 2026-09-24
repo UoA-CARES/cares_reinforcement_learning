@@ -6,6 +6,7 @@ with their corresponding network architectures.
 import inspect
 import logging
 import sys
+from collections.abc import Callable
 
 import numpy as np
 
@@ -20,40 +21,54 @@ import cares_reinforcement_learning.util.helpers as hlp
 ###################################
 #         DQN Algorithms          #
 ###################################
-def create_DQN(observation_size, action_num, config: acf.DQNConfig):
+def create_DQN(
+    observation_size, action_num, config: acf.DQNConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import DQN
     from cares_reinforcement_learning.networks.DQN import Network
 
     network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
-    agent = DQN(network=network, config=config, device=device)
+    agent = DQN(
+        network=network, config=config, action_sampler=action_sampler, device=device
+    )
     return agent
 
 
-def create_PERDQN(observation_size, action_num, config: acf.PERDQNConfig):
+def create_PERDQN(
+    observation_size, action_num, config: acf.PERDQNConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import PERDQN
     from cares_reinforcement_learning.networks.PERDQN import Network
 
     network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
-    agent = PERDQN(network=network, config=config, device=device)
+    agent = PERDQN(
+        network=network, config=config, action_sampler=action_sampler, device=device
+    )
     return agent
 
 
-def create_DuelingDQN(observation_size, action_num, config: acf.DuelingDQNConfig):
+def create_DuelingDQN(
+    observation_size, action_num, config: acf.DuelingDQNConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import DuelingDQN
     from cares_reinforcement_learning.networks.DuelingDQN import Network
 
     network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
-    agent = DuelingDQN(network=network, config=config, device=device)
+    agent = DuelingDQN(
+        network=network, config=config, action_sampler=action_sampler, device=device
+    )
     return agent
 
 
-def create_DoubleDQN(observation_size, action_num, config: acf.DoubleDQNConfig):
+def create_DoubleDQN(
+    observation_size, action_num, config: acf.DoubleDQNConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import DoubleDQN
     from cares_reinforcement_learning.networks.DoubleDQN import Network
 
@@ -63,52 +78,69 @@ def create_DoubleDQN(observation_size, action_num, config: acf.DoubleDQNConfig):
     agent = DoubleDQN(
         network=network,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_NoisyNet(observation_size, action_num, config: acf.NoisyNetConfig):
+def create_NoisyNet(
+    observation_size, action_num, config: acf.NoisyNetConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import NoisyNet
     from cares_reinforcement_learning.networks.NoisyNet import Network
 
     network = Network(observation_size["vector"], action_num, config)
 
     device = hlp.get_device()
-    agent = NoisyNet(network=network, config=config, device=device)
+    agent = NoisyNet(
+        network=network, config=config, action_sampler=action_sampler, device=device
+    )
     return agent
 
 
-def create_C51(observation_size, action_num, config: acf.C51Config):
+def create_C51(
+    observation_size, action_num, config: acf.C51Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import C51
     from cares_reinforcement_learning.networks.C51 import Network
 
     network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
-    agent = C51(network=network, config=config, device=device)
+    agent = C51(
+        network=network, config=config, action_sampler=action_sampler, device=device
+    )
     return agent
 
 
-def create_QRDQN(observation_size, action_num, config: acf.QRDQNConfig):
+def create_QRDQN(
+    observation_size, action_num, config: acf.QRDQNConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import QRDQN
     from cares_reinforcement_learning.networks.QRDQN import Network
 
     network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
-    agent = QRDQN(network=network, config=config, device=device)
+    agent = QRDQN(
+        network=network, config=config, action_sampler=action_sampler, device=device
+    )
     return agent
 
 
-def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
+def create_Rainbow(
+    observation_size, action_num, config: acf.RainbowConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.value import Rainbow
     from cares_reinforcement_learning.networks.Rainbow import Network
 
     network = Network(observation_size["vector"], action_num, config=config)
 
     device = hlp.get_device()
-    agent = Rainbow(network=network, config=config, device=device)
+    agent = Rainbow(
+        network=network, config=config, action_sampler=action_sampler, device=device
+    )
     return agent
 
 
@@ -117,7 +149,9 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
 ###################################
 
 
-def create_PPO(observation_size, action_num, config: acf.PPOConfig):
+def create_PPO(
+    observation_size, action_num, config: acf.PPOConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import PPO
     from cares_reinforcement_learning.networks.PPO import Actor, Critic
 
@@ -129,6 +163,7 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
@@ -139,7 +174,9 @@ def create_PPO(observation_size, action_num, config: acf.PPOConfig):
 ###################################
 
 
-def create_SAC(observation_size, action_num, config: acf.SACConfig):
+def create_SAC(
+    observation_size, action_num, config: acf.SACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import SAC
     from cares_reinforcement_learning.networks.SAC import Actor, Critic
 
@@ -151,12 +188,15 @@ def create_SAC(observation_size, action_num, config: acf.SACConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
+def create_SACAE(
+    observation_size, action_num, config: acf.SACAEConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import SACAE
     from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
     from cares_reinforcement_learning.networks.SACAE import Actor, Critic
@@ -180,12 +220,15 @@ def create_SACAE(observation_size, action_num, config: acf.SACAEConfig):
         critic_network=critic,
         decoder_network=decoder,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
+def create_PERSAC(
+    observation_size, action_num, config: acf.PERSACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import PERSAC
     from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
 
@@ -197,12 +240,15 @@ def create_PERSAC(observation_size, action_num, config: acf.PERSACConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
+def create_REDQ(
+    observation_size, action_num, config: acf.REDQConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import REDQ
     from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 
@@ -214,12 +260,15 @@ def create_REDQ(observation_size, action_num, config: acf.REDQConfig):
         actor_network=actor,
         ensemble_critic=ensemble_critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_TQC(observation_size, action_num, config: acf.TQCConfig):
+def create_TQC(
+    observation_size, action_num, config: acf.TQCConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import TQC
     from cares_reinforcement_learning.networks.TQC import Actor, Critic
 
@@ -231,12 +280,15 @@ def create_TQC(observation_size, action_num, config: acf.TQCConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_LAPSAC(observation_size, action_num, config: acf.LAPSACConfig):
+def create_LAPSAC(
+    observation_size, action_num, config: acf.LAPSACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import LAPSAC
     from cares_reinforcement_learning.networks.LAPSAC import Actor, Critic
 
@@ -248,12 +300,15 @@ def create_LAPSAC(observation_size, action_num, config: acf.LAPSACConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_LA3PSAC(observation_size, action_num, config: acf.LA3PSACConfig):
+def create_LA3PSAC(
+    observation_size, action_num, config: acf.LA3PSACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import LA3PSAC
     from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 
@@ -265,12 +320,15 @@ def create_LA3PSAC(observation_size, action_num, config: acf.LA3PSACConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_MAPERSAC(observation_size, action_num, config: acf.MAPERSACConfig):
+def create_MAPERSAC(
+    observation_size, action_num, config: acf.MAPERSACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import MAPERSAC
     from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 
@@ -282,12 +340,15 @@ def create_MAPERSAC(observation_size, action_num, config: acf.MAPERSACConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_RDSAC(observation_size, action_num, config: acf.RDSACConfig):
+def create_RDSAC(
+    observation_size, action_num, config: acf.RDSACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import RDSAC
     from cares_reinforcement_learning.networks.RDSAC import Actor, Critic
 
@@ -299,12 +360,15 @@ def create_RDSAC(observation_size, action_num, config: acf.RDSACConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_DroQ(observation_size, action_num, config: acf.DroQConfig):
+def create_DroQ(
+    observation_size, action_num, config: acf.DroQConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import DroQ
     from cares_reinforcement_learning.networks.DroQ import Actor, Critic
 
@@ -316,12 +380,15 @@ def create_DroQ(observation_size, action_num, config: acf.DroQConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
+def create_CrossQ(
+    observation_size, action_num, config: acf.CrossQConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import CrossQ
     from cares_reinforcement_learning.networks.CrossQ import Actor, Critic
 
@@ -333,12 +400,15 @@ def create_CrossQ(observation_size, action_num, config: acf.CrossQConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_SDAR(observation_size, action_num, config: acf.SDARConfig):
+def create_SDAR(
+    observation_size, action_num, config: acf.SDARConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import SDAR
     from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 
@@ -350,12 +420,15 @@ def create_SDAR(observation_size, action_num, config: acf.SDARConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_SACD(observation_size, action_num, config: acf.SACDConfig):
+def create_SACD(
+    observation_size, action_num, config: acf.SACDConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import SACD
     from cares_reinforcement_learning.networks.SACD import Actor, Critic
 
@@ -367,12 +440,15 @@ def create_SACD(observation_size, action_num, config: acf.SACDConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
+def create_DIAYN(
+    observation_size, action_num, config: acf.DIAYNConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.usd import DIAYN
     from cares_reinforcement_learning.networks.DIAYN import Discriminator
 
@@ -380,7 +456,9 @@ def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
         "vector": observation_size["vector"] + config.num_skills,
     }
 
-    agent = create_SAC(sac_observation_size, action_num, config=config)
+    agent = create_SAC(
+        sac_observation_size, action_num, config=config, action_sampler=action_sampler
+    )
 
     discriminator = Discriminator(observation_size["vector"], config=config)
 
@@ -389,12 +467,15 @@ def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
         skills_agent=agent,
         discriminator_network=discriminator,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_DADS(observation_size, action_num, config: acf.DADSConfig):
+def create_DADS(
+    observation_size, action_num, config: acf.DADSConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.usd import DADS
     from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 
@@ -402,7 +483,9 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
         "vector": observation_size["vector"] + config.z_dim,
     }
 
-    agent = create_SAC(sac_observation_size, action_num, config=config)
+    agent = create_SAC(
+        sac_observation_size, action_num, config=config, action_sampler=action_sampler
+    )
 
     discriminator = SkillDynamicsModel(
         observation_size=observation_size["vector"],
@@ -414,6 +497,7 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
         skills_agent=agent,
         discriminator_network=discriminator,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
@@ -424,7 +508,9 @@ def create_DADS(observation_size, action_num, config: acf.DADSConfig):
 ###################################
 
 
-def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
+def create_DDPG(
+    observation_size, action_num, config: acf.DDPGConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import DDPG
     from cares_reinforcement_learning.networks.DDPG import Actor, Critic
 
@@ -436,12 +522,15 @@ def create_DDPG(observation_size, action_num, config: acf.DDPGConfig):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_TD3(observation_size, action_num, config: acf.TD3Config):
+def create_TD3(
+    observation_size, action_num, config: acf.TD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import TD3
     from cares_reinforcement_learning.networks.TD3 import Actor, Critic
 
@@ -453,12 +542,15 @@ def create_TD3(observation_size, action_num, config: acf.TD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
+def create_TD3AE(
+    observation_size, action_num, config: acf.TD3AEConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import TD3AE
     from cares_reinforcement_learning.encoders.vanilla_autoencoder import Decoder
     from cares_reinforcement_learning.networks.TD3AE import Actor, Critic
@@ -482,12 +574,15 @@ def create_TD3AE(observation_size, action_num, config: acf.TD3AEConfig):
         critic_network=critic,
         decoder_network=decoder,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_NaSATD3(observation_size, action_num, config: acf.NaSATD3Config):
+def create_NaSATD3(
+    observation_size, action_num, config: acf.NaSATD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import NaSATD3
     from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 
@@ -499,12 +594,15 @@ def create_NaSATD3(observation_size, action_num, config: acf.NaSATD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_PERTD3(observation_size, action_num, config: acf.PERTD3Config):
+def create_PERTD3(
+    observation_size, action_num, config: acf.PERTD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import PERTD3
     from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
 
@@ -516,12 +614,15 @@ def create_PERTD3(observation_size, action_num, config: acf.PERTD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_LAPTD3(observation_size, action_num, config: acf.LAPTD3Config):
+def create_LAPTD3(
+    observation_size, action_num, config: acf.LAPTD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import LAPTD3
     from cares_reinforcement_learning.networks.LAPTD3 import Actor, Critic
 
@@ -533,12 +634,15 @@ def create_LAPTD3(observation_size, action_num, config: acf.LAPTD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_PALTD3(observation_size, action_num, config: acf.PALTD3Config):
+def create_PALTD3(
+    observation_size, action_num, config: acf.PALTD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import PALTD3
     from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
 
@@ -550,12 +654,15 @@ def create_PALTD3(observation_size, action_num, config: acf.PALTD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_LA3PTD3(observation_size, action_num, config: acf.LA3PTD3Config):
+def create_LA3PTD3(
+    observation_size, action_num, config: acf.LA3PTD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import LA3PTD3
     from cares_reinforcement_learning.networks.LA3PTD3 import Actor, Critic
 
@@ -567,12 +674,15 @@ def create_LA3PTD3(observation_size, action_num, config: acf.LA3PTD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_MAPERTD3(observation_size, action_num, config: acf.MAPERTD3Config):
+def create_MAPERTD3(
+    observation_size, action_num, config: acf.MAPERTD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import MAPERTD3
     from cares_reinforcement_learning.networks.MAPERTD3 import Actor, Critic
 
@@ -584,12 +694,15 @@ def create_MAPERTD3(observation_size, action_num, config: acf.MAPERTD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_RDTD3(observation_size, action_num, config: acf.RDTD3Config):
+def create_RDTD3(
+    observation_size, action_num, config: acf.RDTD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import RDTD3
     from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 
@@ -601,12 +714,15 @@ def create_RDTD3(observation_size, action_num, config: acf.RDTD3Config):
         actor_network=actor,
         critic_network=critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return agent
 
 
-def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
+def create_CTD4(
+    observation_size, action_num, config: acf.CTD4Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import CTD4
     from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 
@@ -619,13 +735,16 @@ def create_CTD4(observation_size, action_num, config: acf.CTD4Config):
         actor_network=actor,
         ensemble_critic=ensemble_critic,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
 
     return agent
 
 
-def create_TD7(observation_size, action_num, config: acf.TD7Config):
+def create_TD7(
+    observation_size, action_num, config: acf.TD7Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.policy import TD7
     from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 
@@ -640,6 +759,7 @@ def create_TD7(observation_size, action_num, config: acf.TD7Config):
         critic_network=critic,
         encoder_network=encoder,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
 
@@ -832,6 +952,7 @@ def _build_learning_units(
     observation_size,
     action_num: int,
     config,
+    action_sampler: Callable,
     device,
     Algorithm,
     Actor,
@@ -931,13 +1052,16 @@ def _build_learning_units(
             actor_network=actor,
             critic_network=critic,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
     return learning_units
 
 
-def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
+def create_MADDPG(
+    observation_size, action_num, config: acf.MADDPGConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import MADDPG
     from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
     from cares_reinforcement_learning.networks.MADDPG import Actor, Critic
@@ -964,6 +1088,7 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
         observation_size=observation_size,
         action_num=action_num,
         config=config,
+        action_sampler=action_sampler,
         device=device,
         Algorithm=DDPG,
         Actor=Actor,
@@ -979,11 +1104,14 @@ def create_MADDPG(observation_size, action_num, config: acf.MADDPGConfig):
         agent_id_to_critic_id=agent_id_to_critic_id,
         critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
 
 
-def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
+def create_M3DDPG(
+    observation_size, action_num, config: acf.M3DDPGConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import M3DDPG
     from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
     from cares_reinforcement_learning.networks.M3DDPG import Actor, Critic
@@ -1010,6 +1138,7 @@ def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
         observation_size=observation_size,
         action_num=action_num,
         config=config,
+        action_sampler=action_sampler,
         device=device,
         Algorithm=DDPG,
         Actor=Actor,
@@ -1025,11 +1154,14 @@ def create_M3DDPG(observation_size, action_num, config: acf.M3DDPGConfig):
         agent_id_to_critic_id=agent_id_to_critic_id,
         critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
 
 
-def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
+def create_MATD3(
+    observation_size, action_num, config: acf.MATD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import MATD3
     from cares_reinforcement_learning.algorithm.policy.TD3 import TD3
     from cares_reinforcement_learning.networks.MATD3 import Actor, Critic
@@ -1056,6 +1188,7 @@ def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
         observation_size=observation_size,
         action_num=action_num,
         config=config,
+        action_sampler=action_sampler,
         device=device,
         Algorithm=TD3,
         Actor=Actor,
@@ -1071,11 +1204,14 @@ def create_MATD3(observation_size, action_num, config: acf.MATD3Config):
         agent_id_to_critic_id=agent_id_to_critic_id,
         critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
 
 
-def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
+def create_MASAC(
+    observation_size, action_num, config: acf.MASACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl.MASAC import MASAC
     from cares_reinforcement_learning.algorithm.policy.SAC import SAC
     from cares_reinforcement_learning.networks.MASAC import Actor, Critic
@@ -1102,6 +1238,7 @@ def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
         observation_size=observation_size,
         action_num=action_num,
         config=config,
+        action_sampler=action_sampler,
         device=device,
         Algorithm=SAC,
         Actor=Actor,
@@ -1117,11 +1254,14 @@ def create_MASAC(observation_size, action_num, config: acf.MASACConfig):
         agent_id_to_critic_id=agent_id_to_critic_id,
         critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
 
 
-def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
+def create_MAPPO(
+    observation_size, action_num, config: acf.MAPPOConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import MAPPO
     from cares_reinforcement_learning.algorithm.policy.PPO import PPO
     from cares_reinforcement_learning.networks.MAPPO import Actor, Critic
@@ -1148,6 +1288,7 @@ def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
         observation_size=observation_size,
         action_num=action_num,
         config=config,
+        action_sampler=action_sampler,
         device=device,
         Algorithm=PPO,
         Actor=Actor,
@@ -1164,15 +1305,18 @@ def create_MAPPO(observation_size, action_num, config: acf.MAPPOConfig):
         agent_id_to_critic_id=agent_id_to_critic_id,
         critic_id_to_agent_ids=critic_id_to_agent_ids,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
 
 
-def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
+def create_QMIX(
+    observation_size, action_num, config: acf.QMIXConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import QMIX
     from cares_reinforcement_learning.networks.QMIX import (
-        SharedMultiAgentNetwork,
         QMixer,
+        SharedMultiAgentNetwork,
     )
 
     network = SharedMultiAgentNetwork(
@@ -1184,12 +1328,22 @@ def create_QMIX(observation_size, action_num, config: acf.QMIXConfig):
     mixer = QMixer(observation_size=observation_size, config=config)
 
     device = hlp.get_device()
-    agent = QMIX(network=network, mixer=mixer, config=config, device=device)
+    agent = QMIX(
+        network=network,
+        mixer=mixer,
+        config=config,
+        action_sampler=action_sampler,
+        device=device,
+    )
     return agent
 
 
 def _create_independant_agents(
-    observation_size, action_num, create_network, config: acf.AlgorithmConfig
+    observation_size,
+    action_num,
+    create_network,
+    action_sampler,
+    config: acf.AlgorithmConfig,
 ):
     obs_shapes = observation_size["obs"]  # dict[str → obs_dim]
 
@@ -1201,6 +1355,7 @@ def _create_independant_agents(
             observation_size=agent_obs,
             action_num=action_num,
             config=config,
+            action_sampler=action_sampler,
         )
         agents[agent_name] = network
 
@@ -1211,6 +1366,7 @@ def _create_imarl_learning_units(
     observation_size,
     action_num,
     create_network,
+    action_sampler,
     config,
 ) -> tuple[
     dict[str, object],
@@ -1246,6 +1402,7 @@ def _create_imarl_learning_units(
             observation_size,
             action_num,
             create_network,
+            action_sampler,
             config,
         )
         agent_id_to_learning_unit_id = {
@@ -1290,6 +1447,7 @@ def _create_imarl_learning_units(
         observation_size=shared_observation_size,
         action_num=action_num,
         config=config,
+        action_sampler=action_sampler,
     )
 
     learning_units = {"shared": shared_learning_unit}
@@ -1304,7 +1462,9 @@ def _create_imarl_learning_units(
     )
 
 
-def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
+def create_IDDPG(
+    observation_size, action_num, config: acf.IDDPGConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import IDDPG
 
     device = hlp.get_device()
@@ -1315,7 +1475,9 @@ def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
         agent_identity_vectors,
         team_identity_vectors,
         agent_id_to_team_id,
-    ) = _create_imarl_learning_units(observation_size, action_num, create_DDPG, config)
+    ) = _create_imarl_learning_units(
+        observation_size, action_num, create_DDPG, action_sampler, config
+    )
 
     iddpg_agent = IDDPG(
         learning_units=learning_units,
@@ -1325,12 +1487,15 @@ def create_IDDPG(observation_size, action_num, config: acf.IDDPGConfig):
         team_identity_vectors=team_identity_vectors,
         agent_id_to_team_id=agent_id_to_team_id,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return iddpg_agent
 
 
-def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
+def create_ITD3(
+    observation_size, action_num, config: acf.ITD3Config, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import ITD3
 
     device = hlp.get_device()
@@ -1341,7 +1506,9 @@ def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
         agent_identity_vectors,
         team_identity_vectors,
         agent_id_to_team_id,
-    ) = _create_imarl_learning_units(observation_size, action_num, create_TD3, config)
+    ) = _create_imarl_learning_units(
+        observation_size, action_num, create_TD3, action_sampler, config
+    )
 
     itd3_agent = ITD3(
         learning_units=learning_units,
@@ -1351,12 +1518,15 @@ def create_ITD3(observation_size, action_num, config: acf.ITD3Config):
         team_identity_vectors=team_identity_vectors,
         agent_id_to_team_id=agent_id_to_team_id,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return itd3_agent
 
 
-def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
+def create_ISAC(
+    observation_size, action_num, config: acf.ISACConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import ISAC
 
     device = hlp.get_device()
@@ -1367,7 +1537,9 @@ def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
         agent_identity_vectors,
         team_identity_vectors,
         agent_id_to_team_id,
-    ) = _create_imarl_learning_units(observation_size, action_num, create_SAC, config)
+    ) = _create_imarl_learning_units(
+        observation_size, action_num, create_SAC, action_sampler, config
+    )
 
     isac_agent = ISAC(
         learning_units=learning_units,
@@ -1377,12 +1549,15 @@ def create_ISAC(observation_size, action_num, config: acf.ISACConfig):
         team_identity_vectors=team_identity_vectors,
         agent_id_to_team_id=agent_id_to_team_id,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return isac_agent
 
 
-def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
+def create_IPPO(
+    observation_size, action_num, config: acf.IPPOConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import IPPO
 
     device = hlp.get_device()
@@ -1393,7 +1568,9 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
         agent_identity_vectors,
         team_identity_vectors,
         agent_id_to_team_id,
-    ) = _create_imarl_learning_units(observation_size, action_num, create_PPO, config)
+    ) = _create_imarl_learning_units(
+        observation_size, action_num, create_PPO, action_sampler, config
+    )
 
     ippo_agent = IPPO(
         learning_units=learning_units,
@@ -1403,12 +1580,15 @@ def create_IPPO(observation_size, action_num, config: acf.IPPOConfig):
         team_identity_vectors=team_identity_vectors,
         agent_id_to_team_id=agent_id_to_team_id,
         config=config,
+        action_sampler=action_sampler,
         device=device,
     )
     return ippo_agent
 
 
-def create_CrossMARL(observation_size, action_num, config: acf.CrossMARLConfig):
+def create_CrossMARL(
+    observation_size, action_num, config: acf.CrossMARLConfig, action_sampler: Callable
+):
     from cares_reinforcement_learning.algorithm.marl import CrossMARL
 
     device = hlp.get_device()
@@ -1443,11 +1623,16 @@ def create_CrossMARL(observation_size, action_num, config: acf.CrossMARLConfig):
             observation_size=agent_obs,
             action_num=action_num,
             config=config.agents_config[team_name],
+            action_sampler=action_sampler,
         )
         agents[team_name] = agent
 
     multimarl_agent = CrossMARL(
-        agent_networks=agents, env_teams=env_teams, config=config, device=device
+        agent_networks=agents,
+        env_teams=env_teams,
+        config=config,
+        action_sampler=action_sampler,
+        device=device,
     )
     return multimarl_agent
 
@@ -1478,6 +1663,7 @@ class AlgorithmFactory:
         observation_size,
         action_num: int,
         config: acf.AlgorithmConfig,
+        action_sampler: Callable,
     ):
         algorithm = config.algorithm
 
@@ -1485,7 +1671,7 @@ class AlgorithmFactory:
         for name, obj in inspect.getmembers(sys.modules[__name__]):
             if inspect.isfunction(obj):
                 if name == f"create_{algorithm}":
-                    agent = obj(observation_size, action_num, config)
+                    agent = obj(observation_size, action_num, config, action_sampler)
 
         if agent is None:
             logging.warning(f"Unknown {algorithm} algorithm.")

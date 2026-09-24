@@ -50,6 +50,7 @@ import copy
 import logging
 import os
 import random
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -72,9 +73,15 @@ class DQN(SARLAlgorithm[int]):
         self,
         network: BaseNetwork,
         config: DQNConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(policy_type="value", config=config, device=device)
+        super().__init__(
+            policy_type="value",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.network = network.to(device)
         self.target_network = copy.deepcopy(self.network).to(device)
@@ -113,36 +120,38 @@ class DQN(SARLAlgorithm[int]):
 
         self.learn_counter = 0
 
-    def _explore(self) -> int:
-        return random.randrange(self.network.num_actions)
+    def act(
+        self, observation: SARLObservation, evaluation: bool = False
+    ) -> ActionSample[int]:
+        """
+        Select the greedy action from the learned Q-function.
+        """
+        state = observation.vector_state
 
-    def _exploit(self, state: np.ndarray) -> int:
         self.network.eval()
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
             action = int(torch.argmax(q_values, dim=1).item())
-
         self.network.train()
 
-        return action
+        return ActionSample(action=action, source="policy")
 
-    def act(
-        self, observation: SARLObservation, evaluation: bool = False
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
     ) -> ActionSample[int]:
         """
-        Select an action from the policy based on epsilon-greedy strategy.
+        Select an action for training using epsilon-greedy exploration.
         """
-        state = observation.vector_state
-
-        if evaluation:
-            return ActionSample(action=self._exploit(state), source="policy")
+        self.epsilon = self.epsilon_scheduler.get_value(training_step)
 
         if random.random() < self.epsilon:
-            return ActionSample(action=self._explore(), source="explore")
+            return self._explore()
 
-        return ActionSample(action=self._exploit(state), source="policy")
+        return self.act(observation)
 
     def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
@@ -340,10 +349,6 @@ class DQN(SARLAlgorithm[int]):
         info: dict[str, Any] = {}
 
         self.learn_counter += 1
-
-        training_step = episode_context.training_step
-
-        self.epsilon = self.epsilon_scheduler.get_value(training_step)
 
         if len(memory_buffer) < self.batch_size:
             return {}

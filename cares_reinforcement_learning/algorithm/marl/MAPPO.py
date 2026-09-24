@@ -288,6 +288,7 @@ Compared to deterministic methods such as MADDPG/MATD3, MAPPO is typically:
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -325,6 +326,7 @@ class MAPPOBatch:
 
 
 class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
+
     def __init__(
         self,
         learning_units: dict[str, PPO],
@@ -335,9 +337,15 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_id_to_critic_id: dict[str, str],
         critic_id_to_agent_ids: dict[str, list[str]],
         config: MAPPOConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # Physical trainable containers.
         #
@@ -544,6 +552,7 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         actions = {}
         log_probs = {}
+        source = "policy"
 
         for agent_id in self.controlled_agent_ids:
             learning_unit_id = self.agent_id_to_actor_id[agent_id]
@@ -562,10 +571,18 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
             )
             actions[agent_id] = agent_sample.action
             log_probs[agent_id] = agent_sample.extras["log_prob"]
+            source = agent_sample.source
 
         return ActionSample(
-            action=actions, source="policy", extras={"log_prob": log_probs}
+            action=actions, source=source, extras={"log_prob": log_probs}
         )
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[dict[str, np.ndarray]]:
+        return self.act(observation, evaluation=False)
 
     def _update_critic_minibatch(
         self,

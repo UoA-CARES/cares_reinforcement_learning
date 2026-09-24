@@ -233,6 +233,7 @@ Compared to MADDPG/MATD3, MASAC is typically:
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -288,9 +289,15 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_id_to_critic_id: dict[str, str],
         critic_id_to_agent_ids: dict[str, list[str]],
         config: MASACConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # Physical trainable containers.
         #
@@ -508,6 +515,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.max_steps_exploration = config.max_steps_exploration
 
         self.policy_update_freq = config.policy_update_freq
         self.target_update_freq = config.target_update_freq
@@ -525,6 +533,7 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
         avail_actions = observation.available_actions
 
         actions = {}
+        source = "policy"
 
         for agent_id in self.controlled_agent_ids:
             learning_unit_id = self.agent_id_to_actor_id[agent_id]
@@ -540,8 +549,19 @@ class MASAC(MARLAlgorithm[dict[str, np.ndarray]]):
 
             agent_sample = learning_unit.act(agent_observation, evaluation)
             actions[agent_id] = agent_sample.action
+            source = agent_sample.source
 
-        return ActionSample(action=actions, source="policy")
+        return ActionSample(action=actions, source=source)
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,
+    ) -> ActionSample[dict[str, np.ndarray]]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _team_alpha(self, team_id: str) -> torch.Tensor:
         return self.team_log_alpha[team_id].exp()

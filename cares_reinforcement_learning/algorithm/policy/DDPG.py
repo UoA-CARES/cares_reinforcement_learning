@@ -49,6 +49,7 @@ DDPG = Deterministic Actor-Critic + Replay Buffer + Target Networks.
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -76,9 +77,15 @@ class DDPG(SARLAlgorithm[np.ndarray]):
         actor_network: Actor,
         critic_network: Critic,
         config: DDPGConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
@@ -88,6 +95,7 @@ class DDPG(SARLAlgorithm[np.ndarray]):
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.max_steps_exploration = config.max_steps_exploration
 
         # Action noise
         self.action_noise_scheduler = ExponentialScheduler(
@@ -111,13 +119,13 @@ class DDPG(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        self.actor_net.eval()
-
+        # Policy action path used by evaluation and by parent MARL wrappers.
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
-            state_tensor = state_tensor.unsqueeze(0)
+            state_tensor = state_tensor.unsqueeze(0)  # Add batch dimension
             action = self.actor_net(state_tensor)
             action = action.cpu().data.numpy().flatten()
             if not evaluation:
@@ -127,10 +135,19 @@ class DDPG(SARLAlgorithm[np.ndarray]):
                 ).astype(np.float32)
                 action = action + noise
                 action = np.clip(action, -1, 1)
-
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _update_critic(
         self,

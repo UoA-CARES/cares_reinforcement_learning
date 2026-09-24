@@ -49,6 +49,7 @@ Scope:
 LAP = PER + Huber critic loss + clipped priorities.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -66,12 +67,14 @@ class LAPTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: LAPTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=critic_network,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

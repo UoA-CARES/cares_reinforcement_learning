@@ -48,15 +48,16 @@ PAL = PER-compatible loss that preserves
 uniform-gradient expectation.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import torch
 
+import cares_reinforcement_learning.algorithm.lossess as loss
+from cares_reinforcement_learning.algorithm.configurations import PALTD3Config
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.PALTD3 import Actor, Critic
-from cares_reinforcement_learning.algorithm.configurations import PALTD3Config
-import cares_reinforcement_learning.algorithm.lossess as loss
 
 
 class PALTD3(TD3):
@@ -65,12 +66,14 @@ class PALTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: PALTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=critic_network,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

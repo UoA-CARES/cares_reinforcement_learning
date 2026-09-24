@@ -65,6 +65,7 @@ SACD = SAC with categorical policy +
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -72,15 +73,14 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 
 
 class SACD(SARLAlgorithm[int]):
@@ -89,9 +89,15 @@ class SACD(SARLAlgorithm[int]):
         actor_network: Actor,
         critic_network: Critic,
         config: SACDConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(policy_type="discrete_policy", config=config, device=device)
+        super().__init__(
+            policy_type="discrete_policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -104,6 +110,7 @@ class SACD(SARLAlgorithm[int]):
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
+        self.max_steps_exploration = config.max_steps_exploration
 
         self.learn_counter = 0
         self.policy_update_freq = config.policy_update_freq
@@ -135,11 +142,10 @@ class SACD(SARLAlgorithm[int]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[int]:
-
-        self.actor_net.eval()
-
+        # Exploitation phase: use policy to select actions
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -152,6 +158,16 @@ class SACD(SARLAlgorithm[int]):
         self.actor_net.train()
 
         return ActionSample(action=action.item(), source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[int]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     @property
     def alpha(self) -> torch.Tensor:

@@ -112,6 +112,7 @@ Summary:
 import logging
 import os
 from abc import abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Generic, TypeVar, cast
 
@@ -119,9 +120,9 @@ import numpy as np
 import numpy.typing as npt
 import torch
 
+import cares_reinforcement_learning.algorithm.configurations as cfg
 import cares_reinforcement_learning.algorithm.policy as pol
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.algorithm.configurations as cfg
 from cares_reinforcement_learning.algorithm.algorithm import (
     MARLAlgorithm,
     SARLAlgorithm,
@@ -162,9 +163,15 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: IMARLConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.learning_units = learning_units
         self.agent_id_to_learning_unit_id = agent_id_to_learning_unit_id
@@ -181,6 +188,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
         self._identity_tensor_cache: dict[
             tuple[str, str, torch.dtype], torch.Tensor
         ] = {}
+        self.max_steps_exploration = config.max_steps_exploration
 
     def _get_agent_network(self, agent_name: str) -> AgentType:
         learning_unit_id = self.agent_id_to_learning_unit_id[agent_name]
@@ -257,6 +265,7 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
         actions = {}
         agent_extras = {}
+        source = "policy"
         for agent_name in self.agent_ids:
             agent_network = self._get_agent_network(agent_name)
             obs_i = cast(
@@ -273,8 +282,19 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
             agent_sample = agent_network.act(agent_observation, evaluation)
             actions[agent_name] = agent_sample.action
             agent_extras[agent_name] = agent_sample.extras
+            source = agent_sample.source
 
-        return ActionSample(action=actions, source="policy", extras=agent_extras)
+        return ActionSample(action=actions, source=source, extras=agent_extras)
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,
+    ) -> ActionSample[dict[str, np.ndarray]]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _sample(
         self, memory_buffer: MARLMemoryBuffer
@@ -526,6 +546,7 @@ class IDDPG(IMARL[pol.DDPG]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.IDDPGConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -536,6 +557,7 @@ class IDDPG(IMARL[pol.DDPG]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
@@ -572,6 +594,7 @@ class ITD3(IMARL[pol.TD3]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.ITD3Config,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -582,6 +605,7 @@ class ITD3(IMARL[pol.TD3]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
@@ -621,6 +645,7 @@ class ISAC(IMARL[pol.SAC]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.ISACConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -631,6 +656,7 @@ class ISAC(IMARL[pol.SAC]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 
@@ -668,6 +694,7 @@ class IPPO(IMARL[pol.PPO]):
         team_identity_vectors: dict[str, npt.NDArray[np.float32]],
         agent_id_to_team_id: dict[str, str],
         config: cfg.IPPOConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -678,6 +705,7 @@ class IPPO(IMARL[pol.PPO]):
             team_identity_vectors=team_identity_vectors,
             agent_id_to_team_id=agent_id_to_team_id,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

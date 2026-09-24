@@ -71,6 +71,7 @@ DADS = skill discovery via maximizing
 import logging
 import math
 import os
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any
 
@@ -78,6 +79,7 @@ import numpy as np
 import torch
 
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import DADSConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import memory_sampler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
@@ -85,7 +87,6 @@ from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import DADSConfig
 
 
 class DADS(SARLAlgorithm[np.ndarray]):
@@ -94,9 +95,15 @@ class DADS(SARLAlgorithm[np.ndarray]):
         skills_agent: SAC,
         discriminator_network: SkillDynamicsModel,
         config: DADSConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="usd", config=config, device=device)
+        super().__init__(
+            policy_type="usd",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.skills_agent = skills_agent
         self.discriminator_net = discriminator_network.to(device)
@@ -140,6 +147,13 @@ class DADS(SARLAlgorithm[np.ndarray]):
         action_sample = self.skills_agent.act(observation, evaluation)
         action_sample.extras["z"] = self.z.copy()
         return action_sample
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[np.ndarray]:
+        return self.act(observation, evaluation=False)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state = replace(

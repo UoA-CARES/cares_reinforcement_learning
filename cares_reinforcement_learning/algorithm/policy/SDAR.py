@@ -57,6 +57,7 @@ SDAR = closed-loop, per-dimension action repetition
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -64,15 +65,14 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import SDARConfig
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import SDARConfig
 
 
 class SDAR(SARLAlgorithm[np.ndarray]):
@@ -84,14 +84,21 @@ class SDAR(SARLAlgorithm[np.ndarray]):
         actor_network: Actor,
         critic_network: Critic,
         config: SDARConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # SAC-style initialization
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
+        self.max_steps_exploration = config.max_steps_exploration
 
         # PER
         self.use_per_buffer = config.use_per_buffer
@@ -167,14 +174,14 @@ class SDAR(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        # note that when evaluating this algorithm we need to select mu as action
-        self.actor_net.eval()
-
+        # Exploitation phase: use policy to select actions
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
+            # note that when evaluating this algorithm we need to select mu as action
             if evaluation:
                 _, _, action, *_ = self.actor_net(
                     state_tensor, self.prev_action_tensor, force_act=self.force_act
@@ -191,6 +198,16 @@ class SDAR(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     # pylint: disable-next=arguments-differ, arguments-renamed
     def _update_critic(  # type: ignore[override]

@@ -57,6 +57,7 @@ SAC = Maximum-Entropy RL + Twin Q Critics + Replay Buffer.
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -87,13 +88,20 @@ class SAC(SARLAlgorithm[np.ndarray]):
         actor_network: TanhGaussianPolicy,
         critic_network: TwinQNetwork | EnsembleCritic,
         config: SACConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
+        self.max_steps_exploration = config.max_steps_exploration
 
         # PER
         self.use_per_buffer = config.use_per_buffer
@@ -138,11 +146,10 @@ class SAC(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        # note that when evaluating this algorithm we need to select mu as action
-        self.actor_net.eval()
-
+        # Policy action path used by evaluation and by parent MARL wrappers.
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -154,6 +161,16 @@ class SAC(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)

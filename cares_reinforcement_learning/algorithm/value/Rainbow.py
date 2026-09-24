@@ -60,15 +60,16 @@ Rainbow = a unified, multi-component enhancement
            of the original DQN framework.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import RainbowConfig
 from cares_reinforcement_learning.algorithm.value import C51
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.Rainbow import Network
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.algorithm.configurations import RainbowConfig
 
 
 class Rainbow(C51):
@@ -79,9 +80,12 @@ class Rainbow(C51):
         self,
         network: Network,
         config: RainbowConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(network=network, config=config, device=device)
+        super().__init__(
+            network=network, config=config, action_sampler=action_sampler, device=device
+        )
 
     def _reset_noise(self) -> None:
         self.network.reset_noise()

@@ -102,6 +102,7 @@ stability- and representation-focused redesign.
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -110,12 +111,11 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import TD7Config
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
@@ -129,9 +129,15 @@ class TD7(SARLAlgorithm[np.ndarray]):
         critic_network: Critic,
         encoder_network: Encoder,
         config: TD7Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -150,6 +156,7 @@ class TD7(SARLAlgorithm[np.ndarray]):
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.max_steps_exploration = config.max_steps_exploration
 
         self.target_update_freq = config.target_update_rate
 
@@ -216,10 +223,10 @@ class TD7(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        self.actor_net.eval()
-
+        # Exploitation phase: use policy to select actions
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             # Fix: Use modern tensor creation
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
@@ -245,6 +252,16 @@ class TD7(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         # Fix: Use modern tensor creation

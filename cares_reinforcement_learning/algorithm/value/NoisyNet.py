@@ -53,13 +53,15 @@ NoisyNet = neural networks with learnable parameter noise
            for adaptive exploration.
 """
 
+from collections.abc import Callable
+
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import NoisyNetConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.NoisyNet import BaseNoisyNetwork
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.algorithm.configurations import NoisyNetConfig
 
 
 class NoisyNet(DQN):
@@ -70,9 +72,12 @@ class NoisyNet(DQN):
         self,
         network: BaseNoisyNetwork,
         config: NoisyNetConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(network=network, config=config, device=device)
+        super().__init__(
+            network=network, config=config, action_sampler=action_sampler, device=device
+        )
 
     def _reset_noise(self):
         self.network.reset_noise()

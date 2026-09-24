@@ -60,11 +60,14 @@ It trades off optimality under nominal play
 for improved robustness under worst-case interaction.
 """
 
+from collections.abc import Callable
+
+import numpy as np
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 from cares_reinforcement_learning.algorithm.marl import MADDPG
 from cares_reinforcement_learning.algorithm.policy.DDPG import DDPG
-from cares_reinforcement_learning.algorithm.configurations import M3DDPGConfig
 
 
 class M3DDPG(MADDPG):
@@ -78,6 +81,7 @@ class M3DDPG(MADDPG):
         agent_id_to_critic_id: dict[str, str],
         critic_id_to_agent_ids: dict[str, list[str]],
         config: M3DDPGConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
         super().__init__(
@@ -89,5 +93,6 @@ class M3DDPG(MADDPG):
             agent_id_to_critic_id=agent_id_to_critic_id,
             critic_id_to_agent_ids=critic_id_to_agent_ids,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )

@@ -77,7 +77,9 @@ class TrainingRunner(BaseRunner):
 
         # Algorithm Training parameters
         self.max_steps_training = self.alg_config.max_steps_training
-        self.max_steps_exploration = self.alg_config.max_steps_exploration
+        self.max_steps_exploration = getattr(
+            self.alg_config, "max_steps_exploration", 0
+        )
         self.number_steps_per_train_policy = (
             self.alg_config.number_steps_per_train_policy
         )
@@ -166,31 +168,13 @@ class TrainingRunner(BaseRunner):
                 }
             )
 
-    def _select_exploration_action(self, train_step_counter: int) -> ActionSample:
-        """Handle exploration phase action selection."""
-        return ActionSample(self.env.sample_action(), source="exploration")
-
-    def _select_repetition_action(self, episode_timesteps: int) -> ActionSample:
-        """Handle episode repetition action selection."""
-        action = self.repetition_manager.get_repetition_action(episode_timesteps)
-
-        return action
-
-    def _select_policy_action(self, state) -> ActionSample:
-        """Handle policy-based action selection."""
-        action = self.agent.act(state, evaluation=False)
-
-        return action
-
     def _select_action(
-        self, train_step_counter: int, episode_step: int, state
+        self, episode_step: int, state, training_step: int
     ) -> ActionSample:
-        if train_step_counter < self.max_steps_exploration:
-            action = self._select_exploration_action(train_step_counter)
-        elif self.repetition_manager.should_repeat(episode_step):
-            action = self._select_repetition_action(episode_step)
+        if self.repetition_manager.should_repeat(episode_step):
+            action = self.repetition_manager.get_repetition_action(episode_step)
         else:
-            action = self._select_policy_action(state)
+            action = self.agent.train_act(state, training_step=training_step)
 
         return action
 
@@ -255,7 +239,9 @@ class TrainingRunner(BaseRunner):
 
             # Determine action based on training phase
             action_sample = self._select_action(
-                train_step_counter, episode_stats.steps, state
+                episode_stats.steps,
+                state,
+                train_step_counter,
             )
 
             # Record action and execute step

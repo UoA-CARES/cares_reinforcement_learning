@@ -33,11 +33,14 @@ Notes:
 - Corrected variants like PAL/LAP/LA3P address these issues separately.
 """
 
+from collections.abc import Callable
+
+import numpy as np
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import PERSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.networks.PERSAC import Actor, Critic
-from cares_reinforcement_learning.algorithm.configurations import PERSACConfig
 
 
 class PERSAC(SAC):
@@ -46,6 +49,7 @@ class PERSAC(SAC):
         actor_network: Actor,
         critic_network: Critic,
         config: PERSACConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(actor_network, critic_network, config, action_sampler, device)

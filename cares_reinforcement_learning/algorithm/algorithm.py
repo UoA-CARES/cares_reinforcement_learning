@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 from cares_reinforcement_learning.memory.memory_buffer import (
     MARLMemoryBuffer,
     Memory,
@@ -17,7 +19,6 @@ from cares_reinforcement_learning.types.observation import (
     Observation,
     SARLObservation,
 )
-from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 
 # Type variable for observation types (SARL or MARL)
 ObsType = TypeVar("ObsType", bound=Observation)
@@ -29,6 +30,7 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self,
         policy_type: Literal["value", "policy", "discrete_policy", "mbrl", "usd"],
         config: AlgorithmConfig,
+        action_sampler: Callable[[], ActType],
         device: torch.device,
     ):
         self.policy_type: Literal[
@@ -36,6 +38,9 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         ] = policy_type
 
         self.config = config
+
+        self.act_counter = 0
+        self.action_sampler: Callable[[], ActType] = action_sampler
 
         self.gamma = config.gamma
 
@@ -45,18 +50,31 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self.buffer_size = config.buffer_size
         self.batch_size = config.batch_size
 
-        self.max_steps_exploration = config.max_steps_exploration
         self.max_steps_training = config.max_steps_training
 
         self.image_observation = config.image_observation
 
         self.device = device
 
+    def _explore(self) -> ActionSample[ActType]:
+        """
+        Exploration phase: sample random actions.
+        """
+        action = self.action_sampler()
+        return ActionSample(action=action, source="exploration")
+
     @abstractmethod
     def act(
         self,
         observation: ObsType,
         evaluation: bool = False,
+    ) -> ActionSample[ActType]: ...
+
+    @abstractmethod
+    def train_act(
+        self,
+        observation: ObsType,
+        training_step: int,  # pylint: disable=unused-argument
     ) -> ActionSample[ActType]: ...
 
     def _fixed_step_bias_segments(

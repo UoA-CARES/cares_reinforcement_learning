@@ -49,6 +49,7 @@ TD3 = DDPG + twin critics + target action smoothing + delayed actor/target updat
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -56,12 +57,11 @@ import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import TD3Config
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.common import (
     DeterministicPolicy,
     EnsembleCritic,
@@ -81,9 +81,15 @@ class TD3(SARLAlgorithm[np.ndarray]):
         actor_network: DeterministicPolicy,
         critic_network: TwinQNetwork | EnsembleCritic,
         config: TD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.actor_net = actor_network.to(device)
         self.critic_net = critic_network.to(device)
@@ -95,6 +101,7 @@ class TD3(SARLAlgorithm[np.ndarray]):
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.max_steps_exploration = config.max_steps_exploration
 
         # PER
         self.use_per_buffer = config.use_per_buffer
@@ -135,10 +142,10 @@ class TD3(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        self.actor_net.eval()
-
+        # Policy action path used by evaluation and by parent MARL wrappers.
         state = observation.vector_state
 
+        self.actor_net.eval()
         with torch.no_grad():
             state_tensor = torch.FloatTensor(state).to(self.device)
             state_tensor = state_tensor.unsqueeze(0)
@@ -155,6 +162,18 @@ class TD3(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        self.action_noise = self.action_noise_scheduler.get_value(training_step)
+
+        return self.act(observation, evaluation=False)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state_tensor = torch.FloatTensor(state.vector_state).to(self.device)
@@ -357,10 +376,6 @@ class TD3(SARLAlgorithm[np.ndarray]):
         self.learn_counter += 1
 
         self.policy_noise = self.policy_noise_scheduler.get_value(
-            episode_context.training_step
-        )
-
-        self.action_noise = self.action_noise_scheduler.get_value(
             episode_context.training_step
         )
 

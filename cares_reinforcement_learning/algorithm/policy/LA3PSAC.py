@@ -56,6 +56,7 @@ Rationale:
 LA3P = PER + Inverse Actor Sampling + Uniform Sharing + Loss Adjustment.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -63,10 +64,10 @@ import torch
 
 import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.configurations import LA3PSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import Sample, SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.LA3PSAC import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.experience import SingleAgentExperience
@@ -78,9 +79,10 @@ class LA3PSAC(SAC):
         actor_network: Actor,
         critic_network: Critic,
         config: LA3PSACConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(actor_network, critic_network, config, action_sampler, device)
 
         self.prioritized_fraction = config.prioritized_fraction
 

@@ -63,18 +63,18 @@ MaPER = PER + model-error-aware prioritization
          via shared environment prediction.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import MAPERSACConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.MAPERSAC import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import MAPERSACConfig
 
 
 class MAPERSAC(SAC):
@@ -83,9 +83,16 @@ class MAPERSAC(SAC):
         actor_network: Actor,
         critic_network: Critic,
         config: MAPERSACConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(
+            actor_network=actor_network,
+            critic_network=critic_network,
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # MAPER-PER parameters
         self.scale_r = 1.0

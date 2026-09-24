@@ -1,5 +1,6 @@
 import logging
 import os
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -21,9 +22,15 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
         agent_networks: dict[str, MARLAlgorithm[dict[str, np.ndarray]]],
         env_teams: dict[str, list[str]],
         config: CrossMARLConfig,
+        action_sampler: Callable[[], dict[str, np.ndarray]],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.agent_networks = agent_networks
 
@@ -88,6 +95,7 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
 
         full_actions: dict[str, np.ndarray] = {}
         full_extras: dict[str, Any] = {}
+        full_source = "policy"
 
         for agent_team_name, agent_network in self.agent_networks.items():
             team_evaluation = evaluation or agent_team_name != self.learning_team_name
@@ -105,12 +113,55 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
                 action_extras=action_sample.extras,
             )
 
+            if agent_team_name == self.learning_team_name:
+                full_source = action_sample.source
+
         missing_agent_ids = set(agent_ids) - set(full_actions.keys())
         if missing_agent_ids:
             missing_keys = ", ".join(sorted(missing_agent_ids))
             raise KeyError(f"Missing actions for agents: {missing_keys}")
 
-        return ActionSample(action=full_actions, extras=full_extras, source="policy")
+        return ActionSample(action=full_actions, extras=full_extras, source=full_source)
+
+    def train_act(
+        self,
+        observation: MARLObservation,
+        training_step: int,
+    ) -> ActionSample[dict[str, np.ndarray]]:
+        agent_ids = list(observation.agent_states.keys())
+
+        full_actions: dict[str, np.ndarray] = {}
+        full_extras: dict[str, Any] = {}
+        full_source = "policy"
+
+        for agent_team_name, agent_network in self.agent_networks.items():
+            if agent_team_name == self.learning_team_name:
+                action_sample = agent_network.train_act(
+                    observation=observation,
+                    training_step=training_step,
+                )
+                full_source = action_sample.source
+            else:
+                action_sample = agent_network.act(
+                    observation=observation, evaluation=True
+                )
+
+            team = self.env_teams[agent_team_name]
+            for agent_name in team:
+                full_actions[agent_name] = action_sample.action[agent_name]
+
+            self._merge_team_extras(
+                full_extras=full_extras,
+                team=team,
+                action_extras=action_sample.extras,
+            )
+
+        missing_agent_ids = set(agent_ids) - set(full_actions.keys())
+        if missing_agent_ids:
+            missing_keys = ", ".join(sorted(missing_agent_ids))
+            raise KeyError(f"Missing actions for agents: {missing_keys}")
+
+        return ActionSample(action=full_actions, extras=full_extras, source=full_source)
 
     def train(
         self,
