@@ -168,25 +168,13 @@ class TrainingRunner(BaseRunner):
                 }
             )
 
-    def _select_repetition_action(self, episode_timesteps: int) -> ActionSample:
-        """Handle episode repetition action selection."""
-        action = self.repetition_manager.get_repetition_action(episode_timesteps)
-
-        return action
-
-    def _select_policy_action(self, state, training_step: int) -> ActionSample:
-        """Handle policy-based action selection."""
-        action = self.agent.train_act(state, training_step=training_step)
-
-        return action
-
     def _select_action(
         self, episode_step: int, state, training_step: int
     ) -> ActionSample:
         if self.repetition_manager.should_repeat(episode_step):
-            action = self._select_repetition_action(episode_step)
+            action = self.repetition_manager.get_repetition_action(episode_step)
         else:
-            action = self._select_policy_action(state, training_step)
+            action = self.agent.train_act(state, training_step=training_step)
 
         return action
 
