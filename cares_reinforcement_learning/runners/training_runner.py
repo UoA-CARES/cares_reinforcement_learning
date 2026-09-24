@@ -30,6 +30,7 @@ class TrainingRunner(BaseRunner):
         base_log_dir: str,
         progress_queue: Queue | None = None,
         resume_path: str | None = None,
+        transfer_path: str | None = None,
         save_configurations: bool = False,
         eval_seed: int | None = None,
     ):
@@ -42,6 +43,7 @@ class TrainingRunner(BaseRunner):
             base_log_dir: Base directory for logging
             progress_queue: Queue for progress updates (if any)
             resume_path: Path to resume from (if None, start fresh training)
+            transfer_path: Exact path to model folder used to initialise agent weights
             save_configurations: Whether to save configurations to disk
             eval_seed: Separate evaluation seed (if None, uses train_seed)
         """
@@ -66,11 +68,20 @@ class TrainingRunner(BaseRunner):
 
         # Handle resume logic - this must modify our local variables
         self.start_training_step = 0
+
         if resume_path is not None:
             self.start_training_step, self.memory_buffer = self._handle_resume(
                 resume_path,
                 self.alg_config.algorithm,
             )
+        elif transfer_path is not None:
+            self._handle_transfer(
+                transfer_path,
+                self.alg_config.algorithm,
+            )
+
+        self.resume_run = resume_path is not None
+        self.transfer_run = transfer_path is not None
 
         # Set up memory in record
         self.record.set_memory_buffer(self.memory_buffer)
@@ -96,10 +107,42 @@ class TrainingRunner(BaseRunner):
 
         self.logger.info(f"[SEED {self.train_seed}] training instance setup complete")
 
+    def _handle_transfer(self, model_path: str, algorithm: str) -> None:
+        """
+        Initialise the agent from previously trained model weights.
+
+        Transfer starts a new training run from step zero with a fresh memory
+        buffer and optimiser state. Only learned model weights are loaded.
+
+        Args:
+            model_path: Exact path to the folder containing the saved model data.
+            algorithm: Algorithm name used as the saved model filename.
+        """
+        transfer_path = Path(model_path)
+
+        if not transfer_path.exists():
+            raise FileNotFoundError(
+                f"Transfer model path does not exist: {transfer_path}"
+            )
+
+        if not transfer_path.is_dir():
+            raise NotADirectoryError(
+                f"Transfer model path is not a directory: {transfer_path}"
+            )
+
+        self.logger.info(
+            f"[SEED {self.train_seed}] Loading transfer weights from: "
+            f"{transfer_path}"
+        )
+
+        self.agent.load_models(model_path, algorithm, load_mode="transfer")
+
+        self.logger.info(
+            f"[SEED {self.train_seed}] Transfer weights loaded successfully"
+        )
+
     def _handle_resume(
-        self,
-        data_path: str,
-        algorithm: str,
+        self, data_path: str, algorithm: str
     ) -> tuple[int, SARLMemoryBuffer | MARLMemoryBuffer]:
         """
         Handle all resume logic and return starting step and loaded memory.
@@ -233,6 +276,12 @@ class TrainingRunner(BaseRunner):
         self._report_progress(0, 0, "starting")
 
         start_time = time.time()
+
+        if self.transfer_run:
+            self.logger.info(
+                "*************--Initial Transfer Evaluation--*************"
+            )
+            self._run_evaluation(-1)
 
         # Initialize training state
         episode_num = 0
