@@ -195,7 +195,6 @@ class DQNConfig(AlgorithmConfig):
     max_grad_norm: float | None = None
 
     # Exploration via Epsilon Greedy
-    max_steps_exploration: int = 0
     start_epsilon: float = 1.0
     end_epsilon: float = 1e-3
     decay_steps: int = 100000
@@ -1528,7 +1527,6 @@ class QMIXConfig(DQNConfig):
     max_grad_norm: float | None = None
 
     # Exploration via Epsilon Greedy
-    max_steps_exploration: int = 0
     start_epsilon: float = 1.0
     end_epsilon: float = 0.05
     decay_steps: int = 100000
