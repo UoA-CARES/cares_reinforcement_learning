@@ -759,7 +759,7 @@ class TD7(SARLAlgorithm[np.ndarray]):
             raise ValueError(f"Unknown load mode: {load_mode}")
 
         checkpoint = torch.load(
-            f"{filepath}/{filename}_checkpoint.pth", map_location=self.devic
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
         )
 
         # Core learned networks
