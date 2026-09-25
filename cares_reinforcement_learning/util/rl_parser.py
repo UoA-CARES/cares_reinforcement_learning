@@ -397,8 +397,10 @@ class RLParser:
         Parse a new training run initialised from previously trained model weights.
 
         The transfer path points directly to the folder containing the saved model
-        data. Training configuration is otherwise parsed identically to a normal
-        training run.
+        data. Training configuration is provided exactly as for `train`, using either:
+
+            transfer --transfer_path <path> cli ...
+            transfer --transfer_path <path> config --data_path <path>
         """
         parser = argparse.ArgumentParser(add_help=False)
 

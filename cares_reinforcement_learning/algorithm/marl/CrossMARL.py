@@ -158,6 +158,9 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
         if load_mode not in ("resume", "transfer"):
             raise ValueError(f"Unknown load mode: {load_mode}")
 
+        if load_mode == "transfer":
+            raise NotImplementedError("Transfer is not supported for CrossMARL.")
+
         for agent_name, agent_network in self.agent_networks.items():
             # Learning team is fresh during train-against-fixed.
             if agent_name == self.learning_team_name:
@@ -167,9 +170,7 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
             agent_filename = self._get_agent_model_filename(agent_name)
 
             agent_network.load_models(
-                agent_filepath,
-                agent_filename,
-                load_mode=load_mode,
+                agent_filepath, agent_filename, load_mode="resume"
             )
 
         logging.info("models and optimisers have been loaded...")
