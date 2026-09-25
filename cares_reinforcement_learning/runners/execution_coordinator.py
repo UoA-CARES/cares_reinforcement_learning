@@ -357,9 +357,15 @@ class ExecutionCoordinator:
         if self.base_log_dir is None:
             raise ValueError("Base log directory must be set before running seeds")
 
-        resume_path = None
-        if self.run_config.command == "resume":
-            resume_path = self.run_config.data_path
+        resume_path = (
+            self.run_config.data_path if self.run_config.command == "resume" else None
+        )
+
+        transfer_path = (
+            self.run_config.transfer_path
+            if self.run_config.command == "transfer"
+            else None
+        )
 
         runner = TrainingRunner(
             train_seed=seed,
@@ -367,6 +373,7 @@ class ExecutionCoordinator:
             base_log_dir=self.base_log_dir,
             progress_queue=progress_queue,
             resume_path=resume_path,
+            transfer_path=transfer_path,
             save_configurations=save_configurations,
         )
 
@@ -445,7 +452,7 @@ class ExecutionCoordinator:
         """
         Main entry point to run the execution process.
         """
-        if self.run_config.command in ["train", "resume"]:
+        if self.run_config.command in ["train", "resume", "transfer"]:
             self._train()
         elif self.run_config.command == "evaluate":
             self._evaluate()

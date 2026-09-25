@@ -49,20 +49,20 @@ Rationale:
 CTD4 = TD3 + Gaussian distributional critics + Kalman fusion.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import CTD4Config
 from cares_reinforcement_learning.algorithm.policy import TD3
+from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.CTD4 import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import CTD4Config
-from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 
 
 class CTD4(TD3):
@@ -694,8 +694,17 @@ class CTD4(TD3):
             f"{filepath}/{filename}_ensemble_critic_optimizers.pth",
         )
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        super().load_models(filepath, filename)
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        super().load_models(filepath, filename, load_mode=load_mode)
+
+        if load_mode == "transfer":
+            return
+
         # Load each ensemble critic optimizer from the single file
         ensemble_optim_state = torch.load(
             f"{filepath}/{filename}_ensemble_critic_optimizers.pth"

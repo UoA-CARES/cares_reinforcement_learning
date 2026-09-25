@@ -1210,10 +1210,22 @@ class MADDPG(MARLAlgorithm[dict[str, np.ndarray]]):
 
         logging.info("models and optimisers have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
         for learning_unit_id, learning_unit in self.learning_units.items():
             learning_unit_filepath = os.path.join(filepath, f"{learning_unit_id}")
             learning_unit_filename = f"{filename}_{learning_unit_id}_checkpoint"
-            learning_unit.load_models(learning_unit_filepath, learning_unit_filename)
+            learning_unit.load_models(
+                learning_unit_filepath,
+                learning_unit_filename,
+                load_mode=load_mode,
+            )
 
         logging.info("models and optimisers have been loaded...")

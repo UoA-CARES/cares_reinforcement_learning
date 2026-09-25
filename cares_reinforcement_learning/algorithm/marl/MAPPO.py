@@ -289,7 +289,7 @@ Compared to deterministic methods such as MADDPG/MATD3, MAPPO is typically:
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -1349,13 +1349,35 @@ class MAPPO(MARLAlgorithm[dict[str, np.ndarray]]):
 
         logging.info("models and optimisers have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        # Each MAPPO learning unit is a PPO bundle containing the
+        # trainable actor/critic and their associated training state.
         for learning_unit_id, learning_unit in self.learning_units.items():
             agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
             agent_filename = f"{filename}_{learning_unit_id}_checkpoint"
-            learning_unit.load_models(agent_filepath, agent_filename)
 
+            learning_unit.load_models(
+                agent_filepath, agent_filename, load_mode=load_mode
+            )
+
+        if load_mode == "transfer":
+            # MAPPO's value-normaliser statistics describe the old return
+            # distribution and are intentionally not transferred.
+            # Fresh normalisers created in __init__ are retained.
+            logging.info("model weights have been loaded for transfer...")
+            return
+
+        # Resume restores MAPPO-specific value-normalisation state.
         normaliser_path = os.path.join(filepath, "value_normalisers.pht")
+
         normaliser_state = torch.load(normaliser_path, map_location=self.device)
 
         for critic_id, state in normaliser_state.items():

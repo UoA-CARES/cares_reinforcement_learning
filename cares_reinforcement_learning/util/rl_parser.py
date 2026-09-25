@@ -23,6 +23,7 @@ from cares_reinforcement_learning.algorithm.configurations import (
 class RunConfig(SubscriptableClass):
     command: str
     data_path: str | None = None
+    transfer_path: str | None = None
     run_name: str = ""
 
     eval_seed: int | None = None
@@ -220,7 +221,7 @@ class RLParser:
         # Add an argument
         parser.add_argument(
             "command",
-            choices=["train", "evaluate", "test", "resume"],
+            choices=["train", "evaluate", "test", "resume", "transfer"],
             help="Commands to run this package",
         )
 
@@ -390,6 +391,34 @@ class RLParser:
             run_args["data_path"] = data_path
 
         return run_args, args
+
+    def _transfer(self, argv: list[str]) -> tuple[dict[str, Any], dict[str, Any]]:
+        """
+        Parse a new training run initialised from previously trained model weights.
+
+        The transfer path points directly to the folder containing the saved model
+        data. Training configuration is provided exactly as for `train`, using either:
+
+            transfer --transfer_path <path> cli ...
+            transfer --transfer_path <path> config --data_path <path>
+        """
+        parser = argparse.ArgumentParser(add_help=False)
+
+        parser.add_argument(
+            "--transfer_path",
+            type=str,
+            required=True,
+            help="Exact path to folder containing model data to initialise from",
+        )
+
+        transfer_args, remaining_args = parser.parse_known_args(argv)
+
+        # Transfer otherwise behaves exactly like a new training run
+        run_args, model_args = self._train(remaining_args)
+
+        run_args["transfer_path"] = transfer_args.transfer_path
+
+        return run_args, model_args
 
     def _resume(self, argv: list[str]) -> tuple[dict[str, Any], dict[str, Any]]:
         run_args, remaining_args = self._parse_run_options(argv)

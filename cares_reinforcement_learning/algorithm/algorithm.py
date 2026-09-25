@@ -154,7 +154,24 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
     def save_models(self, filepath: str, filename: str) -> None: ...
 
     @abstractmethod
-    def load_models(self, filepath: str, filename: str) -> None: ...
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        """
+        Load saved agent models.
+
+        Args:
+            filepath: Directory containing the saved model files.
+            filename: Base filename used when saving the models.
+            load_mode:
+                - "resume": Restore the complete saved training state required
+                to continue training.
+                - "transfer": Restore learned model weights only for use as the
+                initialisation of a new training run.
+        """
 
     def get_intrinsic_reward(
         self,

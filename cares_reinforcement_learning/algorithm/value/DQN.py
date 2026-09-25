@@ -50,7 +50,7 @@ import copy
 import logging
 import os
 import random
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -434,14 +434,30 @@ class DQN(SARLAlgorithm[int]):
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models and optimiser have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth",
+            map_location=self.device,
+        )
 
         self.network.load_state_dict(checkpoint["network"])
+
+        if load_mode == "transfer":
+            self.hard_update_params(self.network, self.target_network)
+
+            logging.info("model weights have been loaded for transfer...")
+            return
+
         self.target_network.load_state_dict(checkpoint["target_network"])
-
         self.network_optimiser.load_state_dict(checkpoint["optimizer"])
-
         self.learn_counter = checkpoint.get("learn_counter", 0)
 
         logging.info("models, optimiser, and learn_counter have been loaded...")

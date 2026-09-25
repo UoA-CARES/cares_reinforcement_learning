@@ -57,7 +57,7 @@ SAC = Maximum-Entropy RL + Twin Q Critics + Replay Buffer.
 import copy
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -458,11 +458,26 @@ class SAC(SARLAlgorithm[np.ndarray]):
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models, optimisers, and training state have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+        )
 
         self.actor_net.load_state_dict(checkpoint["actor"])
         self.critic_net.load_state_dict(checkpoint["critic"])
+
+        if load_mode == "transfer":
+            self.hard_update_params(self.critic_net, self.target_critic_net)
+            logging.info("model weights have been loaded for transfer...")
+            return
 
         self.target_critic_net.load_state_dict(checkpoint["target_critic"])
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])

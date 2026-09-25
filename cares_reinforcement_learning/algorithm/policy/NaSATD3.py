@@ -79,7 +79,7 @@ NaSA-TD3 = TD3 + Autoencoder + Novelty bonus + Surprise bonus.
 import copy
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -92,7 +92,6 @@ from torch import nn
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import NaSATD3Config
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
@@ -100,6 +99,7 @@ from cares_reinforcement_learning.encoders.burgess_autoencoder import BurgessAut
 from cares_reinforcement_learning.encoders.constants import Autoencoders
 from cares_reinforcement_learning.encoders.vanilla_autoencoder import VanillaAutoencoder
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.NaSATD3 import Actor, Critic
 from cares_reinforcement_learning.networks.NaSATD3.EPDM import EPDM
 from cares_reinforcement_learning.types.action import ActionSample
@@ -641,8 +641,18 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models, optimisers, and training state have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+        )
 
         self.actor_net.load_state_dict(checkpoint["actor"])
         self.critic_net.load_state_dict(checkpoint["critic"])
@@ -654,6 +664,12 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         self.autoencoder.decoder.load_state_dict(checkpoint["decoder"])
 
         self.ensemble_predictive_model.load_state_dict(checkpoint["ensemble"])
+
+        if load_mode == "transfer":
+            self.hard_update_params(self.actor_net, self.actor_target)
+            self.hard_update_params(self.critic_net, self.critic_target)
+            logging.info("model weights have been loaded for transfer...")
+            return
 
         self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer"])

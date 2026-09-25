@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -58,7 +58,11 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
                     f"Frozen CrossMARL team '{agent_name}' is missing model_path."
                 )
 
-            agent_network.load_models(model_path, agent_config.algorithm)
+            agent_network.load_models(
+                model_path,
+                agent_config.algorithm,
+                load_mode="transfer",
+            )
 
     def _merge_team_extras(
         self,
@@ -145,7 +149,18 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
 
         logging.info("learning team models and optimisers have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        if load_mode == "transfer":
+            raise NotImplementedError("Transfer is not supported for CrossMARL.")
+
         for agent_name, agent_network in self.agent_networks.items():
             # Learning team is fresh during train-against-fixed.
             if agent_name == self.learning_team_name:
@@ -154,6 +169,8 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
             agent_filepath = self._get_agent_model_path(filepath, agent_name)
             agent_filename = self._get_agent_model_filename(agent_name)
 
-            agent_network.load_models(agent_filepath, agent_filename)
+            agent_network.load_models(
+                agent_filepath, agent_filename, load_mode="resume"
+            )
 
         logging.info("models and optimisers have been loaded...")
