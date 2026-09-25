@@ -183,7 +183,11 @@ class TrainingRunner(BaseRunner):
 
         self.logger.info(f"[SEED {self.train_seed}] Loading agent models")
         try:
-            self.agent.load_models(restart_path / "models" / "checkpoint", algorithm)  # type: ignore
+            self.agent.load_models(
+                restart_path / "models" / "checkpoint",  # type: ignore
+                algorithm,
+                load_mode="resume",
+            )
         except FileNotFoundError:
             self.logger.warning(
                 f"[SEED {self.train_seed}] No agent models found at {restart_path / 'models' / 'checkpoint'}, starting with fresh models"

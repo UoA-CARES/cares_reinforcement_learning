@@ -102,7 +102,7 @@ stability- and representation-focused redesign.
 import copy
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -111,11 +111,11 @@ import torch.nn.functional as F
 import cares_reinforcement_learning.algorithm.lossess as loss
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import TD7Config
 from cares_reinforcement_learning.algorithm.schedulers import ExponentialScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.TD7 import Actor, Critic, Encoder
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
@@ -713,7 +713,7 @@ class TD7(SARLAlgorithm[np.ndarray]):
         elif accept_triggered:
             self.best_min_return = self.min_return
             self.checkpoint_actor.load_state_dict(self.actor_net.state_dict())
-            self.checkpoint_encoder.load_state_dict(self.encoder_net.state_dict())
+            self.checkpoint_encoder.load_state_dict(self.fixed_encoder_net.state_dict())
 
             train_info = self._train_and_reset(memory_buffer, episode_context)
             info.update(train_info)
@@ -749,38 +749,73 @@ class TD7(SARLAlgorithm[np.ndarray]):
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models, optimisers, and training state have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
 
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.devic
+        )
+
+        # Core learned networks
         self.actor_net.load_state_dict(checkpoint["actor"])
-        self.target_actor_net.load_state_dict(checkpoint["target_actor"])
-
         self.critic_net.load_state_dict(checkpoint["critic"])
-        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
-
-        # Load encoder networks
         self.encoder_net.load_state_dict(checkpoint["encoder"])
+
+        if load_mode == "transfer":
+            # The fixed encoder is part of the learned TD7 actor/critic state.
+            # Preserve the exact representation that the actor and critic were
+            # operating against when the source model was saved.
+            self.fixed_encoder_net.load_state_dict(checkpoint["fixed_encoder"])
+
+            # Start the new training process with target networks aligned to
+            # the transferred live networks.
+            self.hard_update_params(self.actor_net, self.target_actor_net)
+            self.hard_update_params(self.critic_net, self.target_critic_net)
+            self.hard_update_params(
+                self.fixed_encoder_net, self.target_fixed_encoder_net
+            )
+
+            # TD7 evaluation uses checkpoint_actor + checkpoint_encoder.
+            # Initialise them from the transferred trainable policy so the
+            # step-zero evaluation measures the policy being transferred.
+            self.hard_update_params(self.actor_net, self.checkpoint_actor)
+            self.hard_update_params(self.fixed_encoder_net, self.checkpoint_encoder)
+
+            logging.info("model weights have been loaded for transfer...")
+            return
+
+        # Resume restores the exact saved TD7 state.
+        self.target_actor_net.load_state_dict(checkpoint["target_actor"])
+        self.target_critic_net.load_state_dict(checkpoint["target_critic"])
         self.target_fixed_encoder_net.load_state_dict(
             checkpoint["target_fixed_encoder"]
         )
+
         self.fixed_encoder_net.load_state_dict(checkpoint["fixed_encoder"])
+
         self.checkpoint_actor.load_state_dict(checkpoint["checkpoint_actor"])
         self.checkpoint_encoder.load_state_dict(checkpoint["checkpoint_encoder"])
 
-        # Load optimizers
+        # Optimiser state
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
         self.encoder_net_optimiser.load_state_dict(checkpoint["encoder_optimizer"])
 
-        # Load training state
+        # Training state
         self.learn_counter = checkpoint.get("learn_counter", 0)
         self.policy_noise = checkpoint.get("policy_noise", self.policy_noise)
         self.action_noise = checkpoint.get("action_noise", self.action_noise)
 
-        # Load value tracking
-        self.max = checkpoint.get("max", -1e8)
-        self.min = checkpoint.get("min", 1e8)
-        self.max_target = checkpoint.get("max_target", 0)
-        self.min_target = checkpoint.get("min_target", 0)
+        # TD7 value-clipping state
+        self.max = checkpoint.get("max", self.max)
+        self.min = checkpoint.get("min", self.min)
+        self.max_target = checkpoint.get("max_target", self.max_target)
+        self.min_target = checkpoint.get("min_target", self.min_target)
 
         logging.info("models, optimisers, and training state have been loaded...")

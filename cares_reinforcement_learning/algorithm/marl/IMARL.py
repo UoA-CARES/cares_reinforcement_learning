@@ -113,7 +113,7 @@ import logging
 import os
 from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Any, Generic, TypeVar, cast
+from typing import Any, Generic, Literal, TypeVar, cast
 
 import numpy as np
 import numpy.typing as npt
@@ -499,12 +499,20 @@ class IMARL(MARLAlgorithm[dict[str, np.ndarray]], Generic[AgentType]):
 
         logging.info("models and optimisers have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
         for learning_unit_id in self.learning_unit_ids:
             agent = self.learning_units[learning_unit_id]
             agent_filepath = os.path.join(filepath, f"{learning_unit_id}")
             agent_filename = f"{filename}_agent_{learning_unit_id}_checkpoint"
-            agent.load_models(agent_filepath, agent_filename)
+            agent.load_models(agent_filepath, agent_filename, load_mode=load_mode)
 
         logging.info("models and optimisers have been loaded...")
 

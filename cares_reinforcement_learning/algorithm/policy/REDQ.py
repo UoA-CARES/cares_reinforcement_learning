@@ -54,7 +54,7 @@ REDQ = SAC + Large Q-ensemble + Randomized subset
         minimization + High update-to-data ratio.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -62,13 +62,13 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import REDQConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.REDQ import Actor, Critic
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import REDQConfig
 
 
 class REDQ(SAC):
@@ -390,9 +390,17 @@ class REDQ(SAC):
             f"{filepath}/{filename}_ensemble_critic_optimizers.pth",
         )
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        super().load_models(filepath, filename)
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        super().load_models(filepath, filename, load_mode=load_mode)
         # Load each ensemble critic optimizer from the single file
+        if load_mode == "transfer":
+            return
+
         ensemble_optim_state = torch.load(
             f"{filepath}/{filename}_ensemble_critic_optimizers.pth"
         )

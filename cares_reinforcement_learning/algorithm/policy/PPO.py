@@ -77,7 +77,7 @@ Notes:
 import logging
 import os
 from contextlib import contextmanager, nullcontext
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -810,12 +810,26 @@ class PPO(SARLAlgorithm[np.ndarray]):
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models and optimisers have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+        )
         self.actor_net.load_state_dict(checkpoint["actor"])
         self.critic_net.load_state_dict(checkpoint["critic"])
 
         self.log_std.data.copy_(checkpoint["log_std"].to(self.device))
+
+        if load_mode == "transfer":
+            logging.info("model weights have been loaded for transfer...")
+            return
 
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])

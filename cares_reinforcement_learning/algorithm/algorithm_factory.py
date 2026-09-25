@@ -1492,7 +1492,11 @@ class AlgorithmFactory:
         else:
             if config.model_path is not None:
                 logging.info(f"Loading model weights from {config.model_path}")
-                agent.load_models(filepath=config.model_path, filename=config.algorithm)
+                agent.load_models(
+                    filepath=config.model_path,
+                    filename=config.algorithm,
+                    load_mode="transfer",
+                )
 
             if not _compare_mlp_parts(
                 type(config)(algorithm=config.algorithm, gamma=config.gamma), config

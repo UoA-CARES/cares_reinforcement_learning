@@ -51,7 +51,7 @@ import copy
 import logging
 import os
 import random
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -474,13 +474,29 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models and optimiser have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+        )
 
         self.network.load_state_dict(checkpoint["network"])
-        self.target_network.load_state_dict(checkpoint["target_network"])
-
         self.mixer.load_state_dict(checkpoint["mixer"])
+
+        if load_mode == "transfer":
+            self.hard_update_params(self.network, self.target_network)
+            self.hard_update_params(self.mixer, self.target_mixer)
+            logging.info("model weights have been loaded for transfer...")
+            return
+
+        self.target_network.load_state_dict(checkpoint["target_network"])
         self.target_mixer.load_state_dict(checkpoint["target_mixer"])
 
         self.network_optimiser.load_state_dict(checkpoint["optimizer"])

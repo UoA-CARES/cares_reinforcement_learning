@@ -56,7 +56,7 @@ DIAYN = unsupervised skill learning via
 import logging
 import os
 from dataclasses import replace
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -277,12 +277,29 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         torch.save(checkpoint, f"{filepath}/{filename}_diayn.pth")
         logging.info("DIAYN models and state have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        self.skills_agent.load_models(filepath, f"{filename}_skill_agent")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
 
-        checkpoint = torch.load(f"{filepath}/{filename}_diayn.pth")
+        self.skills_agent.load_models(
+            filepath, f"{filename}_skill_agent", load_mode=load_mode
+        )
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_diayn.pth", map_location=self.device
+        )
 
         self.discriminator_net.load_state_dict(checkpoint["discriminator_state_dict"])
+
+        if load_mode == "transfer":
+            logging.info("model weights have been loaded for transfer...")
+            return
+
         self.discriminator_optimizer.load_state_dict(
             checkpoint["discriminator_optimizer_state_dict"]
         )
