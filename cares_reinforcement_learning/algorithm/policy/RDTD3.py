@@ -281,22 +281,19 @@ class RDTD3(TD3):
         filename: str,
         load_mode: Literal["resume", "transfer"] = "resume",
     ) -> None:
-        # Parent handles actor/critic weights, targets, optimisers,
-        # counters, and transfer semantics.
         super().load_models(
             filepath,
             filename,
             load_mode=load_mode,
         )
 
-        # Do not carry old adaptive scaling into a new transfer run.
         if load_mode == "transfer":
             return
 
         checkpoint = torch.load(
-            f"{filepath}/{filename}_rd_state.pth",
+            f"{filepath}/{filename}_checkpoint.pth",
             map_location=self.device,
         )
 
-        self.scale_r = float(checkpoint.get("scale_r", self.scale_r))
-        self.scale_s = float(checkpoint.get("scale_s", self.scale_s))
+        self.scale_r = checkpoint.get("scale_r", self.scale_r)
+        self.scale_s = checkpoint.get("scale_s", self.scale_s)
