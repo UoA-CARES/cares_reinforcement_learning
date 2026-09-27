@@ -657,9 +657,6 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
         self.actor_net.load_state_dict(checkpoint["actor"])
         self.critic_net.load_state_dict(checkpoint["critic"])
 
-        self.actor_target.load_state_dict(checkpoint["actor_target"])
-        self.critic_target.load_state_dict(checkpoint["critic_target"])
-
         self.autoencoder.encoder.load_state_dict(checkpoint["encoder"])
         self.autoencoder.decoder.load_state_dict(checkpoint["decoder"])
 
@@ -670,6 +667,9 @@ class NaSATD3(SARLAlgorithm[np.ndarray]):
             self.hard_update_params(self.critic_net, self.critic_target)
             logging.info("model weights have been loaded for transfer...")
             return
+
+        self.actor_target.load_state_dict(checkpoint["actor_target"])
+        self.critic_target.load_state_dict(checkpoint["critic_target"])
 
         self.actor_optimizer.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_optimizer.load_state_dict(checkpoint["critic_optimizer"])

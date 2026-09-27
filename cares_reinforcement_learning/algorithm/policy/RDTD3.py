@@ -65,18 +65,17 @@ RD-PER = PER with Reward Prediction Error
          replacing TD-error as the priority signal.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
+from cares_reinforcement_learning.algorithm.configurations import RDTD3Config
 from cares_reinforcement_learning.algorithm.policy import TD3
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.RDTD3 import Actor, Critic
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import RDTD3Config
 
 
 class RDTD3(TD3):
@@ -261,3 +260,43 @@ class RDTD3(TD3):
             "actor_loss": actor_loss.item(),
         }
         return info
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        super().save_models(filepath, filename)
+
+        checkpoint_path = f"{filepath}/{filename}_checkpoint.pth"
+        checkpoint = torch.load(
+            checkpoint_path,
+            map_location=self.device,
+        )
+
+        checkpoint["scale_r"] = self.scale_r
+        checkpoint["scale_s"] = self.scale_s
+
+        torch.save(checkpoint, checkpoint_path)
+
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        # Parent handles actor/critic weights, targets, optimisers,
+        # counters, and transfer semantics.
+        super().load_models(
+            filepath,
+            filename,
+            load_mode=load_mode,
+        )
+
+        # Do not carry old adaptive scaling into a new transfer run.
+        if load_mode == "transfer":
+            return
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_rd_state.pth",
+            map_location=self.device,
+        )
+
+        self.scale_r = float(checkpoint.get("scale_r", self.scale_r))
+        self.scale_s = float(checkpoint.get("scale_s", self.scale_s))

@@ -59,9 +59,7 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
                 )
 
             agent_network.load_models(
-                model_path,
-                agent_config.algorithm,
-                load_mode="transfer",
+                model_path, agent_config.algorithm, load_mode="resume"
             )
 
     def _merge_team_extras(

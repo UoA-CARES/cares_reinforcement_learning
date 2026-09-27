@@ -78,6 +78,7 @@ import numpy as np
 import torch
 
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import DADSConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory import memory_sampler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
@@ -85,7 +86,6 @@ from cares_reinforcement_learning.networks.DADS import SkillDynamicsModel
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import DADSConfig
 
 
 class DADS(SARLAlgorithm[np.ndarray]):
@@ -323,6 +323,7 @@ class DADS(SARLAlgorithm[np.ndarray]):
         checkpoint = {
             "discriminator": self.discriminator_net.state_dict(),
             "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
+            "z": self.z,
         }
         torch.save(checkpoint, f"{filepath}/{filename}_dads.pth")
         logging.info("models, optimisers, and DADS state have been saved...")
@@ -352,4 +353,6 @@ class DADS(SARLAlgorithm[np.ndarray]):
         self.discriminator_optimizer.load_state_dict(
             checkpoint["discriminator_optimizer"]
         )
+        self.z = checkpoint.get("z", self.z)
+
         logging.info("models, optimisers, and DADS state have been loaded...")

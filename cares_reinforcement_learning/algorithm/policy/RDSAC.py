@@ -65,7 +65,7 @@ RD-PER = PER with Reward Prediction Error
          replacing TD-error as the priority signal.
 """
 
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -262,3 +262,44 @@ class RDSAC(SAC):
             "alpha_loss": alpha_loss.item(),
         }
         return info
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        # Save the normal SAC/TD3 model and training state.
+        super().save_models(filepath, filename)
+
+        # Save RD-specific adaptive training state.
+        checkpoint = {
+            "scale_r": float(self.scale_r),
+            "scale_s": float(self.scale_s),
+        }
+
+        torch.save(
+            checkpoint,
+            f"{filepath}/{filename}_rd_state.pth",
+        )
+
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        # Parent handles actor/critic weights, targets, optimisers,
+        # counters, and transfer semantics.
+        super().load_models(
+            filepath,
+            filename,
+            load_mode=load_mode,
+        )
+
+        # Do not carry old adaptive scaling into a new transfer run.
+        if load_mode == "transfer":
+            return
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_rd_state.pth",
+            map_location=self.device,
+        )
+
+        self.scale_r = float(checkpoint.get("scale_r", self.scale_r))
+        self.scale_s = float(checkpoint.get("scale_s", self.scale_s))
