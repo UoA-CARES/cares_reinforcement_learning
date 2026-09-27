@@ -841,32 +841,45 @@ class SDARConfig(SACConfig):
     )
 
 
-class SACDConfig(AlgorithmConfig):
+class SACDConfig(SACConfig):
     algorithm: str = "SACD"
-
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     alpha_lr: float = 3e-4
 
-    batch_size: int = 64
-
-    target_entropy_multiplier: float = 0.98
-
-    max_steps_exploration: int = 20000
-    number_steps_per_train_policy: int = 4
-
+    # Base algorithm configs
     gamma: float = 0.99
     tau: float = 0.005
     reward_scale: float = 1.0
-
+    batch_size: int = 64
+    buffer_size: int = 100_000
+    max_steps_exploration: int = 20_000
+    number_steps_per_train_policy: int = 4
+    n_step: int = 1
     policy_update_freq: int = 1
     target_update_freq: int = 1
+    use_per_buffer: int = 0
+
+    # SAC configs
+    target_entropy_multiplier: float = 0.98
+    init_entropy_alpha: float = 1.0
+    auto_entropy_tuning: bool = True
+
+    # SACD specific configs
+    use_clipped_q: bool = True
+    q_clip_epsilon: float = 0.5
+    use_average_q: bool = True
+    use_entropy_penalty: bool = False
+    entropy_penalty_beta: float = 0.5
+
+    # Network configs
+    normalise_state: bool = True
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
         ]
     )
@@ -875,9 +888,9 @@ class SACDConfig(AlgorithmConfig):
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            TrainableLayer(layer_type="Linear", out_features=512),
             FunctionLayer(layer_type="ReLU"),
-            TrainableLayer(layer_type="Linear", in_features=512),
+            TrainableLayer(layer_type="Linear"),
         ]
     )
 
