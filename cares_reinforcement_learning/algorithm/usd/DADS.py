@@ -323,7 +323,7 @@ class DADS(SARLAlgorithm[np.ndarray]):
         checkpoint = {
             "discriminator": self.discriminator_net.state_dict(),
             "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
-            "z": self.z,
+            "z": self.z.tolist(),
         }
         torch.save(checkpoint, f"{filepath}/{filename}_dads.pth")
         logging.info("models, optimisers, and DADS state have been saved...")
