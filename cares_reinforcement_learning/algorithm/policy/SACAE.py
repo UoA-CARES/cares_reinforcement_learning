@@ -149,7 +149,9 @@ class SACAE(SARLAlgorithm[np.ndarray]):
 
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+        self.log_alpha = torch.tensor(
+            np.log(init_temperature), dtype=torch.float32, device=device
+        )
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params

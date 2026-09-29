@@ -162,11 +162,10 @@ def populate_buffer_sarl(
     memory_buffer,
     capacity: int,
     observation_size: dict,
-    action_num: int,
+    agent,
     image_state: bool = False,
-    discrete: bool = False,
 ):
-    """Populate a SARL buffer with test experiences."""
+    """Populate a SARL buffer using the algorithm's real action interface."""
     for _ in range(capacity):
         observation = create_sarl_observation(
             observation_size,
@@ -178,25 +177,19 @@ def populate_buffer_sarl(
             image_state,
         )
 
-        if discrete:
-            action = np.array(random.randrange(action_num))
-        else:
-            action = np.array(
-                list(range(action_num)),
-                dtype=np.float32,
-            )
+        action_sample = agent.act(
+            observation,
+            evaluation=False,
+        )
 
         experience = SingleAgentExperience(
             observation=observation,
             next_observation=next_observation,
-            action=action,
+            action=action_sample.action,
             reward=10.0,
             done=False,
             truncated=False,
-            train_data={
-                "log_prob": -0.5,
-                "value": 0.1,
-            },
+            train_data=dict(action_sample.extras),
             info={},
         )
 
@@ -210,9 +203,9 @@ def populate_buffer_marl(
     capacity: int,
     observation_size: dict,
     action_num: int,
-    discrete: bool = False,
+    agent,
 ):
-    """Populate a MARL buffer with test experiences."""
+    """Populate a MARL buffer using the algorithm's real action interface."""
     for _ in range(capacity):
         observation = create_marl_observation(
             observation_size,
@@ -224,51 +217,25 @@ def populate_buffer_marl(
             action_num,
         )
 
-        actions = {}
-        reward = {}
-        done = {}
-        truncated = {}
+        action_sample = agent.act(
+            observation,
+            evaluation=False,
+        )
 
-        for agent in observation.agent_states.keys():
-            reward[agent] = 10.0
-            done[agent] = False
-            truncated[agent] = False
+        reward = {agent_id: 10.0 for agent_id in observation.agent_states}
 
-            if discrete:
-                action = np.array(random.randrange(action_num))
-            else:
-                action = np.array(
-                    list(range(action_num)),
-                    dtype=np.float32,
-                )
+        done = {agent_id: False for agent_id in observation.agent_states}
 
-            actions[agent] = action
+        truncated = {agent_id: False for agent_id in observation.agent_states}
 
         experience = MultiAgentExperience(
             observation=observation,
             next_observation=next_observation,
-            action=actions,
+            action=action_sample.action,
             reward=reward,
             done=done,
             truncated=truncated,
-            train_data={
-                # MAPPO
-                "log_prob": {agent: -0.5 for agent in observation.agent_states.keys()},
-                "value": {agent: 0.1 for agent in observation.agent_states.keys()},
-                # IMARL
-                "agent_0": {
-                    "log_prob": -0.5,
-                    "value": 0.1,
-                },
-                "agent_1": {
-                    "log_prob": -0.5,
-                    "value": 0.1,
-                },
-                "agent_2": {
-                    "log_prob": -0.5,
-                    "value": 0.1,
-                },
-            },
+            train_data=dict(action_sample.extras),
             info={},
         )
 
@@ -317,31 +284,25 @@ def create_populated_memory(
     alg_config: AlgorithmConfig,
     agent,
     observation_size: dict,
+    capacity: int = CAPACITY,
 ):
-    """Create and populate the correct memory type."""
     memory_buffer = memory_factory.create_memory(alg_config)
-
-    is_discrete = agent.policy_type in (
-        "value",
-        "discrete_policy",
-    )
 
     if alg_config.marl_observation:
         return populate_buffer_marl(
             memory_buffer,
-            CAPACITY,
+            capacity,
             observation_size,
             ACTION_NUM,
-            discrete=is_discrete,
+            agent,
         )
 
     return populate_buffer_sarl(
         memory_buffer,
-        CAPACITY,
+        capacity,
         observation_size,
-        ACTION_NUM,
+        agent,
         image_state=alg_config.image_observation,
-        discrete=is_discrete,
     )
 
 
@@ -361,14 +322,13 @@ def calculate_test_value(
     observation,
     action,
 ) -> float:
-    """
-    Calculate an agent value as deterministically as possible.
-
-    Noisy-network algorithms resample parameter noise, so if the
-    algorithm exposes its common noise-reset helper, reset it using
-    a fixed seed before comparing independently loaded agents.
-    """
     reset_test_seed(TEST_SEED + 1)
+
+    if hasattr(agent, "set_skill"):
+        agent.set_skill(
+            0,
+            evaluation=True,
+        )
 
     reset_noise = getattr(
         agent,
@@ -667,11 +627,23 @@ def test_algorithm_persistence(
     if source_agent.policy_type == "mbrl":
         pytest.skip("MBRL algorithms are outside " "this generic persistence test")
 
+    training_capacity = max(
+        CAPACITY,
+        int(
+            getattr(
+                source_agent,
+                "batch_size",
+                CAPACITY,
+            )
+        ),
+    )
+
     source_memory = create_populated_memory(
         memory_factory,
         source_config,
         source_agent,
         observation_size,
+        capacity=training_capacity,
     )
 
     # Capture a stable observation/action pair before training.
@@ -694,6 +666,10 @@ def test_algorithm_persistence(
     assert isinstance(
         source_info,
         dict,
+    )
+
+    assert source_info, (
+        f"{algorithm} did not perform a training " "update before persistence testing"
     )
 
     source_dir = tmp_path / "source"
@@ -809,11 +785,12 @@ def test_algorithm_persistence(
         test_action,
     )
 
-    assert isinstance(
-        transfer_value,
-        float,
+    assert transfer_value == pytest.approx(
+        source_value,
+        rel=1e-5,
+        abs=1e-6,
     ), (
-        f"{algorithm} transfer load did not " "produce a usable value function"
+        f"{algorithm} transfer load did not " "reproduce source model behaviour"
     )
 
     # Transfer represents a new run, so use a fresh memory
