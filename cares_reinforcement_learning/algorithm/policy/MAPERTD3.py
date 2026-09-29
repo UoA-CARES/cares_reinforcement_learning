@@ -469,8 +469,8 @@ class MAPERTD3(TD3):
             map_location=self.device,
         )
 
-        checkpoint["scale_r"] = self.scale_r
-        checkpoint["scale_s"] = self.scale_s
+        checkpoint["scale_r"] = float(self.scale_r)
+        checkpoint["scale_s"] = float(self.scale_s)
 
         torch.save(checkpoint, checkpoint_path)
 

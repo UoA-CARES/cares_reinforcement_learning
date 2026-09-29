@@ -484,7 +484,13 @@ class SAC(SARLAlgorithm[np.ndarray]):
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
 
         # Restore log_alpha from float
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha.data.copy_(
+            torch.as_tensor(
+                checkpoint["log_alpha"],
+                dtype=self.log_alpha.dtype,
+                device=self.device,
+            )
+        )
         self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
         self.learn_counter = checkpoint.get("learn_counter", 0)
 
