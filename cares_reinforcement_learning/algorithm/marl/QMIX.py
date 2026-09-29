@@ -484,7 +484,7 @@ class QMIX(MARLAlgorithm[dict[str, int]]):
             raise ValueError(f"Unknown load mode: {load_mode}")
 
         checkpoint = torch.load(
-            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+            f"{filepath}/{filename}_checkpoint.pth", map_location="cpu"
         )
 
         self.network.load_state_dict(checkpoint["network"])
