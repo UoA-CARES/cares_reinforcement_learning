@@ -335,7 +335,7 @@ class SACD(SARLAlgorithm[int]):
             "actor_optimizer": self.actor_net_optimiser.state_dict(),
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
             # Save log_alpha as a float, not a numpy array
-            "log_alpha": self.log_alpha.detach().cpu().item(),
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
             "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
             "learn_counter": self.learn_counter,
         }
@@ -368,12 +368,8 @@ class SACD(SARLAlgorithm[int]):
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
 
-        self.log_alpha.data.copy_(
-            torch.as_tensor(
-                checkpoint["log_alpha"],
-                dtype=self.log_alpha.dtype,
-                device=self.device,
-            )
+        self.log_alpha.data = torch.tensor(
+            checkpoint["log_alpha"], dtype=torch.float32, device=self.device
         )
         self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
 

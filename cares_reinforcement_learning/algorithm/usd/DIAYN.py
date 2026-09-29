@@ -290,9 +290,7 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
             filepath, f"{filename}_skill_agent", load_mode=load_mode
         )
 
-        checkpoint = torch.load(
-            f"{filepath}/{filename}_diayn.pth", map_location=self.device
-        )
+        checkpoint = torch.load(f"{filepath}/{filename}_diayn.pth", map_location="cpu")
 
         self.discriminator_net.load_state_dict(checkpoint["discriminator_state_dict"])
 

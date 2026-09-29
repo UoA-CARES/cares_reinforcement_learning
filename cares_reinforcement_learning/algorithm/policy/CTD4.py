@@ -707,7 +707,7 @@ class CTD4(TD3):
 
         # Load each ensemble critic optimizer from the single file
         ensemble_optim_state = torch.load(
-            f"{filepath}/{filename}_ensemble_critic_optimizers.pth"
+            f"{filepath}/{filename}_ensemble_critic_optimizers.pth", map_location="cpu"
         )
         for idx, opt in enumerate(self.ensemble_critic_optimizers):
             opt.load_state_dict(ensemble_optim_state[f"optimizer_{idx}"])

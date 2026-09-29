@@ -445,7 +445,7 @@ class DQN(SARLAlgorithm[int]):
 
         checkpoint = torch.load(
             f"{filepath}/{filename}_checkpoint.pth",
-            map_location=self.device,
+            map_location="cpu",
         )
 
         self.network.load_state_dict(checkpoint["network"])

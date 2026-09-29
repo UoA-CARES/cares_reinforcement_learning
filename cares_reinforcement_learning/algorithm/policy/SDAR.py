@@ -65,14 +65,14 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import SDARConfig
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.SDAR import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import SDARConfig
 
 
 class SDAR(SARLAlgorithm[np.ndarray]):
@@ -498,7 +498,7 @@ class SDAR(SARLAlgorithm[np.ndarray]):
             raise ValueError(f"Unknown load mode: {load_mode}")
 
         checkpoint = torch.load(
-            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+            f"{filepath}/{filename}_checkpoint.pth", map_location="cpu"
         )
 
         self.actor_net.load_state_dict(checkpoint["actor"])

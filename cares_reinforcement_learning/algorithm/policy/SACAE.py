@@ -468,7 +468,7 @@ class SACAE(SARLAlgorithm[np.ndarray]):
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
             "encoder_optimizer": self.encoder_net_optimiser.state_dict(),
             "decoder_optimizer": self.decoder_net_optimiser.state_dict(),
-            "log_alpha": self.log_alpha.detach().cpu().item(),
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
             "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
             "learn_counter": self.learn_counter,
         }
@@ -485,7 +485,7 @@ class SACAE(SARLAlgorithm[np.ndarray]):
             raise ValueError(f"Unknown load mode: {load_mode}")
 
         checkpoint = torch.load(
-            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+            f"{filepath}/{filename}_checkpoint.pth", map_location="cpu"
         )
 
         self.actor_net.load_state_dict(checkpoint["actor"])
@@ -505,7 +505,9 @@ class SACAE(SARLAlgorithm[np.ndarray]):
         self.encoder_net_optimiser.load_state_dict(checkpoint["encoder_optimizer"])
         self.decoder_net_optimiser.load_state_dict(checkpoint["decoder_optimizer"])
 
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha.data = torch.tensor(
+            checkpoint["log_alpha"], dtype=torch.float32, device=self.device
+        )
         self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
 
         self.learn_counter = checkpoint.get("learn_counter", 0)

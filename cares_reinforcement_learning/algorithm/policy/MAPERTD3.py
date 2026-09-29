@@ -491,7 +491,7 @@ class MAPERTD3(TD3):
 
         checkpoint = torch.load(
             f"{filepath}/{filename}_checkpoint.pth",
-            map_location=self.device,
+            map_location="cpu",
         )
 
         self.scale_r = checkpoint.get("scale_r", self.scale_r)

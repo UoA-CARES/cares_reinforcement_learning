@@ -324,7 +324,7 @@ class DDPG(SARLAlgorithm[np.ndarray]):
             raise ValueError(f"Unknown load mode: {load_mode}")
 
         checkpoint = torch.load(
-            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+            f"{filepath}/{filename}_checkpoint.pth", map_location="cpu"
         )
 
         self.actor_net.load_state_dict(checkpoint["actor"])

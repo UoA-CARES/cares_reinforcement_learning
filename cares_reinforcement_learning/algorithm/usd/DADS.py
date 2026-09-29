@@ -344,9 +344,7 @@ class DADS(SARLAlgorithm[np.ndarray]):
             filepath, f"{filename}_skill_agent", load_mode=load_mode
         )
 
-        checkpoint = torch.load(
-            f"{filepath}/{filename}_dads.pth", map_location=self.device
-        )
+        checkpoint = torch.load(f"{filepath}/{filename}_dads.pth", map_location="cpu")
         self.discriminator_net.load_state_dict(checkpoint["discriminator"])
 
         if load_mode == "transfer":
