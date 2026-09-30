@@ -42,8 +42,7 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
             else None
         )
 
-        if self.learning_team_name is not None:
-            self._load_frozen_models()
+        self._load_frozen_models()
 
     def _load_frozen_models(self) -> None:
         for team_name, agent_network in self.agent_networks.items():
