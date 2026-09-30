@@ -280,6 +280,39 @@ cares-rl resume --data_path my_experiment/
 !!! warning "Resume is not Deterministic"
     The resume command is not guaranteed to be fully deterministic, but it will restore the model, optimizer, and training state as closely as possible.
 
+### Transferring a Trained Model (transfer)
+
+The `transfer` command starts a **new training run** using learned model weights from an existing saved model. Unlike `resume`, transfer does not continue the previous training state. Optimizers, replay or rollout memory, training counters, normalizer state, and exploration schedules are initialized as a fresh run while the learned networks are loaded from the selected source model.
+
+The `--transfer_path` must point to the **exact model folder** containing the saved model files. The command does not infer a seed, checkpoint, evaluation step, or `final` directory from a higher-level experiment path. For example, a completed run may use a source such as `.../models/final`.
+
+Transfer uses the same `cli` or `config` training configuration interface as a normal `train` command. This allows the new run to use a different environment or reward configuration while retaining the learned model initialization.
+
+**Example: Transfer using command-line configuration**
+
+```bash
+cares-rl transfer --transfer_path <PATH_TO_MODEL_FOLDER> cli --gym openai --task CartPole-v1 DQN
+```
+
+**Example: Transfer using configuration files**
+
+```bash
+cares-rl transfer --transfer_path <PATH_TO_MODEL_FOLDER> config --data_path ~/my_experiment/
+```
+
+!!! note "Transfer vs. Resume"
+    `resume` restores the saved training state and continues the previous run. `transfer` creates a fresh run and loads the learned model weights only.
+
+!!! tip "Initial Transfer Evaluation"
+    Transfer runs perform an evaluation at training step `0` before any new updates. This records the behaviour of the transferred model before adaptation to the new run begins.
+
+!!! tip "Multiple Seeds"
+    When the new training configuration contains multiple seeds, each seed starts from the same model folder specified by `--transfer_path`, while all other training state is initialized independently for that seed.
+
+!!! warning "CrossMARL"
+    Generic transfer loading is not supported for `CrossMARL`. CrossMARL manages its fixed opponent/team models separately through their configured model paths.
+
+
 ## Evaluating Models (evaluate)
 The `evaluate` command is used to re-run the evaluation phase of a completed or in-progress training run. This is useful for generating updated evaluation metrics, plots, or logs without re-running the entire training process. Evaluation uses the saved model evaluation checkpoints and configuration files from a previous run.
 
