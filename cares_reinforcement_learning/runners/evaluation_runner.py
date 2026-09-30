@@ -179,7 +179,11 @@ class EvaluationRunner(BaseRunner):
         self.logger.info(f"[SEED {self.eval_seed}] (step {step})")
 
         try:
-            self.agent.load_models(checkpoint_path, self.alg_config.algorithm)
+            self.agent.load_models(
+                checkpoint_path,
+                self.alg_config.algorithm,
+                load_mode="resume",
+            )
             self.logger.info(
                 f"[SEED {self.eval_seed}] Successfully loaded checkpoint: {step}"
             )

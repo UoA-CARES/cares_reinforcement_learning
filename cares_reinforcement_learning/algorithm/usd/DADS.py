@@ -73,7 +73,7 @@ import math
 import os
 from collections.abc import Callable
 from dataclasses import replace
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -337,16 +337,40 @@ class DADS(SARLAlgorithm[np.ndarray]):
         checkpoint = {
             "discriminator": self.discriminator_net.state_dict(),
             "discriminator_optimizer": self.discriminator_optimizer.state_dict(),
+            "z": torch.as_tensor(
+                self.z,
+                dtype=torch.float32,
+            ).cpu(),
         }
         torch.save(checkpoint, f"{filepath}/{filename}_dads.pth")
         logging.info("models, optimisers, and DADS state have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        self.skills_agent.load_models(filepath, f"{filename}_skill_agent")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
 
-        checkpoint = torch.load(f"{filepath}/{filename}_dads.pth")
+        self.skills_agent.load_models(
+            filepath, f"{filename}_skill_agent", load_mode=load_mode
+        )
+
+        checkpoint = torch.load(f"{filepath}/{filename}_dads.pth", map_location="cpu")
         self.discriminator_net.load_state_dict(checkpoint["discriminator"])
+
+        if load_mode == "transfer":
+            logging.info("model weights have been loaded for transfer...")
+            return
+
         self.discriminator_optimizer.load_state_dict(
             checkpoint["discriminator_optimizer"]
         )
+
+        saved_z = checkpoint.get("z")
+        if saved_z is not None:
+            self.z = saved_z.detach().cpu().numpy().astype(np.float32)
+
         logging.info("models, optimisers, and DADS state have been loaded...")

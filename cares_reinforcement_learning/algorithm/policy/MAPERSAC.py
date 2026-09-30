@@ -64,7 +64,7 @@ MaPER = PER + model-error-aware prioritization
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -491,3 +491,40 @@ class MAPERSAC(SAC):
             info["log_alpha"] = self.log_alpha.item()
 
         return info
+
+    def save_models(self, filepath: str, filename: str) -> None:
+        super().save_models(filepath, filename)
+
+        checkpoint_path = f"{filepath}/{filename}_checkpoint.pth"
+        checkpoint = torch.load(
+            checkpoint_path,
+            map_location=self.device,
+        )
+
+        checkpoint["scale_r"] = float(self.scale_r)
+        checkpoint["scale_s"] = float(self.scale_s)
+
+        torch.save(checkpoint, checkpoint_path)
+
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        super().load_models(
+            filepath,
+            filename,
+            load_mode=load_mode,
+        )
+
+        if load_mode == "transfer":
+            return
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth",
+            map_location="cpu",
+        )
+
+        self.scale_r = checkpoint.get("scale_r", self.scale_r)
+        self.scale_s = checkpoint.get("scale_s", self.scale_s)

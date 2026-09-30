@@ -1587,54 +1587,142 @@ def create_IPPO(
 
 
 def create_CrossMARL(
-    observation_size, action_num, config: acf.CrossMARLConfig, action_sampler: Callable
+    observation_size,
+    action_num,
+    config: acf.CrossMARLConfig,
+    action_sampler: Callable,
 ):
     from cares_reinforcement_learning.algorithm.marl import CrossMARL
 
     device = hlp.get_device()
 
-    env_teams = observation_size["teams"]  # dict[str → list[str]]
+    env_teams = observation_size["teams"]
+    env_obs = observation_size["obs"]
 
     learning_team_name = config.learning_team_name
-    learning_team = (
-        env_teams[learning_team_name] if learning_team_name is not None else {}
-    )
 
-    learning_obs_shapes = {
-        "obs": {
-            agent_name: observation_size["obs"][agent_name]
-            for agent_name in learning_team
-        },
-        "state": observation_size["state"],
-        "num_agents": len(learning_team),
-        "teams": env_teams,
-    }
+    # ---------------------------------------------------------
+    # Validate CrossMARL configuration
+    # ---------------------------------------------------------
+    if learning_team_name is not None and learning_team_name not in env_teams:
+        raise ValueError(
+            f"Unknown CrossMARL learning team "
+            f"'{learning_team_name}'. "
+            f"Available teams: {list(env_teams.keys())}"
+        )
 
+    missing_team_configs = set(env_teams.keys()) - set(config.agents_config.keys())
+
+    if missing_team_configs:
+        raise ValueError(
+            "Missing CrossMARL algorithm configuration "
+            f"for teams: {sorted(missing_team_configs)}"
+        )
+
+    for team_name, agent_ids in env_teams.items():
+        missing_agent_obs = [
+            agent_id for agent_id in agent_ids if agent_id not in env_obs
+        ]
+
+        if missing_agent_obs:
+            raise ValueError(
+                f"CrossMARL team '{team_name}' contains "
+                f"agents with no observation specification: "
+                f"{missing_agent_obs}"
+            )
+
+    # ---------------------------------------------------------
+    # Build observation specification for the learning team.
+    #
+    # The nested learning algorithm owns ONLY this team's
+    # actors/critics.
+    #
+    # Therefore:
+    #
+    #   obs
+    #       -> learning agents only
+    #
+    #   teams
+    #       -> learning team only
+    #
+    #   num_agents
+    #       -> number of learning agents only
+    #
+    #   state
+    #       -> full environment state
+    #
+    # Keeping the full global state allows centralized critics
+    # to observe the rest of the environment, including frozen
+    # opponents, without making those opponents trainable units
+    # inside the learning algorithm.
+    # ---------------------------------------------------------
+    learning_observation_size = None
+
+    if learning_team_name is not None:
+        learning_agent_ids = env_teams[learning_team_name]
+
+        learning_observation_size = {
+            "obs": {agent_id: env_obs[agent_id] for agent_id in learning_agent_ids},
+            "state": observation_size["state"],
+            "num_agents": len(learning_agent_ids),
+            "teams": {learning_team_name: list(learning_agent_ids)},
+        }
+
+    # ---------------------------------------------------------
+    # Construct each team algorithm.
+    # ---------------------------------------------------------
     algorithm_factory = AlgorithmFactory()
 
     agents = {}
 
     for team_name in env_teams.keys():
-        agent_obs = observation_size
+        agent_config = config.agents_config[team_name]
+
         if team_name == learning_team_name:
-            agent_obs = learning_obs_shapes
+            if learning_observation_size is None:
+                raise ValueError(
+                    "CrossMARL learning observation " "specification was not created."
+                )
+
+            # Fresh learning policy:
+            #
+            # Only expose the team it actually controls.
+            agent_observation_size = learning_observation_size
+
+        else:
+            # Frozen policy:
+            #
+            # Reconstruct using the full original environment
+            # specification so that its network architecture
+            # matches the saved checkpoint exactly.
+            agent_observation_size = observation_size
 
         agent = algorithm_factory.create_network(
-            observation_size=agent_obs,
+            observation_size=agent_observation_size,
             action_num=action_num,
-            config=config.agents_config[team_name],
+            config=agent_config,
             action_sampler=action_sampler,
         )
+
+        if agent is None:
+            raise ValueError(
+                f"Failed to create CrossMARL algorithm "
+                f"'{agent_config.algorithm}' for team "
+                f"'{team_name}'."
+            )
+
         agents[team_name] = agent
 
-    multimarl_agent = CrossMARL(
+    # ---------------------------------------------------------
+    # CrossMARL will load the frozen models explicitly.
+    # ---------------------------------------------------------
+    return CrossMARL(
         agent_networks=agents,
         env_teams=env_teams,
         config=config,
-        action_sampler=action_sampler,
         device=device,
+        action_sampler=action_sampler,
     )
-    return multimarl_agent
 
 
 ####################################
@@ -1676,10 +1764,6 @@ class AlgorithmFactory:
         if agent is None:
             logging.warning(f"Unknown {algorithm} algorithm.")
         else:
-            if config.model_path is not None:
-                logging.info(f"Loading model weights from {config.model_path}")
-                agent.load_models(filepath=config.model_path, filename=config.algorithm)
-
             if not _compare_mlp_parts(
                 type(config)(algorithm=config.algorithm, gamma=config.gamma), config
             ):

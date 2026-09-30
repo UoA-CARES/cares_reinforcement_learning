@@ -50,7 +50,7 @@ CTD4 = TD3 + Gaussian distributional critics + Kalman fusion.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
@@ -696,11 +696,20 @@ class CTD4(TD3):
             f"{filepath}/{filename}_ensemble_critic_optimizers.pth",
         )
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        super().load_models(filepath, filename)
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        super().load_models(filepath, filename, load_mode=load_mode)
+
+        if load_mode == "transfer":
+            return
+
         # Load each ensemble critic optimizer from the single file
         ensemble_optim_state = torch.load(
-            f"{filepath}/{filename}_ensemble_critic_optimizers.pth"
+            f"{filepath}/{filename}_ensemble_critic_optimizers.pth", map_location="cpu"
         )
         for idx, opt in enumerate(self.ensemble_critic_optimizers):
             opt.load_state_dict(ensemble_optim_state[f"optimizer_{idx}"])
