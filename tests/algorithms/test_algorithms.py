@@ -554,29 +554,11 @@ def test_algorithm_smoke(
         f"{algorithm} did not return a " "dictionary of training info"
     )
 
-<<<<<<< HEAD
-        memory_buffer = memory_factory.create_memory(alg_config)
-
-        if alg_config.marl_observation:
-            observation_size = observation_size_marl
-        else:
-            observation_size = {
-                "image": observation_size_image,
-                "vector": observation_size_vector,
-            }
-
-        agent = factory.create_network(
-            observation_size=observation_size,
-            action_num=action_num,
-            config=alg_config,
-            action_sampler=None,
-=======
     intrinsic_on = (
         bool(alg_config.intrinsic_on)
         if hasattr(
             alg_config,
             "intrinsic_on",
->>>>>>> main
         )
         else False
     )
