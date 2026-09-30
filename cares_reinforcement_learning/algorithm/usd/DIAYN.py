@@ -64,13 +64,13 @@ import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import DIAYNConfig
 from cares_reinforcement_learning.algorithm.policy import SAC
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DIAYN import Discriminator
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import DIAYNConfig
 
 
 class DIAYN(SARLAlgorithm[np.ndarray]):
@@ -272,7 +272,7 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         checkpoint = {
             "discriminator_state_dict": self.discriminator_net.state_dict(),
             "discriminator_optimizer_state_dict": self.discriminator_optimizer.state_dict(),
-            "z": self.z,
+            "z": int(self.z),
         }
         torch.save(checkpoint, f"{filepath}/{filename}_diayn.pth")
         logging.info("DIAYN models and state have been saved...")
@@ -302,5 +302,5 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
             checkpoint["discriminator_optimizer_state_dict"]
         )
 
-        self.z = checkpoint.get("z", self.z)
+        self.z = int(checkpoint.get("z", self.z))
         logging.info("DIAYN models and state have been loaded...")

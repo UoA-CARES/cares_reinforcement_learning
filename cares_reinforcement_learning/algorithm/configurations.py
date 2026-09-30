@@ -1652,3 +1652,5 @@ class CrossMARLConfig(AlgorithmConfig):
     gamma: float = 0.99
 
     agents_config: dict[str, AlgorithmConfig] = Field(default_factory=dict)
+
+    frozen_model_paths: dict[str, str] = Field(default_factory=dict)

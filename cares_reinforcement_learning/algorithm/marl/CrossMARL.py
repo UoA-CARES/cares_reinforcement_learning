@@ -46,17 +46,18 @@ class CrossMARL(MARLAlgorithm[dict[str, np.ndarray]]):
             self._load_frozen_models()
 
     def _load_frozen_models(self) -> None:
-        for agent_name, agent_network in self.agent_networks.items():
-            if agent_name == self.learning_team_name:
+        for team_name, agent_network in self.agent_networks.items():
+            if team_name == self.learning_team_name:
                 continue
 
-            agent_config = self.config.agents_config[agent_name]
-            model_path = getattr(agent_config, "model_path", None)
+            model_path = self.config.frozen_model_paths.get(team_name)
 
             if model_path is None:
                 raise ValueError(
-                    f"Frozen CrossMARL team '{agent_name}' is missing model_path."
+                    f"Frozen CrossMARL team " f"'{team_name}' is missing a model path."
                 )
+
+            agent_config = self.config.agents_config[team_name]
 
             agent_network.load_models(
                 model_path, agent_config.algorithm, load_mode="resume"

@@ -53,7 +53,7 @@ def load_team_alg_config(
     output_dir: Path,
     team_name: str,
     model_folder: str = "final",
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], str]:
     logger.info(f"Loading team config for '{team_name}' from {base_log_dir}")
 
     alg_config_path = base_log_dir / "alg_config.json"
@@ -66,14 +66,21 @@ def load_team_alg_config(
         raise FileNotFoundError(f"Missing model folder: {src_model_path}")
 
     dst_model_path = output_dir / seed / "models" / model_folder / team_name
-    copy_tree(src_model_path, dst_model_path)
+
+    copy_tree(
+        src=src_model_path,
+        dst=dst_model_path,
+    )
 
     alg_config = load_json(alg_config_path)
-    alg_config["model_path"] = str(dst_model_path)
+
+    # model_path was the old implicit model-loading mechanism.
+    # CrossMARL now tracks frozen model locations explicitly.
+    alg_config.pop("model_path", None)
 
     logger.debug(f"Loaded algorithm config for '{team_name}'")
 
-    return alg_config
+    return alg_config, str(dst_model_path)
 
 
 def validate_shared_env_config(team_log_dirs: dict[str, Path]) -> dict[str, Any]:
@@ -137,14 +144,20 @@ def create_cross_marl_folder(
     logger.info("=" * 60)
 
     output_dir = output_dir.expanduser()
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
 
     agents_config: dict[str, Any] = {}
+    frozen_model_paths: dict[str, str] = {}
 
+    # Build configs and copy model data for frozen teams.
     for team_name, base_log_dir in team_log_dirs.items():
         if team_name == learning_team_name:
             continue
-        agents_config[team_name] = load_team_alg_config(
+
+        agent_config, model_path = load_team_alg_config(
             base_log_dir=base_log_dir,
             seed=seed,
             output_dir=output_dir,
@@ -152,36 +165,60 @@ def create_cross_marl_folder(
             model_folder=model_folder,
         )
 
+        agents_config[team_name] = agent_config
+        frozen_model_paths[team_name] = model_path
+
+    # Create a fresh configuration for the learning team.
     if learning_team_name is not None or learning_algorithm_name is not None:
         if learning_algorithm_name is None:
             raise ValueError(
-                "--learning-algorithm_name is required when --learning-team-name is set"
+                "--learning-algorithm is required when " "--learning-team-name is set"
             )
+
         if learning_team_name is None:
             raise ValueError(
-                "--learning-team_name is required when --learning-algorithm_name is set"
+                "--learning-team-name is required when " "--learning-algorithm is set"
             )
 
         logger.info(
-            f"Instantiating default config for '{learning_team_name}' using algorithm '{learning_algorithm_name}'"
+            f"Instantiating default config for "
+            f"'{learning_team_name}' using algorithm "
+            f"'{learning_algorithm_name}'"
         )
-        agents_config[learning_team_name] = default_algorithm_config(
-            learning_algorithm_name
-        )
+
+        learning_config = default_algorithm_config(learning_algorithm_name)
+
+        # Ensure legacy configs cannot trigger implicit loading.
+        learning_config.pop("model_path", None)
+
+        agents_config[learning_team_name] = learning_config
 
     cross_marl_config = {
         "algorithm": "CrossMARL",
         "marl_observation": 1,
         "learning_team_name": learning_team_name,
         "agents_config": agents_config,
+        "frozen_model_paths": frozen_model_paths,
     }
 
     env_config = validate_shared_env_config(team_log_dirs)
 
     logger.info(f"Writing config files to {output_dir}")
-    save_json(cross_marl_config, output_dir / "alg_config.json")
-    save_json(env_config, output_dir / "env_config.json")
-    save_json(default_train_config(), output_dir / "train_config.json")
+
+    save_json(
+        cross_marl_config,
+        output_dir / "alg_config.json",
+    )
+
+    save_json(
+        env_config,
+        output_dir / "env_config.json",
+    )
+
+    save_json(
+        default_train_config(),
+        output_dir / "train_config.json",
+    )
 
     logger.info("=" * 60)
     logger.info("✓ CrossMARL folder created successfully")
