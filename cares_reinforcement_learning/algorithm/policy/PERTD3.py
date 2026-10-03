@@ -32,11 +32,14 @@ Notes:
 - Corrected variants like PAL/LAP/LA3P address these issues separately.
 """
 
+from collections.abc import Callable
+
+import numpy as np
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import PERTD3Config
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.networks.PERTD3 import Actor, Critic
-from cares_reinforcement_learning.algorithm.configurations import PERTD3Config
 
 
 class PERTD3(TD3):
@@ -45,11 +48,13 @@ class PERTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: PERTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=critic_network,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )

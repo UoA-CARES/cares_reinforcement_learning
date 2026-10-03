@@ -60,6 +60,7 @@ SAC-AE = SAC + shared convolutional encoder +
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -89,9 +90,15 @@ class SACAE(SARLAlgorithm[np.ndarray]):
         critic_network: Critic,
         decoder_network: Decoder,
         config: SACAEConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # this may be called policy_net in other implementations
         self.actor_net = actor_network.to(device)
@@ -113,6 +120,7 @@ class SACAE(SARLAlgorithm[np.ndarray]):
         self.gamma = config.gamma
         self.tau = config.tau
         self.reward_scale = config.reward_scale
+        self.max_steps_exploration = config.max_steps_exploration
 
         # PER
         self.use_per_buffer = config.use_per_buffer
@@ -160,14 +168,13 @@ class SACAE(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
-        # note that when evaluating this algorithm we need to select mu as action
+        # Exploitation phase: use policy to select actions
         self.actor_net.eval()
-
         with torch.no_grad():
             observation_tensors = memory_sampler.observation_to_tensors(
                 [observation], self.device
             )
-
+            # note that when evaluating this algorithm we need to select mu as action
             if evaluation:
                 _, _, action = self.actor_net(observation_tensors)
             else:
@@ -176,6 +183,16 @@ class SACAE(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     @property
     def alpha(self) -> torch.Tensor:

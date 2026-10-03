@@ -46,11 +46,13 @@ Key Behaviour:
 Dueling DQN = DQN with separate value and advantage streams.
 """
 
+from collections.abc import Callable
+
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import DuelingDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.DuelingDQN import Network
-from cares_reinforcement_learning.algorithm.configurations import DuelingDQNConfig
 
 
 class DuelingDQN(DQN):
@@ -58,6 +60,7 @@ class DuelingDQN(DQN):
         self,
         network: Network,
         config: DuelingDQNConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(network, config, device)
+        super().__init__(network, config, action_sampler, device)

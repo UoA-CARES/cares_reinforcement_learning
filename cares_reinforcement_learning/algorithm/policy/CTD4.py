@@ -49,12 +49,12 @@ Rationale:
 CTD4 = TD3 + Gaussian distributional critics + Kalman fusion.
 """
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
 import torch
 
-import cares_reinforcement_learning.util.helpers as hlp
 from cares_reinforcement_learning.algorithm.configurations import CTD4Config
 from cares_reinforcement_learning.algorithm.policy import TD3
 from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
@@ -74,12 +74,14 @@ class CTD4(TD3):
         actor_network: Actor,
         ensemble_critic: Critic,
         config: CTD4Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=ensemble_critic,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

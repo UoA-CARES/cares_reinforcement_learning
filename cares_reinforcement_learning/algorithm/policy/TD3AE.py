@@ -59,6 +59,7 @@ TD3-AE = TD3 + shared convolutional encoder +
 import copy
 import logging
 import os
+from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -89,9 +90,15 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
         critic_network: Critic,
         decoder_network: Decoder,
         config: TD3AEConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="policy", config=config, device=device)
+        super().__init__(
+            policy_type="policy",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.actor_net = actor_network.to(self.device)
         self.critic_net = critic_network.to(self.device)
@@ -112,6 +119,7 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
 
         self.gamma = config.gamma
         self.tau = config.tau
+        self.max_steps_exploration = config.max_steps_exploration
 
         # PER
         self.use_per_buffer = config.use_per_buffer
@@ -165,8 +173,8 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
     def act(
         self, observation: SARLObservation, evaluation: bool = False
     ) -> ActionSample[np.ndarray]:
+        # Exploitation phase: use policy to select actions
         self.actor_net.eval()
-
         with torch.no_grad():
             observation_tensors = memory_sampler.observation_to_tensors(
                 [observation], self.device
@@ -184,6 +192,16 @@ class TD3AE(SARLAlgorithm[np.ndarray]):
         self.actor_net.train()
 
         return ActionSample(action=action, source="policy")
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,
+    ) -> ActionSample[np.ndarray]:
+        if training_step < self.max_steps_exploration:
+            return self._explore()
+
+        return self.act(observation, evaluation=False)
 
     def _update_critic(
         self,

@@ -56,6 +56,7 @@ Rationale:
 LA3P = PER + Inverse Actor Sampling + Uniform Sharing + Loss Adjustment.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import numpy as np
@@ -77,9 +78,10 @@ class LA3PTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: LA3PTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(actor_network, critic_network, config, action_sampler, device)
 
         self.prioritized_fraction = config.prioritized_fraction
 

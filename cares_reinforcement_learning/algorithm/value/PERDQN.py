@@ -44,11 +44,13 @@ Advantages:
 PER-DQN = DQN + prioritized replay + importance weighting.
 """
 
+from collections.abc import Callable
+
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import PERDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.PERDQN import Network
-from cares_reinforcement_learning.algorithm.configurations import PERDQNConfig
 
 
 class PERDQN(DQN):
@@ -56,6 +58,9 @@ class PERDQN(DQN):
         self,
         network: Network,
         config: PERDQNConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(network=network, config=config, device=device)
+        super().__init__(
+            network=network, config=config, action_sampler=action_sampler, device=device
+        )

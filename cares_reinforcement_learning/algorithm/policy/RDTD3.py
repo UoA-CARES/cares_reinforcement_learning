@@ -65,6 +65,7 @@ RD-PER = PER with Reward Prediction Error
          replacing TD-error as the priority signal.
 """
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -84,9 +85,10 @@ class RDTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: RDTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(actor_network, critic_network, config, action_sampler, device)
         # RD-PER parameters
         self.scale_r = 1.0
         self.scale_s = 1.0

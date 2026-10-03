@@ -49,17 +49,18 @@ C51 = DQN + categorical distributional value learning
       with fixed support and projection.
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import torch
 
-from cares_reinforcement_learning.algorithm.value import DQN
-from cares_reinforcement_learning.networks.C51 import Network as C51Network
-from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
 from cares_reinforcement_learning.algorithm.configurations import (
     C51Config,
     RainbowConfig,
 )
+from cares_reinforcement_learning.algorithm.value import DQN
+from cares_reinforcement_learning.networks.C51 import Network as C51Network
+from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
 
 
 class C51(DQN):
@@ -70,9 +71,12 @@ class C51(DQN):
         self,
         network: C51Network | RainbowNetwork,
         config: C51Config | RainbowConfig,
+        action_sampler: Callable[[], int],
         device: torch.device,
     ):
-        super().__init__(network=network, config=config, device=device)
+        super().__init__(
+            network=network, config=config, action_sampler=action_sampler, device=device
+        )
 
         # C51
         self.num_atoms = config.num_atoms

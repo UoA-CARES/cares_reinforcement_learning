@@ -63,6 +63,7 @@ MaPER = PER + model-error-aware prioritization
          via shared environment prediction.
 """
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -82,9 +83,16 @@ class MAPERSAC(SAC):
         actor_network: Actor,
         critic_network: Critic,
         config: MAPERSACConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(actor_network, critic_network, config, device)
+        super().__init__(
+            actor_network=actor_network,
+            critic_network=critic_network,
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         # MAPER-PER parameters
         self.scale_r = 1.0

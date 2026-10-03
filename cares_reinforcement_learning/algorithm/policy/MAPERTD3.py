@@ -63,6 +63,7 @@ MaPER = PER + model-error-aware prioritization
          via shared environment prediction.
 """
 
+from collections.abc import Callable
 from typing import Any, Literal
 
 import numpy as np
@@ -82,12 +83,14 @@ class MAPERTD3(TD3):
         actor_network: Actor,
         critic_network: Critic,
         config: MAPERTD3Config,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
         super().__init__(
             actor_network=actor_network,
             critic_network=critic_network,
             config=config,
+            action_sampler=action_sampler,
             device=device,
         )
 

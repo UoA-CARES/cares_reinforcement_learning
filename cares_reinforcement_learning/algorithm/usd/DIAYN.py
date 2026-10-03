@@ -55,6 +55,7 @@ DIAYN = unsupervised skill learning via
 
 import logging
 import os
+from collections.abc import Callable
 from dataclasses import replace
 from typing import Any, Literal
 
@@ -79,9 +80,15 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         skills_agent: SAC,
         discriminator_network: Discriminator,
         config: DIAYNConfig,
+        action_sampler: Callable[[], np.ndarray],
         device: torch.device,
     ):
-        super().__init__(policy_type="usd", config=config, device=device)
+        super().__init__(
+            policy_type="usd",
+            config=config,
+            action_sampler=action_sampler,
+            device=device,
+        )
 
         self.skills_agent = skills_agent
         self.discriminator_net = discriminator_network.to(device)
@@ -123,6 +130,13 @@ class DIAYN(SARLAlgorithm[np.ndarray]):
         action_sample = self.skills_agent.act(observation, evaluation)
         action_sample.extras["skill"] = self.z
         return action_sample
+
+    def train_act(
+        self,
+        observation: SARLObservation,
+        training_step: int,  # pylint: disable=unused-argument
+    ) -> ActionSample[np.ndarray]:
+        return self.act(observation, evaluation=False)
 
     def _calculate_value(self, state: SARLObservation, action: np.ndarray) -> float:  # type: ignore[override]
         state = replace(
