@@ -266,7 +266,7 @@ class BaseRunner(ABC):
             episode_stats.update_reward(experience.reward)
 
             # Store immediate reward for discounted return calculation
-            episode_rewards.append(float(experience.reward))
+            episode_rewards.append(float(experience.reward_sum))
 
             # Record video if requested
             if record_video and self.record is not None:
