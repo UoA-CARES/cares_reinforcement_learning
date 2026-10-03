@@ -253,6 +253,10 @@ class BaseRunner(ABC):
             # Action selection
             action_sample = self.agent.act(state, evaluation=True)
 
+            # Collect data for bias calculation BEFORE state changes
+            episode_states.append(state)
+            episode_actions.append(action_sample.action)
+
             # Step environment
             experience = self.env_eval.step(action_sample.action)
             state = experience.next_observation
@@ -261,12 +265,8 @@ class BaseRunner(ABC):
 
             episode_stats.update_reward(experience.reward)
 
-            # Collect data for bias calculation
-            episode_states.append(state)
-            episode_actions.append(action_sample.action)
-
-            # Just taking the sum reward for processing bias
-            episode_rewards.append(episode_stats.get_episode_reward())
+            # Store immediate reward for discounted return calculation
+            episode_rewards.append(float(experience.reward))
 
             # Record video if requested
             if record_video and self.record is not None:
