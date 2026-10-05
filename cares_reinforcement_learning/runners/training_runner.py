@@ -213,33 +213,20 @@ class TrainingRunner(BaseRunner):
                 }
             )
 
-    def _select_exploration_action(self, train_step_counter: int) -> ActionSample:
-        """Handle exploration phase action selection."""
-        return ActionSample(self.env.sample_action(), source="exploration")
-
-    def _select_repetition_action(self, episode_timesteps: int) -> ActionSample:
-        """Handle episode repetition action selection."""
-        action = self.repetition_manager.get_repetition_action(episode_timesteps)
-
-        return action
-
-    def _select_policy_action(self, state) -> ActionSample:
-        """Handle policy-based action selection."""
-        action = self.agent.act(state, evaluation=False)
-
-        return action
-
     def _select_action(
         self, train_step_counter: int, episode_step: int, state
     ) -> ActionSample:
         if train_step_counter < self.max_steps_exploration:
-            action = self._select_exploration_action(train_step_counter)
-        elif self.repetition_manager.should_repeat(episode_step):
-            action = self._select_repetition_action(episode_step)
-        else:
-            action = self._select_policy_action(state)
+            action = self.env.sample_action()
 
-        return action
+            return self.agent.enrich_action(
+                observation=state, action=action, source="exploration"
+            )
+
+        if self.repetition_manager.should_repeat(episode_step):
+            return self.repetition_manager.get_repetition_action(episode_step)
+
+        return self.agent.act(state, evaluation=False)
 
     def _finalise_episode(
         self,
