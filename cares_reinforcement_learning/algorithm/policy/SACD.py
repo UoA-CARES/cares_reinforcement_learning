@@ -65,22 +65,21 @@ SACD = SAC with categorical policy +
 import copy
 import logging
 import os
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import torch
 import torch.nn.functional as F
 
 import cares_reinforcement_learning.memory.memory_sampler as memory_sampler
-import cares_reinforcement_learning.util.helpers as hlp
-from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
+from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.SACD import Actor, Critic
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
 from cares_reinforcement_learning.types.observation import SARLObservation
-from cares_reinforcement_learning.algorithm.configurations import SACDConfig
 
 
 class SACD(SARLAlgorithm[int]):
@@ -126,7 +125,9 @@ class SACD(SARLAlgorithm[int]):
         # Temperature (alpha) for the entropy loss
         # Set to initial alpha to 1.0 according to other baselines.
         init_temperature = 1.0
-        self.log_alpha = torch.tensor(np.log(init_temperature)).to(device)
+        self.log_alpha = torch.tensor(
+            np.log(init_temperature), dtype=torch.float32, device=device
+        )
         self.log_alpha.requires_grad = True
         self.log_alpha_optimizer = torch.optim.Adam(
             [self.log_alpha], lr=config.alpha_lr
@@ -336,25 +337,42 @@ class SACD(SARLAlgorithm[int]):
             "actor_optimizer": self.actor_net_optimiser.state_dict(),
             "critic_optimizer": self.critic_net_optimiser.state_dict(),
             # Save log_alpha as a float, not a numpy array
-            "log_alpha": self.log_alpha.detach().cpu().item(),
+            "log_alpha": float(self.log_alpha.detach().cpu().item()),
             "log_alpha_optimizer": self.log_alpha_optimizer.state_dict(),
             "learn_counter": self.learn_counter,
         }
         torch.save(checkpoint, f"{filepath}/{filename}_checkpoint.pth")
         logging.info("models, optimisers, and training state have been saved...")
 
-    def load_models(self, filepath: str, filename: str) -> None:
-        checkpoint = torch.load(f"{filepath}/{filename}_checkpoint.pth")
+    def load_models(
+        self,
+        filepath: str,
+        filename: str,
+        load_mode: Literal["resume", "transfer"] = "resume",
+    ) -> None:
+        if load_mode not in ("resume", "transfer"):
+            raise ValueError(f"Unknown load mode: {load_mode}")
+
+        checkpoint = torch.load(
+            f"{filepath}/{filename}_checkpoint.pth", map_location=self.device
+        )
 
         self.actor_net.load_state_dict(checkpoint["actor"])
 
         self.critic_net.load_state_dict(checkpoint["critic"])
+        if load_mode == "transfer":
+            self.hard_update_params(self.critic_net, self.target_critic_net)
+            logging.info("model weights have been loaded for transfer...")
+            return
+
         self.target_critic_net.load_state_dict(checkpoint["target_critic"])
 
         self.actor_net_optimiser.load_state_dict(checkpoint["actor_optimizer"])
         self.critic_net_optimiser.load_state_dict(checkpoint["critic_optimizer"])
 
-        self.log_alpha.data = torch.tensor(checkpoint["log_alpha"]).to(self.device)
+        self.log_alpha.data = torch.tensor(
+            checkpoint["log_alpha"], dtype=torch.float32, device=self.device
+        )
         self.log_alpha_optimizer.load_state_dict(checkpoint["log_alpha_optimizer"])
 
         self.learn_counter = checkpoint.get("learn_counter", 0)

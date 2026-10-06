@@ -92,6 +92,10 @@ Run training across multiple seeds in parallel
 cares-rl train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50 --max_workers 5
 ```
 
+Transfer learning from previously learned model weights:
+
+cares-rl transfer --transfer_path <PATH_TO_MODEL_FOLDER> cli --gym openai --task CartPole-v1 DQN
+
 Test a trained model:
 ```bash
 cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
@@ -139,6 +143,22 @@ Note: to enable a training to be resumable you need to enable the `--save_train_
 ```
 cares-rl resume --data_path <PATH_TO_TRAINING_DATA>
 ```
+
+### Transfer
+
+The transfer command starts a new training run initialized from previously learned model weights. Unlike resume, it does not restore the previous replay or rollout memory, optimizer state, training counters, normalizer state, or exploration progression. The new run therefore begins from step zero with fresh training state while retaining the learned model initialization.
+
+`--transfer_path` must point to the exact folder containing the saved model files, for example a run's models/final directory. Transfer then uses the normal cli or config interface to define the new training run.
+
+```
+cares-rl transfer --transfer_path <PATH_TO_MODEL_FOLDER> cli --gym openai --task CartPole-v1 DQN
+```
+
+```
+cares-rl transfer --transfer_path <PATH_TO_MODEL_FOLDER> config --data_path <PATH_TO_TRAINING_CONFIGS>
+```
+
+Transfer runs perform an evaluation at step 0 before any new training updates so the transferred policy can be measured before adaptation begins. If multiple seeds are configured, each fresh run starts from the same source model. Generic transfer loading is not supported for CrossMARL.
 
 ### Evaluate
 The evaluate command is used to re-run the evaluation loops from a prior training run - this will reproduce the evaluation graphs and data from a given training experiment. Useful if you have updated metrics you want to capture without having to re-run the entire training process.
