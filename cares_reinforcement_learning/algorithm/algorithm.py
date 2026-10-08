@@ -5,6 +5,7 @@ import numpy as np
 import torch
 
 import cares_reinforcement_learning.util.helpers as hlp
+from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 from cares_reinforcement_learning.memory.memory_buffer import (
     MARLMemoryBuffer,
     Memory,
@@ -17,7 +18,6 @@ from cares_reinforcement_learning.types.observation import (
     Observation,
     SARLObservation,
 )
-from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
 
 # Type variable for observation types (SARL or MARL)
 ObsType = TypeVar("ObsType", bound=Observation)
@@ -51,6 +51,14 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         self.image_observation = config.image_observation
 
         self.device = device
+
+    def enrich_action(
+        self,
+        observation: ObsType,
+        action: ActType,
+        source: str,
+    ) -> ActionSample[ActType]:
+        return ActionSample(action=action, source=source)
 
     @abstractmethod
     def act(
