@@ -94,11 +94,16 @@ cares-rl train cli --gym openai --task HalfCheetah-v4 TD3 --seeds 10 20 30 40 50
 
 Transfer learning from previously learned model weights:
 
+```bash
 cares-rl transfer --transfer_path <PATH_TO_MODEL_FOLDER> cli --gym openai --task CartPole-v1 DQN
+```
 
 Test a trained model:
 ```bash
 cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED
+
+# Optionally select a saved model directory
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 10 --eval_seed SEED --checkpoint 100000
 ```
 
 Plot training results
