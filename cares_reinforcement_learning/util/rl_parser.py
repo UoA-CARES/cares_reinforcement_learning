@@ -25,7 +25,7 @@ class RunConfig(SubscriptableClass):
     data_path: str | None = None
     transfer_path: str | None = None
     run_name: str = ""
-    model: str | None = None
+    checkpoint: str | None = None
 
     eval_seed: int | None = None
     episodes: int | None = None
