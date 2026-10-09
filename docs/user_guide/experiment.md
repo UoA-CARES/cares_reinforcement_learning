@@ -334,30 +334,60 @@ cares-rl evaluate --data_path <PATH_TO_EXPERIMENT>
 
 ## Test Models (test)
 
-The `test` command is used to evaluate the final trained model on a new evaluation seed and for a specified number of episodes. This is essential for assessing the generalization and robustness of your agent, as it tests the model on data it has not seen during training or evaluation.
+The `test` command evaluates a saved model on a specified evaluation seed for a chosen number of episodes. It is useful for assessing performance and generalization independently of training. Unlike `evaluate`, which runs through numbered training checkpoints, `test` runs one selected checkpoint per training seed.
 
-**Example: Test a trained model**
+**Example: Test a trained model with automatic selection**
+
 ```bash
 cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes <NUM_EPISODES_TO_RUN> --eval_seed <SEED>
 ```
 
+By default, the checkpoint is selected in this order: `final`, then `best`, then the highest numbered checkpoint available.
+
+**Example: Select a specific saved checkpoint**
+
+```bash
+# Best saved model
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 100 --eval_seed 42 --checkpoint best
+
+# Final saved model
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 100 --eval_seed 42 --checkpoint final
+
+# Checkpoint saved at step 100000
+cares-rl test --data_path <PATH_TO_TRAINING_DATA> --episodes 100 --eval_seed 42 --checkpoint 100000
+```
+
+`--checkpoint` is optional and accepts the **name of a directory** inside `<PATH_TO_TRAINING_DATA>/<TRAINING_SEED>/models/`; it is not a full filesystem path. The selected directory must exist. For experiments containing multiple training seeds, `test` uses the same `--checkpoint` directory name for each seed.
+
+For example, `--checkpoint best` selects:
+
+```text
+<PATH_TO_TRAINING_DATA>/
+    alg_config.json
+    env_config.json
+    train_config.json
+    <TRAINING_SEED>/
+        models/
+            best/       # selected
+            final/
+            100000/
+```
+
 **What testing does:**
 
-- Loads the final checkpoint for each training seed from the experiment directory.
-- Runs the agent for the specified number of episodes using the provided evaluation seed (ensuring reproducibility and fair comparison).
-- Produces test logs, summary statistics, and plots in the output directory.
-- Does not alter the model or training state — testing is read-only and safe to repeat.
+- Loads the explicitly selected checkpoint, or chooses `final`, `best`, or the latest numbered checkpoint when `--checkpoint` is omitted.
+- Runs the agent for `--episodes` episodes using `--eval_seed`.
+- Produces test logs and results in a separate output directory.
+- Does not modify the original model or continue training.
 
 !!! tip "Best Practices for Testing"
-    Always use a different `--eval_seed` for testing than for training or evaluation to avoid overfitting to a particular random seed.
-  
-    Run multiple test seeds and average results for robust performance estimates.
-  
-    Use the same number of episodes for each test run to ensure fair comparison.
+    Use evaluation seeds distinct from training and periodic evaluation seeds when assessing generalization.
+
+    Repeat testing with multiple evaluation seeds for more robust performance estimates, and use the same number of episodes for fair comparisons.
 
 !!! note "Testing vs. Evaluation"
-    **Evaluation** runs on all checkpoints (e.g., for plotting learning curves or tracking progress during training) on the original training seed.
-  
-    **Testing** runs only on the final model, with a new evaluation seed, to measure generalization and final performance.
+    **Evaluation** runs through numbered saved checkpoints to track performance across training steps.
+
+    **Testing** runs one selected saved checkpoint per training seed (optionally chosen with `--checkpoint`) using the specified evaluation seed.
 
 ---8<-- "include/links.md"

@@ -31,6 +31,7 @@ class EvaluationRunner(BaseRunner):
         configurations: dict[str, Any],
         base_log_dir: str,
         former_base_path: str,
+        checkpoint: str | None = None,
         num_eval_episodes: int | None = None,
         save_configurations: bool = False,
         progress_queue: Queue | None = None,
@@ -44,6 +45,7 @@ class EvaluationRunner(BaseRunner):
             configurations: Dictionary containing all parsed configurations
             base_log_dir: Base directory for logging evaluation results
             former_base_path: Base path to the trained model directory (contains seed subdirs)
+            checkpoint: Name of the specific checkpoint to evaluate (if None, uses the default evaluation strategy)
             num_eval_episodes: Number of episodes to run per checkpoint (if None, uses config default)
             save_configurations: Whether to save configurations to disk
             progress_queue: Queue for progress updates (if any)
@@ -62,6 +64,7 @@ class EvaluationRunner(BaseRunner):
         self.former_model_base_path = Path(former_base_path)
         self.former_model_seed_path = self.former_model_base_path / str(self.train_seed)
         self.progress_queue = progress_queue
+        self.checkpoint = checkpoint
 
         # Update logging for evaluation context
         self.logger.info(
@@ -117,51 +120,66 @@ class EvaluationRunner(BaseRunner):
 
         return checkpoints
 
-    def _discover_final_checkpoint(self) -> dict[str, Any] | None:
+    def _discover_test_checkpoint(self) -> dict[str, Any]:
         """
-        Discover the final model checkpoint for this seed.
+        Discover the model checkpoint to test.
 
-        Returns:
-            Checkpoint info dictionary with 'path' and 'step' keys, or None if not found
+        If a model is specified, select that directory within models/.
+        Otherwise, prefer final, then best, then the latest numbered checkpoint.
         """
-        if not self.former_model_seed_path.exists():
-            raise FileNotFoundError(
-                f"No model directory found for seed {self.eval_seed} at {self.former_model_seed_path}"
-            )
-
         models_path = self.former_model_seed_path / "models"
-        if not models_path.exists():
+
+        if not models_path.is_dir():
             raise FileNotFoundError(f"No models directory found at {models_path}")
 
-        folders = list(models_path.glob("*"))
-        folders = natsorted(folders)
+        # Explicit model selection
+        if self.checkpoint is not None:
+            # Only allow a directory name, not an arbitrary path
+            if (
+                not self.checkpoint
+                or self.checkpoint in (".", "..")
+                or Path(self.checkpoint).name != self.checkpoint
+                or "\\" in self.checkpoint
+            ):
+                raise ValueError(f"Invalid model directory name: {self.checkpoint}")
 
-        # Look for 'final' folder first, then 'best', then highest numbered folder
-        for folder_name in ["final", "best"]:
-            for folder in folders:
-                if folder.name == folder_name:
-                    return {
-                        "path": folder,
-                        "step": folder_name,
-                    }
+            model_path = models_path / self.checkpoint
 
-        # If no 'final' or 'best' folder, use the highest numbered checkpoint
-        numbered_folders = []
-        for folder in folders:
-            try:
-                step = int(folder.name)
-                numbered_folders.append((step, folder))
-            except ValueError:
-                continue
+            if not model_path.is_dir():
+                raise FileNotFoundError(
+                    f"Model '{self.checkpoint}' not found at {model_path}"
+                )
 
-        if numbered_folders:
-            step, folder = max(numbered_folders)
+            return {
+                "path": model_path,
+                "step": self.checkpoint,
+            }
+
+        # Default behaviour: final -> best -> latest numbered checkpoint
+        for name in ("final", "best"):
+            model_path = models_path / name
+
+            if model_path.is_dir():
+                return {
+                    "path": model_path,
+                    "step": name,
+                }
+
+        numbered_checkpoints = [
+            (int(folder.name), folder)
+            for folder in models_path.iterdir()
+            if folder.is_dir() and folder.name.isdigit()
+        ]
+
+        if numbered_checkpoints:
+            step, folder = max(numbered_checkpoints, key=lambda item: item[0])
+
             return {
                 "path": folder,
                 "step": step,
             }
 
-        return None
+        raise FileNotFoundError(f"No model checkpoints found at {models_path}")
 
     def _load_checkpoint(self, checkpoint_info: dict[str, Any]) -> bool:
         """
@@ -194,7 +212,7 @@ class EvaluationRunner(BaseRunner):
             )
             return False
 
-    def _evaluate_checkpoint(self, checkpoint_info: dict[str, Any]) -> None:
+    def _evaluate_checkpoint(self, checkpoint_info: dict[str, Any]) -> bool:
         """
         Evaluate a single checkpoint.
 
@@ -202,14 +220,14 @@ class EvaluationRunner(BaseRunner):
             checkpoint_info: Checkpoint information dictionary
 
         Returns:
-            Dictionary with evaluation results
+            True if evaluation succeeded, False otherwise
         """
         # Load the checkpoint
         if not self._load_checkpoint(checkpoint_info):
             self.logger.error(
                 f"[SEED {self.eval_seed}] Failed to load checkpoint {checkpoint_info['step']}, skipping"
             )
-            return
+            return False
 
         step = checkpoint_info["step"]
 
@@ -232,6 +250,8 @@ class EvaluationRunner(BaseRunner):
             f"Avg reward: {results.get('avg_reward', 'N/A'):.2f}, "
             f"Time: {evaluation_time:.1f}s"
         )
+
+        return True
 
     def run_evaluation(self) -> None:
         """
@@ -267,32 +287,30 @@ class EvaluationRunner(BaseRunner):
 
     def run_test(self) -> None:
         """
-        Execute testing on the final model checkpoint only.
+        Execute testing on a selected model checkpoint.
 
-        Unlike evaluation which tests all checkpoints, testing only evaluates
-        the final trained model for the specified number of episodes.
+        Unlike evaluation which tests all checkpoints, testing evaluates
+        only the selected model for the specified number of episodes.
         """
-        self.logger.info(
-            f"[SEED {self.train_seed}] Starting testing with {self.number_eval_episodes} episodes on final model [SEED {self.eval_seed}]"
-        )
-
         # Discover the final checkpoint
-        final_checkpoint = self._discover_final_checkpoint()
+        checkpoint = self._discover_test_checkpoint()
 
-        if not final_checkpoint:
-            self.logger.warning(
-                f"[SEED {self.eval_seed}] No final checkpoint found to test"
-            )
-            self._report_progress(0, 0, "done")
-            return
+        self.logger.info(
+            f"[SEED {self.train_seed}] Starting testing with "
+            f"{self.number_eval_episodes} episodes on "
+            f"model '{checkpoint['step']}' [SEED {self.eval_seed}]"
+        )
 
         self._report_progress(0, 1, "starting")
 
         self.logger.info(
-            f"[SEED {self.eval_seed}] Testing final checkpoint: {final_checkpoint['step']}"
+            f"[SEED {self.eval_seed}] Testing checkpoint: {checkpoint['step']}"
         )
 
-        self._evaluate_checkpoint(final_checkpoint)
+        if not self._evaluate_checkpoint(checkpoint):
+            raise RuntimeError(
+                f"[SEED {self.eval_seed}] Testing failed for checkpoint {checkpoint['step']}"
+            )
 
         # Save results
         self.record.save()

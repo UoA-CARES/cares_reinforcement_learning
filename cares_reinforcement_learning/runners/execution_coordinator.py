@@ -151,6 +151,7 @@ class ExecutionCoordinator:
             configurations=self.configurations,
             base_log_dir=self.base_log_dir,
             former_base_path=self.run_config.data_path,
+            checkpoint=self.run_config.checkpoint,
             num_eval_episodes=self.run_config.episodes,  # Use episodes from run_config
             save_configurations=save_configurations,
             progress_queue=progress_queue,

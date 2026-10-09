@@ -25,6 +25,7 @@ class RunConfig(SubscriptableClass):
     data_path: str | None = None
     transfer_path: str | None = None
     run_name: str = ""
+    checkpoint: str | None = None
 
     eval_seed: int | None = None
     episodes: int | None = None
@@ -353,6 +354,13 @@ class RLParser:
             type=int,
             required=True,
             help="Number of evaluation episodes to run",
+        )
+
+        parser.add_argument(
+            "--checkpoint",
+            type=str,
+            default=None,
+            help="Checkpoint directory within models/ to test (default: final, then best, then latest checkpoint)",
         )
 
         test_args = parser.parse_args(remaining_args)
