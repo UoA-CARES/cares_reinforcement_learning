@@ -244,11 +244,11 @@ class MARLDroneEnvironment(MARLEnvironment):
 
         return experience
 
-    def grab_frame(self, height: int = 240, width: int = 300) -> np.ndarray:
-        return np.zeros((height, width, 3), dtype=np.uint8)
+    def grab_frame(self, height: int = 720, width: int = 1280) -> np.ndarray:
+        return self.env.grab_frame(height, width)
 
     def get_overlay_info(self) -> dict:
-        return {}
+        return self.env.get_overlay_info()
 
     def close(self) -> None:
         self.env.close()
