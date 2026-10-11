@@ -841,6 +841,53 @@ class SDARConfig(SACConfig):
     )
 
 
+class SIMBAConfig(SACConfig):
+    algorithm: str = "SIMBA"
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-4
+    alpha_lr: float = 1e-4
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=128),
+            ResidualLayer(
+                main_layers=[
+                    NormLayer(layer_type="LayerNorm"),
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", out_features=128),
+                ]
+            ),
+            NormLayer(layer_type="LayerNorm"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            ResidualLayer(
+                main_layers=[
+                    NormLayer(layer_type="LayerNorm"),
+                    TrainableLayer(layer_type="Linear", out_features=2048),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                ]
+            ),
+            ResidualLayer(
+                main_layers=[
+                    NormLayer(layer_type="LayerNorm"),
+                    TrainableLayer(layer_type="Linear", out_features=2048),
+                    FunctionLayer(layer_type="ReLU"),
+                    TrainableLayer(layer_type="Linear", out_features=512),
+                ]
+            ),
+            NormLayer(layer_type="LayerNorm"),
+            TrainableLayer(layer_type="Linear"),
+        ]
+    )
+
+
 class SACDConfig(AlgorithmConfig):
     algorithm: str = "SACD"
 
