@@ -194,13 +194,18 @@ def test_cbp_replacement():
         assert torch.equal(
             model[0].weight[[0, 2, 3]].detach(), producer_before[[0, 2, 3]]
         )
+        # The selected feature must receive newly initialised incoming weights.
+        # The original row contains 1.0; replacement samples from a smaller range.
+        assert not torch.equal(
+            model[0].weight[1].detach(), producer_before[1]
+        ), "Replaced neuron incoming weights were not reinitialised"
         assert model[0].bias[1].item() == 0.0
         close(model[2].bias[0].item(), 0.1, "outgoing bias compensation")
         assert torch.equal(state.utility.age, torch.tensor([1.0, 0.0, 1.0, 1.0]))
         assert state.utility.bias_corrected[1].item() == 0.0
         print("PASS only lowest-utility neuron selected; other neurons untouched")
 
-        # Reset relevant Adam first/second moments, but not those of other units.
+        # Reset per-element Adam step counters and moments, leaving other units intact.
         checks = [
             (model[0].weight, (1, slice(None)), (0, slice(None))),
             (model[0].bias, (1,), (0,)),
@@ -208,7 +213,9 @@ def test_cbp_replacement():
         ]
         for param, reset_slice, untouched_slice in checks:
             opt_state = optimizer.state[param]
-            for name in ("exp_avg", "exp_avg_sq"):
+            for name in ("step", "exp_avg", "exp_avg_sq", "max_exp_avg_sq"):
+                if name == "max_exp_avg_sq" and name not in opt_state:
+                    continue  # Only present if AMSGrad is enabled.
                 assert name in opt_state, f"Missing {name} for optimizer state"
                 tensor = opt_state[name]
                 assert torch.all(tensor[reset_slice] == 0), (name, "not reset")
@@ -216,7 +223,7 @@ def test_cbp_replacement():
                     name,
                     "other unit changed",
                 )
-        print("PASS Adam moment slices cleared only for replaced feature")
+        print("PASS Adam step and moment slices cleared only for replaced feature")
 
         # No stored activation should remain after utility was consumed.
         assert state.last_activation is None
