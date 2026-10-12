@@ -90,6 +90,7 @@ def test_knife_and_capture():
         with manager.capture_metrics():
             model(x).sum().backward()
 
+        assert state.activity.behaviour_rows == 1
         assert torch.equal(state.activity.lifetime.count, before_lifetime)
         assert torch.equal(state.knife.lifetime.count, before_knife)
 
