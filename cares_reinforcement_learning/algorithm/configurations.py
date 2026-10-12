@@ -454,6 +454,11 @@ class SACConfig(AlgorithmConfig):
     alpha_lr: float = 3e-4
     alpha_lr_params: dict[str, Any] = Field(default_factory=dict)
 
+    optimiser: Literal["Adam", "AdamW"] = "Adam"
+
+    initial_alpha: float = 1.0
+    target_entropy_scale: float = 1.0
+
     gamma: float = 0.99
     tau: float = 0.005
     reward_scale: float = 1.0
@@ -847,6 +852,25 @@ class SIMBAConfig(SACConfig):
     actor_lr: float = 1e-4
     critic_lr: float = 1e-4
     alpha_lr: float = 1e-4
+
+    optimiser: Literal["AdamW"] = "AdamW"
+
+    G: int = 2
+
+    initial_alpha: float = 1e-2
+    target_entropy_scale: float = 0.5
+
+    actor_lr_params: dict[str, Any] = {
+        "weight_decay": 1e-2,
+    }
+    critic_lr_params: dict[str, Any] = {
+        "weight_decay": 1e-2,
+    }
+    alpha_lr_params: dict[str, Any] = {
+        "weight_decay": 0.0,
+    }
+
+    log_std_bounds: list[float] = [-10, 2]
 
     actor_config: MLPConfig = MLPConfig(
         layers=[
