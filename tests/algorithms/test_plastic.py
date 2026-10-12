@@ -1,18 +1,11 @@
-"""Deterministic gradient, state-tracking, and CBP replacement tests.
-
-Run from the CARES-RL environment:
-    python test_plasticity_extended.py
-
-Uses the actual NetworkPlasticityManager and PlasticityAdam implementations.
-"""
-
 import math
 
 import torch
+from torch import nn
+
 from cares_reinforcement_learning.algorithm.configurations import PlasticityConfig
 from cares_reinforcement_learning.algorithm.plasticity_adam import PlasticityAdam
 from cares_reinforcement_learning.networks.plasticity import NetworkPlasticityManager
-from torch import nn
 
 
 def close(actual, expected, description, atol=1e-5):
@@ -90,10 +83,16 @@ def test_knife_and_capture():
 
         # METRICS capture must not affect training/lifetime/KNIFE statistics.
         before_lifetime = state.activity.lifetime.count.clone()
+        before_knife = state.knife.lifetime.count.clone()
+
+        model.zero_grad(set_to_none=True)
+
         with manager.capture_metrics():
-            model(x)
+            model(x).sum().backward()
+
         assert torch.equal(state.activity.lifetime.count, before_lifetime)
-        assert torch.equal(state.knife.lifetime.count, torch.ones(4))
+        assert torch.equal(state.knife.lifetime.count, before_knife)
+
         print("PASS capture_metrics does not change training statistics")
     finally:
         manager.close()
