@@ -5,9 +5,9 @@ from pathlib import Path
 
 from torch import nn
 
-from cares_reinforcement_learning.networks.common import MLP
 from cares_reinforcement_learning.algorithm import configurations
 from cares_reinforcement_learning.algorithm.configurations import AlgorithmConfig
+from cares_reinforcement_learning.networks.common import MLP
 
 
 def _extract_sequential(model: nn.Module) -> nn.Sequential | None:
