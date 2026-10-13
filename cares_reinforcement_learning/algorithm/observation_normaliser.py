@@ -99,23 +99,15 @@ class RunningObservationNormaliser:
         return (observation - mean) / torch.sqrt(var + self.normalisation_epsilon)
 
     def state_dict(self) -> dict[str, Any]:
-        return {"mean": self.mean.copy(), "var": self.var.copy(), "count": self.count}
+        return {
+            "mean": torch.as_tensor(self.mean).cpu(),
+            "var": torch.as_tensor(self.var).cpu(),
+            "count": float(self.count),
+        }
 
-    def load_state_dict(
-        self,
-        state_dict: dict[str, Any],
-    ) -> None:
-        mean = np.asarray(state_dict["mean"], dtype=np.float64)
-        var = np.asarray(state_dict["var"], dtype=np.float64)
-
-        if mean.shape != self.shape:
-            raise ValueError(f"Expected mean shape {self.shape}, got {mean.shape}")
-
-        if var.shape != self.shape:
-            raise ValueError(f"Expected variance shape {self.shape}, got {var.shape}")
-
-        self.mean = mean.copy()
-        self.var = var.copy()
+    def load_state_dict(self, state_dict: dict[str, Any]) -> None:
+        self.mean = state_dict["mean"].cpu().numpy().astype(np.float64)
+        self.var = state_dict["var"].cpu().numpy().astype(np.float64)
         self.count = float(state_dict["count"])
 
     def get_statistics(self) -> dict[str, float]:

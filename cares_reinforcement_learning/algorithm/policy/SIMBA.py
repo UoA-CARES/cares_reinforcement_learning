@@ -151,6 +151,9 @@ class SIMBA(SAC):
     ) -> None:
         super().load_models(filepath=filepath, filename=filename, load_mode=load_mode)
 
+        if load_mode == "transfer":
+            return
+
         checkpoint_path = f"{filepath}/{filename}_checkpoint.pth"
         checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
