@@ -1,3 +1,56 @@
+"""
+SimBa (Simplicity Bias for Scaling Up Parameters in Deep Reinforcement Learning)
+-------------------------------------------------------------------------------
+
+Original Paper: https://arxiv.org/abs/2410.09754
+
+SimBa is a neural network architecture for deep reinforcement learning
+designed to improve scalability, sample efficiency, and network plasticity
+through architectural simplicity bias.
+
+Core Idea:
+- Normalize observations using running statistics.
+- Use residual feedforward blocks with pre-LayerNorm.
+- Maintain a direct linear pathway through each residual block.
+- Apply post-LayerNorm before the final prediction layer.
+- Scale critic capacity while maintaining stable representations.
+
+Architecture:
+- Running Statistics Normalization (RSNorm) on observations.
+- Linear input embedding.
+- Residual blocks of the form:
+
+      x' = x + MLP(LayerNorm(x))
+
+- Each residual MLP uses an inverted bottleneck:
+
+      hidden_dim -> 4 * hidden_dim -> hidden_dim
+
+- ReLU activation inside the residual branch.
+- Final LayerNorm before policy or value prediction.
+
+SAC + SimBa:
+- Uses SAC as the underlying reinforcement learning algorithm.
+- Actor uses one SimBa residual block with hidden dimension 128.
+- Critic uses two SimBa residual blocks with hidden dimension 512.
+- Uses AdamW and increased update-to-data ratio.
+- Observation statistics are updated online while raw observations
+  remain stored in replay.
+
+Key Behaviour:
+- Residual pathways encourage simpler functional representations.
+- Layer normalization controls feature magnitude.
+- RSNorm prevents observation dimensions with large scales from
+  dominating learning.
+- Larger critic networks can be used without the degradation often
+  observed when scaling standard MLP architectures.
+- SimBa has been shown to better preserve network plasticity during
+  reinforcement learning.
+
+SimBa = SAC + RSNorm + Pre-LN Residual MLPs + Post-LN
+        for scalable deep reinforcement learning.
+"""
+
 from collections.abc import Callable
 from dataclasses import replace
 from typing import Literal
