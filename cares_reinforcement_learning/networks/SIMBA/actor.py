@@ -1,17 +1,13 @@
 from torch import nn
 
-from cares_reinforcement_learning.algorithm.configurations import (
-    FunctionLayer,
-    NormLayer,
-    ResidualLayer,
-    SIMBAConfig,
-    TrainableLayer,
-)
+from cares_reinforcement_learning.algorithm.configurations import SIMBAConfig
 from cares_reinforcement_learning.networks.common import (
     BasePolicy,
     TanhGaussianPolicy,
 )
-from cares_reinforcement_learning.networks.mlp_architecture import MLPResidualBlock
+from cares_reinforcement_learning.networks.mlp_architecture import (
+    SIMBABlock,
+)
 
 
 class DefaultActor(TanhGaussianPolicy):
@@ -30,24 +26,9 @@ class DefaultActor(TanhGaussianPolicy):
 
         self.log_std_bounds = log_std_bounds
 
-        residual = ResidualLayer(
-            main_layers=[
-                NormLayer(layer_type="LayerNorm"),
-                TrainableLayer(
-                    layer_type="Linear",
-                    out_features=hidden_size * 4,
-                ),
-                FunctionLayer(layer_type="ReLU"),
-                TrainableLayer(
-                    layer_type="Linear",
-                    out_features=hidden_size,
-                ),
-            ]
-        )
-
         self.act_net = nn.Sequential(
             nn.Linear(observation_size, hidden_size),
-            MLPResidualBlock(hidden_size, residual),
+            SIMBABlock(hidden_size),
             nn.LayerNorm(hidden_size),
         )
 

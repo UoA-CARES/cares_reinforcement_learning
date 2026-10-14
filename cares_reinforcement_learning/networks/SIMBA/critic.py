@@ -1,14 +1,8 @@
 from torch import nn
 
-from cares_reinforcement_learning.algorithm.configurations import (
-    FunctionLayer,
-    NormLayer,
-    ResidualLayer,
-    SIMBAConfig,
-    TrainableLayer,
-)
+from cares_reinforcement_learning.algorithm.configurations import SIMBAConfig
 from cares_reinforcement_learning.networks.common import BaseCritic, TwinQNetwork
-from cares_reinforcement_learning.networks.mlp_architecture import MLPResidualBlock
+from cares_reinforcement_learning.networks.mlp_architecture import SIMBABlock
 
 
 class DefaultCritic(TwinQNetwork):
@@ -27,26 +21,11 @@ class DefaultCritic(TwinQNetwork):
             output_size=1,
         )
 
-        residual = ResidualLayer(
-            main_layers=[
-                NormLayer(layer_type="LayerNorm"),
-                TrainableLayer(
-                    layer_type="Linear",
-                    out_features=hidden_size * 4,
-                ),
-                FunctionLayer(layer_type="ReLU"),
-                TrainableLayer(
-                    layer_type="Linear",
-                    out_features=hidden_size,
-                ),
-            ]
-        )
-
         def make_q_network() -> nn.Sequential:
             return nn.Sequential(
                 nn.Linear(input_size, hidden_size),
-                MLPResidualBlock(hidden_size, residual),
-                MLPResidualBlock(hidden_size, residual),
+                SIMBABlock(hidden_size),
+                SIMBABlock(hidden_size),
                 nn.LayerNorm(hidden_size),
                 nn.Linear(hidden_size, 1),
             )

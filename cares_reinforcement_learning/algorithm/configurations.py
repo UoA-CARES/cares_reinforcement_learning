@@ -79,8 +79,14 @@ class ResidualLayer(BaseModel):
     use_padding: bool = False
 
 
+class SIMBABlockLayer(BaseModel):
+    layer_category: Literal["simba_block"] = "simba_block"
+
+
 class MLPConfig(BaseModel):
-    layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
+    layers: list[
+        TrainableLayer | NormLayer | FunctionLayer | ResidualLayer | SIMBABlockLayer
+    ]
 
 
 class PlasticityConfig(SubscriptableClass):
@@ -875,14 +881,7 @@ class SIMBAConfig(SACConfig):
     actor_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=128),
-            ResidualLayer(
-                main_layers=[
-                    NormLayer(layer_type="LayerNorm"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=128),
-                ]
-            ),
+            SIMBABlockLayer(),
             NormLayer(layer_type="LayerNorm"),
         ]
     )
@@ -890,22 +889,8 @@ class SIMBAConfig(SACConfig):
     critic_config: MLPConfig = MLPConfig(
         layers=[
             TrainableLayer(layer_type="Linear", out_features=512),
-            ResidualLayer(
-                main_layers=[
-                    NormLayer(layer_type="LayerNorm"),
-                    TrainableLayer(layer_type="Linear", out_features=2048),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                ]
-            ),
-            ResidualLayer(
-                main_layers=[
-                    NormLayer(layer_type="LayerNorm"),
-                    TrainableLayer(layer_type="Linear", out_features=2048),
-                    FunctionLayer(layer_type="ReLU"),
-                    TrainableLayer(layer_type="Linear", out_features=512),
-                ]
-            ),
+            SIMBABlockLayer(),
+            SIMBABlockLayer(),
             NormLayer(layer_type="LayerNorm"),
             TrainableLayer(layer_type="Linear"),
         ]
