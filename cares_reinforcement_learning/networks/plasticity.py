@@ -48,13 +48,11 @@ from cares_reinforcement_learning.algorithm.plasticity_adam import PlasticityAda
 # Basis for what's recorded per feature site (see summary() for the full
 # call tree, and each _summarize_* method for the exact formula + citation):
 #
-#   dead_units_frac / active_fraction_*   Fraction of units that have gone
-#     (recent + lifetime)                 permanently silent (or, for
-#                                          active_fraction, how often the
-#                                          rest of the layer still fires).
-#                                          The most literal symptom of
-#                                          plasticity loss: capacity that's
-#                                          been switched off for good.
+#   dead_units_frac / active_fraction_*    Fraction of neurons that rarely
+#                                          produce positive activations across
+#                                          recent observations, and their
+#                                          corresponding activity frequencies.
+#                                          Based on [Dohare2024].
 #
 #   stable_rank / effective_rank /        How many independent directions
 #   stable_rank_pct                       the layer's activations actually
@@ -120,8 +118,6 @@ class RunningAverageState:
 
 @dataclass
 class ActivityState:
-    window: RunningAverageState
-    lifetime: RunningAverageState
     behaviour_chunks: list[torch.Tensor]
     behaviour_rows: int = 0
 
@@ -144,7 +140,6 @@ class RedoState:
 @dataclass
 class KnifeState:
     window: RunningAverageState
-    lifetime: RunningAverageState
 
 
 @dataclass
@@ -422,8 +417,6 @@ class NetworkPlasticityManager:
                 replacement_accumulator=torch.zeros(1, device=device),
             ),
             activity=ActivityState(
-                window=RunningAverageState(total=zeros(), count=zeros()),
-                lifetime=RunningAverageState(total=zeros(), count=zeros()),
                 behaviour_chunks=[],
             ),
             redo=RedoState(
@@ -432,7 +425,6 @@ class NetworkPlasticityManager:
             ),
             knife=KnifeState(
                 window=RunningAverageState(total=zeros(), count=zeros()),
-                lifetime=RunningAverageState(total=zeros(), count=zeros()),
             ),
         )
         self.site_states[site.name] = state
@@ -496,16 +488,6 @@ class NetworkPlasticityManager:
 
         activation_abs_mean = activation.abs().mean(dim=0)
 
-        # Paper-style firing statistics. A ReLU unit is active when its
-        # post-activation value is strictly positive.
-        batch_active_fraction = (activation > 0.0).float().mean(dim=0)
-
-        state.activity.window.total.add_(batch_active_fraction)
-        state.activity.window.count.add_(1.0)
-
-        state.activity.lifetime.total.add_(batch_active_fraction)
-        state.activity.lifetime.count.add_(1.0)
-
         # ReDo diagnostics.
         state.redo.activation_abs_ema.mul_(decay).add_(
             (1.0 - decay) * activation_abs_mean
@@ -537,8 +519,6 @@ class NetworkPlasticityManager:
 
         state.knife.window.total.add_(update_activity)
         state.knife.window.count.add_(1.0)
-        state.knife.lifetime.total.add_(update_activity)
-        state.knife.lifetime.count.add_(1.0)
 
     # =========================================================================
     # summary() -- public entry point #1
@@ -553,7 +533,6 @@ class NetworkPlasticityManager:
     #     _summary_schedule()             -- decide what fires this call
     #     _summarize_site()  (per site)
     #       _summarize_recent_activity()    (+ _rank_metrics() if should_rank)
-    #       _summarize_lifetime_activity()
     #       _summarize_redo()
     #       _summarize_utility()
     #       _summarize_knife()             (only if should_knife)
@@ -639,7 +618,6 @@ class NetworkPlasticityManager:
             self._summarize_recent_activity(result, state, should_rank)
 
         if should_log:
-            self._summarize_lifetime_activity(result, state)
             self._summarize_redo(result, state)
             self._summarize_utility(result, state)
 
@@ -750,26 +728,6 @@ class NetworkPlasticityManager:
         return metrics
 
     @torch.no_grad()
-    def _summarize_lifetime_activity(
-        self,
-        result: SiteSummary,
-        state: SiteState,
-    ) -> None:
-        # Same dead-unit definition as _summarize_recent_activity [Dohare2024],
-        # applied to the lifetime running average instead of the log window.
-        active_fraction = (
-            state.activity.lifetime.total / state.activity.lifetime.count.clamp_min(1.0)
-        )
-        result.metrics.update(
-            {
-                "dead_units_lifetime_frac": (
-                    (active_fraction <= 0.01).float().mean().item()
-                ),
-                "active_lifetime_fraction_mean": active_fraction.mean().item(),
-            }
-        )
-
-    @torch.no_grad()
     def _summarize_redo(
         self,
         result: SiteSummary,
@@ -848,15 +806,13 @@ class NetworkPlasticityManager:
     ) -> None:
         # KNIFE relative update activity (RUA), per [Liu2026]. See
         # _summarize_knife_average for the per-window computation.
-        self._summarize_knife_average(state.knife.window, result, lifetime=False)
-        self._summarize_knife_average(state.knife.lifetime, result, lifetime=True)
+        self._summarize_knife_average(state.knife.window, result)
 
     @torch.no_grad()
     def _summarize_knife_average(
         self,
         average: RunningAverageState,
         result: SiteSummary,
-        lifetime: bool,
     ) -> None:
         # [Liu2026]: update activity UA_i = ||grad_i|| / (||weight_i|| + eps),
         # time-averaged, then normalized by the layer's mean UA to get RUA_i.
@@ -881,21 +837,20 @@ class NetworkPlasticityManager:
             return
 
         rua = update_activity / update_activity.mean().clamp_min(1e-12)
-        suffix = "_lifetime" if lifetime else ""
         result.metrics.update(
             {
-                f"knife_update_activity{suffix}_mean": (update_activity.mean().item()),
-                f"knife_rua{suffix}_mean": rua.mean().item(),
-                f"knife_rua{suffix}_p10": torch.quantile(rua, 0.10).item(),
-                f"knife_stagnant_units{suffix}_frac": (
+                "knife_update_activity_mean": (update_activity.mean().item()),
+                "knife_rua_mean": rua.mean().item(),
+                "knife_rua_p10": torch.quantile(rua, 0.10).item(),
+                "knife_stagnant_units_frac": (
                     (rua < self.config.knife_stagnant_threshold).float().mean().item()
                 ),
-                f"knife_volatile_units{suffix}_frac": (
+                "knife_volatile_units_frac": (
                     (rua > self.config.knife_volatile_threshold).float().mean().item()
                 ),
             }
         )
-        result.distributions[f"knife_rua{suffix}"] = rua.detach().flatten()
+        result.distributions["knife_rua"] = rua.detach().flatten()
 
     @torch.no_grad()
     def _add_network_summary_metrics(
@@ -910,17 +865,12 @@ class NetworkPlasticityManager:
         weighted_metrics = (
             "dead_units_frac",
             "active_fraction_mean",
-            "dead_units_lifetime_frac",
-            "active_lifetime_fraction_mean",
             "redo_dormant_units_frac",
             "redo_activity_frac_mean",
             "contribution_utility_mean",
             "knife_update_activity_mean",
             "knife_stagnant_units_frac",
             "knife_volatile_units_frac",
-            "knife_update_activity_lifetime_mean",
-            "knife_stagnant_units_lifetime_frac",
-            "knife_volatile_units_lifetime_frac",
         )
         for metric_name in weighted_metrics:
             value = self._weighted_site_mean(site_summaries, metric_name)
@@ -940,13 +890,6 @@ class NetworkPlasticityManager:
             site_summaries,
             metric_name="knife_rua_p10",
             distribution_name="knife_rua",
-        )
-        self._add_mean_and_global_p10(
-            info,
-            prefix,
-            site_summaries,
-            metric_name="knife_rua_lifetime_p10",
-            distribution_name="knife_rua_lifetime",
         )
         self._add_rank_aggregates(info, prefix, site_summaries)
 
@@ -1054,8 +997,6 @@ class NetworkPlasticityManager:
 
         for state in self.site_states.values():
             if should_log:
-                state.activity.window.total.zero_()
-                state.activity.window.count.zero_()
                 state.activity.behaviour_chunks.clear()
                 state.activity.behaviour_rows = 0
 
@@ -1181,10 +1122,7 @@ class NetworkPlasticityManager:
             unit_indices = self._select_units_for_replacement(site)
 
             for unit_idx_tensor in unit_indices:
-                self._reset_unit(
-                    site,
-                    int(unit_idx_tensor.item()),
-                )
+                self._reset_unit(site, int(unit_idx_tensor.item()))
                 total_replaced += 1
 
         self.total_units_replaced += total_replaced
@@ -1287,18 +1225,11 @@ class NetworkPlasticityManager:
         state.utility.mean_feature_activation[unit_idx] = 0.0
         state.utility.age[unit_idx] = 0.0
 
-        state.activity.window.total[unit_idx] = 0.0
-        state.activity.window.count[unit_idx] = 0.0
-        state.activity.lifetime.total[unit_idx] = 0.0
-        state.activity.lifetime.count[unit_idx] = 0.0
-
         state.redo.activation_abs_ema[unit_idx] = 0.0
         state.redo.activity_fraction_ema[unit_idx] = 0.0
 
         state.knife.window.total[unit_idx] = 0.0
         state.knife.window.count[unit_idx] = 0.0
-        state.knife.lifetime.total[unit_idx] = 0.0
-        state.knife.lifetime.count[unit_idx] = 0.0
 
         self._reset_optimizer_state_for_unit(site, unit_idx)
 
