@@ -1,5 +1,7 @@
 # Neural Network Plasticity
 
+This page documents the plasticity diagnostics and maintenance methods currently implemented in CARES-RL, drawing on established approaches for measuring and addressing plasticity loss in neural networks.
+
 **Plasticity** is a neural network's ability to change its behaviour through further training. In reinforcement learning (RL), this matters throughout an experiment: the policy changes the data it experiences, bootstrap targets change as networks learn, and a network that performs well now may still need to learn substantially different behaviour later.
 
 **Loss of plasticity** describes a reduction in a trained network's ability to adapt to new data or learning targets. It is not synonymous with low reward, a plateau in episode return, or small gradients. A network may stop improving because the task has been solved, because exploration is insufficient, because the optimisation objective is poorly aligned with the task, or because its ability to learn has deteriorated. Distinguishing these explanations generally requires additional experiments.
@@ -9,7 +11,7 @@ This page documents the diagnostics **currently implemented** by CARES-RL in `ca
 !!! important "Diagnostics are indicators, not a plasticity score"
     The metrics below describe different properties of a network: activation, representation dimensionality, gradients, parameter magnitude, and neuron contribution. No individual measurement proves that a network has lost the capacity to learn. A stronger test is to measure how well the same network learns a new target or task relative to a suitable baseline.
 
-![Overview of Plasticity](../images/01_plasticity_overview.png)
+![Overview of Plasticity](../images/plasticity_overview.png)
 
 **Figure 1. Conceptual illustration of healthy and restricted network representations.** The contrasting activation patterns illustrate how a network may use diverse neuron responses or rely on fewer, more redundant responses. Such patterns may accompany loss of plasticity, but they do not directly establish whether a network can adapt to a new task.
 
@@ -27,25 +29,11 @@ The following diagnostics examine different properties of a network during train
 | **Neuron contribution** | How much influence does a neuron have through its outgoing connections? Low-contribution neurons may be candidates for replacement to maintain network capacity. | Dohare et al. (2024), CBP |
 | **Weight magnitude** | How large have the network's parameters become? Increasing weight magnitudes can accompany plasticity loss and changes in optimisation behaviour. | Dohare et al. (2024) |
 
-## What Is Actually Observed?
-
-CARES-RL discovers **feature sites** in `nn.Sequential` blocks. A site comprises a trainable `nn.Linear` layer (the *producer*), a supported activation module immediately after it, and, when available, a subsequent linear layer (the *consumer*). The output of the activation module is treated as the site's feature representation.
-
-The supported activation modules are `ReLU`, `LeakyReLU`, `ELU`, `GELU`, `SiLU`, `Tanh`, `Sigmoid`, and CARES-RL's `GoLU`. However, some interpretations—especially “dead” neurons defined using positive activation—are most natural for ReLU. A negative `Tanh` output, for example, is not an inactive neuron merely because it is not positive.
-
-!!! warning "Architecture coverage"
-    Site discovery does **not** instrument arbitrary network graphs yet. It looks for supported layers and activations within `nn.Sequential` and currently supports `nn.Linear` producers. Convolutional producers, functional activations without a module, and more complex residual paths may not produce feature-site diagnostics. `average_weight_magnitude` is an exception: it iterates over **all** `nn.Linear` layers in the model, not just discovered feature sites.
-
-Two explicit capture contexts keep evaluation and training observations separate:
-
-- `capture_training()` captures activation statistics and incoming-weight gradients for ongoing training. It also stores the latest activation for CBP utility accounting.
-- `capture_metrics()` collects post-activation feature matrices for recent dead-unit and representation-rank measurements without updating ReDo, KNIFE, or CBP training state.
-
-## Plasticity Diagnostics
+## Plasticity Diagnostics Metrics
 
 The following measurements are drawn from several approaches to investigating plasticity loss. **Dead**, **dormant**, and **stagnant** neurons have distinct operational definitions; Figure 2 compares these neuron-level phenomena. Representation rank and weight magnitude provide additional perspectives beyond individual neuron classifications.
 
-![Comparison of dead, dormant, and stagnant neurons](../images/02_dead_dormant_stagnant.png)
+![Comparison of dead, dormant, and stagnant neurons](../images/dead_dormant_stagnant.png)
 
 **Figure 2. Comparison of dead, dormant, and stagnant neurons.**
 The upper plots show a neuron's activation across different observations (inputs to the network), while the lower plots show its gradient activity across successive training updates. A **dead neuron** produces no activation and receives no incoming-weight gradient when its ReLU remains inactive. A **dormant neuron** produces small but nonzero activations relative to other neurons in its layer, while potentially continuing to receive gradients. A **stagnant neuron** may activate normally but exhibits low relative update activity (RUA), indicating comparatively weak incoming-weight gradients relative to its weight magnitude and other neurons in the layer. The traces are illustrative; observation index represents different inputs, not necessarily training progression.
@@ -56,6 +44,10 @@ The upper plots show a neuron's activation across different observations (inputs
 ### Dead Units — Dohare et al.
 
 **Question:** How many neurons almost never produce a positive output on recent observations?
+
+![Dead units: activation patterns and neurons that rarely fire](../images/dead_units.png)
+
+**Figure 3. Dead units: infrequent activation.** The heatmap shows neuron responses across sampled observations, with highlighted rows representing units that rarely activate. CARES-RL classifies a neuron as dead when its activation is positive on at most 1% of recent observations; the example values are illustrative.
 
 To measure neuron activity, CARES-RL records the output of each neuron across a set of observations. Let `a[b,i]` represent the activation of neuron `i` for observation `b`, where `B` is the number of observations and `H` is the number of neurons in the layer.
 
@@ -84,6 +76,8 @@ A rising `dead_units_frac`, especially together with a declining `active_fractio
 
 **Question:** Which neurons produce very small activations compared with others in the same layer, even if they are not completely inactive?
 
+![ReDo dormancy: weak neuron activations relative to their layer](../images/redo_dormancy.png)
+
 Sokar et al. (2023) introduced the **ReDo dormancy score**, which measures how strongly each neuron activates relative to the average activation magnitude of its layer. Unlike the dead-unit metric, which considers how frequently a neuron produces a positive activation, ReDo considers the **magnitude of its activations relative to other neurons**.
 
 CARES-RL measures ReDo dormancy **on training batches**, using an exponential moving average (EMA) of each neuron's mean absolute activation magnitude across captured training forwards. The EMA gives recent batches more weight while retaining diminishing contributions from older batches; **it is not a fixed-length sliding window**:
@@ -100,9 +94,7 @@ The normalisation makes dormancy **relative to the layer**. A score of `1.0` ind
 
 The original ReDo paper explores several thresholds, including `0`, `0.025`, and `0.1`. CARES-RL uses the configured `redo_dormant_threshold`, rather than assuming a universal threshold.
 
-![Example ReDo normalised activation scores and dormancy threshold](../images/04_redo_dormancy.png)
-
-**Figure 3. ReDo dormancy from relative activation magnitude.** Each neuron's mean absolute activation is normalised by the layer mean. Neurons at or below the illustrative threshold `τ = 0.1` are classified as dormant. The figure illustrates the relative nature of dormancy; CARES-RL uses an EMA of training activations and a configurable threshold.
+**Figure 4. ReDo dormancy: low relative activation magnitude.** Some neurons respond much more weakly than others in the same layer. Their mean absolute activations are normalised by the layer mean, and low-scoring units are classified as dormant. The diagram illustrates a threshold of `0.1`; CARES-RL applies its configured threshold to EMA-smoothed training activations.
 
 CARES-RL also records additional statistics that provide complementary information about neuron activity:
 
@@ -135,19 +127,31 @@ This additional metric measures **how frequently neurons exceed a minimum activa
 
 ### Representation Rank — Dohare et al.
 
-Representation rank describes how many independent directions are spanned by the activations of neurons within a layer. A network may have many active neurons, but if they respond similarly to the same observations, they may provide largely redundant representations.
+**Question:** How many independent directions are represented by a layer's neuron activations, and are neurons producing redundant features?
 
-To measure this, CARES-RL constructs an activation matrix `A` of shape `[B, H]`, where `B` is the number of observations (rows) and `H` is the number of neurons (columns). The matrix contains the post-activation outputs collected through `capture_metrics()`.
+![Representation rank: diverse features versus redundant features](../images/representation_rank.png)
 
-The rank-based metrics examine the singular values of this matrix, which describe how its representations are distributed across different directions. CARES-RL calculates these values from the **uncentred activation matrix**, with up to `min(B, H)` singular values arranged in descending order.
+**Figure 5. Representation rank: diverse versus redundant features.** Higher-rank representations span more independent directions, whereas redundant neuron responses concentrate activity in fewer directions. The examples illustrate how neurons can remain active while providing limited representational diversity.
 
-![Activation heatmaps and singular-value spectra illustrating representation diversity](../images/03_representation_rank.png)
+A neural network learns by developing internal representations of the observations it receives. Ideally, different neurons respond to different features or patterns in those observations, allowing the network to distinguish between a wide variety of situations.
 
-**Figure 4. Representation diversity and rank.** Each heatmap depicts responses of multiple neurons to multiple observations; its associated spectrum shows the singular values of that feature matrix. When many neurons follow repeated or dependent response patterns, the spectrum becomes concentrated in fewer directions, reducing effective dimensionality. **The example is conceptual:** the exact numerical rank depends on the feature matrix and the rank definition, which are specified below.
+However, **having many active neurons does not necessarily mean the network has diverse representations**. For example, imagine a layer containing 100 neurons, but most of them respond in almost exactly the same way to every observation. Although all 100 neurons may be active, they provide largely redundant information. In contrast, a layer whose neurons respond to different patterns can represent a greater variety of information.
 
-This illustrates why the number of *active neurons* is not the same as the number of *independent features*: several neurons may fire strongly while encoding nearly identical variation across inputs.
+**Representation rank measures the dimensionality of these activation patterns.** A higher rank indicates that neuron responses span more independent directions, while a lower rank indicates that activity is concentrated in fewer directions. This makes rank useful for identifying when a network's internal representations are becoming increasingly redundant, even if its neurons remain active.
 
-#### `stable_rank` — 99% cumulative singular-value rank
+To calculate this, CARES-RL collects neuron activations across multiple observations using `capture_metrics()`. These are arranged into an activation matrix `A` of shape `[B, H]`, where `B` is the number of observations and `H` is the number of neurons in the layer. Each row represents one observation, and each column records how a particular neuron responds across those observations.
+
+CARES-RL then uses Singular Value Decomposition (SVD) to examine how the activation patterns are distributed across different directions. The resulting **singular values** indicate the relative strength of those directions. If most of the activity is concentrated in a few directions, the representation has a lower effective dimensionality. If activity is distributed across many directions, the representation has a higher effective dimensionality.
+
+Two complementary measurements, **stable rank** and **effective rank**, summarise this distribution in different ways. Both are calculated from the singular values of the **uncentred activation matrix**, producing up to `min(B, H)` singular values.
+
+#### Stable Rank
+
+**Question:** How many of the strongest activation patterns are needed to account for 99% of the total singular-value magnitude?
+
+CARES-RL calculates `stable_rank` by ordering the singular values from largest to smallest and progressively adding them together. Once their cumulative sum reaches **99% of the total**, the number of directions included becomes the reported rank.
+
+For example, if a layer has 100 neurons but just 10 directions account for 99% of the singular-value sum, the reported rank is 10. This suggests that the layer's activations are concentrated in relatively few directions, despite having 100 neurons.
 
 ```text
 p[j] = s[j] / sum_k(s[k])
@@ -156,11 +160,20 @@ stable_rank = smallest K such that sum_(j=1..K)(p[j]) >= 0.99
 stable_rank_pct = 100 * stable_rank / H
 ```
 
-The logged name is preserved as **`stable_rank`**, but the implementation is specifically a **99% cumulative singular-value rank**. This is important when comparing papers: it is **not** the conventional mathematical stable rank `||A||_F² / ||A||_2²`, and it should not be assumed equivalent to threshold-counting definitions also called “stable rank”.
+Here, `s[j]` represents the singular values in descending order, and `p[j]` is each singular value's proportion of their total sum.
 
-Higher values mean that more singular directions are needed to account for 99% of the singular-value sum. `stable_rank_pct` scales by the **number of units in the layer**, not by `min(B, H)`.
+A **higher rank** indicates that more directions are needed to account for the activation patterns, suggesting greater representational dimensionality. The additional `stable_rank_pct` expresses this rank as a percentage of the layer's total number of neurons (`H`).
 
-#### `effective_rank` — entropy-based rank
+!!! note "Stable rank terminology"
+    Following Dohare et al. (2024), stable rank is calculated as the number of leading singular values needed to account for 99% of their total sum. This definition differs from the conventional mathematical definition of stable rank, `||A||_F² / ||A||_2²`.
+
+#### Effective Rank
+
+**Question:** How many directions contribute to the network's representations when considering their relative strengths?
+
+While stable rank counts the directions needed to reach a fixed threshold, **effective rank considers the entire distribution of singular values**.
+
+It uses Shannon entropy to measure how evenly the singular-value magnitudes are distributed, then converts that entropy into an effective number of directions.
 
 ```text
 p[j] = s[j] / sum_k(s[k])
@@ -168,87 +181,133 @@ entropy = -sum_j(p[j] * log(p[j]))
 effective_rank = exp(entropy)
 ```
 
-This measures the effective number of represented directions while taking the **entire singular-value distribution** into account. Concentrating almost all singular-value mass in one direction drives the result toward 1; more uniform singular values yield a higher effective rank.
+When the singular values are distributed evenly across many directions, effective rank is higher. When a few directions dominate the activations, effective rank is lower.
 
-The entropy-based effective rank is described in Dohare et al. (2024). ReDo also reports an effective-rank analysis in Appendix C.5, Table 7, following Kumar et al. (2021). The appearance of a rank measure in multiple papers does **not** imply that their implementations are identical without verifying the precise construction and normalisation.
+For example, if 10 directions contribute equally, the effective rank is 10. However, if one direction dominates and the remaining nine contribute very little, the effective rank approaches 1.
+
+Unlike stable rank, there is **no fixed cutoff**. Every nonzero singular value contributes to the calculation, with the relative distribution determining the result.
+
+**Source:** Effective rank is calculated following Dohare et al. (2024), using the exponential Shannon entropy of the normalised singular values.
+
+#### Comparing Stable Rank and Effective Rank
+
+![Stable vs Effective Rank](../images/stable_rank_vs_effective_rank.png)
 
 | Aspect | `stable_rank` | `effective_rank` |
 |---|---|---|
-| CARES-RL computation | Minimum count capturing 99% of singular-value **sum** | Exponential Shannon entropy of normalised singular values |
+| Calculation | Minimum number of leading singular values accounting for 99% of their total sum | Exponential Shannon entropy of normalised singular values |
 | Explicit cutoff | Yes: 99% | No cumulative cutoff |
-| Output | Integer-like dimension count (`float` in logs) | Continuous effective dimension count |
-| Sensitive to | Number of small singular values needed to cross 99% | Overall concentration/evenness of singular values |
+| Output | Integer rank (`float` in logs) | Continuous effective rank |
+| Sensitive to | Number of directions needed to reach 99% | Overall concentration and evenness of singular values |
+
+Both metrics describe the dimensionality of the network's activation patterns. **Stable rank** counts the directions needed to reach a fixed threshold, while **effective rank** considers the entire distribution of singular values.
 
 If the activation matrix contains fewer than two observations, neither rank metric is emitted. If all singular values are zero, both ranks (and `stable_rank_pct`) are reported as zero. Singular-value decomposition failures are skipped rather than propagated as diagnostic errors.
 
 !!! warning "Comparing ranks across runs"
-    Rank is bounded by the available number of samples as well as by layer width. A short observation window can make a wide layer appear rank-deficient. The matrix is **not mean-centred**, so a strong shared activation offset may dominate the singular-value spectrum. Interpret trajectories only alongside the window size, layer width, observation distribution, and the fixed 99% threshold.
-
-**Source and attribution:** Rank-related analyses appear in Dohare et al. (2024), and effective rank is also used by Sokar et al. (2023). The formulas above describe **the code as written**; in particular, the 99% cumulative formula should not be presented as an independently verified exact definition from Dohare's paper.
+    Rank is bounded by the number of observations as well as the layer width. A short observation window can make a wide layer appear rank-deficient. The activation matrix is **not mean-centred**, so a strong shared activation offset may dominate the singular-value spectrum. Comparisons across training runs should therefore use consistent observation windows, layer architectures, and sampling conditions.
 
 ### KNIFE: Stagnant and Volatile Neurons — Liu et al.
 
-**Question:** Are neurons' incoming weights still receiving meaningful gradients, relative to the size of those weights?
+**Question:** Are neurons receiving meaningful gradient activity relative to the magnitude of their existing weights?
 
-Following the update-activity and relative-update-activity terminology of Liu et al. (2026), CARES-RL records the L2 norm of the **incoming-weight gradient row** relative to the corresponding weight row:
+![KNIFE: stagnant and volatile neurons from relative gradient activity](../images/knife.png)
+
+**Figure 6. KNIFE: stagnant and volatile neurons.** The chart illustrates how incoming-weight gradient magnitude is compared with weight magnitude to measure update activity. Neurons with unusually low relative update activity are classified as stagnant, while those with unusually high relative update activity are classified as volatile. Both classifications are relative to other neurons in the same layer.
+
+A neuron may continue producing activations while receiving comparatively weak gradients. This means that even though the neuron remains active, the learning signals affecting its incoming weights may be small relative to their existing magnitude.
+
+Liu et al. (2026) investigate this behaviour using **update activity (UA)** and **relative update activity (RUA)**. Rather than examining gradient magnitude alone, these measurements consider the size of a neuron's incoming-weight gradients relative to its existing weights and the activity of other neurons in the same layer.
+
+Two types of neurons are identified:
+
+- **Stagnant neurons:** Neurons with unusually low relative update activity, indicating comparatively weak gradient activity relative to other neurons.
+- **Volatile neurons:** Neurons with unusually high relative update activity, indicating disproportionately strong gradient activity relative to other neurons.
+
+Importantly, a neuron can remain active under activation-based diagnostics while being classified as stagnant.
+
+Following Liu et al. (2026), CARES-RL calculates update activity for each neuron as the L2 norm of its incoming-weight gradients divided by the L2 norm of its incoming weights:
 
 ```text
 UA[i, t] = ||grad_W[i, :]||_2 / (||W[i, :]||_2 + knife_eps)
 ```
 
-It averages these values over captured backward passes, then normalises within each layer:
+Here, `grad_W[i, :]` represents the gradient of the incoming weights for neuron `i`, while `W[i, :]` represents those weights themselves.
+
+Update activity is averaged over captured training backward passes within a measurement interval, then normalised by the average update activity of all neurons in the same layer:
 
 ```text
 mean_UA[i] = mean_over_captured_backwards(UA[i, t])
+
 RUA[i] = mean_UA[i] / max(mean_i(mean_UA[i]), 1e-12)
 ```
 
-![Relative update activity and classification of stagnant and volatile neurons](../images/05_knife_activity.png)
+This produces **relative update activity (RUA)**, where a value of `1.0` indicates gradient activity equal to the layer average.
 
-**Figure 5. KNIFE-style gradient activity.** For each neuron, CARES-RL divides the L2 norm of its incoming-weight gradient by the L2 norm of the corresponding weights, then averages across recorded backward passes and normalises by the layer mean to obtain relative update activity (RUA). Low-RUA neurons are classified as *stagnant* and high-RUA neurons as *volatile*, using the configured thresholds (illustrated here with 0.25 and 2.0). **RUA measures gradient activity, not the actual optimiser parameter step.**
+- **RUA < 1:** Below-average relative update activity.
+- **RUA ≈ 1:** Approximately average relative update activity.
+- **RUA > 1:** Above-average relative update activity.
 
-Because RUA is relative to other units in the same layer, the classifications indicate an imbalance in gradient activity, not an absolute guarantee that a neuron has stopped learning or is updating unstably.
+Following Liu et al. (2026), CARES-RL classifies neurons using configurable thresholds applied to RUA.
+
+For example, a stagnant threshold of `0.25` identifies neurons whose relative update activity is less than 25% of the layer average.
+
+CARES-RL records the following KNIFE metrics:
 
 | Metric | Calculation |
 |---|---|
 | `knife_update_activity_mean` | Layer mean of `mean_UA[i]` |
-| `knife_rua_mean` | Layer mean of `RUA[i]` |
 | `knife_rua_p10` | 10th percentile of `RUA[i]` |
 | `knife_stagnant_units_frac` | Fraction with `RUA[i] < knife_stagnant_threshold` |
 | `knife_volatile_units_frac` | Fraction with `RUA[i] > knife_volatile_threshold` |
 
-The same metrics are available with a **`_lifetime` component** in their names—for example, `knife_update_activity_lifetime_mean`, `knife_rua_lifetime_p10`, and `knife_stagnant_units_lifetime_frac`. The ordinary metrics use the arithmetic mean of captured backward passes **since the previous KNIFE summary**; the lifetime variants average across all captured backward passes **since each neuron's last reset**. These are not EMAs. Lifetime statistics describe historical gradient activity and can lag behind newly stagnant behaviour; use the recent window to assess current trends.
+The stagnant and volatile fractions identify neurons with unusually low or high relative update activity, while `knife_rua_p10` tracks the lower end of that distribution.
 
-A **stagnant** neuron receives comparatively small incoming-weight gradients; a **volatile** neuron receives comparatively large ones. These are *relative within a layer*: a neuron can have low raw update activity while having a normal RUA if every unit has similarly small gradients. In non-degenerate cases, the **mean RUA is approximately 1 by construction**, so its lower tail and the stagnant/volatile fractions are usually more informative than `knife_rua_mean` alone.
+Because RUA is normalised within each layer, `knife_update_activity_mean` provides additional context about the overall magnitude of gradient activity relative to the weights. For example, all neurons could experience similarly weak gradient activity while maintaining comparable RUA values.
 
-!!! important "Gradient activity is not an optimizer step"
-    `UA` is calculated from the raw gradient available to the parameter hook and the current weights. It is **not** the actual parameter change made by Adam or another optimiser. Learning rate, optimiser moments, clipping, regularisation, and other update rules can affect parameter movement. A stagnant RUA therefore does not by itself prove that a unit is incapable of learning, while a high RUA does not necessarily mean unstable learning.
+CARES-RL collects update activity during training and calculates these measurements over intervals controlled by `knife_interval_env_steps`. Each interval provides a measurement of the relative gradient activity of neurons during that period.
 
-The implementation **omits KNIFE metrics** when no unit has positive mean update activity. This differs from interpreting missing keys as numerical zeros. The stagnant and volatile comparisons use strict `<` and `>` respectively; a neuron exactly on a threshold is not included.
+!!! important "Gradient activity is not an optimiser step"
+    Following Liu et al. (2026), update activity is calculated from incoming-weight gradients relative to the corresponding weights. It does not measure the actual parameter changes applied by an optimiser such as Adam. Learning rates, optimiser moments, gradient clipping, and other update rules can affect the final parameter changes.
 
-**Source:** Liu et al. (2026), *Stagnant Neuron: Towards Understanding the Plasticity Loss in Multi-Agent Reinforcement Learning Value Factorization Methods*. See the referenced implementation comments for the specific UA/RUA mapping.
+!!! note "KNIFE diagnostics and intervention"
+    Liu et al. (2026) introduce KNIFE as a method for addressing plasticity loss through targeted neuron interventions. CARES-RL implements the paper's UA/RUA diagnostics for monitoring neuron activity, but does not currently implement KNIFE's neuron-replacement procedure.
+
+**Source:** Liu et al. (2026), *Stagnant Neuron: Towards Understanding the Plasticity Loss in Multi-Agent Reinforcement Learning Value Factorization Methods*. CARES-RL follows the paper's definitions of update activity, relative update activity, and stagnant/volatile neurons.
 
 ### Weight Magnitude — Dohare et al.
 
-`average_weight_magnitude` is the mean absolute value of the weight entries in an `nn.Linear` layer:
+**Question:** Are the network's weights becoming increasingly large during training?
+
+![Weight magnitude across layers during training](../images/weight_magnitude.png)
+
+**Figure 7. Weight magnitude during training.** Illustrative trajectories show how the average absolute magnitude of network weights can change across layers during training. Increasing weight magnitudes may accompany changes in a network's ability to learn.
+
+Neural networks learn by adjusting the weights connecting their neurons. As training progresses, these weights may increase or decrease in magnitude depending on the features and behaviours being learned.
+
+Dohare et al. (2024) examine **weight magnitude** as one of the properties associated with loss of plasticity. In particular, increasingly large weights can make it more difficult for a network to adapt through subsequent gradient updates and may contribute to activation saturation, depending on the network architecture.
+
+CARES-RL follows this measurement by calculating the **mean absolute weight magnitude** for each linear layer:
 
 ```text
 average_weight_magnitude[layer] = mean(|W_layer|)
 ```
 
-The network-wide `average_weight_magnitude` is a **weight-count-weighted** average across all linear layers; it is not simply the average of the per-layer means. Bias parameters are not included.
+Using absolute values ensures that positive and negative weights do not cancel each other out.
 
-Growing weight magnitudes can accompany changes in optimisation dynamics or activation saturation, but large weights alone are not a demonstration of plasticity loss. Layer scales, activation functions, and normalisation all affect their meaning.
+The network-wide `average_weight_magnitude` is calculated across all linear layers, weighting each layer by its number of weight parameters. This means larger layers contribute proportionally more to the overall average. Bias parameters are excluded.
 
-**Source:** Weight-magnitude analyses in Dohare et al. (2024).
+Weight magnitude is most useful when examined **over training**, particularly alongside changes in neuron activity and representation rank. Increasing magnitudes may indicate changes in the network's optimisation behaviour, although their interpretation depends on the architecture, activation functions, and normalisation used.
 
-## Maintaining Plasticity
-
-Unlike the diagnostics above, **continual backpropagation (CBP)** can modify the network by replacing selected neurons. It uses contribution utility both as a reported diagnostic and as the criterion for deciding which mature neurons to replace.
+**Source:** Weight-magnitude analysis follows Dohare et al. (2024), *Loss of Plasticity in Deep Continual Learning*.
 
 ### Contribution Utility — Dohare et al.
 
 **Question:** How much influence can each neuron's activation have through its outgoing connections?
+
+![Contribution utility: low-influence neuron and outgoing connections](../images/contribution_utility.png)
+
+**Figure 8. Contribution utility: identifying low-influence neurons.** A neuron with weak activation and/or small outgoing connection weights has low estimated contribution utility. CARES-RL uses an EMA of activation magnitude multiplied by outgoing-weight magnitude to rank mature neurons for possible CBP replacement.
 
 The CBP/GnT contribution-utility signal combines absolute activation magnitude with the average absolute magnitude of outgoing weights:
 
@@ -277,131 +336,70 @@ Low utility identifies neurons with relatively little estimated contribution thr
 
 **Source:** CBP/GnT contribution utility, associated with Dohare et al. (2024).
 
-### Optional replacement — `step_replacement()`
+## Interpreting Plasticity Diagnostics
 
-The diagnostic manager can also **intervene** by replacing low-utility neurons; measurement and intervention should be kept conceptually separate.
+The diagnostics presented here examine different aspects of network behaviour, including neuron activity, representation diversity, gradient activity, and parameter magnitude.
 
-When `replacement_enabled=True`, the current implementation supports `replacement_strategy="cbp"`. The replacement procedure:
+These measurements are most useful when considered together and tracked throughout training. For example, a network may maintain high neuron activity while its representation rank declines, suggesting that neurons remain active but increasingly produce redundant features.
 
-1. Updates each site's contribution utility and age using the most recent captured training activation.
-2. Selects eligible units (`age > maturity_threshold_updates`) with the lowest utility, according to `replacement_rate` and the configured stochastic or accumulated replacement scheme.
-3. Adds the removed neuron's estimated mean contribution to the consumer bias (when present), then zeroes its outgoing weights.
-4. Reinitialises the neuron's incoming weight row and zeroes its producer bias.
-5. Resets that unit's stored utility, ReDo and KNIFE statistics, as well as the corresponding per-unit optimiser state. The recent observation buffer is not reset per neuron.
+Changes in these measurements can help identify potential issues with network learning, but their interpretation depends on the task, architecture, and training conditions.
 
-The module requires `PlasticityAdam` when replacement is enabled, so it can reset the optimiser's per-parameter-element state. `units_replaced` reports the count returned by that replacement call; `units_replaced_total` reports the running count. `summary()` also includes the cumulative total.
+To establish whether a network has actually lost plasticity, its ability to learn from new data or adapt to a changed objective must be evaluated. Comparing this adaptation against a freshly initialised network or another suitable baseline provides stronger evidence than the diagnostic measurements alone.
 
-![Contribution-based replacement of a low-utility neuron](../images/06_cbp_replacement.png)
+## How Metrics Are Observed
 
-**Figure 6. Contribution-based neuron replacement.** CARES-RL tracks a running estimate of each neuron's activation magnitude multiplied by its outgoing-weight magnitude. Among mature, eligible neurons, the lowest-utility units can be selected at the configured replacement rate. A selected neuron's incoming weights are reinitialised and its outgoing weights zeroed; CARES-RL also clears the corresponding optimiser and diagnostic state. The diagram is a schematic of the intervention, not a guarantee that replacement will improve learning.
+CARES-RL identifies **feature sites** within `nn.Sequential` blocks. Each site consists of a trainable `nn.Linear` layer (the *producer*), a supported activation module immediately following it, and, when available, a subsequent linear layer (the *consumer*).
 
-The distinction between the **selection criterion** (contribution utility) and the **intervention** (reinitialisation and zeroing outgoing connections) matters: a neuron is not chosen merely because it has a small gradient or because it appears dead under the activity metric.
+Plasticity diagnostics are collected from the **output of the activation module**, rather than directly from the preceding linear layer. This represents the neuron's activated output and is used for measurements such as dead units, ReDo dormancy, and representation rank. KNIFE additionally examines the incoming-weight gradients of the producer layer.
 
-!!! note "Recording utility without replacing neurons"
-    `step_replacement()` still updates CBP/GnT utility when the manager is enabled but `replacement_enabled=False`; it simply performs no replacements. Thus training code must invoke that method for contribution-utility statistics to advance, even when no neuron reset is desired.
+Some metrics depend on how the activation function behaves. For example, defining dead neurons using positive activations is most appropriate for ReLU-based networks. A negative `Tanh` output does not necessarily indicate an inactive neuron.
 
-An improvement after replacement is evidence that the intervention helped **under the tested conditions**, not proof that every low-utility neuron was permanently non-functional.
+!!! warning "Architecture coverage"
+    Feature-site discovery currently supports `nn.Linear` layers followed by supported activation modules within `nn.Sequential` blocks. Convolutional layers, functional activations, and more complex network architectures may not be captured.
 
-## Reading Several Metrics Together
+    `average_weight_magnitude` is an exception: it examines all `nn.Linear` layers in the network, not only discovered feature sites.
 
-| Pattern to investigate | Possible explanation | What it does **not** establish |
-|---|---|---|
-| `dead_units_frac` rises; `redo_dormant_units_frac` rises | More units are silent or weak relative to their layer | That the units can never recover |
-| Activity remains high; ranks decline | Neurons may be active but increasingly redundant | That task performance or learning capacity must decline |
-| Activity is healthy; `knife_stagnant_units_frac` rises | Incoming-weight gradient activity is concentrated in fewer units | That actual optimiser updates are zero |
-| Low `contribution_utility_p10`; high activity | Some active neurons may have weak outgoing influence | That those neurons are useless for future learning |
-| Rank or activity looks healthy; performance plateaus | Another bottleneck—exploration, target quality, optimisation, or task difficulty—may dominate | That plasticity loss is absent |
-| Weight magnitude grows while activity/rank falls | A possible joint change in parameter scale and representation | A causal mechanism without further experiments |
+Two capture contexts separate training measurements from evaluation observations:
 
-!!! tip "A practical diagnostic workflow"
-    Compare metrics **over training**, not just at one checkpoint, and correlate them with evaluation performance. Compare equivalent sites and sampling conditions across seeds. If plasticity loss is suspected, test adaptation to a controlled **new learning target** and compare with a freshly initialised or appropriately reset network. Such interventions offer stronger functional evidence than any activation- or gradient-side proxy alone.
+- `capture_training()` records training activations for ReDo and CBP utility calculations, alongside incoming-weight gradients for KNIFE.
+- `capture_metrics()` collects post-activation outputs for dead-unit and representation-rank measurements without affecting the training statistics.
 
-## Reporting, Naming, and Aggregation
+## Maintaining Plasticity
 
-Most activity, dormancy, and stagnation fractions are reported on a **0–1 scale**, where `0.25` represents 25% of neurons. The exception is `stable_rank_pct`, which is reported on a **0–100 scale**.
+While the diagnostics above help identify changes in network behaviour, maintaining plasticity involves methods that actively preserve or restore a network's ability to learn.
 
-Other measurements, such as effective rank, contribution utility, and weight magnitude, have their own scales and should not be interpreted as percentages.
+Several approaches have been proposed, including neuron replacement, network resets, and regularisation methods. CARES-RL currently implements **Continual Backpropagation (CBP)** as an optional plasticity-maintenance mechanism.
 
-### Reporting paths
+### Continual Backpropagation (CBP) — Dohare et al.
 
-Per-site metrics use the key form:
+**Question:** Can we maintain a network's ability to learn by continually replacing neurons that contribute very little to its current behaviour?
 
-```text
-<manager-name>/<site-name>/<metric-name>
-```
+![Contribution-based replacement of a low-utility neuron](../images/cbp_replacement.png)
 
-Dots in a discovered site's name are replaced with underscores. For example, a site named `encoder.0` produces keys such as `agent/encoder_0/dead_units_frac` when the manager is named `agent`. Network-level aggregates instead use keys such as `agent/dead_units_frac`.
+**Figure 9. Continual Backpropagation.** Neurons with low contribution utility are periodically replaced, allowing new features to be learned while retaining the remaining network. Selected neurons have their incoming weights reinitialised and outgoing connections reset.
 
-`summary(env_step, prefix=None, force=False)` chooses between three independently scheduled groups:
+As neural networks train, some neurons may become less useful for representing the current task. However, these neurons continue occupying network capacity, even when they contribute very little to the network's output.
 
-| Config option | Governs |
-|---|---|
-| `statistics_interval_env_steps` | Regular activity, ReDo, utility metrics; window resets |
-| `rank_enabled`, `rank_interval_env_steps` | Rank computation on the activity observation window |
-| `knife_interval_env_steps` | KNIFE summary and gradient-window resets |
-| `force=True` | Requests all groups (rank still requires `rank_enabled`) |
+**Continual Backpropagation (CBP)**, introduced by Dohare et al. (2024), addresses this by continually replacing a small proportion of low-utility neurons with newly initialised neurons.
 
-**Important detail:** When a summary is triggered *only* for rank or KNIFE, not every other diagnostic is necessarily reported. The function still reports the weight-magnitude metrics and cumulative replacement count whenever a summary occurs.
+Rather than resetting the entire network, CBP selectively introduces new neurons while preserving the majority of the learned representations. This allows the network to develop new features without discarding everything it has already learned.
 
-### Observation windows, EMAs, and gradient histories
+CBP uses the **contribution utility** metric described earlier to identify neurons with relatively little influence through their outgoing connections.
 
-The code maintains several different measurement histories, which must not be treated as interchangeable:
+The replacement process consists of:
 
-| Source | Collected by | Used for | Reset behaviour |
-|---|---|---|---|
-| Recent observation chunks | `capture_metrics()` | `dead_units_frac`, active fractions, rank | Cleared after a statistics summary **if the model is training** |
-| Training activation EMAs | `capture_training()` forward hook | ReDo dormancy and additional absolute activity frequency | Decay-weighted history; not cleared by summaries; the replaced neuron's values are reset |
-| Training gradient running averages | `capture_training()` backward hook | KNIFE recent/lifetime metrics | Recent averages reset on a KNIFE summary; lifetime averages persist until neuron replacement |
-| CBP utility EMA | Most recent `capture_training()` activation, consumed by `step_replacement()` | Contribution utility / replacement selection | Updated when `step_replacement()` is called; replaced neurons' values reset |
+1. **Track neuron utility:** Maintain an estimate of each neuron's contribution using its activation magnitude and outgoing connection weights.
+2. **Identify mature, low-utility neurons:** Select neurons that have been present long enough to be evaluated and have the lowest contribution utility.
+3. **Replace selected neurons:** Reinitialise their incoming weights and reset their outgoing connections, allowing them to learn new features.
+4. **Reset associated state:** Clear the selected neurons' optimiser and diagnostic statistics so they can begin learning without their previous history.
 
-`activity_window_env_steps` caps the **returned observation matrix** for the recent window. Chunks are stored on CPU, and the implementation removes entire old chunks; the total temporarily stored can therefore differ from an exact row-by-row sliding-window buffer. Calling `summary()` while the model is **not in training mode** does not clear recent windows.
+CARES-RL implements this procedure through `step_replacement()`, with replacement controlled by `replacement_enabled`, `replacement_rate`, and `maturity_threshold_updates`.
 
-ReDo and contribution utility use **EMAs**, not observation windows. Their rates are controlled by `redo_decay` and `cbp_utility_decay`, respectively. The direct latest-training-batch ReDo measurement discussed as a possible addition is **not yet emitted** by the currently documented implementation.
+The implementation uses `PlasticityAdam` to ensure that the optimiser state associated with replaced neurons is also reset. It additionally compensates the consumer bias for the removed neuron's estimated contribution, helping reduce disruption to the network's existing behaviour.
 
-### Aggregation across sites
+Unlike resetting the entire network, CBP aims to maintain plasticity through **continuous, targeted replacement of low-utility neurons**, balancing retention of useful representations with the introduction of new learning capacity.
 
-CARES-RL uses **different aggregations for different quantities**:
-
-| Family | Network-wide calculation | Example |
-|---|---|---|
-| Fractions and selected means | Mean of site values weighted by the site's number of neurons | `<prefix>/dead_units_frac`, `<prefix>/redo_dormant_units_frac` |
-| Rank | Simple mean across sites with reported ranks; final available site's value also logged | `<prefix>/stable_rank_mean`, `<prefix>/effective_rank_final_layer` |
-| Utility / KNIFE low tails | Average of site 10th percentiles **and** 10th percentile from all collected neuron-level values | `<prefix>/contribution_utility_p10_mean`, `<prefix>/contribution_utility_p10_global` |
-| Weight magnitude | Mean weighted by **number of weight elements** | `<prefix>/average_weight_magnitude` |
-
-The `_final_layer` rank output means the **last site that supplied that metric in discovered-site order**; it does not infer an architectural semantic label.
-
-!!! warning "Interpreting aggregates"
-    Site-level values are often the safest starting point, particularly when layers have different widths. In the current `_weighted_site_mean()` implementation, the denominator is the total units in **all supplied sites**, even if some sites do not report a particular metric. When metric availability varies between sites, that network average can be biased downward. This is a **current implementation caveat**, not a definition to generalise to other tools.
-
-## Configuration Reference
-
-The following `PlasticityConfig` fields are **read by the current implementation**. The table intentionally does not invent default values; consult `algorithm/configurations.py` for the installed version's defaults.
-
-| Setting | Purpose |
-|---|---|
-| `enabled` | Enables manager instrumentation |
-| `training_only` | Restricts training capture to a model in training mode |
-| `include_output_layer` | Allows sites without a downstream consumer |
-| `activity_window_env_steps` | Recent feature-matrix observation capacity |
-| `statistics_interval_env_steps` | Recent activity, ReDo EMA, and utility reporting interval |
-| `rank_enabled` | Enables rank metrics |
-| `rank_interval_env_steps` | Rank reporting interval |
-| `redo_decay` | ReDo training-activation EMA decay (higher values respond more slowly) |
-| `redo_dormant_threshold` | ReDo relative activation-score threshold |
-| `redo_activity_threshold` | Absolute activation threshold for the additional frequency diagnostic |
-| `knife_interval_env_steps` | KNIFE reporting interval |
-| `knife_eps` | Denominator stabiliser for update activity |
-| `knife_stagnant_threshold` | RUA cutoff below which neurons are stagnant |
-| `knife_volatile_threshold` | RUA cutoff above which neurons are volatile |
-| `cbp_utility_decay` | Contribution-utility EMA decay |
-| `replacement_enabled` | Enables CBP replacement intervention |
-| `replacement_strategy` | Current supported strategy: `cbp` |
-| `maturity_threshold_updates` | Minimum age for eligible replacement |
-| `replacement_rate` | Expected fraction of eligible units to replace per call |
-| `replacement_accumulate` | Deterministic accumulation versus stochastic fractional replacement |
-| `replacement_init` | Incoming-weight initialisation scheme |
-| `replacement_activation` | Activation gain used in some initialisation schemes |
+**Source:** Dohare et al. (2024), *Loss of Plasticity in Deep Continual Learning*.
 
 ## References
 
@@ -410,4 +408,3 @@ The following `PlasticityConfig` fields are **read by the current implementation
 3. **Liu et al. (2026).** *Stagnant Neuron: Towards Understanding the Plasticity Loss in Multi-Agent Reinforcement Learning Value Factorization Methods.* [arXiv:2606.25335](https://arxiv.org/abs/2606.25335). KNIFE UA/RUA terminology and stagnant/volatile neurons, as referenced by the CARES-RL implementation.
 4. **Nikishin et al. (2023).** *Deep Reinforcement Learning with Plasticity Injection.* **NeurIPS 2023**. [NeurIPS proceedings](https://proceedings.neurips.cc/paper_files/paper/2023). A related *intervention* for studying and alleviating loss of plasticity; plasticity injection is **not implemented** by `NetworkPlasticityManager`.
 
-The currently documented manager does **not** implement SimBa's separate dormant-ratio, threshold-based s-rank, or L2-feature-norm diagnostics. Those should not be confused with ReDo dormancy or the existing CARES-RL rank calculations.

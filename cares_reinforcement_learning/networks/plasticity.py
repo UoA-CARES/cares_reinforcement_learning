@@ -140,7 +140,6 @@ class RedoState:
 @dataclass
 class KnifeState:
     window: RunningAverageState
-    lifetime: RunningAverageState
 
 
 @dataclass
@@ -426,7 +425,6 @@ class NetworkPlasticityManager:
             ),
             knife=KnifeState(
                 window=RunningAverageState(total=zeros(), count=zeros()),
-                lifetime=RunningAverageState(total=zeros(), count=zeros()),
             ),
         )
         self.site_states[site.name] = state
@@ -521,8 +519,6 @@ class NetworkPlasticityManager:
 
         state.knife.window.total.add_(update_activity)
         state.knife.window.count.add_(1.0)
-        state.knife.lifetime.total.add_(update_activity)
-        state.knife.lifetime.count.add_(1.0)
 
     # =========================================================================
     # summary() -- public entry point #1
@@ -810,15 +806,13 @@ class NetworkPlasticityManager:
     ) -> None:
         # KNIFE relative update activity (RUA), per [Liu2026]. See
         # _summarize_knife_average for the per-window computation.
-        self._summarize_knife_average(state.knife.window, result, lifetime=False)
-        self._summarize_knife_average(state.knife.lifetime, result, lifetime=True)
+        self._summarize_knife_average(state.knife.window, result)
 
     @torch.no_grad()
     def _summarize_knife_average(
         self,
         average: RunningAverageState,
         result: SiteSummary,
-        lifetime: bool,
     ) -> None:
         # [Liu2026]: update activity UA_i = ||grad_i|| / (||weight_i|| + eps),
         # time-averaged, then normalized by the layer's mean UA to get RUA_i.
@@ -843,21 +837,20 @@ class NetworkPlasticityManager:
             return
 
         rua = update_activity / update_activity.mean().clamp_min(1e-12)
-        suffix = "_lifetime" if lifetime else ""
         result.metrics.update(
             {
-                f"knife_update_activity{suffix}_mean": (update_activity.mean().item()),
-                f"knife_rua{suffix}_mean": rua.mean().item(),
-                f"knife_rua{suffix}_p10": torch.quantile(rua, 0.10).item(),
-                f"knife_stagnant_units{suffix}_frac": (
+                "knife_update_activity_mean": (update_activity.mean().item()),
+                "knife_rua_mean": rua.mean().item(),
+                "knife_rua_p10": torch.quantile(rua, 0.10).item(),
+                "knife_stagnant_units_frac": (
                     (rua < self.config.knife_stagnant_threshold).float().mean().item()
                 ),
-                f"knife_volatile_units{suffix}_frac": (
+                "knife_volatile_units_frac": (
                     (rua > self.config.knife_volatile_threshold).float().mean().item()
                 ),
             }
         )
-        result.distributions[f"knife_rua{suffix}"] = rua.detach().flatten()
+        result.distributions["knife_rua"] = rua.detach().flatten()
 
     @torch.no_grad()
     def _add_network_summary_metrics(
@@ -878,9 +871,6 @@ class NetworkPlasticityManager:
             "knife_update_activity_mean",
             "knife_stagnant_units_frac",
             "knife_volatile_units_frac",
-            "knife_update_activity_lifetime_mean",
-            "knife_stagnant_units_lifetime_frac",
-            "knife_volatile_units_lifetime_frac",
         )
         for metric_name in weighted_metrics:
             value = self._weighted_site_mean(site_summaries, metric_name)
@@ -900,13 +890,6 @@ class NetworkPlasticityManager:
             site_summaries,
             metric_name="knife_rua_p10",
             distribution_name="knife_rua",
-        )
-        self._add_mean_and_global_p10(
-            info,
-            prefix,
-            site_summaries,
-            metric_name="knife_rua_lifetime_p10",
-            distribution_name="knife_rua_lifetime",
         )
         self._add_rank_aggregates(info, prefix, site_summaries)
 
@@ -1247,8 +1230,6 @@ class NetworkPlasticityManager:
 
         state.knife.window.total[unit_idx] = 0.0
         state.knife.window.count[unit_idx] = 0.0
-        state.knife.lifetime.total[unit_idx] = 0.0
-        state.knife.lifetime.count[unit_idx] = 0.0
 
         self._reset_optimizer_state_for_unit(site, unit_idx)
 

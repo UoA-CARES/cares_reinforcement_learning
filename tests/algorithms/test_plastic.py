@@ -57,7 +57,6 @@ def test_knife_and_capture():
         state = manager.site_states[site.name]
         raw = torch.tensor([0.0, 1.0, 2.0, 9.0])
         assert torch.allclose(state.knife.window.total, raw)
-        assert torch.allclose(state.knife.lifetime.total, raw)
         values = manager.summary(env_step=1, force=True)
         p = "knife/0"
         close(
@@ -66,23 +65,20 @@ def test_knife_and_capture():
         close(values[f"{p}/knife_rua_mean"], 1.0, "mean relative update activity")
         close(values[f"{p}/knife_stagnant_units_frac"], 0.25, "stagnant fraction")
         close(values[f"{p}/knife_volatile_units_frac"], 0.25, "volatile fraction")
-        close(
-            values[f"{p}/knife_stagnant_units_lifetime_frac"],
-            0.25,
-            "lifetime stagnant fraction",
-        )
+        assert not hasattr(
+            state.knife, "lifetime"
+        ), "KNIFE lifetime state must be absent"
+        assert not any(
+            "lifetime" in key for key in values
+        ), "KNIFE lifetime metrics should no longer be emitted"
+        assert torch.equal(state.knife.window.total, torch.zeros(4))
         assert torch.equal(state.knife.window.count, torch.zeros(4))
-        assert torch.equal(state.knife.lifetime.count, torch.ones(4))
 
         # Uncaptured backward must not count, even though hooks are installed.
         model.zero_grad(set_to_none=True)
         model(x).sum().backward()
         assert torch.equal(state.knife.window.count, torch.zeros(4))
-        assert torch.equal(state.knife.lifetime.count, torch.ones(4))
         print("PASS uncaptured backward does not affect KNIFE state")
-
-        # METRICS capture must not affect training/KNIFE statistics.
-        before_knife = state.knife.lifetime.count.clone()
 
         model.zero_grad(set_to_none=True)
 
@@ -90,9 +86,33 @@ def test_knife_and_capture():
             model(x).sum().backward()
 
         assert state.activity.behaviour_rows == 1
-        assert torch.equal(state.knife.lifetime.count, before_knife)
 
         print("PASS capture_metrics does not change KNIFE statistics")
+
+        # A second captured interval must use only new gradients, not the
+        # previous interval's values (and must not report lifetime metrics).
+        model.zero_grad(set_to_none=True)
+        with torch.no_grad():
+            model[2].weight.copy_(torch.tensor([[9.0, 2.0, 1.0, 0.0]]))
+        with manager.capture_training():
+            model(x).sum().backward()
+        assert torch.allclose(
+            state.knife.window.total, torch.tensor([9.0, 2.0, 1.0, 0.0])
+        )
+        assert torch.equal(state.knife.window.count, torch.ones(4))
+        second = manager.summary(env_step=2, force=True)
+        close(second[f"{p}/knife_update_activity_mean"], 3.0, "second interval UA")
+        close(second[f"{p}/knife_rua_mean"], 1.0, "second interval RUA")
+        close(
+            second[f"{p}/knife_stagnant_units_frac"], 0.25, "second interval stagnant"
+        )
+        close(
+            second[f"{p}/knife_volatile_units_frac"], 0.25, "second interval volatile"
+        )
+        assert not any("lifetime" in key for key in second)
+        assert torch.equal(state.knife.window.total, torch.zeros(4))
+        assert torch.equal(state.knife.window.count, torch.zeros(4))
+        print("PASS KNIFE summaries use independent intervals without lifetime state")
     finally:
         manager.close()
 
