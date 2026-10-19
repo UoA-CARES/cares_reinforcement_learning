@@ -2,8 +2,8 @@ from functools import cached_property
 from typing import Any
 
 import numpy as np
-
 from f1tenth_environments.environment_factory import EnvironmentFactory
+
 from cares_reinforcement_learning.envs.marl.marl_environment import MARLEnvironment
 from cares_reinforcement_learning.envs.configurations import MultiF1TenthConfig
 from cares_reinforcement_learning.types.experience import MultiAgentExperience
