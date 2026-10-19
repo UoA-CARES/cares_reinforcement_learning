@@ -104,11 +104,15 @@ class F1TenthMARLEnvironment(MARLEnvironment):
 
     def step(self, action: dict[str, np.ndarray]) -> MultiAgentExperience:
         denormalized_actions = {
-            agent: hlp.denormalize(action[agent], self.max_action_value[i], self.min_action_value[i])
+            agent: hlp.denormalize(
+                action[agent], self.max_action_value[i], self.min_action_value[i]
+            )
             for i, agent in enumerate(self.possible_agents)
         }
 
-        obs_dict, rewards, terminateds, truncateds, infos = self.env.step(denormalized_actions)
+        obs_dict, rewards, terminateds, truncateds, infos = self.env.step(
+            denormalized_actions
+        )
 
         next_observation = MARLObservation(
             global_state=self._build_global_state(obs_dict),
