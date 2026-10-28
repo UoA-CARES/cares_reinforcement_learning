@@ -372,6 +372,24 @@ def create_SACD(observation_size, action_num, config: acf.SACDConfig):
     return agent
 
 
+def create_SIMBA(observation_size, action_num, config: acf.SIMBAConfig):
+    from cares_reinforcement_learning.algorithm.policy import SIMBA
+    from cares_reinforcement_learning.networks.SAC import Actor, Critic
+
+    actor = Actor(observation_size["vector"], action_num, config=config)
+
+    critic = Critic(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+
+    return SIMBA(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+
+
 def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
     from cares_reinforcement_learning.algorithm.usd import DIAYN
     from cares_reinforcement_learning.networks.DIAYN import Discriminator

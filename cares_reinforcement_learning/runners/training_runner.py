@@ -217,10 +217,8 @@ class TrainingRunner(BaseRunner):
         self, train_step_counter: int, episode_step: int, state
     ) -> ActionSample:
         if train_step_counter < self.max_steps_exploration:
-            action = self.env.sample_action()
-
-            return self.agent.enrich_action(
-                observation=state, action=action, source="exploration"
+            return self.agent.explore(
+                observation=state, action_sampler=self.env.sample_action
             )
 
         if self.repetition_manager.should_repeat(episode_step):

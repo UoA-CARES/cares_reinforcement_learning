@@ -114,22 +114,25 @@ class SAC(SARLAlgorithm[np.ndarray]):
         self.target_critic_net = copy.deepcopy(self.critic_net).to(self.device)
         self.target_critic_net.eval()  # never in training mode - helps with batch/drop out layers
 
-        self.target_entropy = -self.actor_net.num_actions
+        self.target_entropy = -self.actor_net.num_actions * config.target_entropy_scale
 
-        self.actor_net_optimiser = torch.optim.Adam(
+        optimiser_cls = getattr(torch.optim, config.optimiser)
+
+        self.actor_net_optimiser = optimiser_cls(
             self.actor_net.parameters(), lr=config.actor_lr, **config.actor_lr_params
         )
-        self.critic_net_optimiser = torch.optim.Adam(
+
+        self.critic_net_optimiser = optimiser_cls(
             self.critic_net.parameters(), lr=config.critic_lr, **config.critic_lr_params
         )
 
         # Set to initial alpha to 1.0 according to other baselines.
-        init_temperature = 1.0
+        initial_alpha = config.initial_alpha
         self.log_alpha = torch.tensor(
-            np.log(init_temperature), dtype=torch.float32, device=device
+            np.log(initial_alpha), dtype=torch.float32, device=device
         )
         self.log_alpha.requires_grad = True
-        self.log_alpha_optimizer = torch.optim.Adam(
+        self.log_alpha_optimizer = optimiser_cls(
             [self.log_alpha], lr=config.alpha_lr, **config.alpha_lr_params
         )
 
