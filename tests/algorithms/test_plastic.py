@@ -57,7 +57,6 @@ def test_knife_and_capture():
         state = manager.site_states[site.name]
         raw = torch.tensor([0.0, 1.0, 2.0, 9.0])
         assert torch.allclose(state.knife.window.total, raw)
-        assert torch.allclose(state.knife.lifetime.total, raw)
         values = manager.summary(env_step=1, force=True)
         p = "knife/0"
         close(
@@ -66,24 +65,20 @@ def test_knife_and_capture():
         close(values[f"{p}/knife_rua_mean"], 1.0, "mean relative update activity")
         close(values[f"{p}/knife_stagnant_units_frac"], 0.25, "stagnant fraction")
         close(values[f"{p}/knife_volatile_units_frac"], 0.25, "volatile fraction")
-        close(
-            values[f"{p}/knife_stagnant_units_lifetime_frac"],
-            0.25,
-            "lifetime stagnant fraction",
-        )
+        assert not hasattr(
+            state.knife, "lifetime"
+        ), "KNIFE lifetime state must be absent"
+        assert not any(
+            "lifetime" in key for key in values
+        ), "KNIFE lifetime metrics should no longer be emitted"
+        assert torch.equal(state.knife.window.total, torch.zeros(4))
         assert torch.equal(state.knife.window.count, torch.zeros(4))
-        assert torch.equal(state.knife.lifetime.count, torch.ones(4))
 
         # Uncaptured backward must not count, even though hooks are installed.
         model.zero_grad(set_to_none=True)
         model(x).sum().backward()
         assert torch.equal(state.knife.window.count, torch.zeros(4))
-        assert torch.equal(state.knife.lifetime.count, torch.ones(4))
         print("PASS uncaptured backward does not affect KNIFE state")
-
-        # METRICS capture must not affect training/lifetime/KNIFE statistics.
-        before_lifetime = state.activity.lifetime.count.clone()
-        before_knife = state.knife.lifetime.count.clone()
 
         model.zero_grad(set_to_none=True)
 
@@ -91,62 +86,33 @@ def test_knife_and_capture():
             model(x).sum().backward()
 
         assert state.activity.behaviour_rows == 1
-        assert torch.equal(state.activity.lifetime.count, before_lifetime)
-        assert torch.equal(state.knife.lifetime.count, before_knife)
 
-        print("PASS capture_metrics does not change training statistics")
-    finally:
-        manager.close()
+        print("PASS capture_metrics does not change KNIFE statistics")
 
-
-def test_tracking():
-    print("\n=== Repeated observation tracking ===")
-    model = nn.Sequential(nn.Linear(1, 2), nn.ReLU(), nn.Linear(2, 1))
-    with torch.no_grad():
-        model[0].weight.copy_(torch.tensor([[1.0], [-1.0]]))
-        model[0].bias.zero_()
-    config = make_config()
-    manager = NetworkPlasticityManager(
-        model, torch.optim.SGD(model.parameters(), lr=0), config, name="tracking"
-    )
-    try:
-        model.train()
-        # First batch: feature 0 active, feature 1 inactive.
+        # A second captured interval must use only new gradients, not the
+        # previous interval's values (and must not report lifetime metrics).
+        model.zero_grad(set_to_none=True)
+        with torch.no_grad():
+            model[2].weight.copy_(torch.tensor([[9.0, 2.0, 1.0, 0.0]]))
         with manager.capture_training():
-            model(torch.ones(2, 1))
-        # Second batch: the reverse, with different batch size. These are
-        # averages per forward batch (not per individual sample).
-        with manager.capture_training():
-            model(-torch.ones(3, 1))
-        state = manager.site_states[manager.sites[0].name]
-        assert torch.equal(state.activity.lifetime.total, torch.ones(2))
-        assert torch.equal(state.activity.lifetime.count, torch.full((2,), 2.0))
-        assert torch.equal(state.activity.window.count, torch.full((2,), 2.0))
-        print("PASS running totals and counts reflect two training forwards")
-        values = manager.summary(env_step=1, force=True)
-        close(
-            values["tracking/0/active_lifetime_fraction_mean"],
-            0.5,
-            "lifetime activity average",
-        )
-        assert torch.equal(state.activity.window.count, torch.zeros(2))
-        assert torch.equal(state.activity.lifetime.count, torch.full((2,), 2.0))
-        print("PASS recent summary window reset, lifetime retained")
-
-        # Third batch changes lifetime mean from 1/2 to (2/3, 1/3).
-        with manager.capture_training():
-            model(torch.ones(1, 1))
-        values = manager.summary(env_step=2, force=True)
-        close(
-            values["tracking/0/active_lifetime_fraction_mean"],
-            0.5,
-            "lifetime mean across three batches",
-        )
+            model(x).sum().backward()
         assert torch.allclose(
-            state.activity.lifetime.total / state.activity.lifetime.count,
-            torch.tensor([2 / 3, 1 / 3]),
+            state.knife.window.total, torch.tensor([9.0, 2.0, 1.0, 0.0])
         )
-        print("PASS per-neuron lifetime activity retained across summaries")
+        assert torch.equal(state.knife.window.count, torch.ones(4))
+        second = manager.summary(env_step=2, force=True)
+        close(second[f"{p}/knife_update_activity_mean"], 3.0, "second interval UA")
+        close(second[f"{p}/knife_rua_mean"], 1.0, "second interval RUA")
+        close(
+            second[f"{p}/knife_stagnant_units_frac"], 0.25, "second interval stagnant"
+        )
+        close(
+            second[f"{p}/knife_volatile_units_frac"], 0.25, "second interval volatile"
+        )
+        assert not any("lifetime" in key for key in second)
+        assert torch.equal(state.knife.window.total, torch.zeros(4))
+        assert torch.equal(state.knife.window.count, torch.zeros(4))
+        print("PASS KNIFE summaries use independent intervals without lifetime state")
     finally:
         manager.close()
 
@@ -232,8 +198,95 @@ def test_cbp_replacement():
         manager.close()
 
 
+def test_metric_formulations():
+    """Numerical regression checks for existing formulas and emitted metric keys."""
+    print("\n=== Existing metric formulations ===")
+    model = make_model()
+    manager = NetworkPlasticityManager(
+        model,
+        torch.optim.SGD(model.parameters(), lr=0.0),
+        make_config(redo_dormant_threshold=0.1),
+        name="metrics",
+    )
+    try:
+        site = manager.sites[0]
+        state = manager._ensure_site_state(site, 4, torch.device("cpu"))
+        # Rows are feature vectors; known singular values [4, 2, 1, 0].
+        features = torch.diag(torch.tensor([4.0, 2.0, 1.0, 0.0]))
+        with manager.capture_metrics():
+            model(torch.ones(1, 1))
+        state.activity.behaviour_chunks = [features]
+        state.activity.behaviour_rows = 4
+        state.redo.activation_abs_ema.copy_(torch.tensor([0.0, 1.0, 2.0, 9.0]))
+        state.redo.activity_fraction_ema.copy_(torch.tensor([0.0, 0.5, 1.0, 1.0]))
+
+        values = manager.summary(env_step=1, force=True)
+        prefix = "metrics/0"
+        close(values[f"{prefix}/dead_units_frac"], 0.25, "frequency-dead fraction")
+        close(
+            values[f"{prefix}/active_fraction_mean"],
+            0.1875,
+            "sample activation fraction",
+        )
+        close(
+            values[f"{prefix}/redo_dormant_units_frac"], 0.25, "ReDo dormant fraction"
+        )
+        close(
+            values[f"{prefix}/redo_dormancy_score_p10"], 0.1, "ReDo relative score p10"
+        )
+        close(
+            values[f"{prefix}/redo_activity_frac_mean"],
+            0.625,
+            "ReDo threshold activity",
+        )
+        close(values[f"{prefix}/stable_rank"], 3.0, "99%-cumulative rank")
+        close(values[f"{prefix}/stable_rank_pct"], 75.0, "rank normalized by width")
+        expected_erank = torch.exp(
+            -(
+                torch.tensor([4 / 7, 2 / 7, 1 / 7])
+                * torch.log(torch.tensor([4 / 7, 2 / 7, 1 / 7]))
+            ).sum()
+        ).item()
+        close(
+            values[f"{prefix}/effective_rank"], expected_erank, "entropy effective rank"
+        )
+        close(values[f"{prefix}/contribution_utility_mean"], 0.0, "initial CBP utility")
+        close(
+            values["metrics/average_weight_magnitude"],
+            2.0,
+            "parameter-weighted mean magnitude",
+        )
+    finally:
+        manager.close()
+
+
+def test_rank_and_activity_independent_cadence():
+    """Rank calculations can run without the general statistics interval."""
+    model = make_model()
+    manager = NetworkPlasticityManager(
+        model,
+        torch.optim.SGD(model.parameters(), lr=0.0),
+        make_config(
+            statistics_interval_env_steps=100,
+            rank_interval_env_steps=5,
+            knife_interval_env_steps=100,
+        ),
+        name="cadence",
+    )
+    try:
+        with manager.capture_metrics():
+            model(torch.tensor([[0.0], [1.0], [2.0]]))
+        values = manager.summary(env_step=5)
+        assert "cadence/0/stable_rank" in values
+        assert "cadence/0/effective_rank" in values
+        assert "cadence/0/redo_dormant_units_frac" not in values
+    finally:
+        manager.close()
+
+
 if __name__ == "__main__":
     test_knife_and_capture()
-    test_tracking()
     test_cbp_replacement()
+    test_metric_formulations()
+    test_rank_and_activity_independent_cadence()
     print("\nAll extended plasticity tests passed.")

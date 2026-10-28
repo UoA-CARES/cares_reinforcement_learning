@@ -21,7 +21,8 @@ theme:
 
 nav:
   - Home: index.md
-  # - Concepts:
+  - Concepts:
+      - Plasticity: concepts/plasticity.md
   #     - Key Concepts: concepts/index.md
   #     - Foundations: concepts/foundations.md
   - User Guide:
