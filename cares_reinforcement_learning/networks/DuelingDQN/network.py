@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.algorithm.configurations import DuelingDQNConfig
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
-from cares_reinforcement_learning.algorithm.configurations import DuelingDQNConfig
 
 
 class BaseDuelingNetwork(BaseNetwork):
@@ -25,7 +25,7 @@ class BaseDuelingNetwork(BaseNetwork):
         features = self.feature_layer(state)
         values = self.value_stream(features)
         advantages = self.advantage_stream(features)
-        qvals = values + (advantages - advantages.mean())
+        qvals = values + (advantages - advantages.mean(dim=1, keepdim=True))
 
         return qvals
 
