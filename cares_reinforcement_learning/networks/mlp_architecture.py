@@ -3,17 +3,18 @@ from typing import Callable
 import torch
 from torch import nn
 
-from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
-from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
+import cares_reinforcement_learning.networks.activation_functions as afs
 from cares_reinforcement_learning.algorithm.configurations import (
     FunctionLayer,
     MLPConfig,
     NormLayer,
     ResidualLayer,
+    SIMBABlockLayer,
     TrainableLayer,
 )
-
-import cares_reinforcement_learning.networks.activation_functions as afs
+from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
+from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
+from cares_reinforcement_learning.networks.simba_block import SIMBABlock
 
 
 def _get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:
@@ -71,6 +72,9 @@ class MLP(nn.Module):
                 )
             elif isinstance(layer_spec, ResidualLayer):
                 layer = MLPResidualBlock(current_input_size, layer_spec)
+            elif isinstance(layer_spec, SIMBABlockLayer):
+                layer = SIMBABlock(current_input_size)
+                current_output_size = current_input_size
             else:
                 raise ValueError(f"Unknown layer type {layer_spec}")
 

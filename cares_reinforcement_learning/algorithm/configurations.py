@@ -79,8 +79,14 @@ class ResidualLayer(BaseModel):
     use_padding: bool = False
 
 
+class SIMBABlockLayer(BaseModel):
+    layer_category: Literal["simba_block"] = "simba_block"
+
+
 class MLPConfig(BaseModel):
-    layers: list[TrainableLayer | NormLayer | FunctionLayer | ResidualLayer]
+    layers: list[
+        TrainableLayer | NormLayer | FunctionLayer | ResidualLayer | SIMBABlockLayer
+    ]
 
 
 class PlasticityConfig(SubscriptableClass):
@@ -453,6 +459,11 @@ class SACConfig(AlgorithmConfig):
     critic_lr_params: dict[str, Any] = Field(default_factory=dict)
     alpha_lr: float = 3e-4
     alpha_lr_params: dict[str, Any] = Field(default_factory=dict)
+
+    optimiser: Literal["Adam", "AdamW"] = "Adam"
+
+    initial_alpha: float = 1.0
+    target_entropy_scale: float = 1.0
 
     gamma: float = 0.99
     tau: float = 0.005
@@ -837,6 +848,51 @@ class SDARConfig(SACConfig):
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+
+class SIMBAConfig(SACConfig):
+    algorithm: str = "SIMBA"
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-4
+    alpha_lr: float = 1e-4
+
+    optimiser: Literal["AdamW"] = "AdamW"
+
+    G: int = 2
+
+    initial_alpha: float = 1e-2
+    target_entropy_scale: float = 0.5
+
+    actor_lr_params: dict[str, Any] = {
+        "weight_decay": 1e-2,
+    }
+    critic_lr_params: dict[str, Any] = {
+        "weight_decay": 1e-2,
+    }
+    alpha_lr_params: dict[str, Any] = {
+        "weight_decay": 0.0,
+    }
+
+    log_std_bounds: list[float] = [-10, 2]
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=128),
+            SIMBABlockLayer(),
+            NormLayer(layer_type="LayerNorm"),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            SIMBABlockLayer(),
+            SIMBABlockLayer(),
+            NormLayer(layer_type="LayerNorm"),
+            TrainableLayer(layer_type="Linear"),
         ]
     )
 

@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any, Generic, Literal, TypeVar
 
 import numpy as np
@@ -52,13 +53,12 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
 
         self.device = device
 
-    def enrich_action(
+    def explore(
         self,
         observation: ObsType,
-        action: ActType,
-        source: str,
+        action_sampler: Callable[[], ActType],
     ) -> ActionSample[ActType]:
-        return ActionSample(action=action, source=source)
+        return ActionSample(action=action_sampler(), source="exploration")
 
     @abstractmethod
     def act(
