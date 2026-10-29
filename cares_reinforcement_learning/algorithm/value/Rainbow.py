@@ -64,11 +64,11 @@ from typing import Any
 
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import RainbowConfig
 from cares_reinforcement_learning.algorithm.value import C51
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.Rainbow import Network
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.algorithm.configurations import RainbowConfig
 
 
 class Rainbow(C51):

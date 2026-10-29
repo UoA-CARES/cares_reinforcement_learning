@@ -114,6 +114,16 @@ class C51(DQN):
             l = b.floor().long()
             u = b.ceil().long()
 
+            # Calculate interpolation weights for neighbouring atoms.
+            lower_weight = u.float() - b
+            upper_weight = b - l.float()
+
+            # If the projected value falls exactly on an atom,
+            # assign all probability mass to that atom.
+            equal_mask = l == u
+            lower_weight[equal_mask] = 1.0
+            upper_weight[equal_mask] = 0.0
+
             offset = (
                 torch.linspace(0, (batch_size - 1) * self.num_atoms, batch_size)
                 .long()
@@ -123,16 +133,24 @@ class C51(DQN):
             )
 
             proj_dist = torch.zeros_like(next_dist, device=self.device)
+
             proj_dist.view(-1).index_add_(
-                0, (l + offset).view(-1), (next_dist * (u.float() - b)).view(-1)
+                0,
+                (l + offset).view(-1),
+                (next_dist * lower_weight).view(-1),
             )
+
             proj_dist.view(-1).index_add_(
-                0, (u + offset).view(-1), (next_dist * (b - l.float())).view(-1)
+                0,
+                (u + offset).view(-1),
+                (next_dist * upper_weight).view(-1),
             )
 
         dist = self.network.dist(states_tensor)
-        log_p = torch.log(dist[range(batch_size), actions_tensor])
-        elementwise_loss = -(proj_dist * log_p).sum(1)
+        pred_dist = dist[range(batch_size), actions_tensor]
+
+        log_p = torch.log(pred_dist.clamp(min=1e-6))
+        elementwise_loss = -(proj_dist * log_p).sum(dim=1)
 
         info: dict[str, Any] = {}
 
