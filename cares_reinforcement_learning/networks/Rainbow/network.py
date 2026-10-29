@@ -57,7 +57,6 @@ class BaseRainbowNetwork(BaseNetwork):
         q_atoms = value + advantage - advantage.mean(dim=1, keepdim=True)
 
         dist = torch.softmax(q_atoms, dim=-1)
-        dist = dist.clamp(min=1e-3)  # for avoiding nans
 
         return dist
 
