@@ -88,7 +88,7 @@ class C51(DQN):
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
         batch_size: int,
-    ) -> tuple[torch.Tensor, dict[str, Any]]:
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
         with torch.no_grad():
             if self.use_double_dqn:
                 # Double DQN
@@ -203,4 +203,4 @@ class C51(DQN):
                 (proj_dist[:, 0] + proj_dist[:, -1]).mean().item()
             )
 
-        return elementwise_loss, info
+        return elementwise_loss, {}, info

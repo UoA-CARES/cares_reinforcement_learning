@@ -99,7 +99,7 @@ class QRDQN(DQN):
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
         batch_size: int,
-    ) -> tuple[torch.Tensor, dict[str, Any]]:
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
 
         # Predicted Q-value quantiles for current state
         current_quantile_values = self.network.calculate_quantiles(states_tensor)
@@ -154,9 +154,7 @@ class QRDQN(DQN):
             use_pairwise_loss=False,
         )
 
-        element_wise_loss = element_wise_quantile_huber_loss.sum(dim=1).mean(
-            dim=1, keepdim=True
-        )
+        element_wise_loss = element_wise_quantile_huber_loss.sum(dim=1).mean(dim=1)
 
         # -----------------------
         # Logging / diagnostics (QR-DQN)
@@ -243,4 +241,4 @@ class QRDQN(DQN):
             info["quantile_huber_std"] = element_wise_quantile_huber_loss.std().item()
             info["quantile_huber_max"] = element_wise_quantile_huber_loss.max().item()
 
-        return element_wise_loss, info
+        return element_wise_loss, {}, info

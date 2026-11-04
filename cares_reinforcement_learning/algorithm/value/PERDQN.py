@@ -46,9 +46,9 @@ PER-DQN = DQN + prioritized replay + importance weighting.
 
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import PERDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.PERDQN import Network
-from cares_reinforcement_learning.algorithm.configurations import PERDQNConfig
 
 
 class PERDQN(DQN):

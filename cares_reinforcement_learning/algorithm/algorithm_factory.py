@@ -101,6 +101,17 @@ def create_IQN(observation_size, action_num, config: acf.IQNConfig):
     return agent
 
 
+def create_FQF(observation_size, action_num, config: acf.FQFConfig):
+    from cares_reinforcement_learning.algorithm.value import FQF
+    from cares_reinforcement_learning.networks.FQF import Network
+
+    network = Network(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+    agent = FQF(network=network, config=config, device=device)
+    return agent
+
+
 def create_QRDQN(observation_size, action_num, config: acf.QRDQNConfig):
     from cares_reinforcement_learning.algorithm.value import QRDQN
     from cares_reinforcement_learning.networks.QRDQN import Network

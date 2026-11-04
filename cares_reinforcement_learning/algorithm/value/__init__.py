@@ -7,3 +7,4 @@ from .C51 import C51
 from .QRDQN import QRDQN
 from .Rainbow import Rainbow
 from .IQN import IQN
+from .FQF import FQF
