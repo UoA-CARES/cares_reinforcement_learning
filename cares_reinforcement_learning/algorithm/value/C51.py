@@ -53,13 +53,13 @@ from typing import Any
 
 import torch
 
-from cares_reinforcement_learning.algorithm.value import DQN
-from cares_reinforcement_learning.networks.C51 import Network as C51Network
-from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
 from cares_reinforcement_learning.algorithm.configurations import (
     C51Config,
     RainbowConfig,
 )
+from cares_reinforcement_learning.algorithm.value import DQN
+from cares_reinforcement_learning.networks.C51 import Network as C51Network
+from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
 
 
 class C51(DQN):

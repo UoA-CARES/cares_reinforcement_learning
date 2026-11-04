@@ -380,10 +380,11 @@ class DQN(SARLAlgorithm[int]):
         if self.use_per_buffer:
             # Update the Priorities
             priorities = (
-                elementwise_loss.clamp(self.min_priority)
+                elementwise_loss.detach()
+                .clamp(min=self.min_priority)
                 .pow(self.per_alpha)
                 .cpu()
-                .data.numpy()
+                .numpy()
                 .flatten()
             )
 
