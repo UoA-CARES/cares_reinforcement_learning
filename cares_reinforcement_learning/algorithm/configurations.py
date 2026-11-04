@@ -327,6 +327,45 @@ class QRDQNConfig(DQNConfig):
     )
 
 
+class IQNConfig(DQNConfig):
+    algorithm: str = "IQN"
+
+    lr: float = 5e-5
+    target_update_freq: int = 5000
+
+    num_quantiles: int = 32
+    num_target_quantiles: int = 32
+    num_action_quantiles: int = 32
+
+    quantile_embedding_dim: int = 64
+    feature_dim: int = 256
+    kappa: float = 1.0
+
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    quantile_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear"),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    value_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
 class RainbowConfig(C51Config):
     algorithm: str = "Rainbow"
 

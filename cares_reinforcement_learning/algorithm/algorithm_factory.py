@@ -90,6 +90,17 @@ def create_C51(observation_size, action_num, config: acf.C51Config):
     return agent
 
 
+def create_IQN(observation_size, action_num, config: acf.IQNConfig):
+    from cares_reinforcement_learning.algorithm.value import IQN
+    from cares_reinforcement_learning.networks.IQN import Network
+
+    network = Network(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+    agent = IQN(network=network, config=config, device=device)
+    return agent
+
+
 def create_QRDQN(observation_size, action_num, config: acf.QRDQNConfig):
     from cares_reinforcement_learning.algorithm.value import QRDQN
     from cares_reinforcement_learning.networks.QRDQN import Network
