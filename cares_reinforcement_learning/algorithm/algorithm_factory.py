@@ -145,6 +145,17 @@ def create_RainbowIQN(observation_size, action_num, config: acf.RainbowIQNConfig
     return agent
 
 
+def create_RainbowFQF(observation_size, action_num, config: acf.RainbowFQFConfig):
+    from cares_reinforcement_learning.algorithm.value import RainbowFQF
+    from cares_reinforcement_learning.networks.RainbowFQF import Network
+
+    network = Network(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+    agent = RainbowFQF(network=network, config=config, device=device)
+    return agent
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################

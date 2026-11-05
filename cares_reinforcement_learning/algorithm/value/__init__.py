@@ -9,3 +9,4 @@ from .Rainbow import Rainbow
 from .IQN import IQN
 from .RainbowIQN import RainbowIQN
 from .FQF import FQF
+from .RainbowFQF import RainbowFQF

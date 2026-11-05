@@ -20,6 +20,7 @@ import torch
 from cares_reinforcement_learning.algorithm.configurations import FQFConfig
 from cares_reinforcement_learning.algorithm.value.DQN import DQN
 from cares_reinforcement_learning.networks.FQF import Network as FQFNetwork
+from cares_reinforcement_learning.networks.RainbowFQF import Network as RainbowNetwork
 
 
 class FQF(DQN):
@@ -28,7 +29,7 @@ class FQF(DQN):
 
     def __init__(
         self,
-        network: FQFNetwork,
+        network: FQFNetwork | RainbowNetwork,
         config: FQFConfig,
         device: torch.device,
     ):

@@ -546,6 +546,81 @@ class RainbowIQNConfig(IQNConfig):
     )
 
 
+class RainbowFQFConfig(FQFConfig):
+    algorithm: str = "RainbowFQF"
+
+    max_grad_norm: float | None = 10.0
+
+    # NoisyNet exploration
+    start_epsilon: float = 0.0
+    end_epsilon: float = 0.0
+    decay_steps: int = 0
+
+    # Double DQN
+    use_double_dqn: int = 1
+
+    # Prioritized Experience Replay
+    use_per_buffer: int = 1
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # Multi-step returns
+    n_step: int = 3
+
+    # FQF representation
+    feature_dim: int = 128
+
+    # State features
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear"),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    # Quantile cosine embedding
+    quantile_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear"),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    # Dueling value stream
+    value_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                params={"sigma_init": 0.5},
+            ),
+        ]
+    )
+
+    # Dueling advantage stream
+    advantage_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                params={"sigma_init": 0.5},
+            ),
+        ]
+    )
+
+
 ###################################
 #         PPO Algorithms          #
 ###################################
