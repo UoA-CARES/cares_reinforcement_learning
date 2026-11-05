@@ -163,16 +163,14 @@ class DefaultNetwork(BaseRainbowIQNNetwork):
         observation_size: int,
         num_actions: int,
     ):
-        feature_dim = 256
+        feature_dim = 128
         quantile_embedding_dim = 64
 
         num_quantiles = 32
         num_action_quantiles = 32
 
         feature_layer = nn.Sequential(
-            nn.Linear(observation_size, 256),
-            nn.ReLU(),
-            nn.Linear(256, feature_dim),
+            nn.Linear(observation_size, feature_dim),
             nn.ReLU(),
         )
 
@@ -182,15 +180,15 @@ class DefaultNetwork(BaseRainbowIQNNetwork):
         )
 
         value_stream = nn.Sequential(
-            NoisyLinear(feature_dim, 256),
+            NoisyLinear(feature_dim, 128),
             nn.ReLU(),
-            NoisyLinear(256, 1),
+            NoisyLinear(128, 1),
         )
 
         advantage_stream = nn.Sequential(
-            NoisyLinear(feature_dim, 256),
+            NoisyLinear(feature_dim, 128),
             nn.ReLU(),
-            NoisyLinear(256, num_actions),
+            NoisyLinear(128, num_actions),
         )
 
         super().__init__(

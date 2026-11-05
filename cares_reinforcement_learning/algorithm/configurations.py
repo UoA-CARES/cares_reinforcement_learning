@@ -488,7 +488,7 @@ class RainbowIQNConfig(IQNConfig):
     n_step: int = 3
 
     # IQN representation
-    feature_dim: int = 256
+    feature_dim: int = 128
     quantile_embedding_dim: int = 64
 
     num_quantiles: int = 32
@@ -498,7 +498,7 @@ class RainbowIQNConfig(IQNConfig):
     # State features
     feature_layer_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=256),
+            TrainableLayer(layer_type="Linear"),
             FunctionLayer(layer_type="ReLU"),
         ]
     )
@@ -516,14 +516,13 @@ class RainbowIQNConfig(IQNConfig):
         layers=[
             TrainableLayer(
                 layer_type="NoisyLinear",
-                in_features=256,
-                out_features=256,
+                out_features=128,
                 params={"sigma_init": 1.0},
             ),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(
                 layer_type="NoisyLinear",
-                in_features=256,
+                in_features=128,
                 params={"sigma_init": 0.5},
             ),
         ]
@@ -534,14 +533,13 @@ class RainbowIQNConfig(IQNConfig):
         layers=[
             TrainableLayer(
                 layer_type="NoisyLinear",
-                in_features=256,
-                out_features=256,
+                out_features=128,
                 params={"sigma_init": 1.0},
             ),
             FunctionLayer(layer_type="ReLU"),
             TrainableLayer(
                 layer_type="NoisyLinear",
-                in_features=256,
+                in_features=128,
                 params={"sigma_init": 0.5},
             ),
         ]
