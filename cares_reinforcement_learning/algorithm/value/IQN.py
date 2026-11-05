@@ -11,6 +11,7 @@ corresponding return values. Training uses pairwise quantile
 Huber regression against distributional Bellman targets.
 """
 
+import math
 from typing import Any
 
 import torch
@@ -18,15 +19,16 @@ import torch
 from cares_reinforcement_learning.algorithm.configurations import IQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.IQN import Network as IQNNetwork
+from cares_reinforcement_learning.networks.RainbowIQN import Network as RainbowNetwork
 
 
 class IQN(DQN):
-    network: IQNNetwork
-    target_network: IQNNetwork
+    network: IQNNetwork | RainbowNetwork
+    target_network: IQNNetwork | RainbowNetwork
 
     def __init__(
         self,
-        network: IQNNetwork,
+        network: IQNNetwork | RainbowNetwork,
         config: IQNConfig,
         device: torch.device,
     ):
@@ -152,6 +154,47 @@ class IQN(DQN):
 
             info["quantile_target_std"] = (
                 target_quantiles.std(dim=1, unbiased=False).mean().item()
+            )
+
+            # -------------------------------------------------
+            # Action-value separation and policy diagnostics
+            # -------------------------------------------------
+
+            # Expected Q-values across all actions: [B, A]
+            q_values = quantiles.mean(dim=1)
+
+            greedy_actions = q_values.argmax(dim=1)
+            num_actions = self.network.num_actions
+
+            counts = torch.bincount(
+                greedy_actions,
+                minlength=num_actions,
+            ).float()
+
+            probs = counts / counts.sum().clamp(min=1.0)
+
+            entropy = -(probs * (probs + 1e-12).log()).sum()
+
+            info["greedy_action_entropy"] = entropy.item()
+            info["greedy_action_max_prob"] = probs.max().item()
+            info["greedy_action_probs"] = probs.cpu().tolist()
+
+            if num_actions > 1:
+                info["greedy_action_entropy_normalised"] = (
+                    entropy / math.log(num_actions)
+                ).item()
+
+                top_two = torch.topk(q_values, k=2, dim=1).values
+
+                info["greedy_action_margin_mean"] = (
+                    (top_two[:, 0] - top_two[:, 1]).mean().item()
+                )
+            else:
+                info["greedy_action_entropy_normalised"] = 0.0
+                info["greedy_action_margin_mean"] = 0.0
+
+            info["q_action_std_mean"] = (
+                q_values.std(dim=1, unbiased=False).mean().item()
             )
 
         return elementwise_loss, {}, info
