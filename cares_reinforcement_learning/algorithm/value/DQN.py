@@ -423,9 +423,19 @@ class DQN(SARLAlgorithm[int]):
             memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
+
+            auxiliary_losses = {
+                name: torch.mean(auxiliary_loss * weights_tensor)
+                for name, auxiliary_loss in auxiliary_losses.items()
+            }
         else:
             # Calculate loss
             loss = elementwise_loss.mean()
+
+            auxiliary_losses = {
+                name: auxiliary_loss.mean()
+                for name, auxiliary_loss in auxiliary_losses.items()
+            }
 
         info["loss"] = loss.item()
         info["epsilon"] = self.epsilon

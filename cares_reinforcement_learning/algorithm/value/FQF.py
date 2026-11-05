@@ -66,9 +66,10 @@ class FQF(DQN):
         # State representation: [B, F]
         state_features = self.network.feature_layer(states_tensor)
 
-        # Learned quantile fractions.
+        # Learned current-state quantile fractions.
         _, midpoints, probabilities = self.network.propose_fractions(
-            states_tensor, state_features=state_features
+            states_tensor,
+            state_features=state_features,
         )
 
         # The value loss must not update the fraction proposal network.
@@ -77,7 +78,9 @@ class FQF(DQN):
 
         # Predicted quantiles: [B, N, A]
         quantiles = self.network.quantiles(
-            states_tensor, taus=midpoints, state_features=state_features
+            states_tensor,
+            taus=midpoints,
+            state_features=state_features,
         )
 
         # Select the distribution for the sampled action.
@@ -86,19 +89,14 @@ class FQF(DQN):
         )
 
         # [B, N]
-        pred_quantiles = quantiles.gather(dim=2, index=action_indices).squeeze(2)
-
-        info: dict[str, Any] = {}
-
-        # Calculate the fraction proposal objective using the same network parameters.
-        fraction_loss, fraction_info = self._compute_fraction_loss(
-            states_tensor, actions_tensor
-        )
-
-        info |= fraction_info
+        pred_quantiles = quantiles.gather(
+            dim=2,
+            index=action_indices,
+        ).squeeze(2)
 
         with torch.no_grad():
-            # Select next action using expected Q-values.
+            # Select the greedy next action using expected Q-values.
+            # Each network's forward pass proposes fractions for the next state.
             if self.use_double_dqn:
                 next_q = self.network(next_states_tensor)
             else:
@@ -109,18 +107,11 @@ class FQF(DQN):
             # Target state representation.
             next_features = self.target_network.feature_layer(next_states_tensor)
 
-            # Target quantile fractions.
-            _, next_midpoints, next_probabilities = (
-                self.target_network.propose_fractions(
-                    next_states_tensor,
-                    state_features=next_features,
-                )
-            )
-
-            # Target quantiles: [B, N, A]
+            # Equation 6: the current prediction and Bellman target
+            # share the same current-state quantile midpoints.
             next_quantiles = self.target_network.quantiles(
                 next_states_tensor,
-                taus=next_midpoints,
+                taus=midpoints,
                 state_features=next_features,
             )
 
@@ -129,7 +120,10 @@ class FQF(DQN):
             )
 
             # [B, N]
-            next_quantiles = next_quantiles.gather(dim=2, index=next_indices).squeeze(2)
+            next_quantiles = next_quantiles.gather(
+                dim=2,
+                index=next_indices,
+            ).squeeze(2)
 
             # Distributional Bellman target.
             target_quantiles = (
@@ -162,11 +156,14 @@ class FQF(DQN):
             (quantile_weights * huber_loss / self.kappa).mean(dim=2).sum(dim=1)
         )
 
+        info: dict[str, Any] = {}
+
         with torch.no_grad():
             # Expected action values.
             q_pred = (pred_quantiles * probabilities).sum(dim=1)
 
-            q_target = (target_quantiles * next_probabilities).sum(dim=1)
+            # Target quantiles were evaluated at current-state midpoints.
+            q_target = (target_quantiles * probabilities).sum(dim=1)
 
             # Scalar TD error.
             td_error = q_target - q_pred
@@ -192,6 +189,15 @@ class FQF(DQN):
             info["quantile_target_std"] = (
                 target_quantiles.std(dim=1, unbiased=False).mean().item()
             )
+
+        # Compute the fraction objective before either optimiser updates.
+        # Returns per-transition losses [B] for optional PER weighting.
+        fraction_loss, fraction_info = self._compute_fraction_loss(
+            states_tensor,
+            actions_tensor,
+        )
+
+        info |= fraction_info
 
         return elementwise_loss, {"fraction": fraction_loss}, info
 
@@ -234,11 +240,13 @@ class FQF(DQN):
             midpoint_indices = actions.view(-1, 1, 1).expand(-1, self.num_quantiles, 1)
 
             boundary_values = boundary_quantiles.gather(
-                dim=2, index=boundary_indices
+                dim=2,
+                index=boundary_indices,
             ).squeeze(2)
 
             midpoint_values = midpoint_quantiles.gather(
-                dim=2, index=midpoint_indices
+                dim=2,
+                index=midpoint_indices,
             ).squeeze(2)
 
             # Analytical 1-Wasserstein gradient (Equation 5).
@@ -246,27 +254,25 @@ class FQF(DQN):
                 2.0 * boundary_values - midpoint_values[:, :-1] - midpoint_values[:, 1:]
             )
 
-        # Surrogate loss applying the analytical gradient
-        # to the internal quantile boundaries.
-        fraction_loss = (
-            (fraction_gradients.detach() * fractions[:, 1:-1]).sum(dim=1).mean()
-        )
+        # Per-transition surrogate objective: [B].
+        fraction_loss = (fraction_gradients.detach() * fractions[:, 1:-1]).sum(dim=1)
 
-        # Entropy regularisation for interval probabilities.
-        entropy = (
-            -(probabilities * probabilities.clamp_min(1e-8).log()).sum(dim=1).mean()
-        )
+        # Per-transition entropy regularisation: [B].
+        entropy = -(probabilities * probabilities.clamp_min(1e-8).log()).sum(dim=1)
 
+        # Keep the complete objective per transition.
+        # DQN.train() handles PER weighting and batch reduction.
         fraction_loss = fraction_loss - self.fraction_entropy_coeff * entropy
 
         info: dict[str, Any] = {
-            "fraction_loss": fraction_loss.detach().item(),
-            "fraction_entropy": entropy.detach().item(),
-            "fraction_min_prob": (probabilities.detach().min().item()),
-            "fraction_max_prob": (probabilities.detach().max().item()),
+            "fraction_loss": fraction_loss.detach().mean().item(),
+            "fraction_entropy": entropy.detach().mean().item(),
+            "fraction_min_prob": probabilities.detach().min().item(),
+            "fraction_max_prob": probabilities.detach().max().item(),
         }
+
         info["fraction_entropy_normalised"] = (
-            entropy / math.log(self.num_quantiles)
+            entropy.detach().mean() / math.log(self.num_quantiles)
         ).item()
 
         return fraction_loss, info
@@ -278,7 +284,7 @@ class FQF(DQN):
     ) -> dict[str, Any]:
         """Update the fraction proposal and quantile-value networks."""
 
-        fraction_loss = auxiliary_losses["fraction"]
+        fraction_loss = auxiliary_losses.pop("fraction")
 
         # Update fraction proposal network.
         self.fraction_optimiser.zero_grad()
