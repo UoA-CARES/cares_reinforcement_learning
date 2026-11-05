@@ -67,19 +67,17 @@ class FQF(DQN):
         state_features = self.network.feature_layer(states_tensor)
 
         # Learned current-state quantile fractions.
-        _, midpoints, probabilities = self.network.propose_fractions(
+        # Detach features so the fraction objective cannot update the encoder.
+        fractions, midpoints, probabilities = self.network.propose_fractions(
             states_tensor,
-            state_features=state_features,
+            state_features=state_features.detach(),
         )
 
-        # The value loss must not update the fraction proposal network.
-        midpoints = midpoints.detach()
-        probabilities = probabilities.detach()
-
         # Predicted quantiles: [B, N, A]
+        # Detach midpoints so the value loss cannot update the fraction network.
         quantiles = self.network.quantiles(
             states_tensor,
-            taus=midpoints,
+            taus=midpoints.detach(),
             state_features=state_features,
         )
 
@@ -111,7 +109,7 @@ class FQF(DQN):
             # share the same current-state quantile midpoints.
             next_quantiles = self.target_network.quantiles(
                 next_states_tensor,
-                taus=midpoints,
+                taus=midpoints.detach(),
                 state_features=next_features,
             )
 
@@ -147,7 +145,7 @@ class FQF(DQN):
 
         # Quantile regression weights.
         quantile_weights = (
-            midpoints.unsqueeze(2) - (td_errors.detach() < 0).float()
+            midpoints.detach().unsqueeze(2) - (td_errors.detach() < 0).float()
         ).abs()
 
         # Equation 7 of the original FQF paper.
@@ -190,11 +188,15 @@ class FQF(DQN):
                 target_quantiles.std(dim=1, unbiased=False).mean().item()
             )
 
-        # Compute the fraction objective before either optimiser updates.
+        # Compute the fraction objective using the existing forward-pass values.
         # Returns per-transition losses [B] for optional PER weighting.
         fraction_loss, fraction_info = self._compute_fraction_loss(
             states_tensor,
             actions_tensor,
+            state_features.detach(),
+            fractions,
+            probabilities,
+            pred_quantiles.detach(),
         )
 
         info |= fraction_info
@@ -205,21 +207,15 @@ class FQF(DQN):
         self,
         states_tensor: torch.Tensor,
         actions_tensor: torch.Tensor,
+        state_features: torch.Tensor,
+        fractions: torch.Tensor,
+        probabilities: torch.Tensor,
+        midpoint_values: torch.Tensor,
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         actions = actions_tensor.long().view(-1)
 
-        # Fraction updates must not modify the shared feature network.
-        with torch.no_grad():
-            state_features = self.network.feature_layer(states_tensor)
-
-        # Learned quantile boundaries and midpoints.
-        fractions, midpoints, probabilities = self.network.propose_fractions(
-            states_tensor,
-            state_features=state_features,
-        )
-
-        # Evaluate the quantile function at internal boundaries
-        # and interval midpoints.
+        # Evaluate quantiles at internal fraction boundaries only.
+        # Midpoint quantiles are reused from _compute_loss().
         with torch.no_grad():
             boundary_quantiles = self.network.quantiles(
                 states_tensor,
@@ -227,26 +223,13 @@ class FQF(DQN):
                 state_features=state_features,
             )
 
-            midpoint_quantiles = self.network.quantiles(
-                states_tensor,
-                taus=midpoints.detach(),
-                state_features=state_features,
-            )
-
             boundary_indices = actions.view(-1, 1, 1).expand(
                 -1, self.num_quantiles - 1, 1
             )
 
-            midpoint_indices = actions.view(-1, 1, 1).expand(-1, self.num_quantiles, 1)
-
             boundary_values = boundary_quantiles.gather(
                 dim=2,
                 index=boundary_indices,
-            ).squeeze(2)
-
-            midpoint_values = midpoint_quantiles.gather(
-                dim=2,
-                index=midpoint_indices,
             ).squeeze(2)
 
             # Analytical 1-Wasserstein gradient (Equation 5).
@@ -308,7 +291,7 @@ class FQF(DQN):
         self.fraction_optimiser.zero_grad(set_to_none=True)
 
         # Update the quantile-value network using DQN's existing optimiser.
-        info |= super()._optimise(loss, {})
+        info |= super()._optimise(loss, auxiliary_losses)
 
         return info
 
