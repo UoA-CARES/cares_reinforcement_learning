@@ -19,7 +19,6 @@ import torch
 
 from cares_reinforcement_learning.algorithm.configurations import FQFConfig
 from cares_reinforcement_learning.algorithm.value.DQN import DQN
-from cares_reinforcement_learning.memory.memory_sampler import SARLTensorSample
 from cares_reinforcement_learning.networks.FQF import Network as FQFNetwork
 
 
@@ -188,6 +187,45 @@ class FQF(DQN):
                 target_quantiles.std(dim=1, unbiased=False).mean().item()
             )
 
+            # -------------------------------------------------
+            # Action-value separation and policy diagnostics
+            # -------------------------------------------------
+
+            # Expected Q-values across all actions: [B, A]
+            # FQF uses learned fraction probabilities, not a uniform mean.
+            q_values = (quantiles * probabilities.unsqueeze(2)).sum(dim=1)
+
+            greedy_actions = q_values.argmax(dim=1)
+            num_actions = self.network.num_actions
+
+            counts = torch.bincount(greedy_actions, minlength=num_actions).float()
+
+            probs = counts / counts.sum().clamp(min=1.0)
+
+            entropy = -(probs * (probs + 1e-12).log()).sum()
+
+            info["greedy_action_entropy"] = entropy.item()
+            info["greedy_action_max_prob"] = probs.max().item()
+            info["greedy_action_probs"] = probs.cpu().tolist()
+
+            if num_actions > 1:
+                info["greedy_action_entropy_normalised"] = (
+                    entropy / math.log(num_actions)
+                ).item()
+
+                top_two = torch.topk(q_values, k=2, dim=1).values
+
+                info["greedy_action_margin_mean"] = (
+                    (top_two[:, 0] - top_two[:, 1]).mean().item()
+                )
+            else:
+                info["greedy_action_entropy_normalised"] = 0.0
+                info["greedy_action_margin_mean"] = 0.0
+
+            info["q_action_std_mean"] = (
+                q_values.std(dim=1, unbiased=False).mean().item()
+            )
+
         # Compute the fraction objective using the existing forward-pass values.
         # Returns per-transition losses [B] for optional PER weighting.
         fraction_loss, fraction_info = self._compute_fraction_loss(
@@ -252,6 +290,12 @@ class FQF(DQN):
             "fraction_entropy": entropy.detach().mean().item(),
             "fraction_min_prob": probabilities.detach().min().item(),
             "fraction_max_prob": probabilities.detach().max().item(),
+            "fraction_deviation_uniform": (
+                probabilities.detach() - 1.0 / self.num_quantiles
+            )
+            .abs()
+            .mean()
+            .item(),
         }
 
         info["fraction_entropy_normalised"] = (

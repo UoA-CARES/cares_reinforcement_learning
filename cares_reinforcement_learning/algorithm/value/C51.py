@@ -189,6 +189,26 @@ class C51(DQN):
             info["greedy_action_max_prob"] = probs.max().item()
             info["greedy_action_probs"] = probs.cpu().tolist()
 
+            # Normalised greedy action entropy.
+            if num_actions > 1:
+                info["greedy_action_entropy_normalised"] = (
+                    entropy_actions
+                    / torch.log(torch.tensor(float(num_actions), device=q_all.device))
+                ).item()
+
+                # Difference between highest and second-highest Q-values.
+                top_two = torch.topk(q_all, k=2, dim=1).values
+
+                info["greedy_action_margin_mean"] = (
+                    (top_two[:, 0] - top_two[:, 1]).mean().item()
+                )
+            else:
+                info["greedy_action_entropy_normalised"] = 0.0
+                info["greedy_action_margin_mean"] = 0.0
+
+            # Average action-value separation.
+            info["q_action_std_mean"] = q_all.std(dim=1, unbiased=False).mean().item()
+
             # --- Distribution entropy (collapse / over-uncertainty) ---
             pred_ent = -(pred_dist * (pred_dist + 1e-12).log()).sum(dim=1)  # [B]
             targ_ent = -(proj_dist * (proj_dist + 1e-12).log()).sum(dim=1)  # [B]
