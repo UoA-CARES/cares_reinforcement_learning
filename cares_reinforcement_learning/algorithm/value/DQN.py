@@ -61,6 +61,7 @@ from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import DQNConfig
 from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
+from cares_reinforcement_learning.memory.memory_sampler import SARLTensorSample
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
@@ -164,7 +165,7 @@ class DQN(SARLAlgorithm[int]):
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
         batch_size: int,  # pylint: disable=unused-argument
-    ) -> tuple[torch.Tensor, dict[str, Any]]:
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
 
         q_values = self.network(states_tensor)
@@ -330,7 +331,33 @@ class DQN(SARLAlgorithm[int]):
             # Fraction of sampled transitions that are terminal.
             info["terminal_fraction"] = dones_tensor.float().mean().item()
 
-        return elementwise_loss, info
+        return elementwise_loss, {}, info
+
+    def _optimise(
+        self,
+        loss: torch.Tensor,
+        auxiliary_losses: dict[str, torch.Tensor],  # pylint: disable=unused-argument
+    ) -> dict[str, Any]:
+        if auxiliary_losses:
+            raise ValueError(
+                f"Auxiliary losses provided but not handled: {list(auxiliary_losses)} - make sure implementation is correct for the algorithm."
+            )
+
+        self.network_optimiser.zero_grad()
+        loss.backward()
+
+        info: dict[str, Any] = {}
+
+        if self.max_grad_norm is not None:
+            grad_norm = torch.nn.utils.clip_grad_norm_(
+                self.network.parameters(), max_norm=self.max_grad_norm
+            )
+            info["grad_norm"] = grad_norm.item()
+            info["grad_clipped"] = grad_norm.item() > self.max_grad_norm
+
+        self.network_optimiser.step()
+
+        return info
 
     def train(
         self,
@@ -367,7 +394,7 @@ class DQN(SARLAlgorithm[int]):
         weights_tensor = sample.weights.view(-1)
 
         # Calculate loss - overriden by C51
-        elementwise_loss, train_info = self._compute_loss(
+        elementwise_loss, auxiliary_losses, train_info = self._compute_loss(
             sample.observation.vector_state,
             sample.action,
             rewards_tensor,
@@ -396,25 +423,25 @@ class DQN(SARLAlgorithm[int]):
             memory_buffer.update_priorities(indices, priorities)
 
             loss = torch.mean(elementwise_loss * weights_tensor)
+
+            auxiliary_losses = {
+                name: torch.mean(auxiliary_loss * weights_tensor)
+                for name, auxiliary_loss in auxiliary_losses.items()
+            }
         else:
             # Calculate loss
             loss = elementwise_loss.mean()
 
+            auxiliary_losses = {
+                name: auxiliary_loss.mean()
+                for name, auxiliary_loss in auxiliary_losses.items()
+            }
+
         info["loss"] = loss.item()
         info["epsilon"] = self.epsilon
 
-        self.network_optimiser.zero_grad()
-        loss.backward()
-
-        # Apply gradient clipping if max_grad_norm is set
-        if self.max_grad_norm is not None:
-            grad_norm = torch.nn.utils.clip_grad_norm_(
-                self.network.parameters(), max_norm=self.max_grad_norm
-            )
-            info["grad_norm"] = grad_norm.item()
-            info["grad_clipped"] = grad_norm.item() > self.max_grad_norm
-
-        self.network_optimiser.step()
+        # Optimisation is delegated to the algorithm-specific method.
+        info |= self._optimise(loss, auxiliary_losses)
 
         # Update target network - a tau of 1.0 equates to a hard update.
         if self.learn_counter % self.target_update_freq == 0:

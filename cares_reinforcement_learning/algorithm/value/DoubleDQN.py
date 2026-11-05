@@ -46,9 +46,9 @@ Double DQN = DQN with decoupled action selection
 
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import DoubleDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.DoubleDQN import Network
-from cares_reinforcement_learning.algorithm.configurations import DoubleDQNConfig
 
 
 class DoubleDQN(DQN):

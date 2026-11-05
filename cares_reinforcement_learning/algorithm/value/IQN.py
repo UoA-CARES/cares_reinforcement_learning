@@ -48,7 +48,7 @@ class IQN(DQN):
         next_states_tensor: torch.Tensor,
         dones_tensor: torch.Tensor,
         batch_size: int,
-    ) -> tuple[torch.Tensor, dict[str, Any]]:
+    ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
 
         actions = actions_tensor.long().view(-1)
 
@@ -154,4 +154,4 @@ class IQN(DQN):
                 target_quantiles.std(dim=1, unbiased=False).mean().item()
             )
 
-        return elementwise_loss, info
+        return elementwise_loss, {}, info

@@ -366,6 +366,47 @@ class IQNConfig(DQNConfig):
     )
 
 
+class FQFConfig(DQNConfig):
+    algorithm: str = "FQF"
+
+    lr: float = 5e-5
+    target_update_freq: int = 5000
+
+    num_quantiles: int = 32
+
+    quantile_embedding_dim: int = 64
+    feature_dim: int = 256
+    kappa: float = 1.0
+
+    # Fraction proposal optimisation
+    fraction_lr: float = 2.5e-9
+    fraction_entropy_coeff: float = 0.001
+
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    quantile_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear"),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    value_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
 class RainbowConfig(C51Config):
     algorithm: str = "Rainbow"
 

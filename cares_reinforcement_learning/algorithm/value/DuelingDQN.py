@@ -48,9 +48,9 @@ Dueling DQN = DQN with separate value and advantage streams.
 
 import torch
 
+from cares_reinforcement_learning.algorithm.configurations import DuelingDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.DuelingDQN import Network
-from cares_reinforcement_learning.algorithm.configurations import DuelingDQNConfig
 
 
 class DuelingDQN(DQN):
