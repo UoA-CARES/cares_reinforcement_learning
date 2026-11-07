@@ -242,6 +242,69 @@ class FQF(DQN):
 
         return elementwise_loss, {"fraction": fraction_loss}, info
 
+    # def _compute_fraction_loss(
+    #     self,
+    #     states_tensor: torch.Tensor,
+    #     actions_tensor: torch.Tensor,
+    #     state_features: torch.Tensor,
+    #     fractions: torch.Tensor,
+    #     probabilities: torch.Tensor,
+    #     midpoint_values: torch.Tensor,
+    # ) -> tuple[torch.Tensor, dict[str, Any]]:
+    #     actions = actions_tensor.long().view(-1)
+
+    #     # Evaluate quantiles at internal fraction boundaries only.
+    #     # Midpoint quantiles are reused from _compute_loss().
+    #     with torch.no_grad():
+    #         boundary_quantiles = self.network.quantiles(
+    #             states_tensor,
+    #             taus=fractions[:, 1:-1].detach(),
+    #             state_features=state_features,
+    #         )
+
+    #         boundary_indices = actions.view(-1, 1, 1).expand(
+    #             -1, self.num_quantiles - 1, 1
+    #         )
+
+    #         boundary_values = boundary_quantiles.gather(
+    #             dim=2,
+    #             index=boundary_indices,
+    #         ).squeeze(2)
+
+    #         # Analytical 1-Wasserstein gradient (Equation 5).
+    #         fraction_gradients = (
+    #             2.0 * boundary_values - midpoint_values[:, :-1] - midpoint_values[:, 1:]
+    #         )
+
+    #     # Per-transition surrogate objective: [B].
+    #     fraction_loss = (fraction_gradients.detach() * fractions[:, 1:-1]).sum(dim=1)
+
+    #     # Per-transition entropy regularisation: [B].
+    #     entropy = -(probabilities * probabilities.clamp_min(1e-8).log()).sum(dim=1)
+
+    #     # Keep the complete objective per transition.
+    #     # DQN.train() handles PER weighting and batch reduction.
+    #     fraction_loss = fraction_loss - self.fraction_entropy_coeff * entropy
+
+    #     info: dict[str, Any] = {
+    #         "fraction_loss": fraction_loss.detach().mean().item(),
+    #         "fraction_entropy": entropy.detach().mean().item(),
+    #         "fraction_min_prob": probabilities.detach().min().item(),
+    #         "fraction_max_prob": probabilities.detach().max().item(),
+    #         "fraction_deviation_uniform": (
+    #             probabilities.detach() - 1.0 / self.num_quantiles
+    #         )
+    #         .abs()
+    #         .mean()
+    #         .item(),
+    #     }
+
+    #     info["fraction_entropy_normalised"] = (
+    #         entropy.detach().mean() / math.log(self.num_quantiles)
+    #     ).item()
+
+    #     return fraction_loss, info
+
     def _compute_fraction_loss(
         self,
         states_tensor: torch.Tensor,
@@ -253,8 +316,7 @@ class FQF(DQN):
     ) -> tuple[torch.Tensor, dict[str, Any]]:
         actions = actions_tensor.long().view(-1)
 
-        # Evaluate quantiles at internal fraction boundaries only.
-        # Midpoint quantiles are reused from _compute_loss().
+        # Evaluate quantiles at internal fraction boundaries.
         with torch.no_grad():
             boundary_quantiles = self.network.quantiles(
                 states_tensor,
@@ -267,23 +329,51 @@ class FQF(DQN):
             )
 
             boundary_values = boundary_quantiles.gather(
-                dim=2,
-                index=boundary_indices,
+                dim=2, index=boundary_indices
             ).squeeze(2)
 
-            # Analytical 1-Wasserstein gradient (Equation 5).
-            fraction_gradients = (
-                2.0 * boundary_values - midpoint_values[:, :-1] - midpoint_values[:, 1:]
+            # Fraction gradients allowing for nonmonotonic
+            # quantile-value predictions.
+            #
+            # For monotonic quantiles, this reduces to Equation 5
+            # of the FQF paper.
+
+            values_left = boundary_values - midpoint_values[:, :-1]
+
+            signs_left = boundary_values > torch.cat(
+                (
+                    midpoint_values[:, :1],
+                    boundary_values[:, :-1],
+                ),
+                dim=1,
             )
 
-        # Per-transition surrogate objective: [B].
+            values_right = boundary_values - midpoint_values[:, 1:]
+
+            signs_right = boundary_values < torch.cat(
+                (
+                    boundary_values[:, 1:],
+                    midpoint_values[:, -1:],
+                ),
+                dim=1,
+            )
+
+            fraction_gradients = torch.where(
+                signs_left, values_left, -values_left
+            ) + torch.where(signs_right, values_right, -values_right)
+
+            # Diagnostic: proportion of predicted midpoint quantiles
+            # violating monotonicity.
+            quantile_crossing_fraction = (
+                (midpoint_values[:, 1:] < midpoint_values[:, :-1]).float().mean()
+            )
+
+        # Analytical fraction-gradient surrogate.
         fraction_loss = (fraction_gradients.detach() * fractions[:, 1:-1]).sum(dim=1)
 
-        # Per-transition entropy regularisation: [B].
+        # Entropy regularisation.
         entropy = -(probabilities * probabilities.clamp_min(1e-8).log()).sum(dim=1)
 
-        # Keep the complete objective per transition.
-        # DQN.train() handles PER weighting and batch reduction.
         fraction_loss = fraction_loss - self.fraction_entropy_coeff * entropy
 
         info: dict[str, Any] = {
@@ -297,11 +387,11 @@ class FQF(DQN):
             .abs()
             .mean()
             .item(),
+            "fraction_entropy_normalised": (
+                entropy.detach().mean() / math.log(self.num_quantiles)
+            ).item(),
+            "quantile_crossing_fraction": (quantile_crossing_fraction.item()),
         }
-
-        info["fraction_entropy_normalised"] = (
-            entropy.detach().mean() / math.log(self.num_quantiles)
-        ).item()
 
         return fraction_loss, info
 
