@@ -109,7 +109,7 @@ class DQN(SARLAlgorithm[int]):
         self.n_step = config.n_step
 
         self.network_optimiser = torch.optim.Adam(
-            self.network.parameters(), lr=config.lr
+            self.network.parameters(), lr=config.lr, **config.lr_params
         )
 
         self.learn_counter = 0

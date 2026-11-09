@@ -49,7 +49,7 @@ class FQF(DQN):
         self.fraction_parameters = list(self.network.fraction_layer.parameters())
 
         self.fraction_optimiser = torch.optim.RMSprop(
-            self.fraction_parameters, lr=config.fraction_lr
+            self.fraction_parameters, lr=config.fraction_lr, **config.fraction_lr_params
         )
 
     def _compute_loss(

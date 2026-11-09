@@ -180,9 +180,11 @@ class AlgorithmConfig(SubscriptableClass):
 
 class DQNConfig(AlgorithmConfig):
     algorithm: str = "DQN"
-    lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 1.0
+
+    lr: float = 1e-3
+    lr_params: dict[str, Any] = Field(default_factory=dict)
 
     batch_size: int = 32
 
@@ -370,6 +372,7 @@ class FQFConfig(DQNConfig):
     algorithm: str = "FQF"
 
     lr: float = 5e-5
+
     target_update_freq: int = 5000
 
     num_quantiles: int = 32
@@ -380,6 +383,13 @@ class FQFConfig(DQNConfig):
 
     # Fraction proposal optimisation
     fraction_lr: float = 2.5e-9
+    fraction_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "alpha": 0.95,
+            "eps": 1e-5,
+            "centered": True,
+        }
+    )
     fraction_entropy_coeff: float = 0.001
 
     feature_layer_config: MLPConfig = MLPConfig(
