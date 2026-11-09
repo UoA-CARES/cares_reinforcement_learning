@@ -16,6 +16,7 @@ from typing import Any
 
 import torch
 
+import cares_reinforcement_learning.algorithm.lossess as loss
 from cares_reinforcement_learning.algorithm.configurations import IQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.IQN import Network as IQNNetwork
@@ -110,10 +111,8 @@ class IQN(DQN):
         abs_errors = td_errors.abs()
 
         # Huber loss with threshold kappa.
-        huber_loss = torch.where(
-            abs_errors <= self.kappa,
-            0.5 * td_errors.square(),
-            self.kappa * (abs_errors - 0.5 * self.kappa),
+        huber_loss = loss.calculate_huber_loss(
+            td_errors, kappa=self.kappa, use_mean_reduction=False
         )
 
         # Quantile regression weights.
@@ -154,6 +153,18 @@ class IQN(DQN):
 
             info["quantile_target_std"] = (
                 target_quantiles.std(dim=1, unbiased=False).mean().item()
+            )
+
+            # Quantile crossing: compare predictions in ascending tau order.
+            # IQN samples quantile fractions randomly, so sorting is required.
+            sorted_indices = taus.argsort(dim=1)
+            sorted_quantiles = pred_quantiles.gather(dim=1, index=sorted_indices)
+
+            info["quantile_crossing_fraction"] = (
+                (sorted_quantiles[:, 1:] < sorted_quantiles[:, :-1])
+                .float()
+                .mean()
+                .item()
             )
 
             # -------------------------------------------------

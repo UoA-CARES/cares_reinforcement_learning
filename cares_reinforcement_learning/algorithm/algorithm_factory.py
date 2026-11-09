@@ -134,6 +134,17 @@ def create_Rainbow(observation_size, action_num, config: acf.RainbowConfig):
     return agent
 
 
+def create_RainbowQR(observation_size, action_num, config: acf.RainbowQRConfig):
+    from cares_reinforcement_learning.algorithm.value import RainbowQR
+    from cares_reinforcement_learning.networks.RainbowQR import Network
+
+    network = Network(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+    agent = RainbowQR(network=network, config=config, device=device)
+    return agent
+
+
 def create_RainbowIQN(observation_size, action_num, config: acf.RainbowIQNConfig):
     from cares_reinforcement_learning.algorithm.value import RainbowIQN
     from cares_reinforcement_learning.networks.RainbowIQN import Network

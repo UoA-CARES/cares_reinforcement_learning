@@ -117,13 +117,20 @@ class DQN(SARLAlgorithm[int]):
     def _explore(self) -> int:
         return random.randrange(self.network.num_actions)
 
-    def _exploit(self, state: np.ndarray) -> int:
+    def _exploit(self, state: np.ndarray, evaluation: bool) -> int:
         self.network.eval()
+
+        if evaluation:
+            # Disable noise for evaluation
+            self.network.set_noise_enabled(False)
+
         with torch.no_grad():
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
             q_values = self.network(state_tensor)
             action = int(torch.argmax(q_values, dim=1).item())
+
+        self.network.set_noise_enabled(True)
 
         self.network.train()
 
@@ -138,12 +145,14 @@ class DQN(SARLAlgorithm[int]):
         state = observation.vector_state
 
         if evaluation:
-            return ActionSample(action=self._exploit(state), source="policy")
+            return ActionSample(
+                action=self._exploit(state, evaluation), source="policy"
+            )
 
         if random.random() < self.epsilon:
             return ActionSample(action=self._explore(), source="explore")
 
-        return ActionSample(action=self._exploit(state), source="policy")
+        return ActionSample(action=self._exploit(state, evaluation), source="policy")
 
     def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
         state_tensor = torch.tensor(
@@ -169,25 +178,31 @@ class DQN(SARLAlgorithm[int]):
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
 
         q_values = self.network(states_tensor)
-        next_q_values_target = self.target_network(next_states_tensor)
 
-        # Get Q-values for chosen actions
+        # Get Q-values for chosen actions.
         best_q_values = q_values.gather(1, actions_tensor.unsqueeze(1)).squeeze(1)
 
-        if self.use_double_dqn:
-            # Online network selects best actions
-            next_q_values_online = self.network(next_states_tensor)
-            next_actions = next_q_values_online.argmax(dim=1, keepdim=True)
-            # Target network estimates their values
-            best_next_q_values = next_q_values_target.gather(1, next_actions).squeeze(1)
-        else:
-            # Standard DQN: Use target network to select best Q-values
-            best_next_q_values = torch.max(next_q_values_target, dim=1).values
+        with torch.no_grad():
+            next_q_values_target = self.target_network(next_states_tensor)
 
-        q_target = (
-            rewards_tensor
-            + (self.gamma**self.n_step) * (1 - dones_tensor) * best_next_q_values
-        )
+            if self.use_double_dqn:
+                # Online network selects the next action.
+                next_q_values_online = self.network(next_states_tensor)
+                next_actions = next_q_values_online.argmax(dim=1, keepdim=True)
+
+                # Target network evaluates the selected action.
+                best_next_q_values = next_q_values_target.gather(
+                    1, next_actions
+                ).squeeze(1)
+            else:
+                # Standard DQN selects and evaluates using the target network.
+                best_next_q_values = next_q_values_target.max(dim=1).values
+
+            q_target = (
+                rewards_tensor
+                + (self.gamma**self.n_step) * (1 - dones_tensor) * best_next_q_values
+            )
+
         elementwise_loss = F.mse_loss(best_q_values, q_target, reduction="none")
 
         # -----------------------
