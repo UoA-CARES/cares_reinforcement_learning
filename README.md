@@ -346,7 +346,12 @@ Implementations of Q-Learning based methods
 | NoisyNet    | Vector                     | Discrete     | [NoisyNet Paper](https://arxiv.org/abs/1706.10295)          |
 | C51         | Vector                     | Discrete     | [C51 Paper](https://arxiv.org/pdf/1707.06887)               |
 | QRDQN       | Vector                     | Discrete     | [QR-DQN Paper](https://arxiv.org/pdf/1710.10044)            |
+| IQN         | Vector                     | Discrete     | [IQN Paper](https://arxiv.org/abs/1806.06923)                |
+| FQF         | Vector                     | Discrete     | [FQF Paper](https://arxiv.org/abs/1911.02140)                |
 | Rainbow     | Vector                     | Discrete     | [Rainbow](https://arxiv.org/pdf/1710.02298)                 |
+| RainbowQR   | Vector                     | Discrete     | [Rainbow-QR Paper](https://arxiv.org/pdf/1710.10044)        |
+| RainbowIQN  | Vector                     | Discrete     | [Rainbow-IQN Paper](https://arxiv.org/abs/1806.06923)       |
+| RainbowFQF  | Vector                     | Discrete     | [Rainbow-FQF Paper](https://arxiv.org/abs/1911.02140)       |
 
 ## Actor Critic
 Implementation of various Actor Critic methods.
