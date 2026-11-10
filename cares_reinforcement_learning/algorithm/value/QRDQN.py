@@ -53,6 +53,7 @@ import cares_reinforcement_learning.algorithm.lossess as loss
 from cares_reinforcement_learning.algorithm.configurations import QRDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.QRDQN import Network
+from cares_reinforcement_learning.networks.RainbowQR import Network as RainbowNetwork
 
 
 class QRDQN(DQN):
@@ -61,7 +62,7 @@ class QRDQN(DQN):
 
     def __init__(
         self,
-        network: Network,
+        network: Network | RainbowNetwork,
         config: QRDQNConfig,
         device: torch.device,
     ):
@@ -71,11 +72,9 @@ class QRDQN(DQN):
         self.kappa = config.kappa
 
         self.quantiles = config.quantiles
-        self.quantile_taus = torch.tensor(
-            [i / (self.quantiles + 1) for i in range(1, self.quantiles + 1)],
-            dtype=torch.float32,
-            device=device,
-        )
+        self.quantile_taus = (
+            torch.arange(self.quantiles, device=device, dtype=torch.float32) + 0.5
+        ) / self.quantiles
 
     def _evaluate_quantile_at_action(self, s_quantiles, actions):
         batch_size = s_quantiles.shape[0]
@@ -112,8 +111,7 @@ class QRDQN(DQN):
         with torch.no_grad():
             # Calculate Q values of next states.
             if self.use_double_dqn:
-                # Sample the noise of online network to decorrelate between
-                # the action selection and the quantile calculation.
+                # Double DQN: select next actions using the online network.
                 next_state_q_values = self.network.calculate_quantiles(
                     next_states_tensor
                 ).mean(dim=-1)
@@ -144,17 +142,33 @@ class QRDQN(DQN):
                 * best_next_q_values
             ).squeeze(1)
 
-        # Calculate TD errors.
-        element_wise_quantile_huber_loss = loss.calculate_quantile_huber_loss(
-            current_action_q_values,
-            target_q_values,
-            self.quantile_taus,
-            self.kappa,
-            use_mean_reduction=False,
-            use_pairwise_loss=False,
+        # -------------------------------------------------
+        # Pairwise quantile Huber loss (QR-DQN)
+        # -------------------------------------------------
+
+        # Current action quantiles: [B, N]
+        pred_quantiles = current_action_q_values.squeeze(1)
+
+        # Pairwise TD errors: [B, N, N]
+        # Every predicted quantile is compared against every target quantile.
+        td_errors = target_q_values.unsqueeze(1) - pred_quantiles.unsqueeze(2)
+
+        # Huber loss: [B, N, N]
+        huber_loss = loss.calculate_huber_loss(
+            td_errors, kappa=self.kappa, use_mean_reduction=False
         )
 
-        element_wise_loss = element_wise_quantile_huber_loss.sum(dim=1).mean(dim=1)
+        # Quantile regression weights: [B, N, N]
+        quantile_weights = (
+            self.quantile_taus.view(1, -1, 1) - (td_errors.detach() < 0).float()
+        ).abs()
+
+        # Pairwise quantile Huber loss: [B, N, N]
+        element_wise_quantile_huber_loss = quantile_weights * huber_loss / self.kappa
+
+        # Mean over target quantiles, sum over predicted quantiles.
+        # Result: [B] for PER importance weighting.
+        element_wise_loss = element_wise_quantile_huber_loss.mean(dim=2).sum(dim=1)
 
         # -----------------------
         # Logging / diagnostics (QR-DQN)
@@ -200,13 +214,13 @@ class QRDQN(DQN):
             info["target_mean_min"] = targ_mean.min().item()
 
             # Scalar TD error (mean-return TD)
-            td_mean = pred_mean - targ_mean  # [B]
+            td_mean = targ_mean - pred_mean
             info["td_mean"] = td_mean.mean().item()
             info["td_std"] = td_mean.std().item()
             info["td_abs_mean"] = td_mean.abs().mean().item()
 
             # Distributional TD error (quantile-wise)
-            td_q = pred_quantiles - targ_quantiles  # [B, N]
+            td_q = targ_quantiles - pred_quantiles
             info["td_q_abs_mean"] = td_q.abs().mean().item()
             info["td_q_abs_p95"] = td_q.abs().quantile(0.95).item()
             info["td_q_mean"] = td_q.mean().item()
@@ -216,6 +230,13 @@ class QRDQN(DQN):
             # Std over quantiles for the chosen action distribution
             pred_spread = pred_quantiles.std(dim=1)  # [B]
             targ_spread = targ_quantiles.std(dim=1)  # [B]
+
+            # Quantile crossing: fraction of adjacent quantiles violating monotonicity.
+            # QRDQN quantile fractions are fixed and already ordered.
+            info["quantile_crossing_fraction"] = (
+                (pred_quantiles[:, 1:] < pred_quantiles[:, :-1]).float().mean().item()
+            )
+
             info["pred_quantile_std_mean"] = pred_spread.mean().item()
             info["pred_quantile_std_p95"] = pred_spread.quantile(0.95).item()
             info["targ_quantile_std_mean"] = targ_spread.mean().item()
@@ -229,10 +250,13 @@ class QRDQN(DQN):
             # Tail means (risk-sensitive view; useful to see if distribution shifts correctly)
             # choose a small tail fraction
             tail_k = max(1, self.quantiles // 10)  # ~10% tail
-            info["pred_cvar_low_mean"] = pred_quantiles[:, :tail_k].mean().item()
-            info["pred_cvar_high_mean"] = pred_quantiles[:, -tail_k:].mean().item()
-            info["targ_cvar_low_mean"] = targ_quantiles[:, :tail_k].mean().item()
-            info["targ_cvar_high_mean"] = targ_quantiles[:, -tail_k:].mean().item()
+            pred_sorted = pred_quantiles.sort(dim=1).values
+            targ_sorted = targ_quantiles.sort(dim=1).values
+
+            info["pred_cvar_low_mean"] = pred_sorted[:, :tail_k].mean().item()
+            info["pred_cvar_high_mean"] = pred_sorted[:, -tail_k:].mean().item()
+            info["targ_cvar_low_mean"] = targ_sorted[:, :tail_k].mean().item()
+            info["targ_cvar_high_mean"] = targ_sorted[:, -tail_k:].mean().item()
 
             # Quantile huber loss stats (your actual objective)
             # element_wise_quantile_huber_loss is returned by your helper.

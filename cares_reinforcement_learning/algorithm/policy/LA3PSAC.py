@@ -139,10 +139,10 @@ class LA3PSAC(SAC):
             )
         else:
             critic_loss_one = loss.calculate_huber_loss(
-                td_error_one, self.min_priority, use_quadratic_smoothing=False
+                td_error_one, self.min_priority, use_huber_offset=False
             )
             critic_loss_two = loss.calculate_huber_loss(
-                td_error_two, self.min_priority, use_quadratic_smoothing=False
+                td_error_two, self.min_priority, use_huber_offset=False
             )
             critic_loss_total = critic_loss_one + critic_loss_two
 

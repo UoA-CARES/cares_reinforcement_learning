@@ -9,6 +9,8 @@ class NoisyLinear(nn.Module):
     def __init__(self, in_features, out_features, sigma_init=0.5):
         super(NoisyLinear, self).__init__()
 
+        self.noise_enabled = True
+
         self.in_features = in_features
         self.out_features = out_features
         self.sigma_init = sigma_init
@@ -26,10 +28,13 @@ class NoisyLinear(nn.Module):
         self.reset_noise()
 
     def forward(self, x):
-        weight = self.weight_mu + self.weight_sigma.mul(self.weight_epsilon)
-        bias = self.bias_mu + self.bias_sigma.mul(self.bias_epsilon)
+        if self.noise_enabled:
+            weight = self.weight_mu + self.weight_sigma * self.weight_epsilon
+            bias = self.bias_mu + self.bias_sigma * self.bias_epsilon
+        else:
+            weight = self.weight_mu
+            bias = self.bias_mu
 
-        # pylint: disable-next=not-callable
         return F.linear(x, weight, bias)
 
     def reset_parameters(self):

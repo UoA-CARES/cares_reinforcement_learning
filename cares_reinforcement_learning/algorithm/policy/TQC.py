@@ -155,15 +155,36 @@ class TQC(SAC):
         td_errors_abs = td_errors.abs()
         td_error = td_errors_abs.mean(dim=1)  # mean over quantiles
 
-        critic_loss_total = loss.calculate_quantile_huber_loss(
-            q_values,
-            q_target,
-            self.quantile_taus,
-            kappa=self.kappa,
-            use_pairwise_loss=True,
-            use_mean_reduction=True,
-            use_quadratic_smoothing=True,
+        # -------------------------------------------------
+        # Pairwise quantile Huber loss (TQC)
+        # -------------------------------------------------
+
+        # Predicted quantiles: [B, C, N]
+        # Target quantiles:    [B, M]
+        #
+        # C = number of critics
+        # N = quantiles per critic
+        # M = retained target quantiles after truncation
+
+        # Pairwise TD errors: [B, C, N, M]
+        td_errors = q_target[:, None, None, :] - q_values[:, :, :, None]
+
+        # Huber loss: [B, C, N, M]
+        huber_loss = loss.calculate_huber_loss(
+            td_errors, kappa=self.kappa, use_mean_reduction=False
         )
+
+        # Quantile regression weights: [B, C, N, M]
+        quantile_weights = (
+            self.quantile_taus.view(1, 1, -1, 1) - (td_errors.detach() < 0).float()
+        ).abs()
+
+        # Quantile Huber regression loss
+        element_wise_quantile_huber_loss = quantile_weights * huber_loss / self.kappa
+
+        # Mean across batch, critics, predicted quantiles and target quantiles.
+        # Preserves the existing TQC loss scaling.
+        critic_loss_total = element_wise_quantile_huber_loss.mean()
 
         self.critic_net_optimiser.zero_grad()
         critic_loss_total.backward()

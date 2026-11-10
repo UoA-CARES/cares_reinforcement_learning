@@ -180,9 +180,11 @@ class AlgorithmConfig(SubscriptableClass):
 
 class DQNConfig(AlgorithmConfig):
     algorithm: str = "DQN"
-    lr: float = 1e-3
     gamma: float = 0.99
     tau: float = 1.0
+
+    lr: float = 1e-3
+    lr_params: dict[str, Any] = Field(default_factory=dict)
 
     batch_size: int = 32
 
@@ -370,6 +372,7 @@ class FQFConfig(DQNConfig):
     algorithm: str = "FQF"
 
     lr: float = 5e-5
+
     target_update_freq: int = 5000
 
     num_quantiles: int = 32
@@ -380,6 +383,13 @@ class FQFConfig(DQNConfig):
 
     # Fraction proposal optimisation
     fraction_lr: float = 2.5e-9
+    fraction_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "alpha": 0.95,
+            "eps": 1e-5,
+            "centered": True,
+        }
+    )
     fraction_entropy_coeff: float = 0.001
 
     feature_layer_config: MLPConfig = MLPConfig(
@@ -465,6 +475,64 @@ class RainbowConfig(C51Config):
     )
 
 
+class RainbowQRConfig(QRDQNConfig):
+    algorithm: str = "RainbowQR"
+
+    max_grad_norm: float | None = 10.0
+
+    # NoisyNet exploration, rather than epsilon-greedy
+    start_epsilon: float = 0.0
+    end_epsilon: float = 0.0
+    decay_steps: int = 0
+
+    use_double_dqn: int = 1
+    use_per_buffer: int = 1
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+    n_step: int = 3
+
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=128),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    value_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                params={"sigma_init": 0.5},
+            ),
+        ]
+    )
+
+    advantage_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                params={"sigma_init": 0.5},
+            ),
+        ]
+    )
+
+
 class RainbowIQNConfig(IQNConfig):
     algorithm: str = "RainbowIQN"
 
@@ -494,6 +562,81 @@ class RainbowIQNConfig(IQNConfig):
     num_quantiles: int = 32
     num_target_quantiles: int = 32
     num_action_quantiles: int = 32
+
+    # State features
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear"),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    # Quantile cosine embedding
+    quantile_layer_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear"),
+            FunctionLayer(layer_type="ReLU"),
+        ]
+    )
+
+    # Dueling value stream
+    value_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                params={"sigma_init": 0.5},
+            ),
+        ]
+    )
+
+    # Dueling advantage stream
+    advantage_stream_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                out_features=128,
+                params={"sigma_init": 1.0},
+            ),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(
+                layer_type="NoisyLinear",
+                in_features=128,
+                params={"sigma_init": 0.5},
+            ),
+        ]
+    )
+
+
+class RainbowFQFConfig(FQFConfig):
+    algorithm: str = "RainbowFQF"
+
+    max_grad_norm: float | None = 10.0
+
+    # NoisyNet exploration
+    start_epsilon: float = 0.0
+    end_epsilon: float = 0.0
+    decay_steps: int = 0
+
+    # Double DQN
+    use_double_dqn: int = 1
+
+    # Prioritized Experience Replay
+    use_per_buffer: int = 1
+    min_priority: float = 1e-6
+    per_alpha: float = 0.6
+
+    # Multi-step returns
+    n_step: int = 3
+
+    # FQF representation
+    feature_dim: int = 128
 
     # State features
     feature_layer_config: MLPConfig = MLPConfig(

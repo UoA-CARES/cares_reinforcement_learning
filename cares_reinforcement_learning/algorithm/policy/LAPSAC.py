@@ -111,10 +111,10 @@ class LAPSAC(SAC):
         td_error_two = (q_values_two - q_target).abs()
 
         huber_lose_one = loss.calculate_huber_loss(
-            td_error_one, self.min_priority, use_quadratic_smoothing=False
+            td_error_one, self.min_priority, use_huber_offset=False
         )
         huber_lose_two = loss.calculate_huber_loss(
-            td_error_two, self.min_priority, use_quadratic_smoothing=False
+            td_error_two, self.min_priority, use_huber_offset=False
         )
         critic_loss_total = huber_lose_one + huber_lose_two
 

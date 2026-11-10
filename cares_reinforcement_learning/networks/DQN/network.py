@@ -3,9 +3,9 @@ from typing import Any
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.algorithm.configurations import DQNConfig
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
 from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
-from cares_reinforcement_learning.algorithm.configurations import DQNConfig
 
 
 class BaseNetwork(nn.Module):
@@ -23,6 +23,11 @@ class BaseNetwork(nn.Module):
         raise NotImplementedError(
             "BaseDQN is an abstract class and cannot be instantiated directly."
         )
+
+    def set_noise_enabled(self, enabled: bool) -> None:
+        for module in self.modules():
+            if isinstance(module, NoisyLinear):
+                module.noise_enabled = enabled
 
     @torch.no_grad()
     def _module_noise_stats(self, key: str, layer: nn.Module) -> dict[str, Any]:
