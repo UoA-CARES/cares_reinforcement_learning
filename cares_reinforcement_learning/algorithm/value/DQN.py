@@ -61,7 +61,6 @@ from cares_reinforcement_learning.algorithm.algorithm import SARLAlgorithm
 from cares_reinforcement_learning.algorithm.configurations import DQNConfig
 from cares_reinforcement_learning.algorithm.schedulers import LinearScheduler
 from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
-from cares_reinforcement_learning.memory.memory_sampler import SARLTensorSample
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
@@ -155,6 +154,9 @@ class DQN(SARLAlgorithm[int]):
         return ActionSample(action=self._exploit(state, evaluation), source="policy")
 
     def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
+        self.network.eval()
+        self.network.set_noise_enabled(False)
+
         state_tensor = torch.tensor(
             state.vector_state, dtype=torch.float32, device=self.device
         )
@@ -163,6 +165,9 @@ class DQN(SARLAlgorithm[int]):
         with torch.no_grad():
             q_values = self.network(state_tensor)
             q_value = q_values[0][action].item()
+
+        self.network.set_noise_enabled(True)
+        self.network.train()
 
         return q_value
 
