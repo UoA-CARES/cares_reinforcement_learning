@@ -144,9 +144,19 @@ def observation_to_tensors(
             # Normalise states - image portion (range [0-255] -> [0-1])
             image_state_tensor /= 255.0
 
+        available_actions_tensor: torch.Tensor | None = None
+
+        if observations[0].available_actions is not None:
+            available_actions_tensor = torch.as_tensor(
+                np.stack([obs.available_actions for obs in observations]),
+                dtype=torch.bool,
+                device=device,
+            )
+
         return SARLObservationTensors(
             vector_state=vector_state_tensor,
             image_state=image_state_tensor,
+            available_actions=available_actions_tensor,
         )
 
     raise ValueError(

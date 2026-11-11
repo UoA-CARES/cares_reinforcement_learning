@@ -7,10 +7,10 @@ import numpy as np
 from gymnasium import spaces
 from showdown_gym.showdown_environment import SingleShowdownWrapper
 
+from cares_reinforcement_learning.envs.configurations import ShowdownConfig
 from cares_reinforcement_learning.envs.sarl.sarl_environment import (
     SARLEnvironment,
 )
-from cares_reinforcement_learning.envs.configurations import ShowdownConfig
 
 
 class ShowdownEnvironment(SARLEnvironment):
@@ -70,6 +70,9 @@ class ShowdownEnvironment(SARLEnvironment):
 
     def sample_action(self) -> int:
         return self.env.action_space.sample()
+
+    def get_available_actions(self) -> np.ndarray | None:
+        return self.env.get_available_actions()
 
     def set_seed(self, seed: int) -> None:
         _, _ = self.env.reset(seed=seed)

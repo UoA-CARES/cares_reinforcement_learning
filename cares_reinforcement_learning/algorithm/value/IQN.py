@@ -21,6 +21,7 @@ from cares_reinforcement_learning.algorithm.configurations import IQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.IQN import Network as IQNNetwork
 from cares_reinforcement_learning.networks.RainbowIQN import Network as RainbowNetwork
+from cares_reinforcement_learning.types.observation import SARLObservationTensors
 
 
 class IQN(DQN):
@@ -45,13 +46,15 @@ class IQN(DQN):
 
     def _compute_loss(
         self,
-        states_tensor: torch.Tensor,
+        observation: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
+        states_tensor = observation.vector_state
+        next_states_tensor = next_observation.vector_state
 
         actions = actions_tensor.long().view(-1)
 
@@ -73,16 +76,16 @@ class IQN(DQN):
             # Select next action using expected Q-values.
             if self.use_double_dqn:
                 next_q = self.network(
-                    next_states_tensor,
-                    num_quantiles=self.num_action_quantiles,
+                    next_states_tensor, num_quantiles=self.num_action_quantiles
                 )
             else:
                 next_q = self.target_network(
-                    next_states_tensor,
-                    num_quantiles=self.num_action_quantiles,
+                    next_states_tensor, num_quantiles=self.num_action_quantiles
                 )
 
-            next_actions = next_q.argmax(dim=1)
+            next_actions = self._select_greedy_actions(
+                next_q, next_observation.available_actions
+            )
 
             # Target quantiles: [B, N', A]
             next_quantiles, _ = self.target_network.quantiles(
@@ -174,7 +177,9 @@ class IQN(DQN):
             # Expected Q-values across all actions: [B, A]
             q_values = quantiles.mean(dim=1)
 
-            greedy_actions = q_values.argmax(dim=1)
+            greedy_actions = self._select_greedy_actions(
+                q_values, observation.available_actions
+            )
             num_actions = self.network.num_actions
 
             counts = torch.bincount(
@@ -195,11 +200,23 @@ class IQN(DQN):
                     entropy / math.log(num_actions)
                 ).item()
 
-                top_two = torch.topk(q_values, k=2, dim=1).values
+                available_actions = observation.available_actions
 
-                info["greedy_action_margin_mean"] = (
-                    (top_two[:, 0] - top_two[:, 1]).mean().item()
-                )
+                if available_actions is None:
+                    valid_q_values = q_values
+                else:
+                    valid_rows = available_actions.sum(dim=1) >= 2
+                    valid_q_values = self._mask_q_values(
+                        q_values[valid_rows], available_actions[valid_rows]
+                    )
+
+                if valid_q_values.shape[0] > 0:
+                    top_two = torch.topk(valid_q_values, k=2, dim=1).values
+                    info["greedy_action_margin_mean"] = (
+                        (top_two[:, 0] - top_two[:, 1]).mean().item()
+                    )
+                else:
+                    info["greedy_action_margin_mean"] = 0.0
             else:
                 info["greedy_action_entropy_normalised"] = 0.0
                 info["greedy_action_margin_mean"] = 0.0
