@@ -71,6 +71,16 @@ class SARLEnvironment(BaseEnvironment[SARLObservation]):
     def sample_action(self) -> np.ndarray | int:
         raise NotImplementedError("Override this method")
 
+    def get_available_actions(self) -> np.ndarray | None:
+        """
+        Return the available action mask for the current state.
+
+        True indicates an available action.
+        False indicates an unavailable action.
+        None indicates all actions are available.
+        """
+        return None
+
     @abc.abstractmethod
     def set_seed(self, seed: int) -> None:
         raise NotImplementedError("Override this method")
@@ -116,7 +126,11 @@ class SARLEnvironment(BaseEnvironment[SARLObservation]):
 
         image_state = self._image_state(reset=True) if self.image_observation else None
 
-        self.observation = SARLObservation(vector_state=state, image_state=image_state)
+        self.observation = SARLObservation(
+            vector_state=state,
+            image_state=image_state,
+            available_actions=self.get_available_actions(),
+        )
         return self.observation
 
     @abc.abstractmethod
@@ -143,7 +157,9 @@ class SARLEnvironment(BaseEnvironment[SARLObservation]):
             vector_state = self._add_relative_noise(vector_state, self.state_std)
 
         next_observation = SARLObservation(
-            vector_state=vector_state, image_state=image_state
+            vector_state=vector_state,
+            image_state=image_state,
+            available_actions=self.get_available_actions(),
         )
 
         experience = SingleAgentExperience(

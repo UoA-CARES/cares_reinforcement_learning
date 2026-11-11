@@ -64,7 +64,10 @@ from cares_reinforcement_learning.memory.memory_buffer import SARLMemoryBuffer
 from cares_reinforcement_learning.networks.DQN import BaseNetwork
 from cares_reinforcement_learning.types.action import ActionSample
 from cares_reinforcement_learning.types.episode import EpisodeContext
-from cares_reinforcement_learning.types.observation import SARLObservation
+from cares_reinforcement_learning.types.observation import (
+    SARLObservation,
+    SARLObservationTensors,
+)
 
 
 class DQN(SARLAlgorithm[int]):
@@ -113,10 +116,38 @@ class DQN(SARLAlgorithm[int]):
 
         self.learn_counter = 0
 
-    def _explore(self) -> int:
-        return random.randrange(self.network.num_actions)
+    def _mask_q_values(
+        self,
+        q_values: torch.Tensor,
+        available_actions: torch.Tensor | None,
+    ) -> torch.Tensor:
+        if available_actions is None:
+            return q_values
 
-    def _exploit(self, state: np.ndarray, evaluation: bool) -> int:
+        return q_values.masked_fill(~available_actions.bool(), -torch.inf)
+
+    def _select_greedy_actions(
+        self,
+        q_values: torch.Tensor,
+        available_actions: torch.Tensor | None,
+    ) -> torch.Tensor:
+        q_values = self._mask_q_values(q_values, available_actions)
+        return q_values.argmax(dim=-1)
+
+    def _explore(self, observation: SARLObservation) -> int:
+        available_actions = observation.available_actions
+
+        if available_actions is None:
+            return random.randrange(self.network.num_actions)
+
+        valid_actions = np.flatnonzero(available_actions)
+
+        if len(valid_actions) == 0:
+            raise ValueError("No available actions for exploration.")
+
+        return int(random.choice(valid_actions))
+
+    def _exploit(self, observation: SARLObservation, evaluation: bool) -> int:
         self.network.eval()
 
         if evaluation:
@@ -124,10 +155,21 @@ class DQN(SARLAlgorithm[int]):
             self.network.set_noise_enabled(False)
 
         with torch.no_grad():
+            state = observation.vector_state
             state_tensor = torch.tensor(state, dtype=torch.float32, device=self.device)
             state_tensor = state_tensor.unsqueeze(0)
+
             q_values = self.network(state_tensor)
-            action = int(torch.argmax(q_values, dim=1).item())
+
+            available_actions = None
+            if observation.available_actions is not None:
+                available_actions = torch.as_tensor(
+                    observation.available_actions, dtype=torch.bool, device=self.device
+                ).unsqueeze(0)
+
+            action = int(
+                self._select_greedy_actions(q_values, available_actions).item()
+            )
 
         self.network.set_noise_enabled(True)
 
@@ -141,17 +183,17 @@ class DQN(SARLAlgorithm[int]):
         """
         Select an action from the policy based on epsilon-greedy strategy.
         """
-        state = observation.vector_state
-
         if evaluation:
             return ActionSample(
-                action=self._exploit(state, evaluation), source="policy"
+                action=self._exploit(observation, evaluation), source="policy"
             )
 
         if random.random() < self.epsilon:
-            return ActionSample(action=self._explore(), source="explore")
+            return ActionSample(action=self._explore(observation), source="explore")
 
-        return ActionSample(action=self._exploit(state, evaluation), source="policy")
+        return ActionSample(
+            action=self._exploit(observation, evaluation), source="policy"
+        )
 
     def _calculate_value(self, state: SARLObservation, action: int) -> float:  # type: ignore[override]
         self.network.eval()
@@ -173,14 +215,17 @@ class DQN(SARLAlgorithm[int]):
 
     def _compute_loss(
         self,
-        states_tensor: torch.Tensor,
+        observation: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         batch_size: int,  # pylint: disable=unused-argument
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
         """Computes the elementwise loss for DQN. If use_double_dqn=True, applies Double DQN logic."""
+
+        states_tensor = observation.vector_state
+        next_states_tensor = next_observation.vector_state
 
         q_values = self.network(states_tensor)
 
@@ -193,15 +238,20 @@ class DQN(SARLAlgorithm[int]):
             if self.use_double_dqn:
                 # Online network selects the next action.
                 next_q_values_online = self.network(next_states_tensor)
-                next_actions = next_q_values_online.argmax(dim=1, keepdim=True)
 
-                # Target network evaluates the selected action.
-                best_next_q_values = next_q_values_target.gather(
-                    1, next_actions
-                ).squeeze(1)
+                next_actions = self._select_greedy_actions(
+                    next_q_values_online, next_observation.available_actions
+                )
             else:
-                # Standard DQN selects and evaluates using the target network.
-                best_next_q_values = next_q_values_target.max(dim=1).values
+                # Target network selects the next action.
+                next_actions = self._select_greedy_actions(
+                    next_q_values_target, next_observation.available_actions
+                )
+
+            # Target network evaluates the selected action.
+            best_next_q_values = next_q_values_target.gather(
+                1, next_actions.unsqueeze(1)
+            ).squeeze(1)
 
             q_target = (
                 rewards_tensor
@@ -219,13 +269,13 @@ class DQN(SARLAlgorithm[int]):
             # -------------------------------------------------
             # Greedy action distribution
             # -------------------------------------------------
-            greedy_actions = q_values.argmax(dim=1)
+
+            available_actions = observation.available_actions
+
+            greedy_actions = self._select_greedy_actions(q_values, available_actions)
             num_actions = self.network.num_actions
 
-            counts = torch.bincount(
-                greedy_actions,
-                minlength=num_actions,
-            ).float()
+            counts = torch.bincount(greedy_actions, minlength=num_actions).float()
 
             probs = counts / counts.sum().clamp(min=1.0)
 
@@ -250,15 +300,29 @@ class DQN(SARLAlgorithm[int]):
             # -------------------------------------------------
             # Greedy action margin
             # -------------------------------------------------
-            # Difference between the best and second-best Q-value.
-            # Larger values indicate a stronger action preference.
+            # Difference between the two highest available Q-values.
+            # States with fewer than two available actions are excluded.
             if num_actions > 1:
-                top_two_q_values = torch.topk(q_values, k=2, dim=1).values
+                if available_actions is None:
+                    valid_q_values = q_values
+                else:
+                    valid_rows = available_actions.sum(dim=1) >= 2
+                    valid_q_values = self._mask_q_values(
+                        q_values[valid_rows], available_actions[valid_rows]
+                    )
 
-                action_margin = top_two_q_values[:, 0] - top_two_q_values[:, 1]
+                if valid_q_values.shape[0] > 0:
+                    top_two_q_values = torch.topk(valid_q_values, k=2, dim=1).values
 
-                info["greedy_action_margin_mean"] = action_margin.mean().item()
-                info["greedy_action_margin_std"] = action_margin.std().item()
+                    action_margin = top_two_q_values[:, 0] - top_two_q_values[:, 1]
+
+                    info["greedy_action_margin_mean"] = action_margin.mean().item()
+                    info["greedy_action_margin_std"] = action_margin.std(
+                        unbiased=False
+                    ).item()
+                else:
+                    info["greedy_action_margin_mean"] = 0.0
+                    info["greedy_action_margin_std"] = 0.0
             else:
                 info["greedy_action_margin_mean"] = 0.0
                 info["greedy_action_margin_std"] = 0.0
@@ -266,8 +330,7 @@ class DQN(SARLAlgorithm[int]):
             # -------------------------------------------------
             # Action-value separation
             # -------------------------------------------------
-            # Average spread of Q-values between available actions
-            # for each sampled state.
+            # Average spread of raw Q-values across all actions.
             q_action_std = q_values.std(dim=1, unbiased=False)
 
             info["q_action_std_mean"] = q_action_std.mean().item()
@@ -415,10 +478,10 @@ class DQN(SARLAlgorithm[int]):
 
         # Calculate loss - overriden by C51
         elementwise_loss, auxiliary_losses, train_info = self._compute_loss(
-            sample.observation.vector_state,
+            sample.observation,
             sample.action,
             rewards_tensor,
-            sample.next_observation.vector_state,
+            sample.next_observation,
             dones_tensor,
             sample_size,
         )

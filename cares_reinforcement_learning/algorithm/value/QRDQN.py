@@ -54,6 +54,7 @@ from cares_reinforcement_learning.algorithm.configurations import QRDQNConfig
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.QRDQN import Network
 from cares_reinforcement_learning.networks.RainbowQR import Network as RainbowNetwork
+from cares_reinforcement_learning.types.observation import SARLObservationTensors
 
 
 class QRDQN(DQN):
@@ -92,13 +93,16 @@ class QRDQN(DQN):
 
     def _compute_loss(
         self,
-        states_tensor: torch.Tensor,
+        observation: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
+
+        states_tensor = observation.vector_state
+        next_states_tensor = next_observation.vector_state
 
         # Predicted Q-value quantiles for current state
         current_quantile_values = self.network.calculate_quantiles(states_tensor)
@@ -121,9 +125,9 @@ class QRDQN(DQN):
                 ).mean(dim=-1)
 
             # Calculate greedy actions.
-            next_state_best_actions = torch.argmax(
-                next_state_q_values, dim=1, keepdim=True
-            )
+            next_state_best_actions = self._select_greedy_actions(
+                next_state_q_values, next_observation.available_actions
+            ).unsqueeze(1)
 
             # Calculate quantile values of next states and actions at tau_hats.
             next_quantile_values = self.target_network.calculate_quantiles(
@@ -183,7 +187,9 @@ class QRDQN(DQN):
 
             # Scalar Q-values via mean over quantiles (DQN-like view)
             q_mean = current_quantile_values.mean(dim=-1)  # [B, A]
-            greedy_actions = q_mean.argmax(dim=1)  # [B]
+            greedy_actions = self._select_greedy_actions(
+                q_mean, observation.available_actions
+            )
 
             # Action histogram (batch-based, greedy under mean-Q)
             num_actions = self.network.num_actions

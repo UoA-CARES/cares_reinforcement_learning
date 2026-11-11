@@ -60,6 +60,7 @@ from cares_reinforcement_learning.algorithm.configurations import (
 from cares_reinforcement_learning.algorithm.value import DQN
 from cares_reinforcement_learning.networks.C51 import Network as C51Network
 from cares_reinforcement_learning.networks.Rainbow import Network as RainbowNetwork
+from cares_reinforcement_learning.types.observation import SARLObservationTensors
 
 
 class C51(DQN):
@@ -82,20 +83,25 @@ class C51(DQN):
 
     def _compute_loss(
         self,
-        states_tensor: torch.Tensor,
+        observation: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
+        states_tensor = observation.vector_state
+        next_states_tensor = next_observation.vector_state
+
         with torch.no_grad():
             if self.use_double_dqn:
-                # Double DQN
-                next_action = self.network(next_states_tensor).argmax(1)
+                next_q_values = self.network(next_states_tensor)
             else:
-                # DQN
-                next_action = self.target_network(next_states_tensor).argmax(1)
+                next_q_values = self.target_network(next_states_tensor)
+
+            next_action = self._select_greedy_actions(
+                next_q_values, next_observation.available_actions
+            )
 
             next_dist = self.target_network.dist(next_states_tensor)
             next_dist = next_dist[range(batch_size), next_action]
@@ -180,11 +186,18 @@ class C51(DQN):
 
             # --- Greedy action distribution under expected value ---
             q_all = (dist * self.support.view(1, 1, -1)).sum(dim=2)  # [B, A]
-            greedy_actions = q_all.argmax(dim=1)  # [B]
+
+            greedy_actions = self._select_greedy_actions(
+                q_all, observation.available_actions
+            )
+
             num_actions = self.network.num_actions
+
             counts = torch.bincount(greedy_actions, minlength=num_actions).float()
+
             probs = counts / counts.sum().clamp(min=1.0)
             entropy_actions = -(probs * (probs + 1e-12).log()).sum()
+
             info["greedy_action_entropy"] = entropy_actions.item()
             info["greedy_action_max_prob"] = probs.max().item()
             info["greedy_action_probs"] = probs.cpu().tolist()
@@ -196,12 +209,24 @@ class C51(DQN):
                     / torch.log(torch.tensor(float(num_actions), device=q_all.device))
                 ).item()
 
-                # Difference between highest and second-highest Q-values.
-                top_two = torch.topk(q_all, k=2, dim=1).values
+                # Difference between the two highest available Q-values.
+                available_actions = observation.available_actions
 
-                info["greedy_action_margin_mean"] = (
-                    (top_two[:, 0] - top_two[:, 1]).mean().item()
-                )
+                if available_actions is None:
+                    valid_q_values = q_all
+                else:
+                    valid_rows = available_actions.sum(dim=1) >= 2
+                    valid_q_values = self._mask_q_values(
+                        q_all[valid_rows], available_actions[valid_rows]
+                    )
+
+                if valid_q_values.shape[0] > 0:
+                    top_two = torch.topk(valid_q_values, k=2, dim=1).values
+                    info["greedy_action_margin_mean"] = (
+                        (top_two[:, 0] - top_two[:, 1]).mean().item()
+                    )
+                else:
+                    info["greedy_action_margin_mean"] = 0.0
             else:
                 info["greedy_action_entropy_normalised"] = 0.0
                 info["greedy_action_margin_mean"] = 0.0

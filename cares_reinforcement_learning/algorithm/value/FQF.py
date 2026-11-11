@@ -21,6 +21,7 @@ from cares_reinforcement_learning.algorithm.configurations import FQFConfig
 from cares_reinforcement_learning.algorithm.value.DQN import DQN
 from cares_reinforcement_learning.networks.FQF import Network as FQFNetwork
 from cares_reinforcement_learning.networks.RainbowFQF import Network as RainbowNetwork
+from cares_reinforcement_learning.types.observation import SARLObservationTensors
 
 
 class FQF(DQN):
@@ -54,13 +55,16 @@ class FQF(DQN):
 
     def _compute_loss(
         self,
-        states_tensor: torch.Tensor,
+        observation: SARLObservationTensors,
         actions_tensor: torch.Tensor,
         rewards_tensor: torch.Tensor,
-        next_states_tensor: torch.Tensor,
+        next_observation: SARLObservationTensors,
         dones_tensor: torch.Tensor,
         batch_size: int,
     ) -> tuple[torch.Tensor, dict[str, torch.Tensor], dict[str, Any]]:
+        states_tensor = observation.vector_state
+        next_states_tensor = next_observation.vector_state
+
         actions = actions_tensor.long().view(-1)
 
         # State representation: [B, F]
@@ -100,7 +104,9 @@ class FQF(DQN):
             else:
                 next_q = self.target_network(next_states_tensor)
 
-            next_actions = next_q.argmax(dim=1)
+            next_actions = self._select_greedy_actions(
+                next_q, next_observation.available_actions
+            )
 
             # Target state representation.
             next_features = self.target_network.feature_layer(next_states_tensor)
@@ -196,7 +202,9 @@ class FQF(DQN):
             # FQF uses learned fraction probabilities, not a uniform mean.
             q_values = (quantiles * probabilities.unsqueeze(2)).sum(dim=1)
 
-            greedy_actions = q_values.argmax(dim=1)
+            greedy_actions = self._select_greedy_actions(
+                q_values, observation.available_actions
+            )
             num_actions = self.network.num_actions
 
             counts = torch.bincount(greedy_actions, minlength=num_actions).float()
@@ -214,11 +222,23 @@ class FQF(DQN):
                     entropy / math.log(num_actions)
                 ).item()
 
-                top_two = torch.topk(q_values, k=2, dim=1).values
+                available_actions = observation.available_actions
 
-                info["greedy_action_margin_mean"] = (
-                    (top_two[:, 0] - top_two[:, 1]).mean().item()
-                )
+                if available_actions is None:
+                    valid_q_values = q_values
+                else:
+                    valid_rows = available_actions.sum(dim=1) >= 2
+                    valid_q_values = self._mask_q_values(
+                        q_values[valid_rows], available_actions[valid_rows]
+                    )
+
+                if valid_q_values.shape[0] > 0:
+                    top_two = torch.topk(valid_q_values, k=2, dim=1).values
+                    info["greedy_action_margin_mean"] = (
+                        (top_two[:, 0] - top_two[:, 1]).mean().item()
+                    )
+                else:
+                    info["greedy_action_margin_mean"] = 0.0
             else:
                 info["greedy_action_entropy_normalised"] = 0.0
                 info["greedy_action_margin_mean"] = 0.0

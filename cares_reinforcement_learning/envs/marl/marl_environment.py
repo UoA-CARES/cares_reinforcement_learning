@@ -3,12 +3,13 @@ from functools import cached_property
 from typing import Any
 
 import numpy as np
-from cares_reinforcement_learning.types.experience import MultiAgentExperience
-from cares_reinforcement_learning.types.observation import MARLObservation
+
 from cares_reinforcement_learning.envs.base_environment import (
     BaseEnvironment,
 )
 from cares_reinforcement_learning.envs.configurations import GymEnvironmentConfig
+from cares_reinforcement_learning.types.experience import MultiAgentExperience
+from cares_reinforcement_learning.types.observation import MARLObservation
 
 
 class MARLEnvironment(BaseEnvironment[MARLObservation]):

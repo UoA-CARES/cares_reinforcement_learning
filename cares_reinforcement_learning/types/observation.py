@@ -59,6 +59,8 @@ class SARLObservationTensors:
     # Image Based
     image_state: torch.Tensor | None = None
 
+    available_actions: torch.Tensor | None = None
+
 
 @dataclass(frozen=True, slots=True)
 class MARLObservationTensors:
