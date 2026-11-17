@@ -1215,6 +1215,8 @@ class SIMBAV2Config(SACConfig):
 
     optimiser: Literal["Adam"] = "Adam"
 
+    reward_scale: Literal[1.0] = Field(default=1.0)
+
     G: int = 2
 
     initial_alpha: float = 1e-2
