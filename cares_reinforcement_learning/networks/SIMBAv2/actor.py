@@ -49,33 +49,21 @@ class DefaultActor(BasePolicy):
 
         # Mean prediction head
         self.mean_linear1 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=hidden_size,
+            in_features=hidden_size, out_features=hidden_size
         )
-        self.mean_scaler = SIMBAV2Scaler(
-            size=hidden_size,
-            init=1.0,
-            scale=1.0,
-        )
+        self.mean_scaler = SIMBAV2Scaler(size=hidden_size, init=1.0, scale=1.0)
         self.mean_linear2 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=num_actions,
+            in_features=hidden_size, out_features=num_actions
         )
         self.mean_bias = nn.Parameter(torch.zeros(num_actions))
 
         # Log standard-deviation prediction head
         self.log_std_linear1 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=hidden_size,
+            in_features=hidden_size, out_features=hidden_size
         )
-        self.log_std_scaler = SIMBAV2Scaler(
-            size=hidden_size,
-            init=1.0,
-            scale=1.0,
-        )
+        self.log_std_scaler = SIMBAV2Scaler(size=hidden_size, init=1.0, scale=1.0)
         self.log_std_linear2 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=num_actions,
+            in_features=hidden_size, out_features=num_actions
         )
         self.log_std_bias = nn.Parameter(torch.zeros(num_actions))
 
@@ -140,33 +128,21 @@ class Actor(BasePolicy):
 
         # Mean prediction head
         self.mean_linear1 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=hidden_size,
+            in_features=hidden_size, out_features=hidden_size
         )
-        self.mean_scaler = SIMBAV2Scaler(
-            size=hidden_size,
-            init=1.0,
-            scale=1.0,
-        )
+        self.mean_scaler = SIMBAV2Scaler(size=hidden_size, init=1.0, scale=1.0)
         self.mean_linear2 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=num_actions,
+            in_features=hidden_size, out_features=num_actions
         )
         self.mean_bias = nn.Parameter(torch.zeros(num_actions))
 
         # Log standard-deviation prediction head
         self.log_std_linear1 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=hidden_size,
+            in_features=hidden_size, out_features=hidden_size
         )
-        self.log_std_scaler = SIMBAV2Scaler(
-            size=hidden_size,
-            init=1.0,
-            scale=1.0,
-        )
+        self.log_std_scaler = SIMBAV2Scaler(size=hidden_size, init=1.0, scale=1.0)
         self.log_std_linear2 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=num_actions,
+            in_features=hidden_size, out_features=num_actions
         )
         self.log_std_bias = nn.Parameter(torch.zeros(num_actions))
 

@@ -47,31 +47,20 @@ class SIMBAV2CategoricalQNetwork(nn.Module):
         )
 
         self.value_linear1 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=hidden_size,
+            in_features=hidden_size, out_features=hidden_size
         )
 
-        self.value_scaler = SIMBAV2Scaler(
-            size=hidden_size,
-            init=1.0,
-            scale=1.0,
-        )
+        self.value_scaler = SIMBAV2Scaler(size=hidden_size, init=1.0, scale=1.0)
 
         self.value_linear2 = SIMBAV2Linear(
-            in_features=hidden_size,
-            out_features=num_atoms,
+            in_features=hidden_size, out_features=num_atoms
         )
 
         self.value_bias = nn.Parameter(torch.zeros(num_atoms))
 
         self.register_buffer(
             "support",
-            torch.linspace(
-                v_min,
-                v_max,
-                num_atoms,
-                dtype=torch.float32,
-            ),
+            torch.linspace(v_min, v_max, num_atoms, dtype=torch.float32),
         )
 
     def forward(
@@ -85,18 +74,11 @@ class SIMBAV2CategoricalQNetwork(nn.Module):
         logits = self.value_linear2(logits)
         logits = logits + self.value_bias
 
-        log_probs = F.log_softmax(
-            logits,
-            dim=-1,
-        )
+        log_probs = F.log_softmax(logits, dim=-1)
 
         probabilities = log_probs.exp()
 
-        q_value = torch.sum(
-            probabilities * self.support,
-            dim=-1,
-            keepdim=True,
-        )
+        q_value = torch.sum(probabilities * self.support, dim=-1, keepdim=True)
 
         return q_value, log_probs
 
@@ -125,10 +107,7 @@ class DefaultCritic(BaseCritic):
     ):
         input_size = observation_size + num_actions
 
-        super().__init__(
-            input_size=input_size,
-            output_size=1,
-        )
+        super().__init__(input_size=input_size, output_size=1)
 
         # pylint: disable=invalid-name
         self.Q1 = SIMBAV2CategoricalQNetwork(
@@ -160,10 +139,7 @@ class DefaultCritic(BaseCritic):
         state: torch.Tensor,
         action: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        q1, _, q2, _ = self.forward_distribution(
-            state=state,
-            action=action,
-        )
+        q1, _, q2, _ = self.forward_distribution(state=state, action=action)
 
         return q1, q2
 
@@ -177,10 +153,7 @@ class DefaultCritic(BaseCritic):
         torch.Tensor,
         torch.Tensor,
     ]:
-        observation_action = torch.cat(
-            (state, action),
-            dim=-1,
-        )
+        observation_action = torch.cat((state, action), dim=-1)
 
         q1, log_probs1 = self.Q1(observation_action)
         q2, log_probs2 = self.Q2(observation_action)
@@ -245,10 +218,7 @@ class Critic(BaseCritic):
         state: torch.Tensor,
         action: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        q1, _, q2, _ = self.forward_distribution(
-            state=state,
-            action=action,
-        )
+        q1, _, q2, _ = self.forward_distribution(state=state, action=action)
 
         return q1, q2
 

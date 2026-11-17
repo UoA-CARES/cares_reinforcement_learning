@@ -215,14 +215,8 @@ class SIMBAV2(SAC):
             with fnc.evaluating(self.actor_net):
                 next_actions, next_log_pi, _ = self.actor_net(next_states)
 
-            (
-                target_q1,
-                target_log_probs1,
-                target_q2,
-                target_log_probs2,
-            ) = self.target_critic_net.forward_distribution(
-                next_states,
-                next_actions,
+            target_q1, target_log_probs1, target_q2, target_log_probs2 = (
+                self.target_critic_net.forward_distribution(next_states, next_actions)
             )
 
             # Clipped double-Q selection is based on expected Q.
@@ -231,9 +225,7 @@ class SIMBAV2(SAC):
             choose_q2 = target_q2 < target_q1
 
             target_log_probs = torch.where(
-                choose_q2,
-                target_log_probs2,
-                target_log_probs1,
+                choose_q2, target_log_probs2, target_log_probs1
             )
 
             target_distribution = self._project_distribution(
@@ -244,29 +236,16 @@ class SIMBAV2(SAC):
             )
 
             q_target = (target_distribution * self.critic_net.support.unsqueeze(0)).sum(
-                dim=-1,
-                keepdim=True,
+                dim=-1, keepdim=True
             )
 
-        (
-            q1,
-            log_probs1,
-            q2,
-            log_probs2,
-        ) = self.critic_net.forward_distribution(
-            states,
-            actions,
+        q1, log_probs1, q2, log_probs2 = self.critic_net.forward_distribution(
+            states, actions
         )
 
-        critic_loss_one = -(target_distribution * log_probs1).sum(
-            dim=-1,
-            keepdim=True,
-        )
+        critic_loss_one = -(target_distribution * log_probs1).sum(dim=-1, keepdim=True)
 
-        critic_loss_two = -(target_distribution * log_probs2).sum(
-            dim=-1,
-            keepdim=True,
-        )
+        critic_loss_two = -(target_distribution * log_probs2).sum(dim=-1, keepdim=True)
 
         critic_loss_one = (critic_loss_one * weights).mean()
 
@@ -286,10 +265,7 @@ class SIMBAV2(SAC):
         td_error_two = (q2 - q_target).abs()
 
         priorities = (
-            torch.maximum(
-                td_error_one,
-                td_error_two,
-            )
+            torch.maximum(td_error_one, td_error_two)
             .clamp(self.min_priority)
             .pow(self.per_alpha)
             .detach()
@@ -339,10 +315,7 @@ class SIMBAV2(SAC):
         states: torch.Tensor,
         weights: torch.Tensor,
     ) -> dict[str, Any]:
-        info = super()._update_actor_alpha(
-            states=states,
-            weights=weights,
-        )
+        info = super()._update_actor_alpha(states=states, weights=weights)
 
         self.actor_net.project_weights()
 
@@ -399,26 +372,17 @@ class SIMBAV2(SAC):
         filepath: str,
         filename: str,
     ) -> None:
-        super().save_models(
-            filepath=filepath,
-            filename=filename,
-        )
+        super().save_models(filepath=filepath, filename=filename)
 
         checkpoint_path = f"{filepath}/{filename}_checkpoint.pth"
 
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location="cpu",
-        )
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
         checkpoint["observation_normaliser"] = self.observation_normaliser.state_dict()
 
         checkpoint["reward_normaliser"] = self.reward_normaliser.state_dict()
 
-        torch.save(
-            checkpoint,
-            checkpoint_path,
-        )
+        torch.save(checkpoint, checkpoint_path)
 
     def load_models(
         self,
@@ -429,21 +393,14 @@ class SIMBAV2(SAC):
             "transfer",
         ] = "resume",
     ) -> None:
-        super().load_models(
-            filepath=filepath,
-            filename=filename,
-            load_mode=load_mode,
-        )
+        super().load_models(filepath=filepath, filename=filename, load_mode=load_mode)
 
         if load_mode == "transfer":
             return
 
         checkpoint_path = f"{filepath}/{filename}_checkpoint.pth"
 
-        checkpoint = torch.load(
-            checkpoint_path,
-            map_location="cpu",
-        )
+        checkpoint = torch.load(checkpoint_path, map_location="cpu")
 
         self.observation_normaliser.load_state_dict(
             checkpoint["observation_normaliser"]
