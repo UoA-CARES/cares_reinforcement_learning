@@ -83,6 +83,11 @@ class SIMBABlockLayer(BaseModel):
     layer_category: Literal["simba_block"] = "simba_block"
 
 
+class SIMBAV2NetworkConfig(BaseModel):
+    hidden_size: int
+    num_blocks: int
+
+
 class MLPConfig(BaseModel):
     layers: list[
         TrainableLayer | NormLayer | FunctionLayer | ResidualLayer | SIMBABlockLayer
@@ -1198,6 +1203,42 @@ class SIMBAConfig(SACConfig):
             NormLayer(layer_type="LayerNorm"),
             TrainableLayer(layer_type="Linear"),
         ]
+    )
+
+
+class SIMBAV2Config(SACConfig):
+    algorithm: str = "SIMBAV2"
+
+    actor_lr: float = 1e-4
+    critic_lr: float = 1e-4
+    alpha_lr: float = 1e-4
+
+    optimiser: Literal["Adam"] = "Adam"
+
+    reward_scale: Literal[1.0] = Field(default=1.0)
+
+    G: int = 2
+
+    initial_alpha: float = 1e-2
+    target_entropy_scale: float = 0.5
+
+    log_std_bounds: list[float] = [-10, 2]
+
+    c_shift: float = 3.0
+
+    normalised_g_max: float = 5.0
+    reward_normalisation_epsilon: float = 1e-8
+
+    num_atoms: int = 101
+    v_min: float = -5.0
+    v_max: float = 5.0
+
+    actor_config: SIMBAV2NetworkConfig = SIMBAV2NetworkConfig(
+        hidden_size=128, num_blocks=1
+    )
+
+    critic_config: SIMBAV2NetworkConfig = SIMBAV2NetworkConfig(
+        hidden_size=512, num_blocks=2
     )
 
 

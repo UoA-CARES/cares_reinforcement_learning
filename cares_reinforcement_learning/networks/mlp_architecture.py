@@ -14,7 +14,7 @@ from cares_reinforcement_learning.algorithm.configurations import (
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
 from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
-from cares_reinforcement_learning.networks.simba_block import SIMBABlock
+from cares_reinforcement_learning.networks.simba_architecture import SIMBABlock
 
 
 def _get_pytorch_module_from_name(module_name: str) -> Callable[..., nn.Module]:

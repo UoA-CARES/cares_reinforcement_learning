@@ -445,6 +445,24 @@ def create_SIMBA(observation_size, action_num, config: acf.SIMBAConfig):
     )
 
 
+def create_SIMBAV2(observation_size, action_num, config: acf.SIMBAV2Config):
+    from cares_reinforcement_learning.algorithm.policy import SIMBAV2
+    from cares_reinforcement_learning.networks.SIMBAv2 import Actor, Critic
+
+    actor = Actor(observation_size["vector"], action_num, config=config)
+
+    critic = Critic(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+
+    return SIMBAV2(
+        actor_network=actor,
+        critic_network=critic,
+        config=config,
+        device=device,
+    )
+
+
 def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
     from cares_reinforcement_learning.algorithm.usd import DIAYN
     from cares_reinforcement_learning.networks.DIAYN import Discriminator

@@ -305,6 +305,8 @@ class TrainingRunner(BaseRunner):
                 experience, train_data={**experience.train_data, **action_sample.extras}
             )
 
+            self.agent.on_environment_step(experience)
+
             state = experience.next_observation
 
             episode_end = experience.done_flag | experience.truncated_flag

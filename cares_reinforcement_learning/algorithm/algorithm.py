@@ -14,6 +14,7 @@ from cares_reinforcement_learning.memory.memory_buffer import (
 )
 from cares_reinforcement_learning.types.action import ActionSample, ActType
 from cares_reinforcement_learning.types.episode import EpisodeContext
+from cares_reinforcement_learning.types.experience import Experience
 from cares_reinforcement_learning.types.observation import (
     MARLObservation,
     Observation,
@@ -193,6 +194,16 @@ class Algorithm(ABC, Generic[ObsType, ActType, MemType]):
         This is a placeholder method and should be implemented in subclasses if needed.
         """
         return 0.0
+
+    def on_environment_step(
+        self,
+        experience: Experience[ObsType],  # pylint: disable=unused-argument
+    ) -> None:
+        """
+        This method is called after each environment step.
+        It can be overridden in subclasses to perform any necessary updates or logging.
+        """
+        pass
 
     def episode_done(self):
         """
