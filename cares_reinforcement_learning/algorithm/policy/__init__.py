@@ -24,4 +24,5 @@ from .CrossQ import CrossQ
 from .DroQ import DroQ
 from .SDAR import SDAR
 from .TD7 import TD7
+from .TD7SIGReg import TD7SIGReg
 from .SIMBA import SIMBA

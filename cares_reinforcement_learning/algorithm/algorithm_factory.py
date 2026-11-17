@@ -719,6 +719,27 @@ def create_TD7(observation_size, action_num, config: acf.TD7Config):
     return agent
 
 
+def create_TD7SIGReg(observation_size, action_num, config: acf.TD7SIGRegConfig):
+    from cares_reinforcement_learning.algorithm.policy import TD7SIGReg
+    from cares_reinforcement_learning.networks.TD7SIGReg import Actor, Critic, Encoder
+
+    device = hlp.get_device()
+
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
+    encoder = Encoder(observation_size["vector"], action_num, config=config)
+
+    agent = TD7SIGReg(
+        actor_network=actor,
+        critic_network=critic,
+        encoder_network=encoder,
+        config=config,
+        device=device,
+    )
+
+    return agent
+
+
 ###################################
 #         MARL Algorithms         #
 ###################################

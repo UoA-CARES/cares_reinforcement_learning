@@ -1668,6 +1668,17 @@ class TD7Config(TD3Config):
     )
 
 
+class TD7SIGRegConfig(TD7Config):
+    algorithm: str = "TD7SIGReg"
+
+    # SIGReg (LeJEPA) - replaces AvgL1Norm on the state embedding zs
+    # encoder_loss = (1 - sigreg_lambda) * prediction_loss + sigreg_lambda * sigreg_loss
+    sigreg_lambda: float = 0.05
+    sigreg_knots: int = 17
+    sigreg_t_max: float = 3.0
+    sigreg_num_slices: int = 256
+
+
 ###################################
 #          MARL Algorithms        #
 ###################################
