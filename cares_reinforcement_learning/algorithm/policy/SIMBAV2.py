@@ -85,10 +85,14 @@ class SIMBAV2(SAC):
             vector_state=self.observation_normaliser.normalise(state.vector_state),
         )
 
-        return super()._calculate_value(
+        normalised_value = super()._calculate_value(
             state=normalised_state,
             action=action,
         )
+
+        reward_scale = self.reward_normaliser.get_statistics()["reward_norm_scale"]
+
+        return normalised_value * reward_scale
 
     def act(
         self,
@@ -168,7 +172,10 @@ class SIMBAV2(SAC):
 
         atom_delta = (self.v_max - self.v_min) / (self.num_atoms - 1)
 
-        projection_positions = (target_atoms - self.v_min) / atom_delta
+        projection_positions = ((target_atoms - self.v_min) / atom_delta).clamp(
+            0,
+            self.num_atoms - 1,
+        )
 
         lower = projection_positions.floor().long()
         upper = projection_positions.ceil().long()
