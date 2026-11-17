@@ -1222,8 +1222,6 @@ class SIMBAV2Config(SACConfig):
 
     log_std_bounds: list[float] = [-10, 2]
 
-    input_shift: float = 3.0
-
     c_shift: float = 3.0
 
     normalised_g_max: float = 5.0
