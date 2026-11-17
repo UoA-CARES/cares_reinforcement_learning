@@ -1,17 +1,47 @@
 """
-SimbaV2
--------
+SimBaV2 (Hyperspherical Normalization for Scalable Deep Reinforcement Learning)
+------------------------------------------------------------------------------
 
-Hyperspherical Normalization for Scalable Deep Reinforcement Learning.
+Original Paper: https://arxiv.org/abs/2502.15280
 
-SimbaV2 uses SAC as its underlying algorithm and introduces:
+SimBaV2 extends SimBa with hyperspherical normalization to improve the
+scalability and stability of deep reinforcement learning networks.
 
-- Running observation normalization.
-- Hyperspherical feature and weight normalization.
-- Learnable feature scalers and LERP residual connections.
-- Categorical distributional critics.
-- Running-return reward scaling.
-- Unit-norm weight projection after gradient updates.
+Core Idea:
+- Normalize observations using running statistics.
+- Constrain features and network weights to the unit hypersphere.
+- Learn feature-wise scaling independently from feature direction.
+- Use LERP-based residual connections to preserve normalized representations.
+- Use categorical distributional critics for value estimation.
+- Normalize rewards using running return statistics.
+
+Architecture:
+- Running Statistics Normalization (RSNorm) on observations.
+- Hyperspherical feature normalization throughout the network.
+- Unit-normalized dense layer weights.
+- Learnable feature scaling after normalization.
+- LERP residual blocks for controlled feature interpolation.
+- Categorical distributional twin critics with fixed value support.
+
+SAC + SimBaV2:
+- Uses SAC as the underlying reinforcement learning algorithm.
+- Actor and critic use hyperspherically normalized SimBaV2 networks.
+- Critic predicts categorical return distributions.
+- Rewards are scaled using running discounted-return statistics.
+- Dense weights are projected back onto the unit hypersphere after updates.
+- Observation and reward normalization statistics are updated online.
+
+Key Behaviour:
+- Separates feature magnitude from feature direction.
+- Prevents uncontrolled growth in weights and activations.
+- Maintains normalized representations through deep residual networks.
+- Distributional critics model the full return distribution rather than only
+  its expectation.
+- Supports larger networks while maintaining stable optimization and
+  representation plasticity.
+
+SimBaV2 = SAC + RSNorm + Hyperspherical Features/Weights + Learnable Scaling
+          + LERP Residuals + Distributional Critics + Reward Scaling.
 """
 
 from collections.abc import Callable

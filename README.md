@@ -381,6 +381,7 @@ Implementation of various Actor Critic methods.
 | SDAR        | Vector                     | Continuous   | [SDAR Paper](https://openreview.net/pdf?id=PDgZ3rvqHn)      |
 | TD7         | Vector                     | Continuous   | [TD7 Paper](https://arxiv.org/pdf/2306.02451)               |
 | SIMBA       | Vector                     | Continuous   | [SIMBA Paper](https://arxiv.org/abs/2410.09754)             |
+| SIMBAV2     | Vector                     | Continuous   | [SIMBAV2 Paper](https://arxiv.org/abs/2502.15280)           |
 | SACD        | Vector                     | Discrete     | [SAC-Discrete Paper](https://arxiv.org/pdf/1910.07207)      |
 | ----------- | -------------------------- | ------------ | ---------------                                             |
 | NaSATD3     | Image                      | Continuous   | [NaSATD3 Paper](https://ieeexplore.ieee.org/abstract/document/10801857) |
