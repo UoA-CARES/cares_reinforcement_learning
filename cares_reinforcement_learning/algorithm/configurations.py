@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from cares_reinforcement_learning.encoders.configurations import (
     BurgessConfig,
@@ -1671,12 +1671,115 @@ class TD7Config(TD3Config):
 class TD7SIGRegConfig(TD7Config):
     algorithm: str = "TD7SIGReg"
 
-    # SIGReg (LeJEPA) - replaces AvgL1Norm on the state embedding zs
-    # encoder_loss = (1 - sigreg_lambda) * prediction_loss + sigreg_lambda * sigreg_loss
-    sigreg_lambda: float = 0.05
+    # SIGReg (LeJEPA) settings - shared by every SIGReg site below
     sigreg_knots: int = 17
     sigreg_t_max: float = 3.0
     sigreg_num_slices: int = 256
+
+    # Encoder: SIGReg replaces AvgL1Norm on the state embedding zs
+    # encoder_loss = (1 - encoder_sigreg_lambda) * prediction_loss + encoder_sigreg_lambda * sigreg_loss
+    encoder_sigreg_lambda: float = 0.05
+
+    # Ablation: AvgL1Norm on the actor/critic feature-layer output (1 = TD7 default)
+    actor_use_avg_l1_norm: int = 1
+    critic_use_avg_l1_norm: int = 1
+
+    # Ablation: SIGReg on actor/critic representations (0.0 = disabled)
+    #   feature     - feature-layer output (the tensor fed to AvgL1Norm, taken before the norm)
+    #   penultimate - output of the last Linear layer of *_body_config (pre-activation)
+    # Combination with the base RL loss (per network):
+    #   additive: L = L_rl + sum(lambda_i * sigreg_i)
+    #   convex:   L = (1 - sum(lambda_i)) * L_rl + sum(lambda_i * sigreg_i)
+    actor_feature_sigreg_lambda: float = 0.0
+    actor_penultimate_sigreg_lambda: float = 0.0
+    actor_sigreg_mode: Literal["additive", "convex"] = "additive"
+
+    critic_feature_sigreg_lambda: float = 0.0
+    critic_penultimate_sigreg_lambda: float = 0.0
+    critic_sigreg_mode: Literal["additive", "convex"] = "additive"
+
+    # Actor/critic heads are split into body + head so the penultimate representation
+    # is explicit: body MUST end with a Linear layer (its output is the penultimate
+    # site); head applies the activation and output layer.
+    # NOTE: the inherited actor_config / critic_config are NOT used by TD7SIGReg.
+    # body + head below reproduce the TD7 actor_config / critic_config exactly.
+    #
+    # Full network built from these configs (actor; critic is the same per Q twin):
+    #   feature = feature_layer(s)                [critic: feature_layer(s, a)]
+    #   x       = cat(AvgL1Norm?(feature), zs)    [critic: cat(..., zsa, zs)]
+    #   penult  = body(x)
+    #   out     = head(penult)
+
+    # Repeated from TD7Config (unchanged) - first stage of both actor and critic.
+    # Its output is the "feature" SIGReg site (taken before AvgL1Norm).
+    feature_layer_config: MLPConfig = MLPConfig(
+        layers=[TrainableLayer(layer_type="Linear", out_features=256)]
+    )
+
+    actor_body_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+        ]
+    )
+
+    actor_head_config: MLPConfig = MLPConfig(
+        layers=[
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=256),
+            FunctionLayer(layer_type="Tanh"),
+        ]
+    )
+
+    critic_body_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
+        ]
+    )
+
+    critic_head_config: MLPConfig = MLPConfig(
+        layers=[
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=256, out_features=1),
+        ]
+    )
+
+    @model_validator(mode="after")
+    def _validate_sigreg_ablation(self) -> "TD7SIGRegConfig":
+        for name in ("actor_body_config", "critic_body_config"):
+            layers = getattr(self, name).layers
+            if not layers or not (
+                isinstance(layers[-1], TrainableLayer)
+                and layers[-1].layer_type == "Linear"
+            ):
+                raise ValueError(
+                    f"{name} must end with a Linear TrainableLayer - its output is the "
+                    "penultimate SIGReg site (pre-activation)."
+                )
+
+        for prefix in ("actor", "critic"):
+            lambdas = (
+                getattr(self, f"{prefix}_feature_sigreg_lambda"),
+                getattr(self, f"{prefix}_penultimate_sigreg_lambda"),
+            )
+            if any(lam < 0.0 for lam in lambdas):
+                raise ValueError(f"{prefix} SIGReg lambdas must be >= 0")
+            if (
+                getattr(self, f"{prefix}_sigreg_mode") == "convex"
+                and sum(lambdas) > 1.0
+            ):
+                raise ValueError(
+                    f"{prefix}_sigreg_mode='convex' requires "
+                    f"{prefix}_feature_sigreg_lambda + {prefix}_penultimate_sigreg_lambda <= 1"
+                )
+
+        if not 0.0 <= self.encoder_sigreg_lambda <= 1.0:
+            raise ValueError("encoder_sigreg_lambda must be in [0, 1]")
+
+        return self
 
 
 ###################################
