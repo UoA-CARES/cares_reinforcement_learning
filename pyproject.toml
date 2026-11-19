@@ -44,6 +44,10 @@ docs = [
   "mkdocs-glightbox",
 ]
 
+hpc = [
+  "hpc-client",
+]
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["cares_reinforcement_learning*"]
@@ -53,5 +57,6 @@ include = ["cares_reinforcement_learning*"]
 
 [project.scripts]
 cares-rl = "cares_reinforcement_learning.run:main_with_runner"
+cares-rl-hpc = "cares_reinforcement_learning.hpc.cli:main"
 cares-rl-plot = "cares_reinforcement_learning.reporting.plotting.run:main"
 cares-rl-stats = "cares_reinforcement_learning.reporting.analysis.run:main"
