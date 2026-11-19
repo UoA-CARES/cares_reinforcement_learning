@@ -88,14 +88,12 @@ def build_job(args: argparse.Namespace) -> Any:
         from hpc_client.models import JobSpec
     except ImportError as error:
         raise RuntimeError(
-            "HPC support is not installed. "
-            "Install CARES RL with the 'hpc' extra."
+            "HPC support is not installed. " "Install CARES RL with the 'hpc' extra."
         ) from error
 
     if not args.image:
         raise ValueError(
-            "No Docker image specified. "
-            "Use --image or set CARES_RL_HPC_IMAGE."
+            "No Docker image specified. " "Use --image or set CARES_RL_HPC_IMAGE."
         )
 
     if args.runtime <= 0:
