@@ -463,6 +463,25 @@ def create_SIMBAV2(observation_size, action_num, config: acf.SIMBAV2Config):
     )
 
 
+def create_MRQ(observation_size, action_num, config: acf.MRQConfig):
+    from cares_reinforcement_learning.algorithm.policy import MRQ
+    from cares_reinforcement_learning.networks.MRQ import Actor, Critic, Encoder
+
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
+    encoder = Encoder(observation_size["vector"], action_num, config=config)
+
+    device = hlp.get_device()
+    agent = MRQ(
+        actor_network=actor,
+        critic_network=critic,
+        encoder_network=encoder,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_DIAYN(observation_size, action_num, config: acf.DIAYNConfig):
     from cares_reinforcement_learning.algorithm.usd import DIAYN
     from cares_reinforcement_learning.networks.DIAYN import Discriminator

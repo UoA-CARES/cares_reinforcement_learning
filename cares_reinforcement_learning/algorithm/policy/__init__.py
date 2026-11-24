@@ -26,3 +26,4 @@ from .SDAR import SDAR
 from .TD7 import TD7
 from .SIMBA import SIMBA
 from .SIMBAV2 import SIMBAV2
+from .MRQ import MRQ

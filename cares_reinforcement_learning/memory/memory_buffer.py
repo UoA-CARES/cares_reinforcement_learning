@@ -36,6 +36,13 @@ class Sample(Generic[ExpType]):
     weights: np.ndarray
 
 
+@dataclass(frozen=True, slots=True)
+class SequenceSample(Generic[ExpType]):
+    sequences: list[list[ExpType]]
+    indices: list[int]
+    weights: np.ndarray
+
+
 class MemoryBuffer(ABC, Generic[ExpType]):
     """
     A prioritized replay buffer implementation for reinforcement learning.
@@ -461,6 +468,51 @@ class MemoryBuffer(ABC, Generic[ExpType]):
 
         return sample, next_sample
 
+    def sample_sequences(
+        self,
+        batch_size: int,
+        horizon: int,
+        prioritized: bool = False,
+        sampling_strategy: str = "simple",
+    ) -> SequenceSample[ExpType]:
+        """Sample sequences of consecutive experiences.
+
+        Sequences terminate at episode boundaries or the end of stored data.
+        """
+
+        if horizon < 1:
+            raise ValueError("horizon must be >= 1")
+
+        if prioritized:
+            starts = self.sample_priority(
+                batch_size,
+                sampling_strategy=sampling_strategy,
+            )
+        else:
+            starts = self.sample_uniform(batch_size)
+
+        sequences: list[list[ExpType]] = []
+
+        for start in starts.indices:
+            sequence: list[ExpType] = []
+
+            end = min(start + horizon, self.current_size)
+
+            for index in range(start, end):
+                experience = self.memory_buffers[index]
+                sequence.append(experience)
+
+                if experience.done_flag or experience.truncated_flag:
+                    break
+
+            sequences.append(sequence)
+
+        return SequenceSample(
+            sequences=sequences,
+            indices=starts.indices,
+            weights=starts.weights,
+        )
+
     def clear(self) -> None:
         """
         Clears the prioritised replay buffer.
@@ -515,6 +567,10 @@ class SARLMemoryBuffer(MemoryBuffer[SingleAgentExperience]):
     ):
         super().__init__(max_capacity, min_priority, beta, d_beta, n_step, gamma)
 
+        self._reward_abs_total = (
+            0.0  # Track the sum of absolute rewards for reward scaling
+        )
+
     def _apply_n_step(
         self, n_step_buffer: deque[SingleAgentExperience]
     ) -> SingleAgentExperience:
@@ -552,6 +608,39 @@ class SARLMemoryBuffer(MemoryBuffer[SingleAgentExperience]):
             info=first.info,
             train_data=first.train_data,
         )
+
+    def add(self, experience: SingleAgentExperience) -> None:
+        """Add an experience and update the stored absolute reward total."""
+
+        index = self.tree_pointer
+        previous_size = self.current_size
+
+        old_reward = (
+            abs(float(self.memory_buffers[index].reward))
+            if previous_size == self.max_capacity
+            else 0.0
+        )
+
+        super().add(experience)
+
+        # No experience was stored while the n-step buffer was filling.
+        if self.current_size == previous_size and previous_size < self.max_capacity:
+            return
+
+        new_reward = abs(float(self.memory_buffers[index].reward))
+        self._reward_abs_total += new_reward - old_reward
+
+    def reward_scale(self) -> float:
+        """Return the mean absolute reward currently stored in the buffer."""
+
+        if self.current_size == 0:
+            return 1.0
+
+        return self._reward_abs_total / self.current_size
+
+    def clear(self) -> None:
+        super().clear()
+        self._reward_abs_total = 0.0
 
 
 class MARLMemoryBuffer(MemoryBuffer[MultiAgentExperience]):
