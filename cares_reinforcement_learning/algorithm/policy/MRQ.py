@@ -565,7 +565,7 @@ class MRQ(SARLAlgorithm[np.ndarray]):
     ) -> dict[str, Any]:
         info: dict[str, Any] = {}
 
-        if len(memory_buffer) <= self.max_steps_exploration:
+        if len(memory_buffer) == 0:
             return info
 
         self.learn_counter += 1

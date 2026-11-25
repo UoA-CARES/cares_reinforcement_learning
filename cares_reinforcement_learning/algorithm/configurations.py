@@ -1821,7 +1821,7 @@ class MRQConfig(TD3Config):
 
     action_encoder_config: MLPConfig = MLPConfig(
         layers=[
-            TrainableLayer(layer_type="Linear", out_features=256),
+            TrainableLayer(layer_type="Linear"),
             FunctionLayer(layer_type="ELU"),
         ]
     )
