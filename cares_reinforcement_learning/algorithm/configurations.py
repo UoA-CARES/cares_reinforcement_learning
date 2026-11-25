@@ -1709,6 +1709,136 @@ class TD7Config(TD3Config):
     )
 
 
+class MRQConfig(TD3Config):
+    algorithm: str = "MRQ"
+
+    max_steps_exploration: int = 10_000
+    G: Literal[1] = Field(default=1)
+
+    # Training schedule and rollout horizons
+    tau: float = 1.0
+    target_update_freq: int = 250
+    policy_update_freq: int = 1
+
+    encoder_horizon: int = 5
+    q_horizon: int = 3
+
+    # Exploration noise
+    action_noise_start: float = 0.2
+    action_noise_end: float = 0.2
+    action_noise_decay: int = 1
+
+    # Target policy smoothing
+    policy_noise_start: float = 0.2
+    policy_noise_end: float = 0.2
+    policy_noise_decay: int = 1
+    policy_noise_clip: float = 0.3
+
+    pre_activation_weight: float = 1e-5
+
+    # Encoder loss weights
+    dynamics_weight: float = 1.0
+    reward_weight: float = 0.1
+    terminal_weight: float = 0.1
+
+    reward_bins: int = 65
+    reward_lower: float = -10.0
+    reward_upper: float = 10.0
+
+    # Representation sizes
+    zs_dim: int = 512
+    za_dim: int = 256
+    zsa_dim: int = 512
+
+    # Optimisers
+    actor_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"weight_decay": 1e-4}
+    )
+    critic_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"weight_decay": 1e-4}
+    )
+
+    encoder_lr: float = 1e-4
+    encoder_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"weight_decay": 1e-4}
+    )
+
+    critic_grad_clip: float = 20.0
+
+    # LAP: no importance sampling correction
+    use_per_buffer: Literal[1] = Field(default=1)
+    per_sampling_strategy: str = "simple"
+    per_weight_normalisation: str = "batch"
+    beta: float = 0.0
+    per_alpha: float = 0.4
+    min_priority: float = 1.0
+
+    # MR.Q requires raw one-step transitions for sequence sampling.
+    n_step: Literal[1] = Field(default=1)
+
+    # Existing MR.Q actor_config, critic_config, and encoder configs follow.
+
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ReLU"),
+            TrainableLayer(layer_type="Linear", in_features=512),
+        ]
+    )
+
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=1),
+        ]
+    )
+
+    state_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+        ]
+    )
+
+    action_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear"),
+            FunctionLayer(layer_type="ELU"),
+        ]
+    )
+
+    state_action_encoder_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=512, out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"elementwise_affine": False}),
+            FunctionLayer(layer_type="ELU"),
+            TrainableLayer(layer_type="Linear", in_features=512),
+        ]
+    )
+
+
 ###################################
 #          MARL Algorithms        #
 ###################################

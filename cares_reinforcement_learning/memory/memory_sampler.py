@@ -12,6 +12,7 @@ from cares_reinforcement_learning.memory.memory_buffer import (
     MARLMemoryBuffer,
     Sample,
     SARLMemoryBuffer,
+    SequenceSample,
 )
 from cares_reinforcement_learning.types.experience import (
     MultiAgentExperience,
@@ -45,6 +46,30 @@ class MARLTensorSample:
     done: dict[str, torch.Tensor]
     weights: torch.Tensor
     train_data: list[dict[str, Any]]
+
+
+@dataclass(frozen=True, slots=True)
+class SARLSequenceTensorSample:
+    observations: SARLObservationTensors
+    actions: torch.Tensor
+    rewards: torch.Tensor
+    terminated: torch.Tensor
+    truncated: torch.Tensor
+    valid: torch.Tensor
+    weights: torch.Tensor
+    train_data: list[list[dict[str, Any]]]
+
+
+@dataclass(frozen=True, slots=True)
+class MARLSequenceTensorSample:
+    observations: MARLObservationTensors
+    actions: dict[str, torch.Tensor]
+    rewards: dict[str, torch.Tensor]
+    terminated: dict[str, torch.Tensor]
+    truncated: dict[str, torch.Tensor]
+    valid: torch.Tensor
+    weights: torch.Tensor
+    train_data: list[list[dict[str, Any]]]
 
 
 def is_sarl_sample(
@@ -161,6 +186,210 @@ def observation_to_tensors(
 
     raise ValueError(
         f"Unknown observation type: {type(observations[0])} cannot convert to tensors."
+    )
+
+
+def _sequence_to_tensors_sarl(
+    buffer_sample: SequenceSample[SingleAgentExperience],
+    horizon: int,
+    device: torch.device,
+    action_dtype: torch.dtype = torch.float32,
+) -> SARLSequenceTensorSample:
+    """Convert SARL sequences into padded batch-first tensors."""
+
+    sequences = buffer_sample.sequences
+    batch_size = len(sequences)
+
+    train_data = [
+        [experience.train_data for experience in sequence] for sequence in sequences
+    ]
+
+    first = sequences[0][0]
+    action_shape = np.asarray(first.action).shape
+
+    # Flatten observations across batch and time.
+    # We can reuse observation_to_tensors() for vector and image states.
+    observations: list[SARLObservation] = []
+
+    actions = np.zeros(
+        (batch_size, horizon, *action_shape),
+        dtype=np.asarray(first.action).dtype,
+    )
+    rewards = np.zeros((batch_size, horizon, 1), dtype=np.float32)
+    terminated = np.zeros_like(rewards)
+    truncated = np.zeros_like(rewards)
+    valid = np.zeros_like(rewards)
+
+    for batch_index, sequence in enumerate(sequences):
+        observations.append(sequence[0].observation)
+
+        for step in range(horizon):
+            if step < len(sequence):
+                experience = sequence[step]
+
+                observations.append(experience.next_observation)
+
+                actions[batch_index, step] = experience.action
+                rewards[batch_index, step, 0] = experience.reward
+                terminated[batch_index, step, 0] = experience.done
+                truncated[batch_index, step, 0] = experience.truncated
+                valid[batch_index, step, 0] = 1.0
+            else:
+                # Repeat final next observation, with valid=0.
+                observations.append(sequence[-1].next_observation)
+
+    flat_observations = observation_to_tensors(observations, device)
+
+    def restore_time(tensor: torch.Tensor) -> torch.Tensor:
+        return tensor.reshape(batch_size, horizon + 1, *tensor.shape[1:])
+
+    observation_tensors = SARLObservationTensors(
+        vector_state=restore_time(flat_observations.vector_state),
+        image_state=(
+            restore_time(flat_observations.image_state)
+            if flat_observations.image_state is not None
+            else None
+        ),
+        available_actions=(
+            restore_time(flat_observations.available_actions)
+            if flat_observations.available_actions is not None
+            else None
+        ),
+    )
+
+    def tensor(array: np.ndarray) -> torch.Tensor:
+        return torch.as_tensor(
+            array,
+            dtype=torch.float32,
+            device=device,
+        )
+
+    return SARLSequenceTensorSample(
+        observations=observation_tensors,
+        actions=torch.as_tensor(
+            actions,
+            dtype=action_dtype,
+            device=device,
+        ),
+        rewards=tensor(rewards),
+        terminated=tensor(terminated),
+        truncated=tensor(truncated),
+        valid=tensor(valid),
+        weights=tensor(np.asarray(buffer_sample.weights).reshape(-1, 1)),
+        train_data=train_data,
+    )
+
+
+def _sequence_to_tensors_marl(
+    buffer_sample: SequenceSample[MultiAgentExperience],
+    horizon: int,
+    device: torch.device,
+    action_dtype: torch.dtype = torch.float32,
+) -> MARLSequenceTensorSample:
+    """Convert MARL sequences into padded batch-first tensors."""
+
+    sequences = buffer_sample.sequences
+    batch_size = len(sequences)
+
+    train_data = [
+        [experience.train_data for experience in sequence] for sequence in sequences
+    ]
+
+    first = sequences[0][0]
+    agent_ids = list(first.action.keys())
+
+    # Flatten the batch/time dimensions for the existing observation converter.
+    observations: list[MARLObservation] = []
+
+    actions: dict[str, list[np.ndarray]] = {agent: [] for agent in agent_ids}
+    rewards: dict[str, list[float]] = {agent: [] for agent in agent_ids}
+    terminated: dict[str, list[float]] = {agent: [] for agent in agent_ids}
+    truncated: dict[str, list[float]] = {agent: [] for agent in agent_ids}
+
+    valid = np.zeros((batch_size, horizon, 1), dtype=np.float32)
+
+    for batch_index, sequence in enumerate(sequences):
+        observations.append(sequence[0].observation)
+
+        # Zero padding must match each agent's action shape.
+        zero_actions = {
+            agent: np.zeros_like(np.asarray(first.action[agent])) for agent in agent_ids
+        }
+
+        for step in range(horizon):
+            if step < len(sequence):
+                experience = sequence[step]
+                observations.append(experience.next_observation)
+                valid[batch_index, step, 0] = 1.0
+
+                for agent in agent_ids:
+                    actions[agent].append(np.asarray(experience.action[agent]))
+                    rewards[agent].append(float(experience.reward[agent]))
+                    terminated[agent].append(float(experience.done[agent]))
+                    truncated[agent].append(float(experience.truncated[agent]))
+            else:
+                observations.append(sequence[-1].next_observation)
+
+                for agent in agent_ids:
+                    actions[agent].append(zero_actions[agent])
+                    rewards[agent].append(0.0)
+                    terminated[agent].append(0.0)
+                    truncated[agent].append(0.0)
+
+    # Existing converter produces (B * (H+1), ...).
+    flat_observations = observation_to_tensors(observations, device)
+
+    def restore_time(tensor: torch.Tensor) -> torch.Tensor:
+        return tensor.reshape(batch_size, horizon + 1, *tensor.shape[1:])
+
+    observation_tensors = MARLObservationTensors(
+        global_state=restore_time(flat_observations.global_state),
+        agent_states={
+            agent: restore_time(value)
+            for agent, value in flat_observations.agent_states.items()
+        },
+        available_actions={
+            agent: restore_time(value)
+            for agent, value in flat_observations.available_actions.items()
+        },
+    )
+
+    def tensor(array: np.ndarray) -> torch.Tensor:
+        return torch.as_tensor(
+            array,
+            dtype=torch.float32,
+            device=device,
+        )
+
+    return MARLSequenceTensorSample(
+        observations=observation_tensors,
+        actions={
+            agent: torch.as_tensor(
+                np.stack(values),
+                dtype=action_dtype,
+                device=device,
+            ).reshape(
+                batch_size,
+                horizon,
+                *np.asarray(first.action[agent]).shape,
+            )
+            for agent, values in actions.items()
+        },
+        rewards={
+            agent: tensor(np.asarray(values)).reshape(batch_size, horizon, 1)
+            for agent, values in rewards.items()
+        },
+        terminated={
+            agent: tensor(np.asarray(values)).reshape(batch_size, horizon, 1)
+            for agent, values in terminated.items()
+        },
+        truncated={
+            agent: tensor(np.asarray(values)).reshape(batch_size, horizon, 1)
+            for agent, values in truncated.items()
+        },
+        valid=tensor(valid),
+        weights=tensor(np.asarray(buffer_sample.weights).reshape(-1, 1)),
+        train_data=train_data,
     )
 
 
@@ -437,6 +666,72 @@ def consecutive_sample(
         (sample_tensors_one, sample_tensors_two),
         np.asarray(buffer_sample_one.indices),
     )  # type: ignore[return-value]
+
+
+@overload
+def sample_sequences(
+    memory: SARLMemoryBuffer,
+    batch_size: int,
+    horizon: int,
+    device: torch.device,
+    use_per_buffer: int = 0,
+    per_sampling_strategy: str = "simple",
+    action_dtype: torch.dtype = torch.float32,
+) -> tuple[SARLSequenceTensorSample, np.ndarray]: ...
+
+
+@overload
+def sample_sequences(
+    memory: MARLMemoryBuffer,
+    batch_size: int,
+    horizon: int,
+    device: torch.device,
+    use_per_buffer: int = 0,
+    per_sampling_strategy: str = "simple",
+    action_dtype: torch.dtype = torch.float32,
+) -> tuple[MARLSequenceTensorSample, np.ndarray]: ...
+
+
+def sample_sequences(
+    memory: SARLMemoryBuffer | MARLMemoryBuffer,
+    batch_size: int,
+    horizon: int,
+    device: torch.device,
+    use_per_buffer: int = 0,
+    per_sampling_strategy: str = "simple",
+    action_dtype: torch.dtype = torch.float32,
+) -> tuple[
+    SARLSequenceTensorSample | MARLSequenceTensorSample,
+    np.ndarray,
+]:
+    """Sample consecutive experiences and convert them to tensors."""
+
+    buffer_sample = memory.sample_sequences(
+        batch_size=batch_size,
+        horizon=horizon,
+        prioritized=bool(use_per_buffer),
+        sampling_strategy=per_sampling_strategy,
+    )
+
+    if not buffer_sample.sequences:
+        raise ValueError("Cannot sample sequences from an empty replay buffer")
+
+    indices = np.asarray(buffer_sample.indices)
+
+    if isinstance(memory, SARLMemoryBuffer):
+        return (
+            _sequence_to_tensors_sarl(
+                buffer_sample, horizon, device, action_dtype=action_dtype
+            ),
+            indices,
+        )
+
+    return (
+        _sequence_to_tensors_marl(
+            buffer_sample, horizon, device, action_dtype=action_dtype
+        ),
+        indices,
+    )
 
 
 @overload

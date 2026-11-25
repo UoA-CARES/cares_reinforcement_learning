@@ -1,9 +1,9 @@
 import torch
 from torch import nn
 
+from cares_reinforcement_learning.algorithm.configurations import TD7Config
 from cares_reinforcement_learning.networks import functional as fnc
 from cares_reinforcement_learning.networks.mlp_architecture import MLP
-from cares_reinforcement_learning.algorithm.configurations import TD7Config
 
 
 class BaseActor(nn.Module):
