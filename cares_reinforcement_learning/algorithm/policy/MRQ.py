@@ -3,24 +3,69 @@ MR.Q (Model-based Representations for Q-learning)
 ----------------------------------------------------
 
 Original Paper: https://arxiv.org/abs/2501.16142
+Original Implementation: https://github.com/facebookresearch/MRQ
 
-MR.Q combines model-based representation learning with an off-policy
-actor-critic algorithm.
+MR.Q is an off-policy actor-critic algorithm that learns predictive representations
+of the environment to improve sample efficiency and generalization in continuous control.
 
-Core Components:
-- State and state-action representations learned through a latent dynamics model.
-- Multi-step latent dynamics, reward, and termination prediction.
-- Decoupled representation learning and actor-critic optimisation.
-- Twin critics with target policy smoothing.
-- Multi-step value targets.
-- Loss-Adjusted Prioritized (LAP) replay.
-- Adaptive reward scaling.
+Core Problem:
+- Conventional model-free RL learns value functions directly from observations.
+- High-dimensional observations can make value learning inefficient and unstable.
+- Learned representations may lack useful information about environment dynamics.
+- Jointly optimizing representations and Q-values can cause conflicting gradients.
 
-The encoder is trained separately from the actor and critic using uniformly
-sampled sequences. Actor-critic updates use prioritized sequences.
+Core Idea:
+- Learn state and state-action representations through predictive modeling.
+- Train the representation model separately from the actor and critic.
+- Use the learned representations for policy and value learning.
+- Combine multi-step Q-learning with reward normalization and prioritized replay.
 
-The target networks are periodically updated using hard parameter copies,
-followed by a block of encoder training updates.
+Key Mechanisms:
+
+1) Model-based Representation Learning:
+    - Encode observations into latent state representations z_s.
+    - Combine state and action embeddings into z_sa.
+    - Predict the next latent state, reward, and termination from z_sa.
+    - Train the encoder using multi-step sequences from replay.
+
+2) Decoupled Representation and Value Learning:
+    - Train the encoder using dynamics, reward, and termination prediction losses.
+    - Train the actor and critics using the learned latent representations.
+    - Prevent actor-critic gradients from updating the encoder.
+    - Periodically synchronize target networks and perform blocks of encoder updates.
+
+3) Multi-step Q-learning:
+    - Use twin critics to reduce value overestimation.
+    - Construct multi-step discounted reward targets.
+    - Bootstrap using target networks and target policy smoothing.
+    - Normalize Q-targets using the replay buffer's reward scale.
+
+4) Loss-Adjusted Prioritized Replay (LAP):
+    - Prioritize transitions using clipped absolute TD-errors:
+        priority = max(|TD-error|, min_priority)^alpha
+    - Focus sampling on transitions with larger prediction errors.
+    - Avoid importance-sampling correction.
+
+5) Actor Optimization:
+    - Learn a deterministic policy that maximizes the average twin-Q estimate.
+    - Regularize policy pre-activations to discourage excessive action saturation.
+    - Apply Gaussian exploration noise during environment interaction.
+
+Key Behaviour:
+- Predictive representations encourage the encoder to capture useful dynamics.
+- Decoupled optimization reduces interference between representation and value learning.
+- Multi-step targets propagate reward information across several transitions.
+- Reward normalization improves learning across different reward scales.
+- LAP prioritizes informative experiences without importance-sampling weights.
+
+Advantages:
+- Improves sample efficiency through predictive representation learning.
+- Supports stable value learning with twin critics and reward normalization.
+- Can generalize across continuous-control tasks with different reward scales.
+- Uses a learned dynamics representation without generating model-based rollouts.
+
+MR.Q = predictive latent representations + decoupled actor-critic learning
+       + multi-step Q-learning + reward normalization + LAP replay.
 """
 
 import copy
