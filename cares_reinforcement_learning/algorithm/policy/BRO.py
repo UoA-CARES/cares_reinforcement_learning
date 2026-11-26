@@ -462,14 +462,18 @@ class BRO(SAC):
     ) -> dict[str, Any]:
         # Runner calls train() G times at the same environment step.
         step = episode_context.training_step + 1
-        reset = step in self.reset_steps and step != self.last_reset_step
+        reset = any(
+            self.last_reset_step < reset_step <= step for reset_step in self.reset_steps
+        )
         if reset:
             self._reset_networks()
             self.last_reset_step = step
 
         info = super().train(memory_buffer, episode_context)
 
-        info["network_reset"] = reset
+        info["network_reset"] = (
+            step - episode_context.episode_steps < self.last_reset_step <= step
+        )
 
         return info
 

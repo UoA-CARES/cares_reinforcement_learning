@@ -89,7 +89,7 @@ class SIMBAV2NetworkConfig(BaseModel):
 
 
 class BroNetBlockLayer(BaseModel):
-    layer_type: Literal["BroNetBlock"] = "BroNetBlock"
+    layer_category: Literal["bro_block"] = "bro_block"
 
 
 class MLPConfig(BaseModel):
@@ -1765,7 +1765,6 @@ class BROConfig(SACConfig):
     optimism_lr: float = 3e-5
     kl_lr: float = 3e-5
 
-    # Network resets (BRO Fast)
     # Full BRO reset schedule
     reset_steps: tuple[int, ...] = (
         15_001,
