@@ -3,13 +3,113 @@ BRO (Bigger, Regularized, Optimistic)
 ------------------------------------
 
 Original Paper: https://arxiv.org/abs/2405.16158
-Original Implementation: https://github.com/naumix/BiggerRegularizedOptimistic
+Original Code: https://github.com/naumix/BiggerRegularizedOptimistic
 
-BRO extends SAC with large residual networks, quantile critics, and a separate
-optimistic exploration actor. The exploration actor learns a mean adjustment
-relative to the standard SAC actor and is constrained by a Gaussian KL penalty.
-Periodic complete network resets regularize training while preserving replay.
-The CARES RL TrainingRunner controls the update-to-data ratio through G.
+BRO extends Soft Actor-Critic (SAC) with larger residual networks,
+distributional value learning, regularization, and optimistic exploration
+to improve sample efficiency and performance in continuous control.
+
+Core Idea:
+- Scale actor and critic networks using BroNet residual architectures.
+- Maintain network plasticity through weight decay and periodic resets.
+- Learn return distributions using twin quantile critics.
+- Explore using an optimistic policy guided by critic disagreement.
+
+Key Component 1 — Bigger, Regularized Networks
+-----------------------------------------------
+BRO uses residual multilayer perceptrons with LayerNorm (BroNet)
+to support larger actor and critic architectures.
+
+Regularization includes:
+    - AdamW optimization with weight decay.
+    - Periodic network and optimizer resets.
+    - Retaining the replay buffer across resets.
+
+These mechanisms help maintain learning capacity during training.
+
+Key Component 2 — Distributional Value Learning
+------------------------------------------------
+Each critic predicts N quantiles of the return distribution:
+
+    Z1(s,a) = {q1_1, ..., q1_N}
+    Z2(s,a) = {q2_1, ..., q2_N}
+
+BRO combines the critics using:
+
+    Z(s,a) = (Z1 + Z2)/2 - p * |Z1 - Z2|/2
+
+where:
+    p controls pessimism (default 0).
+
+Unlike SAC's clipped double-Q learning, BRO defaults to averaging
+the critics rather than taking their minimum.
+
+Critics are trained using quantile Huber regression.
+
+Key Component 3 — Optimistic Exploration
+-----------------------------------------
+BRO maintains two separate policies:
+
+    Standard actor:
+        Learns to maximize expected return with SAC entropy regularization.
+
+    Optimistic actor:
+        Learns an exploration policy using critic disagreement.
+
+The optimistic actor adjusts the standard actor's Gaussian mean:
+
+    mu_o = mu_c + delta_mu(s, mu_c)
+    sigma_o = m * sigma_c
+
+where m is the exploration standard-deviation multiplier.
+
+The optimistic actor maximizes an upper-confidence value estimate:
+
+    Q_upper = (Q1 + Q2)/2 + beta * |Q1 - Q2|/2
+
+where beta controls the strength of optimism.
+
+Key Component 4 — Adaptive Exploration Regularization
+------------------------------------------------------
+The optimistic actor is constrained to remain close to the
+standard actor using KL divergence:
+
+    L_optimistic = -E[Q_upper] + lambda * KL(pi_o || pi_c)
+
+BRO automatically adapts:
+    - beta: optimism strength.
+    - lambda: KL regularization strength.
+
+Both coefficients are adjusted to maintain a target KL divergence
+between the standard and optimistic policies.
+
+Key Component 5 — Network Resets
+---------------------------------
+BRO periodically resets:
+    - Standard and optimistic actors.
+    - Critic and target critic.
+    - Optimizer states and adaptive coefficients.
+
+The replay buffer is preserved, allowing newly initialized networks
+to learn from previously collected experience.
+
+BRO (Fast) uses fewer gradient updates and resets than full BRO.
+
+Key Behaviour:
+- Optimistic policy collects experience during training.
+- Standard policy is used for evaluation and critic bootstrapping.
+- Distributional critics provide return estimates and disagreement.
+- Adaptive KL regularization controls exploration.
+- Larger residual networks and resets support continued learning.
+
+Algorithm Summary:
+------------------
+BRO = SAC
+      + BroNet residual networks
+      + twin quantile critics
+      + optimistic exploration policy
+      + adaptive KL regularization
+      + weight decay and periodic resets.
 """
 
 import logging
