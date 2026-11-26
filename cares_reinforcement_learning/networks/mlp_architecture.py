@@ -5,6 +5,7 @@ from torch import nn
 
 import cares_reinforcement_learning.networks.activation_functions as afs
 from cares_reinforcement_learning.algorithm.configurations import (
+    BroNetBlockLayer,
     FunctionLayer,
     MLPConfig,
     NormLayer,
@@ -13,6 +14,7 @@ from cares_reinforcement_learning.algorithm.configurations import (
     TrainableLayer,
 )
 from cares_reinforcement_learning.networks.batchrenorm import BatchRenorm1d
+from cares_reinforcement_learning.networks.bro_architecture import BroNetBlock
 from cares_reinforcement_learning.networks.noisy_linear import NoisyLinear
 from cares_reinforcement_learning.networks.simba_architecture import SIMBABlock
 
@@ -74,6 +76,9 @@ class MLP(nn.Module):
                 layer = MLPResidualBlock(current_input_size, layer_spec)
             elif isinstance(layer_spec, SIMBABlockLayer):
                 layer = SIMBABlock(current_input_size)
+                current_output_size = current_input_size
+            elif isinstance(layer_spec, BroNetBlockLayer):
+                layer = BroNetBlock(current_input_size)
                 current_output_size = current_input_size
             else:
                 raise ValueError(f"Unknown layer type {layer_spec}")
