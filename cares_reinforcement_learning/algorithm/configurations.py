@@ -88,9 +88,18 @@ class SIMBAV2NetworkConfig(BaseModel):
     num_blocks: int
 
 
+class BroNetBlockLayer(BaseModel):
+    layer_type: Literal["BroNetBlock"] = "BroNetBlock"
+
+
 class MLPConfig(BaseModel):
     layers: list[
-        TrainableLayer | NormLayer | FunctionLayer | ResidualLayer | SIMBABlockLayer
+        TrainableLayer
+        | NormLayer
+        | FunctionLayer
+        | ResidualLayer
+        | SIMBABlockLayer
+        | BroNetBlockLayer
     ]
 
 
@@ -1655,7 +1664,7 @@ class TD7Config(TD3Config):
     target_update_rate: int = 250
 
     max_eps_checkpointing: int = 20
-    steps_before_checkpointing: int = 75000
+    steps_before_checkpointing: int = 750000
     reset_weight: float = 0.9
 
     G: Literal[1] = Field(default=1)
@@ -1705,6 +1714,99 @@ class TD7Config(TD3Config):
             TrainableLayer(layer_type="Linear", in_features=256, out_features=256),
             FunctionLayer(layer_type="ELU"),
             TrainableLayer(layer_type="Linear", in_features=256),
+        ]
+    )
+
+
+class BROConfig(SACConfig):
+    algorithm: str = "BRO"
+
+    # BRO (Fast): G=2. Full BRO uses G=10.
+    G: int = 10
+    batch_size: int = 128
+    max_steps_exploration: int = 2_500
+
+    # Optimisers
+    optimiser: Literal["AdamW"] = "AdamW"
+
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    alpha_lr: float = 3e-4
+
+    actor_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"weight_decay": 1e-4}
+    )
+    critic_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {"weight_decay": 1e-4}
+    )
+    alpha_lr_params: dict[str, Any] = Field(
+        default_factory=lambda: {
+            "betas": (0.5, 0.999),
+            "weight_decay": 0.0,
+        }
+    )
+
+    # SAC entropy
+    initial_alpha: float = 1.0
+    target_entropy_scale: float = 0.5
+    log_std_bounds: list[float] = [-10.0, 2.0]
+
+    # Distributional critic
+    num_quantiles: int = 100
+    quantile_huber_kappa: float = 1.0
+    pessimism: float = 0.0
+
+    # Optimistic exploration
+    optimistic_std_multiplier: float = 0.75
+    initial_optimism: float = 1.0
+    initial_kl_weight: float = 0.25
+    kl_target: float = 0.05
+
+    optimism_lr: float = 3e-5
+    kl_lr: float = 3e-5
+
+    # Network resets (BRO Fast)
+    # Full BRO reset schedule
+    reset_steps: tuple[int, ...] = (
+        15_001,
+        50_001,
+        250_001,
+        500_001,
+        750_001,
+        1_000_001,
+        1_500_001,
+        2_000_001,
+    )
+
+    # Standard actor: 256 hidden units, one BroNet block
+    actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            NormLayer(layer_type="LayerNorm", params={"eps": 1e-6}),
+            FunctionLayer(layer_type="ReLU"),
+            BroNetBlockLayer(),
+        ]
+    )
+
+    # Optimistic actor: observation + standard actor mean
+    optimistic_actor_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=256),
+            NormLayer(layer_type="LayerNorm", params={"eps": 1e-6}),
+            FunctionLayer(layer_type="ReLU"),
+            BroNetBlockLayer(),
+        ]
+    )
+
+    # Twin quantile critics: 512 hidden units, two BroNet blocks
+    critic_config: MLPConfig = MLPConfig(
+        layers=[
+            TrainableLayer(layer_type="Linear", out_features=512),
+            NormLayer(layer_type="LayerNorm", params={"eps": 1e-6}),
+            FunctionLayer(layer_type="ReLU"),
+            BroNetBlockLayer(),
+            BroNetBlockLayer(),
+            TrainableLayer(layer_type="Linear"),
         ]
     )
 

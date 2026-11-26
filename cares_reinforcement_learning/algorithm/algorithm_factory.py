@@ -463,6 +463,33 @@ def create_SIMBAV2(observation_size, action_num, config: acf.SIMBAV2Config):
     )
 
 
+def create_BRO(observation_size, action_num, config: acf.BROConfig):
+    from cares_reinforcement_learning.algorithm.policy import BRO
+    from cares_reinforcement_learning.networks.BRO.actor import Actor
+    from cares_reinforcement_learning.networks.BRO.critic import Critic
+    from cares_reinforcement_learning.networks.BRO.optimistic_actor import (
+        OptimisticActor,
+    )
+
+    actor = Actor(observation_size["vector"], action_num, config=config)
+    critic = Critic(observation_size["vector"], action_num, config=config)
+    optimistic_actor = OptimisticActor(
+        observation_size["vector"],
+        action_num,
+        config=config,
+    )
+
+    device = hlp.get_device()
+    agent = BRO(
+        actor_network=actor,
+        critic_network=critic,
+        optimistic_actor_network=optimistic_actor,
+        config=config,
+        device=device,
+    )
+    return agent
+
+
 def create_MRQ(observation_size, action_num, config: acf.MRQConfig):
     from cares_reinforcement_learning.algorithm.policy import MRQ
     from cares_reinforcement_learning.networks.MRQ import Actor, Critic, Encoder
